@@ -1,0 +1,261 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-ink: #0c0d0b;
+  --color-ink-soft: #141512;
+  --color-panel: #1a1c18;
+  --color-panel-2: #22251f;
+  --color-ivory: #f3ead8;
+  --color-cream: #e8dcc4;
+  --color-mist: #b7b1a4;
+  --color-forest: #3f5d4e;
+  --color-forest-2: #4d7260;
+  --color-walnut: #6b4f3a;
+  --color-gold-line: #c4b08a;
+  --color-danger: #b54a3c;
+  --color-success: #5c7a62;
+  --color-piece-w: #f3ead8;
+  --color-piece-b: #161310;
+  --color-line: color-mix(in oklab, var(--color-ivory) 12%, transparent);
+  --color-line-strong: color-mix(in oklab, var(--color-ivory) 22%, transparent);
+
+  --color-background: var(--color-ink);
+  --color-foreground: var(--color-ivory);
+  --color-card: var(--color-panel);
+  --color-card-foreground: var(--color-ivory);
+  --color-primary: var(--color-forest);
+  --color-primary-foreground: var(--color-ivory);
+  --color-secondary: var(--color-panel-2);
+  --color-secondary-foreground: var(--color-ivory);
+  --color-muted: var(--color-panel-2);
+  --color-muted-foreground: var(--color-mist);
+  --color-accent: var(--color-forest);
+  --color-accent-foreground: var(--color-ivory);
+  --color-destructive: var(--color-danger);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line-strong);
+  --color-ring: var(--color-forest-2);
+
+  --font-display: "Cormorant Garamond", "Times New Roman", serif;
+  --font-sans: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 32px;
+
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.5rem;
+  --text-2xl: clamp(1.75rem, 1.2rem + 1.6vw, 2.35rem);
+  --text-3xl: clamp(2.4rem, 1.5rem + 3vw, 4.2rem);
+  --text-4xl: clamp(3rem, 1.8rem + 4vw, 5.4rem);
+
+  --tracking-display: -0.03em;
+  --tracking-wordmark: 0.22em;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html.light {
+  --color-gold-line: #6b4f3a;
+  --color-ink: #f6f1e4;
+  --color-ink-soft: #efe8d6;
+  --color-panel: #fffdf8;
+  --color-panel-2: #efe6d4;
+  --color-ivory: #1c1914;
+  --color-cream: #2a241c;
+  --color-mist: #6d665b;
+  --color-line: color-mix(in oklab, #1c1914 12%, transparent);
+  --color-line-strong: color-mix(in oklab, #1c1914 20%, transparent);
+  --color-background: #f6f1e4;
+  --color-foreground: #1c1914;
+  --color-card: #fffdf8;
+  --color-card-foreground: #1c1914;
+  --color-muted: #efe6d4;
+  --color-muted-foreground: #6d665b;
+  --color-secondary: #efe6d4;
+  --color-secondary-foreground: #1c1914;
+  --color-primary-foreground: #f3ead8;
+  --color-accent-foreground: #f3ead8;
+  --color-border: color-mix(in oklab, #1c1914 12%, transparent);
+  --color-input: color-mix(in oklab, #1c1914 20%, transparent);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100%;
+    background: var(--color-ink);
+    color: var(--color-ivory);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+    letter-spacing: var(--tracking-display);
+    line-height: 1.12;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-forest) 55%, black);
+    color: var(--color-cream);
+  }
+}
+
+.club-wash {
+  background-color: var(--color-ink);
+  background-image:
+    radial-gradient(900px 420px at 12% -10%, color-mix(in oklab, var(--color-forest) 22%, transparent), transparent 58%),
+    radial-gradient(800px 380px at 92% 108%, color-mix(in oklab, var(--color-walnut) 20%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, var(--color-ink) 88%, #1a1c16) 0%, var(--color-ink) 42%, var(--color-ink) 100%);
+}
+
+html.light .club-wash {
+  background-color: #f7f3ea;
+  background-image:
+    radial-gradient(900px 420px at 12% -10%, color-mix(in oklab, var(--color-forest) 16%, transparent), transparent 58%),
+    radial-gradient(800px 380px at 92% 108%, color-mix(in oklab, var(--color-walnut) 12%, transparent), transparent 55%),
+    linear-gradient(180deg, #fbf7ee 0%, #f6f1e4 48%, #f3ead8 100%);
+}
+
+.check-wash {
+  background-color: transparent;
+  background-image:
+    linear-gradient(45deg, color-mix(in oklab, var(--color-walnut) 16%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in oklab, var(--color-walnut) 16%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in oklab, var(--color-walnut) 16%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in oklab, var(--color-walnut) 16%, transparent) 75%);
+  background-size: 56px 56px;
+  background-position: 0 0, 0 28px, 28px -28px, -28px 0;
+  mask-image: radial-gradient(ellipse at center, black 8%, transparent 72%);
+}
+
+html.light .check-wash {
+  background-image:
+    linear-gradient(45deg, color-mix(in oklab, var(--color-walnut) 10%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in oklab, var(--color-walnut) 10%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in oklab, var(--color-walnut) 10%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in oklab, var(--color-walnut) 10%, transparent) 75%);
+}
+
+.board-grid {
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--color-ivory) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--color-ivory) 7%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 72%);
+}
+
+.board-frame {
+  border: 10px solid var(--color-walnut);
+  box-shadow:
+    inset 0 0 0 3px var(--color-cream),
+    0 22px 50px -28px rgba(0, 0, 0, 0.55);
+  background: var(--color-walnut);
+}
+
+.file-rail {
+  font-family: var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
+.felt-inset {
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--color-forest) 28%, transparent), transparent 55%),
+    var(--color-panel);
+}
+
+html.light .felt-inset {
+  background:
+    radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--color-forest) 18%, transparent), transparent 55%),
+    var(--color-panel);
+}
+
+html.light .bg-ivory:hover,
+html.light .hover\:bg-cream:hover {
+  background-color: #1c1914 !important;
+  color: #f6f1e4 !important;
+}
+
+@media (max-width: 1024px) {
+  .tablet-hud {
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.auth-wood {
+  background-color: var(--color-ink);
+  background-image:
+    linear-gradient(180deg, color-mix(in oklab, var(--color-ink) 28%, transparent), color-mix(in oklab, var(--color-ink) 86%, transparent)),
+    repeating-linear-gradient(90deg, #2a1c12 0 48px, #23180f 48px 96px);
+}
+html.light .auth-wood {
+  background-image:
+    linear-gradient(180deg, color-mix(in oklab, var(--color-ink) 18%, transparent), color-mix(in oklab, var(--color-ink) 55%, transparent)),
+    repeating-linear-gradient(90deg, #e8dcc4 0 48px, #efe6d4 48px 96px);
+}
+
+.morse-enter-spin {
+  transform-origin: 50px 50px;
+  animation: morse-enter-spin 1.15s linear infinite;
+}
+
+@keyframes morse-enter-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
