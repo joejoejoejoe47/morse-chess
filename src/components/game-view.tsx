@@ -21,6 +21,7 @@ import { ClubBrand } from "@/components/club-brand";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { LiveCall } from "@/components/live-call";
+import { RobotSeat } from "@/components/robot-seat";
 import { equippedSkin } from "@/lib/chess/board-skins";
 import { cn } from "@/lib/utils";
 
@@ -118,7 +119,6 @@ export function GameView({ gameId }: { gameId: string }) {
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
   const [view, setView] = useState<BoardView>(readBoardView);
   const [draft, setDraft] = useState("");
-  const [seatVideo, setSeatVideo] = useState<HTMLVideoElement | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const lastSan = useRef<string | null>(null);
   const plyRef = useRef(0);
@@ -367,8 +367,7 @@ export function GameView({ gameId }: { gameId: string }) {
             >
               <ChessBoard3D
                 {...boardProps}
-                tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
-                seatVideo={seatVideo}
+                tableSeat={cameraOn && vsBot ? "bot" : null}
               />
             </Suspense>
           )}
@@ -399,16 +398,21 @@ export function GameView({ gameId }: { gameId: string }) {
           />
         </div>
         {over ? <ResultOverlay game={game} /> : null}
-        {cameraOn && !vsBot ? (
-          <LiveCall
-            gameId={game.id}
-            selfId={selfId}
-            name={myName}
-            audio={false}
-            video
-            hud={false}
-            onRemoteVideo={setSeatVideo}
-          />
+        {cameraOn ? (
+          <div className="pointer-events-none absolute left-1/2 top-8 z-10 -translate-x-1/2">
+            {vsBot ? (
+              <RobotSeat name={opp.username} />
+            ) : (
+              <LiveCall
+                gameId={game.id}
+                selfId={selfId}
+                name={myName}
+                audio={false}
+                video
+                showRemoteVideo
+              />
+            )}
+          </div>
         ) : null}
         {game.chatOpen ? (
           <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[48%] flex-col border-t border-line bg-ink/95 backdrop-blur-md sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[min(100%,20rem)] sm:border-l sm:border-t-0">
