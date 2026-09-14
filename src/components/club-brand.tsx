@@ -55,8 +55,8 @@ export function ClubHeaderActions({
         </span>
       ) : null}
       <ThemeToggle className="rounded-full" />
-      {extra}
       <ClubSignOut className="rounded-full" />
+      {extra}
     </div>
   );
 }

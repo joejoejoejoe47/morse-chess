@@ -55,26 +55,26 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
         locateFile: (file) =>
           `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
       });
-      seg.setOptions({ modelSelection: 0, selfieMode: false });
+      seg.setOptions({ modelSelection: 1, selfieMode: false });
       seg.onResults((r) => {
         if (!running) return;
         const w = canvas.width;
         const h = canvas.height;
         maskDraw.clearRect(0, 0, w, h);
-        maskDraw.filter = "blur(10px) contrast(140%)";
+        maskDraw.filter = "contrast(180%) brightness(108%) blur(2px)";
         maskDraw.drawImage(r.segmentationMask, 0, 0, w, h);
         maskDraw.filter = "none";
 
-        draw.fillStyle = "#000000";
+        draw.fillStyle = "#00FF00";
         draw.fillRect(0, 0, w, h);
         draw.save();
         draw.drawImage(mask, 0, 0);
         draw.globalCompositeOperation = "source-in";
-        draw.drawImage(r.image, 0, 0, w, h);
+        const zoom = 1.62;
+        const dw = w * zoom;
+        const dh = h * zoom;
+        draw.drawImage(r.image, (w - dw) / 2, h * 0.04 - (dh - h) * 0.22, dw, dh);
         draw.restore();
-        draw.globalCompositeOperation = "destination-over";
-        draw.fillStyle = "#000000";
-        draw.fillRect(0, 0, w, h);
         draw.globalCompositeOperation = "source-over";
       });
     }
@@ -88,14 +88,14 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
       if (seg) {
         await seg.send({ image: video }).catch(() => undefined);
       } else {
-        draw.fillStyle = "#000000";
+        draw.fillStyle = "#00FF00";
         draw.fillRect(0, 0, canvas.width, canvas.height);
         const vw = video.videoWidth || 720;
         const vh = video.videoHeight || 1000;
-        const scale = Math.max(canvas.width / vw, canvas.height / vh);
+        const scale = Math.max(canvas.width / vw, canvas.height / vh) * 1.5;
         const dw = vw * scale;
         const dh = vh * scale;
-        draw.drawImage(video, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+        draw.drawImage(video, (canvas.width - dw) / 2, canvas.height * 0.06 - (dh - canvas.height) * 0.2, dw, dh);
       }
     }
     if (running) requestAnimationFrame(() => void tick());

@@ -202,20 +202,32 @@ export function ClubHome() {
   }
 
   return (
-    <main className="relative mx-auto min-h-dvh w-full max-w-6xl px-4 py-5 sm:px-8 sm:py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <main className="relative mx-auto min-h-dvh w-full max-w-6xl px-4 py-3 sm:px-8 sm:py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="check-wash pointer-events-none absolute inset-0" />
-      <header className="relative flex flex-wrap items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-ink/88 px-4 py-3 backdrop-blur-md sm:-mx-8 sm:px-8">
         <ClubBrand />
-        <ClubHeaderActions username={home.profile.username} score={home.profile.score} />
+        <ClubHeaderActions
+          username={home.profile.username}
+          score={home.profile.score}
+          extra={
+            <Link
+              to="/boards"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-line/55 bg-walnut px-5 text-[15px] font-medium text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] hover:border-gold-line hover:text-ivory"
+            >
+              <PieceMark kind="k" className="size-4 text-cream" />
+              Board
+            </Link>
+          }
+        />
       </header>
 
-      <section className="relative mt-10">
+      <section className="relative mt-5">
         <p className="text-xs uppercase tracking-[0.2em] text-mist">The lounge</p>
         <h1 className="mt-2 max-w-2xl font-display text-4xl text-ivory">Your board is waiting.</h1>
         <p className="mt-3 max-w-xl text-base text-mist">
           Pull a random seat. Everyone online is asked. First yes sits. Two randoms in the same five
           seconds pair at once. Alone in the chair, MorseBot sits. Timed games give each player one
-          minute a turn. The Board cabinet is at the bottom of the lounge.
+          minute a turn.
         </p>
         {error && flow.kind === "idle" ? <p className="mt-3 text-base text-danger">{error}</p> : null}
       </section>
@@ -395,11 +407,6 @@ export function ClubHome() {
         </div>
       </section>
 
-      <div className="relative mt-12 flex justify-center">
-        <Button asChild variant="solid" size="lg" className="min-w-40 rounded-full px-10">
-          <Link to="/boards">Board</Link>
-        </Button>
-      </div>
       <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
 
       {(flow.kind !== "idle" || home.queued) && (

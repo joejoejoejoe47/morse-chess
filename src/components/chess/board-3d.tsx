@@ -380,10 +380,12 @@ uniform sampler2D map;
 varying vec2 vUv;
 void main() {
   vec4 c = texture2D(map, vUv);
-  float luma = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-  if (luma < 0.06) discard;
-  float a = smoothstep(0.06, 0.2, luma);
-  gl_FragColor = vec4(c.rgb, a);
+  float green = c.g - max(c.r, c.b);
+  float key = distance(c.rgb, vec3(0.0, 1.0, 0.0));
+  if (green > 0.22 && key < 0.82) discard;
+  if (c.g > 0.55 && c.r < 0.38 && c.b < 0.38) discard;
+  c.g = min(c.g, max(c.r, c.b) * 1.08);
+  gl_FragColor = vec4(c.rgb, 1.0);
 }
 `;
 
@@ -431,7 +433,7 @@ function TableSeat({
   video: HTMLVideoElement | null;
 }) {
   const behindFar = you === "w";
-  const z = behindFar ? -6.45 : 6.45;
+  const z = behindFar ? -5.55 : 5.55;
   const rotY = behindFar ? 0 : Math.PI;
   const [tex, setTex] = useState<THREE.VideoTexture | null>(null);
 
@@ -468,9 +470,9 @@ function TableSeat({
 
   if (!tex) return null;
 
-  const w = 4.5;
-  const h = 6.2;
-  const y = h * 0.46;
+  const w = 6.6;
+  const h = 8.8;
+  const y = h * 0.42;
   return (
     <mesh position={[0, y, z]} rotation={[0, rotY, 0]} renderOrder={2}>
       <planeGeometry args={[w, h]} />
