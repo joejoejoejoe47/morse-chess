@@ -65,7 +65,7 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
         maskDraw.drawImage(r.segmentationMask, 0, 0, w, h);
         maskDraw.filter = "none";
 
-        draw.fillStyle = "#00FF00";
+        draw.fillStyle = "#FF00FF";
         draw.fillRect(0, 0, w, h);
         draw.save();
         draw.drawImage(mask, 0, 0);
@@ -88,7 +88,7 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
       if (seg) {
         await seg.send({ image: video }).catch(() => undefined);
       } else {
-        draw.fillStyle = "#00FF00";
+        draw.fillStyle = "#FF00FF";
         draw.fillRect(0, 0, canvas.width, canvas.height);
         const vw = video.videoWidth || 720;
         const vh = video.videoHeight || 1000;
