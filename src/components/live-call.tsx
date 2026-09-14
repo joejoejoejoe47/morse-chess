@@ -150,7 +150,7 @@ export function LiveCall({
       try {
         const raw = await navigator.mediaDevices.getUserMedia({
           audio,
-          video: video ? { facingMode: "user", width: { ideal: 480 }, height: { ideal: 640 } } : false,
+          video: video ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 860 } } : false,
         });
         if (closed) {
           raw.getTracks().forEach((t) => t.stop());
@@ -195,7 +195,7 @@ export function LiveCall({
   return (
     <div className={cn("flex flex-col", showRemoteVideo && "gap-2")}>
       {showRemoteVideo ? (
-        <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-t-[2.2rem] bg-ink">
+        <div className="relative mx-auto h-52 w-36 overflow-hidden rounded-t-[2.8rem] bg-ink sm:h-64 sm:w-44">
           <video
             ref={remoteVideoRef}
             autoPlay

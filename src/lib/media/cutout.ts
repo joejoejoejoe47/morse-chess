@@ -30,8 +30,8 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
   await video.play().catch(() => undefined);
 
   const canvas = document.createElement("canvas");
-  canvas.width = 360;
-  canvas.height = 480;
+  canvas.width = 480;
+  canvas.height = 640;
   const ctx = canvas.getContext("2d");
   if (!ctx) return { stream: src, stop: () => undefined };
   const draw = ctx;
@@ -74,8 +74,8 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
       } else {
         draw.fillStyle = "#0c0d0b";
         draw.fillRect(0, 0, canvas.width, canvas.height);
-        const vw = video.videoWidth || 360;
-        const vh = video.videoHeight || 480;
+        const vw = video.videoWidth || 480;
+        const vh = video.videoHeight || 640;
         const scale = Math.max(canvas.width / vw, canvas.height / vh);
         const dw = vw * scale;
         const dh = vh * scale;
