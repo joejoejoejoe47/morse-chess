@@ -19,7 +19,6 @@ export function LiveCall({
   audio = true,
   video = false,
   showRemoteVideo = false,
-  onRemoteVideo,
 }: {
   gameId: string;
   selfId: string;
@@ -27,13 +26,9 @@ export function LiveCall({
   audio?: boolean;
   video?: boolean;
   showRemoteVideo?: boolean;
-  onRemoteVideo?: (el: HTMLVideoElement | null) => void;
 }) {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const displayRef = useRef<HTMLCanvasElement>(null);
-  const onRemoteRef = useRef(onRemoteVideo);
-  onRemoteRef.current = onRemoteVideo;
   const [status, setStatus] = useState(video ? "Opening camera…" : "Connecting…");
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
@@ -45,37 +40,6 @@ export function LiveCall({
       t.enabled = !muted;
     });
   }, [muted]);
-
-  useEffect(() => {
-    if (!showRemoteVideo) return;
-    let raf = 0;
-    const tick = () => {
-      const videoEl = remoteVideoRef.current;
-      const canvas = displayRef.current;
-      if (videoEl && canvas && videoEl.readyState >= 2) {
-        if (canvas.width !== 400) {
-          canvas.width = 400;
-          canvas.height = 560;
-        }
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (ctx) {
-          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const p = img.data;
-          for (let i = 0; i < p.length; i += 4) {
-            const r = p[i];
-            const g = p[i + 1];
-            const b = p[i + 2];
-            if (g > 88 && g > r + 22 && g > b + 22) p[i + 3] = 0;
-          }
-          ctx.putImageData(img, 0, 0);
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [showRemoteVideo]);
 
   useEffect(() => {
     const room = roomSlug(gameId, video ? "cam" : "live");
@@ -98,13 +62,6 @@ export function LiveCall({
       });
     }
 
-    function attachVideo(stream: MediaStream) {
-      const el = remoteVideoRef.current;
-      if (!el) return;
-      el.srcObject = stream;
-      void el.play().then(() => onRemoteRef.current?.(el)).catch(() => onRemoteRef.current?.(el));
-    }
-
     async function ensurePc(peer: string) {
       if (pc) return pc;
       remoteId = peer;
@@ -116,7 +73,10 @@ export function LiveCall({
       };
       pc.ontrack = (ev) => {
         const stream = ev.streams[0] ?? new MediaStream([ev.track]);
-        if (ev.track.kind === "video") attachVideo(stream);
+        if (ev.track.kind === "video" && remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+          void remoteVideoRef.current.play().catch(() => undefined);
+        }
         if (ev.track.kind === "audio" && remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = stream;
           void remoteAudioRef.current.play().catch(() => undefined);
@@ -190,7 +150,7 @@ export function LiveCall({
       try {
         const raw = await navigator.mediaDevices.getUserMedia({
           audio,
-          video: video ? { facingMode: "user", width: { ideal: 720 }, height: { ideal: 1000 } } : false,
+          video: video ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 860 } } : false,
         });
         if (closed) {
           raw.getTracks().forEach((t) => t.stop());
@@ -223,7 +183,6 @@ export function LiveCall({
       cutoutStop?.();
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
-      onRemoteRef.current?.(null);
       void fetch("/api/rtc", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -234,29 +193,21 @@ export function LiveCall({
   }, [gameId, selfId, name, audio, video]);
 
   return (
-    <div className={cn("flex flex-col", showRemoteVideo && "items-center")}>
+    <div className={cn("flex flex-col", showRemoteVideo && "gap-2")}>
       {showRemoteVideo ? (
-        <div className="relative h-[22rem] w-44 sm:h-[30rem] sm:w-60">
+        <div className="relative mx-auto h-80 w-56 overflow-hidden rounded-t-[3.4rem] bg-ink sm:h-[26rem] sm:w-72">
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            muted
-            className="absolute inset-0 h-full w-full object-cover object-top"
+            className="h-full w-full object-cover object-top"
           />
-          <canvas ref={displayRef} className="absolute inset-0 h-full w-full" aria-hidden />
         </div>
       ) : (
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          muted={!audio}
-          className="pointer-events-none fixed -left-[999px] h-px w-px opacity-[0.04]"
-        />
+        <video ref={remoteVideoRef} autoPlay playsInline className="hidden" />
       )}
       {audio ? (
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2">
           <audio ref={remoteAudioRef} autoPlay playsInline />
           <p className="min-w-0 truncate text-[13px] text-mist">{status}</p>
           <button
@@ -270,9 +221,9 @@ export function LiveCall({
             {muted ? "Unmute" : "Mute"}
           </button>
         </div>
-      ) : video ? (
-        <p className="mt-1 text-center text-[11px] uppercase tracking-[0.14em] text-mist">{status}</p>
-      ) : null}
+      ) : (
+        <p className="px-1 text-center text-[11px] uppercase tracking-[0.14em] text-mist">{status}</p>
+      )}
     </div>
   );
 }
