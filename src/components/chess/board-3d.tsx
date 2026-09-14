@@ -367,6 +367,124 @@ function BoardSquares({
   );
 }
 
+const SEAT_VERT = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const SEAT_FRAG = `
+uniform sampler2D map;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(map, vUv);
+  float luma = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+  if (luma < 0.06) discard;
+  float a = smoothstep(0.06, 0.2, luma);
+  gl_FragColor = vec4(c.rgb, a);
+}
+`;
+
+function RobotFigure() {
+  const shell = "#14150f";
+  const panel = "#1c1d18";
+  const eye = "#f3ead8";
+  return (
+    <group position={[0, 0, 0]}>
+      <mesh position={[0, 2.55, 0]} castShadow>
+        <boxGeometry args={[2.1, 3.3, 0.85]} />
+        <meshStandardMaterial color={shell} roughness={0.45} metalness={0.2} />
+      </mesh>
+      <mesh position={[0, 3.35, 0.22]} castShadow>
+        <boxGeometry args={[1.55, 1.15, 0.55]} />
+        <meshStandardMaterial color={panel} roughness={0.4} metalness={0.15} />
+      </mesh>
+      <mesh position={[-0.38, 3.4, 0.52]}>
+        <sphereGeometry args={[0.16, 14, 14]} />
+        <meshStandardMaterial color={eye} emissive={eye} emissiveIntensity={0.55} />
+      </mesh>
+      <mesh position={[0.38, 3.4, 0.52]}>
+        <sphereGeometry args={[0.16, 14, 14]} />
+        <meshStandardMaterial color={eye} emissive={eye} emissiveIntensity={0.55} />
+      </mesh>
+      <mesh position={[0, 2.55, 0.48]}>
+        <boxGeometry args={[0.7, 0.1, 0.08]} />
+        <meshStandardMaterial color="#3a2a1c" />
+      </mesh>
+      <mesh position={[0, 0.72, 0]} castShadow>
+        <boxGeometry args={[1.4, 0.35, 0.7]} />
+        <meshStandardMaterial color={panel} roughness={0.5} metalness={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+function TableSeat({
+  you,
+  mode,
+  video,
+}: {
+  you: Side;
+  mode: "video" | "bot" | null;
+  video: HTMLVideoElement | null;
+}) {
+  const behindFar = you === "w";
+  const z = behindFar ? -6.45 : 6.45;
+  const rotY = behindFar ? 0 : Math.PI;
+  const [tex, setTex] = useState<THREE.VideoTexture | null>(null);
+
+  useEffect(() => {
+    if (mode !== "video" || !video) {
+      setTex(null);
+      return;
+    }
+    const t = new THREE.VideoTexture(video);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.minFilter = THREE.LinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    setTex(t);
+    return () => {
+      t.dispose();
+      setTex(null);
+    };
+  }, [mode, video]);
+
+  useFrame(() => {
+    if (tex) tex.needsUpdate = true;
+  });
+
+  if (!mode) return null;
+
+  if (mode === "bot") {
+    return (
+      <group position={[0, 0.12, z]} rotation={[0, rotY, 0]}>
+        <RobotFigure />
+      </group>
+    );
+  }
+
+  if (!tex) return null;
+
+  const w = 4.5;
+  const h = 6.2;
+  const y = h * 0.46;
+  return (
+    <mesh position={[0, y, z]} rotation={[0, rotY, 0]} renderOrder={2}>
+      <planeGeometry args={[w, h]} />
+      <shaderMaterial
+        transparent
+        depthWrite
+        uniforms={{ map: { value: tex } }}
+        vertexShader={SEAT_VERT}
+        fragmentShader={SEAT_FRAG}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  );
+}
 
 function WalnutTable({ map }: { map: THREE.Texture | null }) {
   const mat = useMemo(
@@ -408,6 +526,8 @@ function Scene({
   interactive,
   appearance,
   skin,
+  tableSeat,
+  seatVideo,
 }: {
   fen: string;
   you: Side;
@@ -419,6 +539,8 @@ function Scene({
   interactive: boolean;
   appearance: "light" | "dark";
   skin: BoardSkin;
+  tableSeat: "video" | "bot" | null;
+  seatVideo: HTMLVideoElement | null;
 }) {
   const geometries = useMemo(() => makeGeometries(), []);
   const ivory = useMemo(
@@ -545,6 +667,7 @@ function Scene({
         lightMap={wood?.light}
         darkMap={wood?.dark}
       />
+      <TableSeat you={you} mode={tableSeat} video={seatVideo} />
       {pieces.map((p) => (
         <AnimatedPiece
           key={`${p.color}${p.type}${p.sq}`}
@@ -589,6 +712,8 @@ export function ChessBoard3D({
   disabled,
   appearance = "dark",
   skin,
+  tableSeat = null,
+  seatVideo = null,
 }: {
   fen: string;
   you: Side;
@@ -598,6 +723,8 @@ export function ChessBoard3D({
   disabled?: boolean;
   appearance?: "light" | "dark";
   skin?: BoardSkin;
+  tableSeat?: "video" | "bot" | null;
+  seatVideo?: HTMLVideoElement | null;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -679,6 +806,8 @@ export function ChessBoard3D({
           interactive={Boolean(myTurn && !disabled)}
           appearance={appearance}
           skin={resolved}
+          tableSeat={tableSeat}
+          seatVideo={seatVideo}
         />
       </Canvas>
     </div>

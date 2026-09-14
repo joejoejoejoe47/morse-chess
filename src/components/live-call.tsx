@@ -19,6 +19,8 @@ export function LiveCall({
   audio = true,
   video = false,
   showRemoteVideo = false,
+  hud = true,
+  onRemoteVideo,
 }: {
   gameId: string;
   selfId: string;
@@ -26,9 +28,13 @@ export function LiveCall({
   audio?: boolean;
   video?: boolean;
   showRemoteVideo?: boolean;
+  hud?: boolean;
+  onRemoteVideo?: (el: HTMLVideoElement | null) => void;
 }) {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const onRemoteRef = useRef(onRemoteVideo);
+  onRemoteRef.current = onRemoteVideo;
   const [status, setStatus] = useState(video ? "Opening camera…" : "Connecting…");
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
@@ -62,6 +68,13 @@ export function LiveCall({
       });
     }
 
+    function attachVideo(stream: MediaStream) {
+      const el = remoteVideoRef.current;
+      if (!el) return;
+      el.srcObject = stream;
+      void el.play().then(() => onRemoteRef.current?.(el)).catch(() => onRemoteRef.current?.(el));
+    }
+
     async function ensurePc(peer: string) {
       if (pc) return pc;
       remoteId = peer;
@@ -73,10 +86,7 @@ export function LiveCall({
       };
       pc.ontrack = (ev) => {
         const stream = ev.streams[0] ?? new MediaStream([ev.track]);
-        if (ev.track.kind === "video" && remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          void remoteVideoRef.current.play().catch(() => undefined);
-        }
+        if (ev.track.kind === "video") attachVideo(stream);
         if (ev.track.kind === "audio" && remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = stream;
           void remoteAudioRef.current.play().catch(() => undefined);
@@ -150,7 +160,7 @@ export function LiveCall({
       try {
         const raw = await navigator.mediaDevices.getUserMedia({
           audio,
-          video: video ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 860 } } : false,
+          video: video ? { facingMode: "user", width: { ideal: 720 }, height: { ideal: 1000 } } : false,
         });
         if (closed) {
           raw.getTracks().forEach((t) => t.stop());
@@ -183,6 +193,7 @@ export function LiveCall({
       cutoutStop?.();
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      onRemoteRef.current?.(null);
       void fetch("/api/rtc", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -192,22 +203,33 @@ export function LiveCall({
     };
   }, [gameId, selfId, name, audio, video]);
 
+  const videoEl = (
+    <video
+      ref={remoteVideoRef}
+      autoPlay
+      playsInline
+      muted={!audio}
+      className={
+        showRemoteVideo
+          ? "h-full w-full object-cover object-top"
+          : "pointer-events-none fixed -left-[999px] h-px w-px opacity-0"
+      }
+    />
+  );
+
+  if (!hud) return videoEl;
+
   return (
     <div className={cn("flex flex-col", showRemoteVideo && "gap-2")}>
       {showRemoteVideo ? (
-        <div className="relative mx-auto h-80 w-56 overflow-hidden rounded-t-[3.4rem] bg-ink sm:h-[26rem] sm:w-72">
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="h-full w-full object-cover object-top"
-          />
+        <div className="relative mx-auto h-80 w-56 overflow-hidden rounded-t-[3.4rem] bg-black sm:h-[26rem] sm:w-72">
+          {videoEl}
         </div>
       ) : (
-        <video ref={remoteVideoRef} autoPlay playsInline className="hidden" />
+        videoEl
       )}
       {audio ? (
-        <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2">
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
           <audio ref={remoteAudioRef} autoPlay playsInline />
           <p className="min-w-0 truncate text-[13px] text-mist">{status}</p>
           <button
@@ -221,9 +243,7 @@ export function LiveCall({
             {muted ? "Unmute" : "Mute"}
           </button>
         </div>
-      ) : (
-        <p className="px-1 text-center text-[11px] uppercase tracking-[0.14em] text-mist">{status}</p>
-      )}
+      ) : null}
     </div>
   );
 }
