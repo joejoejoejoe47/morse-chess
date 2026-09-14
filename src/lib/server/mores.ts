@@ -221,6 +221,7 @@ async function ensureChat(sql: Sql) {
   await sql.query("alter table games add column if not exists live_open boolean not null default false");
   await sql.query("alter table games add column if not exists camera_open boolean not null default false");
   await sql.query("alter table games add column if not exists last_prize integer");
+  await sql.query("create unique index if not exists game_moves_ply_uidx on game_moves (game_id, ply)");
   await sql.query(`
     create table if not exists game_chat (
       id serial primary key,
@@ -445,7 +446,8 @@ async function recordAndApplyMove(
   to: string,
   promotion?: string,
 ) {
-  const chess = new Chess(game.fen);
+  const expectedFen = game.fen;
+  const chess = new Chess(expectedFen);
   const needsPromo =
     chess.get(from as Square)?.type === "p" && (to.endsWith("8") || to.endsWith("1"));
   const moved = chess.move({
@@ -454,13 +456,6 @@ async function recordAndApplyMove(
     promotion: (needsPromo ? promotion ?? "q" : undefined) as "q" | "r" | "b" | "n" | undefined,
   });
   if (!moved) return { ok: false as const, error: "That move is not legal." };
-
-  const plyRows = await sql<{ c: number }>`select count(*)::int as c from game_moves where game_id = ${game.id}`;
-  const ply = (plyRows[0]?.c ?? 0) + 1;
-  await sql`
-    insert into game_moves (game_id, ply, san, from_sq, to_sq)
-    values (${game.id}, ${ply}, ${moved.san}, ${moved.from}, ${moved.to})
-  `;
 
   let status: GameStatus = "active";
   let winner: string | null = null;
@@ -473,7 +468,7 @@ async function recordAndApplyMove(
 
   const now = new Date().toISOString();
   const clocks = liveClocks(game);
-  await sql`
+  const updated = await sql<{ id: string }>`
     update games set
       fen = ${chess.fen()},
       turn = ${chess.turn()},
@@ -486,8 +481,21 @@ async function recordAndApplyMove(
       status = ${status},
       winner_user_id = ${winner},
       scored = ${status !== "active" && status !== "draw"}
-    where id = ${game.id}
+    where id = ${game.id} and fen = ${expectedFen} and status = 'active'
+    returning id
   `;
+  if (!updated.length) return { ok: false as const, error: "That move already happened." };
+
+  const plyRows = await sql<{ c: number }>`select count(*)::int as c from game_moves where game_id = ${game.id}`;
+  const ply = (plyRows[0]?.c ?? 0) + 1;
+  try {
+    await sql`
+      insert into game_moves (game_id, ply, san, from_sq, to_sq)
+      values (${game.id}, ${ply}, ${moved.san}, ${moved.from}, ${moved.to})
+    `;
+  } catch {
+    return { ok: false as const, error: "That move already happened." };
+  }
 
   game.fen = chess.fen();
   game.turn = chess.turn();
@@ -522,6 +530,9 @@ async function maybeTimeout(sql: Sql, game: GameRow) {
 }
 
 async function maybeBotMove(sql: Sql, game: GameRow) {
+  const latest = await loadGame(sql, game.id);
+  if (!latest) return;
+  Object.assign(game, latest);
   if (game.status !== "active") return;
   const botSide: Side | null =
     game.white_user_id === BOT_USER_ID || game.white_user_id === BOT_V2_USER_ID
@@ -534,10 +545,12 @@ async function maybeBotMove(sql: Sql, game: GameRow) {
   if (position.turn() !== botSide) return;
   const kind: BotKind =
     game.white_user_id === BOT_V2_USER_ID || game.black_user_id === BOT_V2_USER_ID ? "v2" : "v1";
-  const thinkMs = kind === "v2" ? 80 : 160;
+  const thinkMs = kind === "v2" ? 280 : 420;
   if (Date.now() - asTime(game.turn_started_at) < thinkMs) return;
   const pick = pickBotMove(game.fen, botSide, kind);
   if (!pick) {
+    const again = await loadGame(sql, game.id);
+    if (!again || again.fen !== game.fen) return;
     if (position.isCheckmate()) {
       const winner = botSide === "w" ? game.black_user_id : game.white_user_id;
       await finishGame(sql, game, botSide === "w" ? "black_win" : "white_win", winner);
@@ -551,11 +564,11 @@ async function maybeBotMove(sql: Sql, game: GameRow) {
   await recordAndApplyMove(sql, game, pick.from, pick.to, pick.promotion);
 }
 
-async function snapshotFor(sql: Sql, game: GameRow, userId: string): Promise<GameSnapshot | null> {
+async function snapshotFor(sql: Sql, game: GameRow, userId: string, playBot = false): Promise<GameSnapshot | null> {
   if (game.white_user_id !== userId && game.black_user_id !== userId) return null;
   await ensureChat(sql);
   await maybeTimeout(sql, game);
-  await maybeBotMove(sql, game);
+  if (playBot) await maybeBotMove(sql, game);
   const fresh = (await loadGame(sql, game.id)) ?? game;
   const [white, black] = await Promise.all([
     profileById(sql, fresh.white_user_id),
@@ -1098,7 +1111,7 @@ export const getGame = createServerFn({ method: "POST" })
     const sql = await getSql();
     const game = await loadGame(sql, data.gameId);
     if (!game) return null;
-    return snapshotFor(sql, game, context.userId);
+    return snapshotFor(sql, game, context.userId, true);
   });
 
 export const makeMove = createServerFn({ method: "POST" })
@@ -1130,7 +1143,7 @@ export const makeMove = createServerFn({ method: "POST" })
     }
     const applied = await recordAndApplyMove(sql, game, data.from, data.to, data.promotion);
     if (!applied.ok) return applied;
-    const snap = await snapshotFor(sql, game, context.userId);
+    const snap = await snapshotFor(sql, game, context.userId, true);
     return { ok: true as const, game: snap };
   });
 

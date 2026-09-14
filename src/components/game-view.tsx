@@ -128,7 +128,7 @@ export function GameView({ gameId }: { gameId: string }) {
 
   function applySnap(snap: GameSnapshot, fromMove = false) {
     const ply = snap.moves.length;
-    if (!fromMove && ply < plyRef.current) return;
+    if (ply < plyRef.current) return;
     if (!fromMove && pendingMove.current && ply <= plyRef.current) return;
     plyRef.current = ply;
     if (fromMove) pendingMove.current = false;
@@ -143,8 +143,11 @@ export function GameView({ gameId }: { gameId: string }) {
 
   useEffect(() => {
     let live = true;
+    let inFlight = false;
     const tick = async () => {
+      if (inFlight || pendingMove.current) return;
       const gen = ++pollGen.current;
+      inFlight = true;
       try {
         const snap = await getGame({ data: { gameId } });
         if (!live || gen !== pollGen.current) return;
@@ -155,6 +158,8 @@ export function GameView({ gameId }: { gameId: string }) {
         applySnap(snap);
       } catch (e) {
         if (live) setError(e instanceof Error ? e.message : "Lost the board connection.");
+      } finally {
+        inFlight = false;
       }
     };
     void tick();
@@ -236,10 +241,15 @@ export function GameView({ gameId }: { gameId: string }) {
     }
     pendingMove.current = false;
     const fallback = "game" in res ? res.game : null;
-    if (fallback) applySnap(fallback, true);
-    else {
+    if (fallback) {
+      plyRef.current = fallback.moves.length;
+      applySnap(fallback, true);
+    } else {
       const snap = await getGame({ data: { gameId } });
-      if (snap) applySnap(snap, true);
+      if (snap) {
+        plyRef.current = snap.moves.length;
+        applySnap(snap, true);
+      }
       if (!res.ok && res.error) setError(res.error);
     }
   }
