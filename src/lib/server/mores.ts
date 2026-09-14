@@ -5,9 +5,14 @@ import { getSql, type Sql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   BOT_USER_ID,
+  BOT_USERNAME,
+  BOT_V2_USER_ID,
+  BOT_V2_USERNAME,
   START_SCORE,
   TURN_MS,
   USERNAME_RE,
+  isBotUserId,
+  type BotKind,
   type GameMode,
   type GameStatus,
   type Side,
@@ -40,6 +45,7 @@ type GameRow = {
   scored: boolean | string | number;
   chat_open?: boolean | string | number | null;
   live_open?: boolean | string | number | null;
+  camera_open?: boolean | string | number | null;
   last_prize?: number | string | null;
 };
 
@@ -66,6 +72,7 @@ export type GameSnapshot = {
   myBoard: string;
   chatOpen: boolean;
   liveOpen: boolean;
+  cameraOpen: boolean;
   chat: { id: number; from: string; text: string }[];
   scorePrize: number | null;
 };
@@ -212,6 +219,7 @@ async function loadGame(sql: Sql, gameId: string) {
 async function ensureChat(sql: Sql) {
   await sql.query("alter table games add column if not exists chat_open boolean not null default false");
   await sql.query("alter table games add column if not exists live_open boolean not null default false");
+  await sql.query("alter table games add column if not exists camera_open boolean not null default false");
   await sql.query("alter table games add column if not exists last_prize integer");
   await sql.query(`
     create table if not exists game_chat (
@@ -222,6 +230,19 @@ async function ensureChat(sql: Sql) {
       created_at timestamptz not null default now()
     )
   `);
+}
+
+async function ensureBots(sql: Sql) {
+  await sql`
+    insert into profiles (user_id, username, username_lc, score)
+    values (${BOT_USER_ID}, ${BOT_USERNAME}, ${BOT_USERNAME.toLowerCase()}, 1840)
+    on conflict (user_id) do update set username = excluded.username, username_lc = excluded.username_lc
+  `;
+  await sql`
+    insert into profiles (user_id, username, username_lc, score)
+    values (${BOT_V2_USER_ID}, ${BOT_V2_USERNAME}, ${BOT_V2_USERNAME.toLowerCase()}, 2200)
+    on conflict (user_id) do update set username = excluded.username, username_lc = excluded.username_lc
+  `;
 }
 
 async function applyScore(sql: Sql, winnerId: string, loserId: string) {
@@ -324,7 +345,7 @@ function quiesce(chess: Chess, bot: Side, deadline: number): number {
   const botTurn = chess.turn() === bot;
   let best = stand;
   const caps = chess.moves({ verbose: true }).filter((m) => m.captured || m.promotion);
-  for (const m of caps.slice(0, 12)) {
+  for (const m of caps.slice(0, 16)) {
     chess.move(m);
     const sc = evaluate(chess, bot);
     chess.undo();
@@ -359,24 +380,42 @@ function minimax(chess: Chess, bot: Side, depth: number, alpha: number, beta: nu
   return best;
 }
 
-function pickBotMove(fen: string, botSide: Side) {
+function pickBotMove(fen: string, botSide: Side, kind: BotKind) {
   const chess = new Chess(fen);
   if (chess.turn() !== botSide) return null;
   const book = BOOK[fenKey(chess)];
-  if (book?.length) {
-    const legal = new Set(chess.moves({ verbose: true }).map((m) => m.from + m.to));
-    const opts = book.filter((u) => legal.has(u));
-    if (opts.length) {
-      const u = opts[0];
-      return { from: u.slice(0, 2), to: u.slice(2, 4), promotion: undefined as string | undefined };
-    }
-  }
   const moves = orderMoves(chess);
   if (!moves.length) return null;
-  const deadline = Date.now() + 220;
+  if (book?.length) {
+    const legal = new Set(moves.map((m) => m.from + m.to + (m.promotion ?? "")));
+    const opts = book
+      .map((u) => ({ from: u.slice(0, 2), to: u.slice(2, 4) }))
+      .filter((u) => legal.has(u.from + u.to) || legal.has(u.from + u.to + "q"));
+    if (opts.length) {
+      if (kind === "v1") {
+        const u = opts[Math.min(opts.length - 1, 0)];
+        return { from: u.from, to: u.to, promotion: undefined as string | undefined };
+      }
+      let best = opts[0];
+      let bestSc = -Infinity;
+      for (const u of opts) {
+        const played = chess.move({ from: u.from as Square, to: u.to as Square, promotion: "q" });
+        if (!played) continue;
+        const sc = evaluate(chess, botSide);
+        chess.undo();
+        if (sc > bestSc) {
+          bestSc = sc;
+          best = u;
+        }
+      }
+      return { from: best.from, to: best.to, promotion: undefined as string | undefined };
+    }
+  }
+  const deadline = Date.now() + (kind === "v2" ? 850 : 480);
+  const maxDepth = kind === "v2" ? 4 : 3;
   let pick = moves[0];
   let bestScore = -Infinity;
-  for (let depth = 1; depth <= 3; depth++) {
+  for (let depth = 1; depth <= maxDepth; depth++) {
     if (Date.now() > deadline) break;
     let depthBest = -Infinity;
     let depthPick = pick;
@@ -485,13 +524,19 @@ async function maybeTimeout(sql: Sql, game: GameRow) {
 async function maybeBotMove(sql: Sql, game: GameRow) {
   if (game.status !== "active") return;
   const botSide: Side | null =
-    game.white_user_id === BOT_USER_ID ? "w" : game.black_user_id === BOT_USER_ID ? "b" : null;
+    game.white_user_id === BOT_USER_ID || game.white_user_id === BOT_V2_USER_ID
+      ? "w"
+      : game.black_user_id === BOT_USER_ID || game.black_user_id === BOT_V2_USER_ID
+        ? "b"
+        : null;
   if (!botSide || game.turn !== botSide) return;
   const position = new Chess(game.fen);
   if (position.turn() !== botSide) return;
-  const thinkMs = 200;
+  const kind: BotKind =
+    game.white_user_id === BOT_V2_USER_ID || game.black_user_id === BOT_V2_USER_ID ? "v2" : "v1";
+  const thinkMs = kind === "v2" ? 80 : 160;
   if (Date.now() - asTime(game.turn_started_at) < thinkMs) return;
-  const pick = pickBotMove(game.fen, botSide);
+  const pick = pickBotMove(game.fen, botSide, kind);
   if (!pick) {
     if (position.isCheckmate()) {
       const winner = botSide === "w" ? game.black_user_id : game.white_user_id;
@@ -561,6 +606,7 @@ async function snapshotFor(sql: Sql, game: GameRow, userId: string): Promise<Gam
     myBoard: boardById(me?.equipped_board).id,
     chatOpen: asBool(fresh.chat_open),
     liveOpen: asBool(fresh.live_open),
+    cameraOpen: asBool(fresh.camera_open),
     chat: chatRows.map((row) => ({ id: Number(row.id), from: nameOf(row.user_id), text: row.body })),
     scorePrize: fresh.last_prize == null ? null : toInt(fresh.last_prize, 0),
   };
@@ -646,6 +692,7 @@ export const getHomeState = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<HomeState> => {
     const sql = await getSql();
+    await ensureBots(sql);
     let profile = await profileById(sql, context.userId);
     if (profile && isMasterUsername(profile.username) && Number(profile.score) < MASTER_SCORE) {
       await sql`update profiles set score = ${MASTER_SCORE} where user_id = ${profile.user_id}`;
@@ -733,6 +780,7 @@ export const getHomeState = createServerFn({ method: "GET" })
       select username, score from profiles
       where user_id <> ${context.userId}
         and user_id <> ${BOT_USER_ID}
+        and user_id <> ${BOT_V2_USER_ID}
         and last_seen > now() - interval '20 seconds'
       order by score desc
       limit 12
@@ -810,11 +858,13 @@ export const joinQueue = createServerFn({ method: "POST" })
     const skip = new Set(busyIds.map((r) => r.id));
     skip.add(context.userId);
     skip.add(BOT_USER_ID);
+    skip.add(BOT_V2_USER_ID);
     const seats = await sql<{ user_id: string }>`
       select user_id from profiles
       where last_seen > now() - interval '20 seconds'
         and user_id <> ${context.userId}
         and user_id <> ${BOT_USER_ID}
+        and user_id <> ${BOT_V2_USER_ID}
     `;
     const targets = seats.map((s) => s.user_id).filter((id) => !skip.has(id));
     for (const toId of targets) {
@@ -852,6 +902,7 @@ export const sendChallenge = createServerFn({ method: "POST" })
   }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+    await ensureBots(sql);
     const me = await profileById(sql, context.userId);
     if (!me) throw new Error("Choose a club name first.");
     const active = await sql<{ id: string }>`
@@ -871,8 +922,9 @@ export const sendChallenge = createServerFn({ method: "POST" })
     if (to.user_id === context.userId) {
       return { ok: false as const, error: "You cannot challenge yourself." };
     }
-    if (to.user_id === BOT_USER_ID) {
-      const gameId = await insertGame(sql, context.userId, BOT_USER_ID, data.mode);
+    if (isBotUserId(to.user_id)) {
+      await ensureBots(sql);
+      const gameId = await insertGame(sql, context.userId, to.user_id, data.mode);
       return { ok: true as const, gameId };
     }
     const pending = await sql`
@@ -968,6 +1020,48 @@ export const openGameChat = createServerFn({ method: "POST" })
     if (game.white_user_id !== context.userId && game.black_user_id !== context.userId) return null;
     await sql`update games set chat_open = true where id = ${game.id}`;
     game.chat_open = true;
+    return snapshotFor(sql, game, context.userId);
+  });
+
+export const closeGameChat = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { gameId: string }) => ({ gameId: String(input.gameId) }))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await ensureChat(sql);
+    const game = await loadGame(sql, data.gameId);
+    if (!game) return null;
+    if (game.white_user_id !== context.userId && game.black_user_id !== context.userId) return null;
+    await sql`update games set chat_open = false where id = ${game.id}`;
+    game.chat_open = false;
+    return snapshotFor(sql, game, context.userId);
+  });
+
+export const openGameCamera = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { gameId: string }) => ({ gameId: String(input.gameId) }))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await ensureChat(sql);
+    const game = await loadGame(sql, data.gameId);
+    if (!game) return null;
+    if (game.white_user_id !== context.userId && game.black_user_id !== context.userId) return null;
+    await sql`update games set camera_open = true where id = ${game.id}`;
+    game.camera_open = true;
+    return snapshotFor(sql, game, context.userId);
+  });
+
+export const closeGameCamera = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { gameId: string }) => ({ gameId: String(input.gameId) }))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await ensureChat(sql);
+    const game = await loadGame(sql, data.gameId);
+    if (!game) return null;
+    if (game.white_user_id !== context.userId && game.black_user_id !== context.userId) return null;
+    await sql`update games set camera_open = false where id = ${game.id}`;
+    game.camera_open = false;
     return snapshotFor(sql, game, context.userId);
   });
 
@@ -1073,10 +1167,14 @@ export const resignGame = createServerFn({ method: "POST" })
 
 export const startBotGame = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { mode: GameMode }) => ({ mode: parseMode(input.mode) }))
+  .validator((input: { mode: GameMode; bot?: BotKind }) => ({
+    mode: parseMode(input.mode),
+    bot: input.bot === "v2" ? "v2" : "v1",
+  }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     await ensureClockColumns(sql);
+    await ensureBots(sql);
     const me = await profileById(sql, context.userId);
     if (!me) throw new Error("Choose a club name first.");
     const active = await sql<{ id: string }>`
@@ -1085,7 +1183,8 @@ export const startBotGame = createServerFn({ method: "POST" })
       limit 1
     `;
     if (active[0]) return { gameId: active[0].id };
-    const gameId = await insertGame(sql, context.userId, BOT_USER_ID, data.mode);
+    const botId = data.bot === "v2" ? BOT_V2_USER_ID : BOT_USER_ID;
+    const gameId = await insertGame(sql, context.userId, botId, data.mode);
     return { gameId };
   });
 
