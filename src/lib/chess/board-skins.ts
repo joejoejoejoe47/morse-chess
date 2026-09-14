@@ -368,10 +368,24 @@ export function boardCanPreview(score: number, board: BoardSkin | string, userna
   return true;
 }
 
+function hslToHex(h: number, s: number, l: number) {
+  const sat = s / 100;
+  const lit = l / 100;
+  const a = sat * Math.min(lit, 1 - lit);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const c = lit - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * c)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
 export function mysteryPair(t = Date.now() / 900): [string, string] {
-  const h1 = (t * 42) % 360;
+  const h1 = ((t * 42) % 360 + 360) % 360;
   const h2 = (h1 + 32) % 360;
-  return [`hsl(${h1} 78% 48%)`, `hsl(${h2} 62% 16%)`];
+  return [hslToHex(h1, 78, 48), hslToHex(h2, 62, 16)];
 }
 
 const EQUIP_KEY = "morse-equipped-board";

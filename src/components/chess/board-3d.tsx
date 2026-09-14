@@ -302,13 +302,15 @@ function BoardSquares({
   const group = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (skin.id !== "mystery" || !group.current) return;
-    const [lightC, darkC] = mysteryPair(clock.elapsedTime);
-    for (const child of group.current.children) {
-      const mesh = child.children[0] as THREE.Mesh | undefined;
-      if (!mesh?.userData || mesh.userData.lock) continue;
-      const mat = mesh.material as THREE.MeshStandardMaterial;
-      mat.color.set(mesh.userData.light ? lightC : darkC);
-    }
+    const [lightC, darkC] = mysteryPair(clock.elapsedTime + Date.now() / 900);
+    group.current.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      if (obj.userData.lock) return;
+      if (typeof obj.userData.light !== "boolean") return;
+      const mat = obj.material as THREE.MeshStandardMaterial;
+      if (!mat?.color) return;
+      mat.color.set(obj.userData.light ? lightC : darkC);
+    });
   });
 
   return (
