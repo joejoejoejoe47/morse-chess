@@ -222,7 +222,8 @@ export function AuthScreen() {
                   onClick={() => {
                     setError(null);
                     markOauthPending();
-                    void signIn(p.providerId, { callbackURL: "/" }).then(
+                    const home = `${window.location.origin}/`;
+                    void signIn(p.providerId, { callbackURL: home, errorCallbackURL: home }).then(
                       () => {
                         markClubSession();
                         void navigate({ to: "/" });

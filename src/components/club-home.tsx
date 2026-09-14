@@ -15,7 +15,7 @@ import {
   startBotGame,
   type HomeState,
 } from "@/lib/server/mores";
-import { BOT_USERNAME, USERNAME_RE, type GameMode } from "@/lib/mores-constants";
+import { BOT_USERNAME, BOT_V2_USERNAME, USERNAME_RE, suggestClubName, type GameMode } from "@/lib/mores-constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import { SplashSkeleton } from "@/components/auth-screen";
 
 type Flow =
   | { kind: "idle" }
-  | { kind: "pick-mode"; intent: "random" | "challenge" | "bot" }
+  | { kind: "pick-mode"; intent: "random" | "challenge" | "bot" | "bot-v2" }
   | { kind: "ask-name"; mode: GameMode }
   | { kind: "searching"; mode: GameMode }
   | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string };
@@ -40,6 +40,12 @@ export function ClubHome() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (claim) return;
+    const guess = suggestClubName(user?.displayName ?? user?.primaryEmail?.split("@")[0]);
+    if (guess) setClaim(guess);
+  }, [user, claim]);
 
   useEffect(() => {
     let live = true;
@@ -110,8 +116,10 @@ export function ClubHome() {
     }
     setBusy(true);
     try {
-      if (flow.intent === "bot") {
-        const { gameId } = await startBotGame({ data: { mode } });
+      if (flow.intent === "bot" || flow.intent === "bot-v2") {
+        const { gameId } = await startBotGame({
+          data: { mode, bot: flow.intent === "bot-v2" ? "v2" : "v1" },
+        });
         await navigate({ to: "/play/$gameId", params: { gameId } });
         return;
       }
@@ -127,7 +135,6 @@ export function ClubHome() {
       setBusy(false);
     }
   }
-
 
   async function submitChallenge(e: FormEvent) {
     e.preventDefault();
@@ -246,14 +253,24 @@ export function ClubHome() {
           </p>
         </button>
       </section>
-      <button
-        type="button"
-        className="relative mt-3 inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
-        onClick={() => setFlow({ kind: "pick-mode", intent: "bot" })}
-      >
-        <PieceMark kind="p" className="size-4 text-cream" />
-        Timed or breeze vs {BOT_USERNAME}
-      </button>
+      <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
+          onClick={() => setFlow({ kind: "pick-mode", intent: "bot" })}
+        >
+          <PieceMark kind="p" className="size-4 text-cream" />
+          Timed or breeze vs {BOT_USERNAME}
+        </button>
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
+          onClick={() => setFlow({ kind: "pick-mode", intent: "bot-v2" })}
+        >
+          <PieceMark kind="q" className="size-4 text-cream" />
+          Timed or breeze vs {BOT_V2_USERNAME}
+        </button>
+      </div>
 
       <section className="relative mt-10 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="min-h-48">
@@ -345,7 +362,7 @@ export function ClubHome() {
                     className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left hover:bg-panel-2"
                     onClick={() => {
                       setTarget(p.username);
-                      setFlow({ kind: "ask-name", mode: "timed" });
+                      setFlow({ kind: "pick-mode", intent: "challenge" });
                     }}
                   >
                     <span className="inline-flex items-center gap-2 text-sm text-ivory">
@@ -414,6 +431,11 @@ export function ClubHome() {
 
             {flow.kind === "pick-mode" ? (
               <div className="mt-5 grid gap-3">
+                {flow.intent === "challenge" && target ? (
+                  <p className="text-sm text-mist">
+                    Sitting across <span className="text-ivory">{target}</span>. Timed or breeze?
+                  </p>
+                ) : null}
                 <Button
                   variant="solid"
                   size="lg"
@@ -509,4 +531,3 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
     </div>
   );
 }
-

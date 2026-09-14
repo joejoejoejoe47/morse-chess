@@ -4,20 +4,24 @@ import { Chess, type Square } from "chess.js";
 import { Flag, Undo2 } from "lucide-react";
 import {
   claimTimeout,
+  closeGameCamera,
+  closeGameChat,
   getGame,
   makeMove,
+  openGameCamera,
   openGameChat,
   openGameLive,
   resignGame,
   sendGameChat,
   type GameSnapshot,
 } from "@/lib/server/mores";
-import { BOT_USER_ID, formatClock } from "@/lib/mores-constants";
+import { formatClock, isBotUserId } from "@/lib/mores-constants";
 import { Button } from "@/components/ui/button";
 import { ClubBrand } from "@/components/club-brand";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { LiveCall } from "@/components/live-call";
+import { RobotSeat } from "@/components/robot-seat";
 import { equippedSkin } from "@/lib/chess/board-skins";
 import { cn } from "@/lib/utils";
 
@@ -268,6 +272,9 @@ export function GameView({ gameId }: { gameId: string }) {
   const oppClock = game.you === "w" ? clocks.b : clocks.w;
   const over = game.status !== "active";
   const skin = equippedSkin(game.myScore, game.myBoard, myName);
+  const vsBot = isBotUserId(opp.userId);
+  const selfId = game.you === "w" ? game.white.userId : game.black.userId;
+  const cameraOn = view === "3d" && game.cameraOpen;
   const boardProps = {
     fen: game.fen,
     you: game.you,
@@ -378,10 +385,52 @@ export function GameView({ gameId }: { gameId: string }) {
           />
         </div>
         {over ? <ResultOverlay game={game} /> : null}
-        {game.chatOpen || game.liveOpen ? (
+        {cameraOn ? (
+          <div className="pointer-events-none absolute left-3 top-16 z-10 sm:left-5 sm:top-14">
+            {vsBot ? (
+              <RobotSeat name={opp.username} />
+            ) : (
+              <LiveCall
+                gameId={game.id}
+                selfId={selfId}
+                name={myName}
+                audio={false}
+                video
+                showRemoteVideo
+              />
+            )}
+          </div>
+        ) : null}
+        {game.chatOpen ? (
           <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[48%] flex-col border-t border-line bg-ink/95 backdrop-blur-md sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[min(100%,20rem)] sm:border-l sm:border-t-0">
-            <div className="flex items-center justify-between border-b border-line px-3 py-2">
+            <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
               <p className="text-xs uppercase tracking-[0.16em] text-mist">Table chat</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                {view === "3d" ? (
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory hover:border-line-strong"
+                    onClick={async () => {
+                      const snap = game.cameraOpen
+                        ? await closeGameCamera({ data: { gameId } })
+                        : await openGameCamera({ data: { gameId } });
+                      if (snap) applySnap(snap, true);
+                    }}
+                  >
+                    {game.cameraOpen ? "Camera off" : "Real life"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory hover:border-line-strong"
+                  onClick={async () => {
+                    const snap = await closeGameChat({ data: { gameId } });
+                    if (snap) applySnap(snap, true);
+                  }}
+                >
+                  Put away
+                </button>
+              </div>
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
               {(game.chat ?? []).length === 0 ? (
@@ -415,39 +464,67 @@ export function GameView({ gameId }: { gameId: string }) {
                 className="w-full rounded-lg border border-line bg-panel px-3 py-3 text-base text-ivory outline-none placeholder:text-mist focus:border-gold-line"
               />
             </form>
-            {game.liveOpen && opp.userId !== BOT_USER_ID ? (
-              <LiveCall
-                gameId={game.id}
-                selfId={game.you === "w" ? game.white.userId : game.black.userId}
-                name={myName}
-              />
+            {game.liveOpen && !vsBot ? (
+              <LiveCall gameId={game.id} selfId={selfId} name={myName} audio />
             ) : (
               <div className="border-t border-line p-2">
                 <button
                   type="button"
                   className="min-h-11 w-full rounded-lg border border-line bg-forest px-3 text-sm text-ivory disabled:opacity-40"
-                  disabled={opp.userId === BOT_USER_ID}
+                  disabled={vsBot}
                   onClick={async () => {
                     const snap = await openGameLive({ data: { gameId } });
                     if (snap) applySnap(snap, true);
                   }}
                 >
-                  {opp.userId === BOT_USER_ID ? "MorseBot has no voice" : "Live"}
+                  {vsBot ? "MorseBot has no voice" : "Live"}
                 </button>
               </div>
             )}
           </aside>
         ) : (
-          <button
-            type="button"
-            className="absolute right-3 top-[42%] z-10 -translate-y-1/2 min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
-            onClick={async () => {
-              const snap = await openGameChat({ data: { gameId } });
-              if (snap) applySnap(snap, true);
-            }}
-          >
-            Chat
-          </button>
+          <div className="absolute right-3 top-[42%] z-10 flex -translate-y-1/2 flex-col items-end gap-2">
+            <button
+              type="button"
+              className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
+              onClick={async () => {
+                const snap = await openGameChat({ data: { gameId } });
+                if (snap) applySnap(snap, true);
+              }}
+            >
+              Chat
+            </button>
+            {view === "3d" ? (
+              game.cameraOpen ? (
+                <button
+                  type="button"
+                  className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
+                  onClick={async () => {
+                    const snap = await closeGameCamera({ data: { gameId } });
+                    if (snap) applySnap(snap, true);
+                  }}
+                >
+                  Camera off
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
+                  onClick={async () => {
+                    const snap = await openGameCamera({ data: { gameId } });
+                    if (snap) applySnap(snap, true);
+                  }}
+                >
+                  Real life
+                </button>
+              )
+            ) : null}
+            {game.liveOpen && !vsBot ? (
+              <div className="w-56 rounded-xl border border-line bg-ink/90 backdrop-blur-md">
+                <LiveCall gameId={game.id} selfId={selfId} name={myName} audio />
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
     </main>
