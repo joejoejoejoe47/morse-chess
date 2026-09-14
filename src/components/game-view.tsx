@@ -386,7 +386,7 @@ export function GameView({ gameId }: { gameId: string }) {
         </div>
         {over ? <ResultOverlay game={game} /> : null}
         {cameraOn ? (
-          <div className="pointer-events-none absolute left-3 top-16 z-10 sm:left-5 sm:top-14">
+          <div className="pointer-events-none absolute left-2 top-14 z-10 sm:left-4 sm:top-12">
             {vsBot ? (
               <RobotSeat name={opp.username} />
             ) : (

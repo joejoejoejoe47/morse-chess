@@ -195,7 +195,7 @@ export function LiveCall({
   return (
     <div className={cn("flex flex-col", showRemoteVideo && "gap-2")}>
       {showRemoteVideo ? (
-        <div className="relative mx-auto h-52 w-36 overflow-hidden rounded-t-[2.8rem] bg-ink sm:h-64 sm:w-44">
+        <div className="relative mx-auto h-80 w-56 overflow-hidden rounded-t-[3.4rem] bg-ink sm:h-[26rem] sm:w-72">
           <video
             ref={remoteVideoRef}
             autoPlay
