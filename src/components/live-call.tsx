@@ -59,7 +59,6 @@ export function LiveCall({
         }
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         if (ctx) {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
           const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const p = img.data;
@@ -67,15 +66,7 @@ export function LiveCall({
             const r = p[i];
             const g = p[i + 1];
             const b = p[i + 2];
-            const mag = Math.min(r, b) - g;
-            const green = g - Math.max(r, b);
-            let gone = 0;
-            if (mag > 18 && r > 60 && b > 60) gone = 1;
-            else if (green > 20 && g > 70) gone = 1;
-            else if (r > 210 && g < 50 && b > 210) gone = 1;
-            else if (g > 200 && r < 70 && b < 70) gone = 1;
-            if (gone) p[i + 3] = 0;
-            else if (mag > 8 && r > 40 && b > 40) p[i + 3] = Math.min(p[i + 3], 90);
+            if (g > 88 && g > r + 22 && g > b + 22) p[i + 3] = 0;
           }
           ctx.putImageData(img, 0, 0);
         }
@@ -245,15 +236,15 @@ export function LiveCall({
   return (
     <div className={cn("flex flex-col", showRemoteVideo && "items-center")}>
       {showRemoteVideo ? (
-        <div className="relative h-[22rem] w-44 bg-transparent sm:h-[30rem] sm:w-60">
+        <div className="relative h-[22rem] w-44 sm:h-[30rem] sm:w-60">
           <video
             ref={remoteVideoRef}
             autoPlay
             playsInline
             muted
-            className="absolute inset-0 h-full w-full object-cover object-top opacity-[0.01]"
+            className="absolute inset-0 h-full w-full object-cover object-top"
           />
-          <canvas ref={displayRef} className="absolute inset-0 h-full w-full bg-transparent" aria-hidden />
+          <canvas ref={displayRef} className="absolute inset-0 h-full w-full" aria-hidden />
         </div>
       ) : (
         <video
@@ -279,6 +270,8 @@ export function LiveCall({
             {muted ? "Unmute" : "Mute"}
           </button>
         </div>
+      ) : video ? (
+        <p className="mt-1 text-center text-[11px] uppercase tracking-[0.14em] text-mist">{status}</p>
       ) : null}
     </div>
   );
