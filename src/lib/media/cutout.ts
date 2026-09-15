@@ -1,5 +1,5 @@
 type SegCtor = new (opts: { locateFile: (f: string) => string }) => {
-  setOptions: (o: { modelSelection: number }) => void;
+  setOptions: (o: { modelSelection: number; selfieMode?: boolean }) => void;
   onResults: (cb: (r: { image: CanvasImageSource; segmentationMask: CanvasImageSource }) => void) => void;
   send: (o: { image: HTMLVideoElement }) => Promise<void>;
   close?: () => void;
@@ -30,11 +30,19 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
   await video.play().catch(() => undefined);
 
   const canvas = document.createElement("canvas");
-  canvas.width = 480;
-  canvas.height = 640;
-  const ctx = canvas.getContext("2d");
+  canvas.width = 720;
+  canvas.height = 1000;
+  const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) return { stream: src, stop: () => undefined };
   const draw = ctx;
+  draw.imageSmoothingEnabled = true;
+  draw.imageSmoothingQuality = "high";
+
+  const mask = document.createElement("canvas");
+  mask.width = canvas.width;
+  mask.height = canvas.height;
+  const maskDraw = mask.getContext("2d");
+  if (!maskDraw) return { stream: src, stop: () => undefined };
 
   let running = true;
   let seg: InstanceType<SegCtor> | null = null;
@@ -47,18 +55,26 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
         locateFile: (file) =>
           `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
       });
-      seg.setOptions({ modelSelection: 1 });
+      seg.setOptions({ modelSelection: 1, selfieMode: false });
       seg.onResults((r) => {
         if (!running) return;
-        draw.clearRect(0, 0, canvas.width, canvas.height);
+        const w = canvas.width;
+        const h = canvas.height;
+        maskDraw.clearRect(0, 0, w, h);
+        maskDraw.filter = "contrast(180%) brightness(108%) blur(2px)";
+        maskDraw.drawImage(r.segmentationMask, 0, 0, w, h);
+        maskDraw.filter = "none";
+
+        draw.fillStyle = "#00FF00";
+        draw.fillRect(0, 0, w, h);
         draw.save();
-        draw.drawImage(r.segmentationMask, 0, 0, canvas.width, canvas.height);
+        draw.drawImage(mask, 0, 0);
         draw.globalCompositeOperation = "source-in";
-        draw.drawImage(r.image, 0, 0, canvas.width, canvas.height);
+        const zoom = 1.62;
+        const dw = w * zoom;
+        const dh = h * zoom;
+        draw.drawImage(r.image, (w - dw) / 2, h * 0.04 - (dh - h) * 0.22, dw, dh);
         draw.restore();
-        draw.globalCompositeOperation = "destination-over";
-        draw.fillStyle = "#0c0d0b";
-        draw.fillRect(0, 0, canvas.width, canvas.height);
         draw.globalCompositeOperation = "source-over";
       });
     }
@@ -72,14 +88,14 @@ export async function pipePersonCutout(src: MediaStream): Promise<{ stream: Medi
       if (seg) {
         await seg.send({ image: video }).catch(() => undefined);
       } else {
-        draw.fillStyle = "#0c0d0b";
+        draw.fillStyle = "#00FF00";
         draw.fillRect(0, 0, canvas.width, canvas.height);
-        const vw = video.videoWidth || 480;
-        const vh = video.videoHeight || 640;
-        const scale = Math.max(canvas.width / vw, canvas.height / vh);
+        const vw = video.videoWidth || 720;
+        const vh = video.videoHeight || 1000;
+        const scale = Math.max(canvas.width / vw, canvas.height / vh) * 1.5;
         const dw = vw * scale;
         const dh = vh * scale;
-        draw.drawImage(video, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+        draw.drawImage(video, (canvas.width - dw) / 2, canvas.height * 0.06 - (dh - canvas.height) * 0.2, dw, dh);
       }
     }
     if (running) requestAnimationFrame(() => void tick());
