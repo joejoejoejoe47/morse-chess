@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Chess, type Square } from "chess.js";
 import { FILES } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
-import { boardById, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
+import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
+import { HtmlPiece } from "@/components/chess/html-piece";
+import type { PieceKind } from "@/components/chess/marks";
 import { cn } from "@/lib/utils";
 
 const GLYPH: Record<string, string> = {
@@ -73,6 +75,7 @@ export function ChessBoard2D({
   }, [look.id]);
   const lightSq = fade?.[0] ?? look.lightSq;
   const darkSq = fade?.[1] ?? look.darkSq;
+  const fine = boardUsesFinePieces(look);
 
   function onSquare(sq: Square) {
     if (disabled || !myTurn) {
@@ -132,6 +135,13 @@ export function ChessBoard2D({
                   aria-label={sq}
                 >
                   {piece ? (
+                    fine ? (
+                      <HtmlPiece
+                        kind={piece.type as PieceKind}
+                        fill={piece.color === "w" ? look.whitePiece : look.blackPiece}
+                        edge={piece.color === "w" ? look.whiteStroke : look.blackStroke}
+                      />
+                    ) : (
                     <span
                       className="pointer-events-none select-none font-display leading-none"
                       style={{
@@ -147,6 +157,7 @@ export function ChessBoard2D({
                     >
                       {GLYPH[piece.type]}
                     </span>
+                    )
                   ) : null}
                   {legal.has(sq) && !piece ? (
                     <span className="pointer-events-none absolute left-1/2 top-1/2 size-[28%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink/35" />

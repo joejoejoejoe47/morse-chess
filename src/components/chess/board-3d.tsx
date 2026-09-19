@@ -5,7 +5,7 @@ import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
-import { boardById, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
+import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 
 function hexRgb(hex: string) {
   const n = hex.replace("#", "");
@@ -46,12 +46,69 @@ function makeWoodTexture(hex: string, seed: number) {
   return tex;
 }
 
+function makeMarbleTexture(hex: string, seed: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const { r, g, b } = hexRgb(hex);
+  const img = ctx.createImageData(512, 512);
+  for (let y = 0; y < 512; y++) {
+    for (let x = 0; x < 512; x++) {
+      const v1 = Math.sin(x * 0.03 + y * 0.018 + seed) + Math.sin(x * 0.09 - y * 0.05 + seed * 1.7) * 0.55;
+      const v2 = Math.sin((x + y) * 0.04 + seed) * 0.35;
+      const vein = Math.abs(v1 + v2);
+      const speckle = ((x * 17 + y * 31 + seed * 80) % 13) - 6;
+      const glow = vein > 1.35 ? 48 : vein > 1.05 ? 18 : 0;
+      const i = (y * 512 + x) * 4;
+      img.data[i] = Math.max(0, Math.min(255, r + speckle + glow));
+      img.data[i + 1] = Math.max(0, Math.min(255, g + speckle + glow * 0.9));
+      img.data[i + 2] = Math.max(0, Math.min(255, b + speckle + glow * 1.05));
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  return tex;
+}
+
 function lathe(pairs: [number, number][], segments = 28) {
   const pts = pairs.map(([x, y]) => new THREE.Vector2(x, y));
   return new THREE.LatheGeometry(pts, segments);
 }
 
-function makeGeometries() {
+function makeKnightHead() {
+  const s = new THREE.Shape();
+  s.moveTo(0.03, 0);
+  s.lineTo(0.2, 0);
+  s.lineTo(0.18, 0.14);
+  s.quadraticCurveTo(0.32, 0.26, 0.24, 0.42);
+  s.lineTo(0.36, 0.48);
+  s.lineTo(0.38, 0.56);
+  s.lineTo(0.26, 0.58);
+  s.lineTo(0.2, 0.74);
+  s.lineTo(0.1, 0.66);
+  s.quadraticCurveTo(-0.02, 0.48, 0.03, 0.22);
+  s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: 0.16,
+    bevelEnabled: true,
+    bevelThickness: 0.016,
+    bevelSize: 0.014,
+    bevelSegments: 2,
+    curveSegments: 10,
+  });
+  g.translate(0, 0, -0.08);
+  g.rotateY(Math.PI / 2);
+  return g;
+}
+
+function makeClubGeometries() {
   const pawn = lathe([
     [0, 0],
     [0.32, 0],
@@ -123,7 +180,120 @@ function makeGeometries() {
     [0.18, 0.28],
     [0, 0.28],
   ]);
-  return { pawn, rook, bishop, queen, king, knightBase };
+  return { pawn, rook, bishop, queen, king, knightBase, knightHead: null as THREE.BufferGeometry | null };
+}
+
+function makeStauntonGeometries() {
+  const pawn = lathe(
+    [
+      [0, 0],
+      [0.3, 0],
+      [0.3, 0.05],
+      [0.22, 0.08],
+      [0.2, 0.12],
+      [0.14, 0.16],
+      [0.12, 0.34],
+      [0.16, 0.38],
+      [0.12, 0.42],
+      [0.11, 0.5],
+      [0.18, 0.58],
+      [0.16, 0.68],
+      [0.08, 0.72],
+      [0, 0.73],
+    ],
+    48,
+  );
+  const rook = lathe(
+    [
+      [0, 0],
+      [0.32, 0],
+      [0.32, 0.06],
+      [0.24, 0.1],
+      [0.2, 0.16],
+      [0.17, 0.22],
+      [0.16, 0.52],
+      [0.22, 0.56],
+      [0.24, 0.62],
+      [0.26, 0.7],
+      [0.2, 0.7],
+      [0, 0.7],
+    ],
+    48,
+  );
+  const bishop = lathe(
+    [
+      [0, 0],
+      [0.3, 0],
+      [0.3, 0.05],
+      [0.2, 0.1],
+      [0.16, 0.16],
+      [0.12, 0.22],
+      [0.11, 0.48],
+      [0.16, 0.54],
+      [0.12, 0.6],
+      [0.1, 0.72],
+      [0.14, 0.86],
+      [0.08, 0.96],
+      [0.05, 1.02],
+      [0.07, 1.06],
+      [0, 1.07],
+    ],
+    48,
+  );
+  const queen = lathe(
+    [
+      [0, 0],
+      [0.32, 0],
+      [0.32, 0.06],
+      [0.22, 0.1],
+      [0.17, 0.16],
+      [0.13, 0.24],
+      [0.12, 0.52],
+      [0.18, 0.58],
+      [0.14, 0.64],
+      [0.16, 0.78],
+      [0.2, 0.9],
+      [0.12, 0.96],
+      [0.08, 1.02],
+      [0, 1.04],
+    ],
+    48,
+  );
+  const king = lathe(
+    [
+      [0, 0],
+      [0.34, 0],
+      [0.34, 0.06],
+      [0.22, 0.11],
+      [0.17, 0.17],
+      [0.13, 0.26],
+      [0.12, 0.56],
+      [0.2, 0.62],
+      [0.15, 0.68],
+      [0.16, 0.86],
+      [0.2, 0.96],
+      [0.12, 1.0],
+      [0, 1.0],
+    ],
+    48,
+  );
+  const knightBase = lathe(
+    [
+      [0, 0],
+      [0.3, 0],
+      [0.3, 0.06],
+      [0.2, 0.1],
+      [0.16, 0.16],
+      [0.14, 0.3],
+      [0, 0.3],
+    ],
+    40,
+  );
+  return { pawn, rook, bishop, queen, king, knightBase, knightHead: makeKnightHead() };
+}
+
+function makeGeometries(fine: boolean) {
+  return fine ? makeStauntonGeometries() : makeClubGeometries();
 }
 
 function PieceMesh({
@@ -143,29 +313,37 @@ function PieceMesh({
 }) {
   const mat = color === "w" ? ivory : ebony;
   const outline = color === "w" ? skin.whiteStroke : skin.blackStroke;
+  const fine = boardUsesFinePieces(skin);
+  const scale = skin.pieceScale || 1;
   if (type === "n") {
     return (
-      <group>
+      <group scale={scale}>
         <mesh geometry={geometries.knightBase} scale={[1.1, 1.06, 1.1]}>
           <meshBasicMaterial color={outline} side={THREE.BackSide} />
         </mesh>
         <mesh geometry={geometries.knightBase} material={mat} castShadow />
-        <mesh position={[0, 0.42, 0.02]} rotation={[0.15, 0, 0]} castShadow>
-          <boxGeometry args={[0.22, 0.38, 0.34]} />
-          <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
-        </mesh>
-        <mesh position={[0, 0.62, 0.16]} rotation={[0.55, 0, 0]} castShadow>
-          <boxGeometry args={[0.2, 0.22, 0.3]} />
-          <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
-        </mesh>
-        <mesh position={[0, 0.72, 0.3]} castShadow>
-          <boxGeometry args={[0.16, 0.12, 0.16]} />
-          <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
-        </mesh>
-        <mesh position={[0.05, 0.86, 0.08]} castShadow>
-          <boxGeometry args={[0.08, 0.16, 0.1]} />
-          <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
-        </mesh>
+        {geometries.knightHead ? (
+          <mesh geometry={geometries.knightHead} position={[0, 0.28, 0]} material={mat} castShadow />
+        ) : (
+          <>
+            <mesh position={[0, 0.42, 0.02]} rotation={[0.15, 0, 0]} castShadow>
+              <boxGeometry args={[0.22, 0.38, 0.34]} />
+              <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
+            </mesh>
+            <mesh position={[0, 0.62, 0.16]} rotation={[0.55, 0, 0]} castShadow>
+              <boxGeometry args={[0.2, 0.22, 0.3]} />
+              <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
+            </mesh>
+            <mesh position={[0, 0.72, 0.3]} castShadow>
+              <boxGeometry args={[0.16, 0.12, 0.16]} />
+              <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
+            </mesh>
+            <mesh position={[0.05, 0.86, 0.08]} castShadow>
+              <boxGeometry args={[0.08, 0.16, 0.1]} />
+              <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
+            </mesh>
+          </>
+        )}
       </group>
     );
   }
@@ -180,30 +358,32 @@ function PieceMesh({
             ? geometries.queen
             : geometries.king;
   return (
-    <group>
+    <group scale={scale}>
       <mesh geometry={geo} scale={[1.1, 1.07, 1.1]}>
         <meshBasicMaterial color={outline} side={THREE.BackSide} />
       </mesh>
       <mesh geometry={geo} material={mat} castShadow />
       {type === "k" ? (
-        <group position={[0, 0.98, 0]}>
+        <group position={[0, fine ? 1.08 : 0.98, 0]}>
           <mesh castShadow>
-            <boxGeometry args={[0.07, 0.22, 0.07]} />
+            <boxGeometry args={[0.07, 0.24, 0.07]} />
             <meshStandardMaterial color={mat.color} roughness={0.35} metalness={0.08} />
           </mesh>
           <mesh position={[0, 0.04, 0]} castShadow>
-            <boxGeometry args={[0.18, 0.07, 0.07]} />
+            <boxGeometry args={[0.2, 0.07, 0.07]} />
             <meshStandardMaterial color={mat.color} roughness={0.35} metalness={0.08} />
           </mesh>
         </group>
       ) : null}
       {type === "q" ? (
-        <group position={[0, 0.96, 0]}>
-          {[0, 1, 2, 3, 4].map((i) => {
-            const a = (i / 5) * Math.PI * 2;
+        <group position={[0, fine ? 1.04 : 0.96, 0]}>
+          {[0, 1, 2, 3, 4, 5, 6, 7].slice(0, fine ? 8 : 5).map((i) => {
+            const n = fine ? 8 : 5;
+            const a = (i / n) * Math.PI * 2;
+            const r = fine ? 0.14 : 0.12;
             return (
-              <mesh key={i} position={[Math.cos(a) * 0.12, 0.02, Math.sin(a) * 0.12]} castShadow>
-                <sphereGeometry args={[0.035, 10, 10]} />
+              <mesh key={i} position={[Math.cos(a) * r, 0.02, Math.sin(a) * r]} castShadow>
+                <sphereGeometry args={[fine ? 0.028 : 0.035, 10, 10]} />
                 <meshStandardMaterial color={mat.color} roughness={0.32} metalness={0.1} />
               </mesh>
             );
@@ -211,17 +391,24 @@ function PieceMesh({
         </group>
       ) : null}
       {type === "r" ? (
-        <group position={[0, 0.74, 0]}>
+        <group position={[0, fine ? 0.7 : 0.74, 0]}>
           {[0, 1, 2, 3].map((i) => {
             const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+            const r = fine ? 0.2 : 0.22;
             return (
-              <mesh key={i} position={[Math.cos(a) * 0.22, 0.05, Math.sin(a) * 0.22]} castShadow>
-                <boxGeometry args={[0.1, 0.1, 0.1]} />
+              <mesh key={i} position={[Math.cos(a) * r, 0.07, Math.sin(a) * r]} castShadow>
+                <boxGeometry args={[0.09, fine ? 0.14 : 0.1, 0.09]} />
                 <meshStandardMaterial color={mat.color} roughness={0.4} metalness={0.06} />
               </mesh>
             );
           })}
         </group>
+      ) : null}
+      {type === "b" && fine ? (
+        <mesh position={[0, 0.92, 0]} rotation={[0, 0, 0.14]} castShadow>
+          <boxGeometry args={[0.018, 0.2, 0.14]} />
+          <meshStandardMaterial color={outline} roughness={0.45} metalness={0.05} />
+        </mesh>
       ) : null}
     </group>
   );
@@ -551,7 +738,7 @@ function Scene({
   tableSeat: "video" | "bot" | null;
   seatVideo: HTMLVideoElement | null;
 }) {
-  const geometries = useMemo(() => makeGeometries(), []);
+  const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -576,7 +763,7 @@ function Scene({
   );
   useEffect(
     () => () => {
-      Object.values(geometries).forEach((g) => g.dispose());
+      Object.values(geometries).forEach((g) => g?.dispose());
       ivory.dispose();
       ebony.dispose();
     },
@@ -595,6 +782,13 @@ function Scene({
   }, [fen]);
 
   const wood = useMemo(() => {
+    if (skin.id === "marble") {
+      const slab = makeMarbleTexture(skin.table, 0.7);
+      const light = makeMarbleTexture(skin.lightSq, 0.2);
+      const dark = makeMarbleTexture(skin.darkSq, 1.6);
+      if (slab) slab.repeat.set(2.4, 2.4);
+      return { slab, light, dark };
+    }
     if (skin.tableKind !== "walnut") return null;
     const slab = makeWoodTexture(skin.table, 1.2);
     const light = makeWoodTexture(skin.lightSq, 0.4);
@@ -654,13 +848,14 @@ function Scene({
         <mesh position={[0, skin.tableKind === "felt" ? -0.18 : skin.tableKind === "plank" ? -0.26 : -0.32, 0]} receiveShadow>
           <boxGeometry
             args={[
-              skin.tableKind === "legend" ? 10.6 : 10,
+              skin.tableKind === "legend" ? 10.6 : skin.id === "marble" ? 10.4 : 10,
               skin.tableKind === "felt" ? 0.28 : skin.tableKind === "plank" ? 0.42 : 0.52,
-              skin.tableKind === "legend" ? 10.6 : 10,
+              skin.tableKind === "legend" ? 10.6 : skin.id === "marble" ? 10.4 : 10,
             ]}
           />
           <meshStandardMaterial
             color={skin.table}
+            map={skin.id === "marble" ? wood?.slab ?? null : null}
             roughness={skin.tableKind === "felt" ? 0.58 : skin.tableKind === "plank" ? 0.38 : 0.16}
             metalness={skin.tableKind === "felt" ? 0.05 : skin.tableKind === "plank" ? 0.18 : 0.55}
           />

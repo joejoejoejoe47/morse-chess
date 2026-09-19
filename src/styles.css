@@ -259,3 +259,188 @@ html.light .auth-wood {
     transform: rotate(360deg);
   }
 }
+
+/* Staunton HTML pieces — cylindrical light, not flat glyphs */
+.mp {
+  --mp-fill: #f7f3ea;
+  --mp-edge: #2a1810;
+  --mp-hi: color-mix(in srgb, var(--mp-fill) 72%, white);
+  --mp-lo: color-mix(in srgb, var(--mp-fill) 72%, var(--mp-edge));
+  --mp-body: linear-gradient(
+    90deg,
+    var(--mp-lo) 0%,
+    var(--mp-fill) 34%,
+    var(--mp-hi) 48%,
+    var(--mp-fill) 64%,
+    var(--mp-lo) 100%
+  );
+  position: relative;
+  display: block;
+  width: 72%;
+  height: 88%;
+  margin: 4% auto 0;
+  transform: rotateX(10deg);
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 7px 8px color-mix(in srgb, var(--mp-edge) 45%, transparent));
+  pointer-events: none;
+}
+.mp > i {
+  position: absolute;
+  left: 50%;
+  display: block;
+  transform: translateX(-50%);
+  background: var(--mp-body);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--mp-edge) 28%, transparent),
+    inset 8px 0 10px color-mix(in srgb, var(--mp-edge) 18%, transparent);
+}
+.mp-foot {
+  bottom: 2%;
+  width: 78%;
+  height: 9%;
+  border-radius: 40% / 50%;
+}
+.mp-base {
+  bottom: 9%;
+  width: 62%;
+  height: 12%;
+  border-radius: 40% 40% 45% 45% / 40% 40% 55% 55%;
+}
+.mp-waist {
+  bottom: 19%;
+  width: 34%;
+  height: 8%;
+  border-radius: 50%;
+}
+.mp-stem {
+  bottom: 25%;
+  width: 22%;
+  height: 28%;
+  border-radius: 40% 40% 30% 30% / 20%;
+}
+.mp-collar {
+  bottom: 50%;
+  width: 42%;
+  height: 8%;
+  border-radius: 50%;
+}
+.mp-head {
+  bottom: 54%;
+  width: 36%;
+  height: 26%;
+  border-radius: 50%;
+}
+.mp-hat,
+.mp-ear {
+  display: none;
+}
+
+.mp-p .mp-stem { height: 22%; width: 20%; }
+.mp-p .mp-head { width: 34%; height: 24%; bottom: 50%; border-radius: 50%; }
+.mp-p .mp-collar { bottom: 46%; width: 30%; }
+.mp-p .mp-hat,
+.mp-p .mp-ear,
+.mp-p .mp-waist { display: none; }
+
+.mp-r .mp-stem { width: 32%; height: 34%; bottom: 22%; border-radius: 8% / 4%; }
+.mp-r .mp-head { width: 48%; height: 14%; bottom: 54%; border-radius: 6px 6px 2px 2px; }
+.mp-r .mp-hat {
+  display: block;
+  bottom: 66%;
+  width: 52%;
+  height: 10%;
+  background:
+    repeating-linear-gradient(90deg, var(--mp-fill) 0 18%, transparent 18% 22%) padding-box,
+    var(--mp-body);
+  border-radius: 2px;
+  clip-path: polygon(0 100%, 0 30%, 12% 30%, 12% 0, 28% 0, 28% 30%, 40% 30%, 40% 0, 56% 0, 56% 30%, 68% 30%, 68% 0, 84% 0, 84% 30%, 100% 30%, 100% 100%);
+}
+.mp-r .mp-collar { bottom: 48%; width: 40%; }
+.mp-r .mp-ear { display: none; }
+
+.mp-b .mp-stem { width: 18%; height: 32%; }
+.mp-b .mp-head {
+  width: 30%;
+  height: 30%;
+  bottom: 54%;
+  border-radius: 50% 50% 42% 42% / 62% 62% 38% 38%;
+}
+.mp-b .mp-hat {
+  display: block;
+  bottom: 80%;
+  width: 10%;
+  height: 8%;
+  border-radius: 50%;
+}
+.mp-b .mp-collar { width: 36%; }
+.mp-b .mp-head::after {
+  content: "";
+  position: absolute;
+  left: 46%;
+  top: 8%;
+  width: 8%;
+  height: 62%;
+  background: color-mix(in srgb, var(--mp-edge) 55%, transparent);
+  border-radius: 2px;
+  transform: rotate(12deg);
+}
+
+.mp-q .mp-stem { width: 20%; height: 30%; }
+.mp-q .mp-head {
+  width: 40%;
+  height: 18%;
+  bottom: 56%;
+  border-radius: 50% 50% 20% 20% / 70% 70% 30% 30%;
+}
+.mp-q .mp-hat {
+  display: block;
+  bottom: 70%;
+  width: 48%;
+  height: 16%;
+  background: radial-gradient(circle at 10% 30%, var(--mp-fill) 0 22%, transparent 23%),
+    radial-gradient(circle at 30% 8%, var(--mp-fill) 0 18%, transparent 19%),
+    radial-gradient(circle at 50% 0%, var(--mp-fill) 0 20%, transparent 21%),
+    radial-gradient(circle at 70% 8%, var(--mp-fill) 0 18%, transparent 19%),
+    radial-gradient(circle at 90% 30%, var(--mp-fill) 0 22%, transparent 23%),
+    var(--mp-body);
+  border-radius: 40% 40% 8% 8%;
+  clip-path: polygon(0 100%, 4% 40%, 20% 18%, 36% 8%, 50% 0, 64% 8%, 80% 18%, 96% 40%, 100% 100%);
+}
+.mp-q .mp-collar { width: 38%; }
+
+.mp-k .mp-stem { width: 22%; height: 32%; }
+.mp-k .mp-head {
+  width: 38%;
+  height: 16%;
+  bottom: 56%;
+  border-radius: 40%;
+}
+.mp-k .mp-hat {
+  display: block;
+  bottom: 68%;
+  width: 10%;
+  height: 22%;
+  border-radius: 2px;
+}
+.mp-k .mp-ear {
+  display: block;
+  bottom: 76%;
+  width: 22%;
+  height: 8%;
+  border-radius: 2px;
+}
+.mp-k .mp-collar { width: 40%; }
+
+.mp-n .mp-stem { width: 28%; height: 18%; bottom: 22%; }
+.mp-n .mp-waist { bottom: 18%; width: 40%; }
+.mp-n .mp-head {
+  width: 52%;
+  height: 48%;
+  bottom: 34%;
+  border-radius: 0;
+  clip-path: polygon(16% 100%, 20% 62%, 6% 50%, 14% 18%, 40% 0, 52% 16%, 92% 28%, 96% 44%, 62% 50%, 70% 68%, 56% 100%);
+}
+.mp-n .mp-collar { bottom: 32%; width: 36%; }
+.mp-n .mp-hat,
+.mp-n .mp-ear { display: none; }
+

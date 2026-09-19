@@ -34,6 +34,8 @@ export type BoardSkin = {
   collar: string | null;
   sealed?: boolean;
   animated?: boolean;
+  pieceCut?: "club" | "staunton";
+  htmlPieces?: boolean;
 };
 
 export const MASTER_USERNAME = "MasterGus";
@@ -349,9 +351,84 @@ export const BOARD_CATALOG: BoardSkin[] = [
     sqRough: 0.28,
     ring: "#f0a040",
   },
+  {
+    ...BASE,
+    id: "marble",
+    name: "Marble",
+    blurb: "A stone Staunton table. Jet and bone on a black marble frame.",
+    cost: 1500,
+    tableKind: "shine",
+    pieceCut: "staunton",
+    htmlPieces: true,
+    pieceScale: 1.18,
+    collar: "#2a2a30",
+    lightSq: "#ececf2",
+    darkSq: "#141418",
+    table: "#0c0c10",
+    felt: "#08080c",
+    select: "#4a4a58",
+    last: "#2a2a38",
+    check: "#8a2030",
+    fillLight: "#d8d8e8",
+    whitePiece: "#f7f7fb",
+    blackPiece: "#0a0a0c",
+    whiteStroke: "#2a2a32",
+    blackStroke: "#e8e8f0",
+    sqMetal: 0.42,
+    sqRough: 0.22,
+    whiteMetal: 0.18,
+    blackMetal: 0.28,
+    whiteRough: 0.16,
+    blackRough: 0.14,
+    whiteEmissive: "#c8c8d8",
+    blackEmissive: "#111118",
+    whiteGlow: 0.12,
+    blackGlow: 0.06,
+    ring: "#2a2a32",
+  },
+  {
+    ...BASE,
+    id: "mahogany",
+    name: "Mahogany",
+    blurb: "Boxwood and rosewood on a wide mahogany frame.",
+    cost: 1280,
+    tableKind: "walnut",
+    pieceCut: "staunton",
+    htmlPieces: true,
+    pieceScale: 1.16,
+    collar: "#6a2a18",
+    lightSq: "#edd4a4",
+    darkSq: "#8a3a1c",
+    table: "#6a2c14",
+    felt: "#3a180c",
+    select: "#b45a28",
+    last: "#c47a40",
+    check: "#8a2030",
+    fillLight: "#f0c090",
+    whitePiece: "#f3d7ae",
+    blackPiece: "#5a1c10",
+    whiteStroke: "#6a3a18",
+    blackStroke: "#f0d2a8",
+    sqMetal: 0.06,
+    sqRough: 0.46,
+    whiteMetal: 0.08,
+    blackMetal: 0.1,
+    whiteRough: 0.34,
+    blackRough: 0.32,
+    whiteEmissive: "#8a5a28",
+    blackEmissive: "#2a0c08",
+    whiteGlow: 0.06,
+    blackGlow: 0.04,
+    ring: "#4a1c10",
+  },
 ];
 
 const BY_ID = new Map(BOARD_CATALOG.map((b) => [b.id, b]));
+
+export function boardUsesFinePieces(board: BoardSkin | string) {
+  const b = typeof board === "string" ? boardById(board) : board;
+  return b.pieceCut === "staunton" || b.htmlPieces === true || b.cost >= 1300;
+}
 
 export function boardById(id: string | null | undefined): BoardSkin {
   return BY_ID.get(id ?? "") ?? BOARD_CATALOG[0];
