@@ -25,6 +25,7 @@ type Watch = BellSettings["watches"][number];
 
 export function BellDesk() {
   const { user, isPending } = useCurrentUserState();
+  const accountId = user?.id ?? "";
   const [settings, setSettings] = useState<BellSettings>(defaultBellSettings);
   const [users, setUsers] = useState<ClubUserRow[] | null>(null);
   const [browseFor, setBrowseFor] = useState<string | null>(null);
@@ -33,12 +34,12 @@ export function BellDesk() {
   const rowFiles = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
-    setSettings(loadBellSettings());
-  }, []);
+    setSettings(loadBellSettings(accountId || null));
+  }, [accountId]);
 
   function commit(next: BellSettings) {
     setSettings(next);
-    saveBellSettings(next);
+    if (accountId) saveBellSettings(accountId, next);
   }
 
   async function openBrowse(watchId: string) {
@@ -54,10 +55,11 @@ export function BellDesk() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (!accountId) return;
     if (file.size > 8 * 1024 * 1024) return;
     setBusySong("default");
-    const meta = await saveSongBlob(file);
-    if (settings.defaultSongId) await deleteSongBlob(settings.defaultSongId).catch(() => undefined);
+    const meta = await saveSongBlob(accountId, file);
+    if (settings.defaultSongId) await deleteSongBlob(accountId, settings.defaultSongId).catch(() => undefined);
     commit({ ...settings, defaultSongId: meta.id, defaultSongName: meta.name });
     setBusySong(null);
   }
@@ -66,9 +68,10 @@ export function BellDesk() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (!accountId) return;
     if (file.size > 8 * 1024 * 1024) return;
     setBusySong(watchId);
-    const meta = await saveSongBlob(file);
+    const meta = await saveSongBlob(accountId, file);
     commit({
       ...settings,
       watches: settings.watches.map((w) => (w.id === watchId ? { ...w, songId: meta.id } : w)),
@@ -146,7 +149,7 @@ export function BellDesk() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => void playBellPreview()}
+              onClick={() => void playBellPreview(accountId)}
             >
               <Music2 className="size-3.5" />
               Test
@@ -157,7 +160,7 @@ export function BellDesk() {
                 variant="ghost"
                 size="sm"
                 onClick={async () => {
-                  await deleteSongBlob(settings.defaultSongId!).catch(() => undefined);
+                  await deleteSongBlob(accountId, settings.defaultSongId!).catch(() => undefined);
                   commit({ ...settings, defaultSongId: null, defaultSongName: null });
                 }}
               >

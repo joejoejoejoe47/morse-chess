@@ -2,18 +2,21 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Bell, BellOff } from "lucide-react";
 import { loadBellSettings, subscribeBellSettings } from "@/lib/bell";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { cn } from "@/lib/utils";
 
 export function BellButton({ className }: { className?: string }) {
+  const { user } = useCurrentUserState();
+  const accountId = user?.id ?? null;
   const [unmuted, setUnmuted] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const sync = () => setUnmuted(loadBellSettings().unmuted);
+    const sync = () => setUnmuted(loadBellSettings(accountId).unmuted);
     sync();
     setReady(true);
     return subscribeBellSettings(sync);
-  }, []);
+  }, [accountId]);
 
   return (
     <Link

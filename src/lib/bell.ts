@@ -1,5 +1,5 @@
-const SETTINGS_KEY = "morse-bell-v1";
-const SEEN_KEY = "morse-bell-seen";
+const SETTINGS_KEY = "morse-bell-v2";
+const SEEN_KEY = "morse-bell-seen-v2";
 const DB_NAME = "morse-bell";
 const STORE = "songs";
 export const BELL_CHANGED = "morse-bell-changed";
@@ -38,11 +38,19 @@ function canStore() {
   return typeof window !== "undefined" && typeof localStorage !== "undefined";
 }
 
-export function loadBellSettings(): BellSettings {
+function settingsKey(accountId: string) {
+  return `${SETTINGS_KEY}:${accountId}`;
+}
+
+function seenKey(accountId: string) {
+  return `${SEEN_KEY}:${accountId}`;
+}
+
+export function loadBellSettings(accountId: string | null | undefined): BellSettings {
   const base = defaultBellSettings();
-  if (!canStore()) return base;
+  if (!accountId || !canStore()) return base;
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
+    const raw = localStorage.getItem(settingsKey(accountId));
     if (!raw) return base;
     const parsed = JSON.parse(raw) as Partial<BellSettings>;
     const watches = Array.isArray(parsed.watches)
@@ -65,9 +73,9 @@ export function loadBellSettings(): BellSettings {
   }
 }
 
-export function saveBellSettings(next: BellSettings) {
-  if (!canStore()) return;
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+export function saveBellSettings(accountId: string, next: BellSettings) {
+  if (!accountId || !canStore()) return;
+  localStorage.setItem(settingsKey(accountId), JSON.stringify(next));
   window.dispatchEvent(new Event(BELL_CHANGED));
 }
 
@@ -100,7 +108,7 @@ export function songIdFor(settings: BellSettings, fromUsername: string) {
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
@@ -112,9 +120,9 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveSongBlob(file: File): Promise<SongMeta> {
-  const id = crypto.randomUUID();
-  const rec = { id, name: file.name.slice(0, 80), blob: file };
+export async function saveSongBlob(accountId: string, file: File): Promise<SongMeta> {
+  const id = `${accountId}:${crypto.randomUUID()}`;
+  const rec = { id, owner: accountId, name: file.name.slice(0, 80), blob: file };
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -126,19 +134,27 @@ export async function saveSongBlob(file: File): Promise<SongMeta> {
   return { id, name: rec.name };
 }
 
-export async function getSongBlob(id: string): Promise<{ name: string; blob: Blob } | null> {
+export async function getSongBlob(
+  accountId: string,
+  id: string,
+): Promise<{ name: string; blob: Blob } | null> {
+  if (!id.startsWith(`${accountId}:`)) return null;
   const db = await openDb();
-  const rec = await new Promise<{ id: string; name: string; blob: Blob } | undefined>((resolve, reject) => {
-    const tx = db.transaction(STORE, "readonly");
-    const req = tx.objectStore(STORE).get(id);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  const rec = await new Promise<{ id: string; owner?: string; name: string; blob: Blob } | undefined>(
+    (resolve, reject) => {
+      const tx = db.transaction(STORE, "readonly");
+      const req = tx.objectStore(STORE).get(id);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    },
+  );
   db.close();
-  return rec ? { name: rec.name, blob: rec.blob } : null;
+  if (!rec || (rec.owner && rec.owner !== accountId)) return null;
+  return { name: rec.name, blob: rec.blob };
 }
 
-export async function deleteSongBlob(id: string) {
+export async function deleteSongBlob(accountId: string, id: string) {
+  if (!id.startsWith(`${accountId}:`)) return;
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -186,13 +202,13 @@ function playHouseBell() {
   });
 }
 
-export async function playBellPreview(fromUsername?: string) {
-  const settings = loadBellSettings();
+export async function playBellPreview(accountId: string, fromUsername?: string) {
+  const settings = loadBellSettings(accountId);
   const who = fromUsername?.trim() || "__preview__";
   const songId = fromUsername ? songIdFor(settings, who) : settings.defaultSongId;
   stopBellSound();
   if (songId) {
-    const rec = await getSongBlob(songId);
+    const rec = await getSongBlob(accountId, songId);
     if (rec) {
       const url = URL.createObjectURL(rec.blob);
       const audio = new Audio(url);
@@ -212,16 +228,16 @@ export async function playBellPreview(fromUsername?: string) {
   playHouseBell();
 }
 
-export async function playChallengeSound(fromUsername: string) {
-  const settings = loadBellSettings();
+export async function playChallengeSound(accountId: string, fromUsername: string) {
+  const settings = loadBellSettings(accountId);
   if (!shouldRingFor(settings, fromUsername)) return;
-  await playBellPreview(fromUsername);
+  await playBellPreview(accountId, fromUsername);
 }
 
-export function loadSeenIds(): Set<string> {
-  if (!canStore()) return new Set();
+export function loadSeenIds(accountId: string): Set<string> {
+  if (!accountId || !canStore()) return new Set();
   try {
-    const raw = sessionStorage.getItem(SEEN_KEY);
+    const raw = sessionStorage.getItem(seenKey(accountId));
     if (!raw) return new Set();
     const arr = JSON.parse(raw) as string[];
     return new Set(Array.isArray(arr) ? arr.map(String) : []);
@@ -230,9 +246,9 @@ export function loadSeenIds(): Set<string> {
   }
 }
 
-export function saveSeenIds(ids: Set<string>) {
-  if (!canStore()) return;
-  sessionStorage.setItem(SEEN_KEY, JSON.stringify([...ids].slice(-80)));
+export function saveSeenIds(accountId: string, ids: Set<string>) {
+  if (!accountId || !canStore()) return;
+  sessionStorage.setItem(seenKey(accountId), JSON.stringify([...ids].slice(-80)));
 }
 
 export function addWatchRow(settings: BellSettings): BellSettings {
