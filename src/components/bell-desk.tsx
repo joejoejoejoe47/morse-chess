@@ -16,6 +16,7 @@ import {
   playBellPreview,
   saveBellSettings,
   saveSongBlob,
+  subscribeBellSettings,
   type BellSettings,
 } from "@/lib/bell";
 import { listClubUsers, type ClubUserRow } from "@/lib/server/mores";
@@ -34,7 +35,9 @@ export function BellDesk() {
   const rowFiles = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
-    setSettings(loadBellSettings(accountId || null));
+    const sync = () => setSettings(loadBellSettings(accountId || null));
+    sync();
+    return subscribeBellSettings(sync);
   }, [accountId]);
 
   function commit(next: BellSettings) {

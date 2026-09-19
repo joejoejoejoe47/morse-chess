@@ -2,8 +2,9 @@ export const BOT_USER_ID = "bot-mores";
 export const BOT_USERNAME = "MorseBot";
 export const BOT_V2_USER_ID = "bot-mores-v2";
 export const BOT_V2_USERNAME = "MorseBotv2";
-export const START_SCORE = 0;
-export const SCORE_DELTA = 8;
+export const START_SCORE = 1200;
+export const ELO_K = 32;
+export const ELO_FLOOR = 100;
 export const TURN_MS = 60_000;
 export const USERNAME_RE = /^[a-zA-Z0-9_]{8,20}$/;
 
@@ -33,8 +34,9 @@ export function formatClock(ms: number) {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-export function modeLabel(mode: GameMode) {
-  return mode === "timed" ? "timed" : "breeze";
+export function formatEloDelta(n: number) {
+  if (n > 0) return `+${n}`;
+  return String(n);
 }
 
 export function suggestClubName(raw: string | null | undefined) {

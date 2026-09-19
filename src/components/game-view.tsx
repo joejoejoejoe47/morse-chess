@@ -15,12 +15,13 @@ import {
   sendGameChat,
   type GameSnapshot,
 } from "@/lib/server/mores";
-import { formatClock, isBotUserId } from "@/lib/mores-constants";
+import { formatClock, formatEloDelta, isBotUserId } from "@/lib/mores-constants";
 import { Button } from "@/components/ui/button";
 import { ClubBrand } from "@/components/club-brand";
-import { BellButton } from "@/components/bell-button";
+import { BellControls } from "@/components/bell-button";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { ChessBoard2D } from "@/components/chess/board-2d";
+import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { equippedSkin } from "@/lib/chess/board-skins";
 import { cn } from "@/lib/utils";
@@ -82,6 +83,47 @@ function chessClick(san?: string | null) {
   }
 }
 
+function PromotionPicker({
+  you,
+  onPick,
+  onCancel,
+}: {
+  you: "w" | "b";
+  onPick: (kind: "q" | "r" | "b" | "n") => void;
+  onCancel: () => void;
+}) {
+  const pieces: { kind: PieceKind; label: string }[] = [
+    { kind: "q", label: "Queen" },
+    { kind: "r", label: "Rook" },
+    { kind: "b", label: "Bishop" },
+    { kind: "n", label: "Knight" },
+  ];
+  return (
+    <div className="absolute inset-0 z-20 grid place-items-center bg-ink/75 px-5">
+      <div className="w-full max-w-md rounded-xl border border-line bg-panel p-6 text-center">
+        <p className="text-xs uppercase tracking-[0.2em] text-mist">Pawn to the far rank</p>
+        <h2 className="mt-2 font-display text-3xl text-ivory">Choose a piece</h2>
+        <div className="mt-5 grid grid-cols-4 gap-2">
+          {pieces.map((p) => (
+            <button
+              key={p.kind}
+              type="button"
+              className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-md border border-line bg-ink-soft px-2 py-3 text-ivory hover:border-gold-line hover:bg-panel-2"
+              onClick={() => onPick(p.kind as "q" | "r" | "b" | "n")}
+            >
+              <PieceMark kind={p.kind} tone={you} className="size-10" />
+              <span className="text-xs text-mist">{p.label}</span>
+            </button>
+          ))}
+        </div>
+        <Button type="button" variant="ghost" className="mt-4" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ResultOverlay({ game }: { game: GameSnapshot }) {
   const won =
     (game.status === "white_win" && game.you === "w") ||
@@ -98,12 +140,14 @@ function ResultOverlay({ game }: { game: GameSnapshot }) {
         </h2>
         <p className="mt-4 text-base text-mist">
           {draw
-            ? "Rating unchanged."
+            ? game.scorePrize
+              ? `Elo evened ${formatEloDelta(game.scorePrize)}.`
+              : "Elo evened."
             : won
-              ? `You take half the score gap${game.scorePrize ? ` (+${game.scorePrize})` : ""}.`
-              : `Half the score gap leaves your table${game.scorePrize ? ` (−${game.scorePrize})` : ""}.`}
+              ? `Elo ${formatEloDelta(game.scorePrize ?? 0)} for the win.`
+              : `Elo ${formatEloDelta(game.scorePrize ?? 0)} for the loss.`}
         </p>
-        <p className="mt-1 font-mono text-lg tabular-nums text-ivory">Score {game.myScore}</p>
+        <p className="mt-1 font-mono text-lg tabular-nums text-ivory">Elo {game.myScore}</p>
         <Button asChild variant="solid" className="mt-6">
           <Link to="/">Return to the lounge</Link>
         </Button>
@@ -120,6 +164,7 @@ export function GameView({ gameId }: { gameId: string }) {
   const [view, setView] = useState<BoardView>(readBoardView);
   const [draft, setDraft] = useState("");
   const [seatVideo, setSeatVideo] = useState<HTMLVideoElement | null>(null);
+  const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const lastSan = useRef<string | null>(null);
   const plyRef = useRef(0);
@@ -213,12 +258,12 @@ export function GameView({ gameId }: { gameId: string }) {
     }
   }
 
-  async function onMove(from: Square, to: Square) {
+  async function submitMove(from: Square, to: Square, promotion?: "q" | "r" | "b" | "n") {
     const current = game;
     if (!current || current.status !== "active") return;
     try {
       const local = new Chess(current.fen);
-      const moved = local.move({ from, to, promotion: "q" });
+      const moved = local.move({ from, to, promotion });
       if (moved) {
         pendingMove.current = true;
         plyRef.current = current.moves.length + 1;
@@ -235,7 +280,7 @@ export function GameView({ gameId }: { gameId: string }) {
     } catch {
       /* wait for server */
     }
-    const res = await makeMove({ data: { gameId, from, to } });
+    const res = await makeMove({ data: { gameId, from, to, promotion } });
     if (res.ok && res.game) {
       applySnap(res.game, true);
       return;
@@ -253,6 +298,18 @@ export function GameView({ gameId }: { gameId: string }) {
       }
       if (!res.ok && res.error) setError(res.error);
     }
+  }
+
+  function onMove(from: Square, to: Square) {
+    const current = game;
+    if (!current || current.status !== "active") return;
+    const piece = new Chess(current.fen).get(from);
+    const needsPromo = piece?.type === "p" && (to.endsWith("8") || to.endsWith("1"));
+    if (needsPromo) {
+      setPromo({ from, to });
+      return;
+    }
+    void submitMove(from, to);
   }
 
   if (error && !game) {
@@ -331,7 +388,7 @@ export function GameView({ gameId }: { gameId: string }) {
               3D
             </button>
           </div>
-          <BellButton />
+          <BellControls />
           <ThemeToggle className="rounded-full" />
           {game.status === "active" ? (
             <Button
@@ -400,6 +457,17 @@ export function GameView({ gameId }: { gameId: string }) {
             align="right"
           />
         </div>
+        {promo && !over ? (
+          <PromotionPicker
+            you={game.you}
+            onPick={(kind) => {
+              const next = promo;
+              setPromo(null);
+              void submitMove(next.from, next.to, kind);
+            }}
+            onCancel={() => setPromo(null)}
+          />
+        ) : null}
         {over ? <ResultOverlay game={game} /> : null}
         {cameraOn && !vsBot ? (
           <LiveCall

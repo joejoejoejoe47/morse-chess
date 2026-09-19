@@ -89,7 +89,7 @@ export function BoardLook({
             <p className="font-display text-6xl text-mist">?</p>
             <h1 className="mt-4 font-display text-4xl text-ivory">Mystery</h1>
             <p className="mt-3 text-base text-mist">
-              Sealed until 100 score. No peek until it is yours.
+              Sealed until 1600 Elo. No peek until it is yours.
             </p>
           </div>
         </div>
@@ -105,7 +105,7 @@ export function BoardLook({
           <span className="text-[15px] text-mist">
             {board.name}
             {" · "}
-            {board.cost === 0 ? "starter" : `${board.cost} score`}
+            {board.cost === 0 ? "starter" : `${board.cost} Elo`}
             {" · look only"}
           </span>
           <div className="flex overflow-hidden rounded-full border border-line bg-panel">

@@ -79,6 +79,14 @@ export function saveBellSettings(accountId: string, next: BellSettings) {
   window.dispatchEvent(new Event(BELL_CHANGED));
 }
 
+export function toggleBellMute(accountId: string) {
+  const current = loadBellSettings(accountId);
+  const next = { ...current, unmuted: !current.unmuted };
+  saveBellSettings(accountId, next);
+  if (!next.unmuted) stopBellSound();
+  return next;
+}
+
 export function subscribeBellSettings(cb: () => void) {
   window.addEventListener(BELL_CHANGED, cb);
   window.addEventListener("storage", cb);

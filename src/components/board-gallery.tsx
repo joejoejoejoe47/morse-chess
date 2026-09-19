@@ -89,7 +89,7 @@ export function BoardGallery({
                 <div>
                   <p className="font-display text-xl text-ivory">{board.name}</p>
                   <p className="mt-0.5 text-[13px] text-mist">
-                    {board.cost === 0 ? "Yours" : `${board.cost} score`}
+                    {board.cost === 0 ? "Yours" : `${board.cost} Elo`}
                   </p>
                 </div>
                 {open ? (

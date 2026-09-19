@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ThemeToggle } from "@/components/theme";
 import { ClubSignOut } from "@/components/club-sign-out";
-import { BellButton } from "@/components/bell-button";
+import { BellControls } from "@/components/bell-button";
 import { cn } from "@/lib/utils";
 
 export function MorseCrest({ className }: { className?: string }) {
@@ -52,10 +52,10 @@ export function ClubHeaderActions({
       {username ? <span className="text-base text-ivory">{username}</span> : null}
       {typeof score === "number" ? (
         <span className="rounded-full border border-line bg-panel px-4 py-2 text-[15px] text-ivory">
-          Score <span className="font-medium">{score}</span>
+          Elo <span className="font-medium">{score}</span>
         </span>
       ) : null}
-      <BellButton />
+      <BellControls />
       <ThemeToggle className="rounded-full" />
       <ClubSignOut className="rounded-full" />
       {extra}

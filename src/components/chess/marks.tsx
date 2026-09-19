@@ -32,7 +32,7 @@ export function PieceMark({
         tone === "current" && "fill-current",
         className,
       )}
-      strokeWidth={tone === "current" ? 0 : 1.2}
+      strokeWidth={tone === "current" ? 0 : 1.8}
       strokeLinejoin="round"
       aria-hidden={title ? undefined : true}
       role={title ? "img" : undefined}

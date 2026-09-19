@@ -138,11 +138,11 @@ export function ChessBoard2D({
                         fontSize: "clamp(1.6rem, 8vmin, 4.2rem)",
                         color: piece.color === "w" ? look.whitePiece : look.blackPiece,
                         WebkitTextStroke:
-                          piece.color === "w" ? `1px ${look.whiteStroke}` : `1.4px ${look.blackStroke}`,
+                          piece.color === "w" ? `1.6px ${look.whiteStroke}` : `2px ${look.blackStroke}`,
                         textShadow:
                           piece.color === "w"
-                            ? `0 2px 0 ${look.whiteStroke}, 0 0 16px ${look.fillLight}`
-                            : `0 1px 0 ${look.blackStroke}, 0 8px 14px rgba(0,0,0,0.45)`,
+                            ? `0 2px 0 ${look.whiteStroke}, 0 0 0 1px ${look.whiteStroke}, 0 6px 14px rgba(0,0,0,0.35)`
+                            : `0 1px 0 ${look.blackStroke}, 0 0 0 1px ${look.blackStroke}, 0 10px 16px rgba(0,0,0,0.55)`,
                       }}
                     >
                       {GLYPH[piece.type]}

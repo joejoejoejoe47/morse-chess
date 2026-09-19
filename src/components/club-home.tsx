@@ -529,7 +529,7 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
   return (
     <div className="mt-5 space-y-3">
       <p className="text-sm text-mist">
-        Asking everyone at the boards{mode ? ` for ${mode}` : ""}. First yes sits. Score {score}.
+        Asking everyone at the boards{mode ? ` for ${mode}` : ""}. First yes sits. Elo {score}.
       </p>
       <p className="font-display text-3xl tabular-nums text-ivory">{left}s</p>
       <div className="h-1 overflow-hidden rounded-full bg-ink-soft">

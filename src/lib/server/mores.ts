@@ -9,6 +9,8 @@ import {
   BOT_V2_USER_ID,
   BOT_V2_USERNAME,
   START_SCORE,
+  ELO_K,
+  ELO_FLOOR,
   TURN_MS,
   USERNAME_RE,
   isBotUserId,
@@ -246,13 +248,45 @@ async function ensureBots(sql: Sql) {
   `;
 }
 
-async function applyScore(sql: Sql, winnerId: string, loserId: string) {
-  const [win, lose] = await Promise.all([profileById(sql, winnerId), profileById(sql, loserId)]);
-  const gap = Math.abs((win?.score ?? 0) - (lose?.score ?? 0));
-  const prize = Math.max(1, Math.round(gap / 2));
-  await sql`update profiles set score = score + ${prize} where user_id = ${winnerId}`;
-  await sql`update profiles set score = greatest(0, score - ${prize}) where user_id = ${loserId}`;
-  return prize;
+async function ensureEloScale(sql: Sql) {
+  await sql.query("alter table profiles add column if not exists elo_scaled boolean not null default false");
+  await sql`
+    update profiles
+    set score = ${START_SCORE} + (score * 4),
+        elo_scaled = true
+    where elo_scaled = false
+      and score < 400
+      and user_id <> ${BOT_USER_ID}
+      and user_id <> ${BOT_V2_USER_ID}
+  `;
+  await sql`
+    update profiles
+    set elo_scaled = true
+    where elo_scaled = false
+  `;
+}
+
+async function applyElo(sql: Sql, whiteId: string, blackId: string, whiteScore: 0 | 0.5 | 1) {
+  const [white, black] = await Promise.all([profileById(sql, whiteId), profileById(sql, blackId)]);
+  const ra = white?.score ?? START_SCORE;
+  const rb = black?.score ?? START_SCORE;
+  const expected = 1 / (1 + 10 ** ((rb - ra) / 400));
+  const dWhite = Math.round(ELO_K * (whiteScore - expected));
+  const dBlack = -dWhite;
+  const nextW = Math.max(ELO_FLOOR, ra + dWhite);
+  const nextB = Math.max(ELO_FLOOR, rb + dBlack);
+  await sql`update profiles set score = ${nextW} where user_id = ${whiteId}`;
+  await sql`update profiles set score = ${nextB} where user_id = ${blackId}`;
+  return dWhite;
+}
+
+async function settleElo(sql: Sql, game: GameRow, status: GameStatus, winnerUserId: string | null) {
+  const whiteScore: 0 | 0.5 | 1 =
+    status === "draw" ? 0.5 : winnerUserId === game.white_user_id ? 1 : 0;
+  const whiteDelta = await applyElo(sql, game.white_user_id, game.black_user_id, whiteScore);
+  await sql`update games set last_prize = ${whiteDelta} where id = ${game.id}`;
+  game.last_prize = whiteDelta;
+  game.scored = true;
 }
 
 async function finishGame(
@@ -262,23 +296,16 @@ async function finishGame(
   winnerUserId: string | null,
 ) {
   if (game.status !== "active") return;
-  const scored = status !== "draw";
   await sql`
     update games
     set status = ${status},
         winner_user_id = ${winnerUserId},
-        scored = ${scored}
+        scored = true
     where id = ${game.id} and status = 'active'
   `;
-  if (scored && winnerUserId) {
-    const loser = winnerUserId === game.white_user_id ? game.black_user_id : game.white_user_id;
-    const prize = await applyScore(sql, winnerUserId, loser);
-    await sql`update games set last_prize = ${prize} where id = ${game.id}`;
-    game.last_prize = prize;
-  }
+  await settleElo(sql, game, status, winnerUserId);
   game.status = status;
   game.winner_user_id = winnerUserId;
-  game.scored = scored;
 }
 
 const PST: Record<string, number[]> = {
@@ -450,10 +477,13 @@ async function recordAndApplyMove(
   const chess = new Chess(expectedFen);
   const needsPromo =
     chess.get(from as Square)?.type === "p" && (to.endsWith("8") || to.endsWith("1"));
+  const promo =
+    promotion === "q" || promotion === "r" || promotion === "b" || promotion === "n" ? promotion : undefined;
+  if (needsPromo && !promo) return { ok: false as const, error: "Choose a piece." };
   const moved = chess.move({
     from: from as Square,
     to: to as Square,
-    promotion: (needsPromo ? promotion ?? "q" : undefined) as "q" | "r" | "b" | "n" | undefined,
+    promotion: promo,
   });
   if (!moved) return { ok: false as const, error: "That move is not legal." };
 
@@ -480,7 +510,7 @@ async function recordAndApplyMove(
       black_clock_ms = ${clocks.b},
       status = ${status},
       winner_user_id = ${winner},
-      scored = ${status !== "active" && status !== "draw"}
+      scored = ${status !== "active"}
     where id = ${game.id} and fen = ${expectedFen} and status = 'active'
     returning id
   `;
@@ -508,14 +538,8 @@ async function recordAndApplyMove(
   game.status = status;
   game.winner_user_id = winner;
 
-  if (status === "white_win" || status === "black_win") {
-    const loser = winner === game.white_user_id ? game.black_user_id : game.white_user_id;
-    if (winner) {
-      const prize = await applyScore(sql, winner, loser);
-      await sql`update games set last_prize = ${prize} where id = ${game.id}`;
-      game.last_prize = prize;
-    }
-    game.scored = true;
+  if (status === "white_win" || status === "black_win" || status === "draw") {
+    await settleElo(sql, game, status, winner);
   }
   return { ok: true as const };
 }
@@ -621,7 +645,12 @@ async function snapshotFor(sql: Sql, game: GameRow, userId: string, playBot = fa
     liveOpen: asBool(fresh.live_open),
     cameraOpen: asBool(fresh.camera_open),
     chat: chatRows.map((row) => ({ id: Number(row.id), from: nameOf(row.user_id), text: row.body })),
-    scorePrize: fresh.last_prize == null ? null : toInt(fresh.last_prize, 0),
+    scorePrize:
+      fresh.last_prize == null
+        ? null
+        : you === "w"
+          ? toInt(fresh.last_prize, 0)
+          : -toInt(fresh.last_prize, 0),
   };
 }
 
@@ -681,6 +710,7 @@ export const claimUsername = createServerFn({ method: "POST" })
   .validator((input: { username: string }) => ({ username: cleanUsername(input.username) }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+    await ensureEloScale(sql);
     const existing = await profileById(sql, context.userId);
     if (existing) {
       if (isMasterUsername(existing.username) && Number(existing.score) < MASTER_SCORE) {
@@ -692,8 +722,8 @@ export const claimUsername = createServerFn({ method: "POST" })
     const score = isMasterUsername(data.username) ? MASTER_SCORE : START_SCORE;
     try {
       await sql`
-        insert into profiles (user_id, username, username_lc, score, equipped_board)
-        values (${context.userId}, ${data.username}, ${data.username.toLowerCase()}, ${score}, ${DEFAULT_BOARD_ID})
+        insert into profiles (user_id, username, username_lc, score, equipped_board, elo_scaled)
+        values (${context.userId}, ${data.username}, ${data.username.toLowerCase()}, ${score}, ${DEFAULT_BOARD_ID}, true)
       `;
     } catch {
       throw new Error("That club name is already taken.");
@@ -706,6 +736,7 @@ export const getHomeState = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<HomeState> => {
     const sql = await getSql();
     await ensureBots(sql);
+    await ensureEloScale(sql);
     let profile = await profileById(sql, context.userId);
     if (profile && isMasterUsername(profile.username) && Number(profile.score) < MASTER_SCORE) {
       await sql`update profiles set score = ${MASTER_SCORE} where user_id = ${profile.user_id}`;
@@ -1211,7 +1242,7 @@ export const setEquippedBoard = createServerFn({ method: "POST" })
     if (!me) throw new Error("Choose a club name first.");
     const board = boardById(data.boardId);
     if (!boardUnlocked(Number(me.score), board, me.username)) {
-      throw new Error(`Reach ${board.cost} score to sit at ${board.name}.`);
+      throw new Error(`Reach ${board.cost} Elo to sit at ${board.name}.`);
     }
     await sql`update profiles set equipped_board = ${board.id} where user_id = ${context.userId}`;
     return { equippedBoard: board.id, score: Number(me.score) };

@@ -16,8 +16,8 @@
   --color-gold-line: #c4b08a;
   --color-danger: #b54a3c;
   --color-success: #5c7a62;
-  --color-piece-w: #f3ead8;
-  --color-piece-b: #161310;
+  --color-piece-w: #fffdf8;
+  --color-piece-b: #070605;
   --color-line: color-mix(in oklab, var(--color-ivory) 12%, transparent);
   --color-line-strong: color-mix(in oklab, var(--color-ivory) 22%, transparent);
 

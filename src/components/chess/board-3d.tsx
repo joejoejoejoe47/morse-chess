@@ -142,9 +142,13 @@ function PieceMesh({
   skin: BoardSkin;
 }) {
   const mat = color === "w" ? ivory : ebony;
+  const outline = color === "w" ? skin.whiteStroke : skin.blackStroke;
   if (type === "n") {
     return (
       <group>
+        <mesh geometry={geometries.knightBase} scale={[1.1, 1.06, 1.1]}>
+          <meshBasicMaterial color={outline} side={THREE.BackSide} />
+        </mesh>
         <mesh geometry={geometries.knightBase} material={mat} castShadow />
         <mesh position={[0, 0.42, 0.02]} rotation={[0.15, 0, 0]} castShadow>
           <boxGeometry args={[0.22, 0.38, 0.34]} />
@@ -177,6 +181,9 @@ function PieceMesh({
             : geometries.king;
   return (
     <group>
+      <mesh geometry={geo} scale={[1.1, 1.07, 1.1]}>
+        <meshBasicMaterial color={outline} side={THREE.BackSide} />
+      </mesh>
       <mesh geometry={geo} material={mat} castShadow />
       {type === "k" ? (
         <group position={[0, 0.98, 0]}>
@@ -622,8 +629,8 @@ function Scene({
   return (
     <>
       <color attach="background" args={[sky]} />
-      <hemisphereLight args={[hemiSky, hemiGround, lightRoom ? 0.85 : 0.55]} />
-      <ambientLight intensity={lightRoom ? 0.5 : 0.32} />
+      <hemisphereLight args={[hemiSky, hemiGround, lightRoom ? 0.95 : 0.7]} />
+      <ambientLight intensity={lightRoom ? 0.58 : 0.42} />
       <directionalLight
         position={[8, 14, 6]}
         intensity={lightRoom ? 1.2 : 1.4}

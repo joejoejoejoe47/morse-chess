@@ -123,7 +123,7 @@ export function AuthScreen() {
         Morse Chess
       </h1>
       <p className="mt-3 max-w-md text-center text-base font-light text-mist">
-        Claim a seat. Keep a score. Sit across MorseBot, the house chess master, or send a challenge
+        Claim a seat. Keep an Elo. Sit across MorseBot, the house chess master, or send a challenge
         across the room.
       </p>
 
