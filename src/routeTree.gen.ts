@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BellRouteImport } from './routes/bell'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as ChessRouteImport } from './routes/chess'
 import { Route as LoginRouteImport } from './routes/login'
@@ -21,6 +22,11 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BellRoute = BellRouteImport.update({
+  id: '/bell',
+  path: '/bell',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoardsRoute = BoardsRouteImport.update({
@@ -61,6 +67,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bell': typeof BellRoute
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/login': typeof LoginRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bell': typeof BellRoute
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/login': typeof LoginRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bell': typeof BellRoute
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/login': typeof LoginRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/bell'
     | '/boards'
     | '/chess'
     | '/login'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/bell'
     | '/boards'
     | '/chess'
     | '/login'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/bell'
     | '/boards'
     | '/chess'
     | '/login'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BellRoute: typeof BellRoute
   BoardsRoute: typeof BoardsRouteWithChildren
   ChessRoute: typeof ChessRoute
   LoginRoute: typeof LoginRoute
@@ -140,6 +153,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bell': {
+      id: '/bell'
+      path: '/bell'
+      fullPath: '/bell'
+      preLoaderRoute: typeof BellRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boards': {
@@ -207,6 +227,7 @@ const BoardsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BellRoute: BellRoute,
   BoardsRoute: BoardsRouteWithChildren,
   ChessRoute: ChessRoute,
   LoginRoute: LoginRoute,

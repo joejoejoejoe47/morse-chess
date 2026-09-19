@@ -18,6 +18,7 @@ import {
 import { formatClock, isBotUserId } from "@/lib/mores-constants";
 import { Button } from "@/components/ui/button";
 import { ClubBrand } from "@/components/club-brand";
+import { BellButton } from "@/components/bell-button";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { LiveCall } from "@/components/live-call";
@@ -330,6 +331,7 @@ export function GameView({ gameId }: { gameId: string }) {
               3D
             </button>
           </div>
+          <BellButton />
           <ThemeToggle className="rounded-full" />
           {game.status === "active" ? (
             <Button

@@ -1216,3 +1216,47 @@ export const setEquippedBoard = createServerFn({ method: "POST" })
     await sql`update profiles set equipped_board = ${board.id} where user_id = ${context.userId}`;
     return { equippedBoard: board.id, score: Number(me.score) };
   });
+
+export type ClubUserRow = { username: string; score: number; online: boolean };
+
+export const listClubUsers = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<ClubUserRow[]> => {
+    const sql = await getSql();
+    const rows = await sql<{ username: string; score: number; last_seen: string | Date | null }>`
+      select username, score, last_seen from profiles
+      where user_id <> ${context.userId}
+        and user_id <> ${BOT_USER_ID}
+        and user_id <> ${BOT_V2_USER_ID}
+      order by
+        case when last_seen > now() - interval '20 seconds' then 0 else 1 end,
+        score desc,
+        username asc
+      limit 80
+    `;
+    return rows.map((r) => ({
+      username: r.username,
+      score: Number(r.score),
+      online: r.last_seen ? Date.now() - asTime(r.last_seen) < 20_000 : false,
+    }));
+  });
+
+export const getChallengeInbox = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<{ id: string; fromUsername: string; kind: "named" | "pull" }[]> => {
+    const sql = await getSql();
+    await touchProfile(sql, context.userId);
+    const rows = await sql<{ id: string; username: string; kind: string | null }>`
+      select c.id, p.username, c.kind
+      from challenges c
+      join profiles p on p.user_id = c.from_user_id
+      where c.to_user_id = ${context.userId} and c.status = 'pending'
+      order by c.created_at desc
+      limit 24
+    `;
+    return rows.map((r) => ({
+      id: r.id,
+      fromUsername: r.username,
+      kind: r.kind === "pull" ? ("pull" as const) : ("named" as const),
+    }));
+  });
