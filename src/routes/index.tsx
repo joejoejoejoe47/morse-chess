@@ -5,7 +5,7 @@ import { ClubHome } from "@/components/club-home";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { consumeEnterSplash } from "@/lib/auth/club-session";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/")({ ssr: false, component: Home });
 
 function Home() {
   const door = useClubDoor();

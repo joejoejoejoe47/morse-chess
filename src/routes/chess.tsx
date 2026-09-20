@@ -3,7 +3,7 @@ import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { ClubHome } from "@/components/club-home";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 
-export const Route = createFileRoute("/chess")({ component: ChessDoor });
+export const Route = createFileRoute("/chess")({ ssr: false, component: ChessDoor });
 
 function ChessDoor() {
   const door = useClubDoor();

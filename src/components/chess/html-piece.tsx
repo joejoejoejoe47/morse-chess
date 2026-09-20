@@ -6,17 +6,19 @@ export function HtmlPiece({
   kind,
   fill,
   edge,
+  outlined = true,
   className,
 }: {
   kind: PieceKind;
   fill: string;
   edge: string;
+  outlined?: boolean;
   className?: string;
 }) {
   return (
     <span
-      className={cn("mp", `mp-${kind}`, className)}
-      style={{ "--mp-fill": fill, "--mp-edge": edge } as CSSProperties}
+      className={cn("mp", `mp-${kind}`, !outlined && "mp-plain", className)}
+      style={{ "--mp-fill": fill, "--mp-edge": outlined ? edge : fill } as CSSProperties}
       aria-hidden
     >
       <i className="mp-hat" />
