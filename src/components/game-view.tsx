@@ -18,12 +18,13 @@ import {
 import { formatClock, formatEloDelta, isBotUserId } from "@/lib/mores-constants";
 import { Button } from "@/components/ui/button";
 import { ClubBrand } from "@/components/club-brand";
-import { BellControls } from "@/components/bell-button";
+import { BoardAdjustPanel } from "@/components/board-adjust";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { equippedSkin } from "@/lib/chess/board-skins";
+import { roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { cn } from "@/lib/utils";
 
 const ChessBoard3D = lazy(() =>
@@ -158,6 +159,8 @@ function ResultOverlay({ game }: { game: GameSnapshot }) {
 
 export function GameView({ gameId }: { gameId: string }) {
   const theme = useTheme();
+  const prefs = useLookPrefs();
+  const room = roomColorFor(theme, prefs);
   const [game, setGame] = useState<GameSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
@@ -165,6 +168,7 @@ export function GameView({ gameId }: { gameId: string }) {
   const [draft, setDraft] = useState("");
   const [seatVideo, setSeatVideo] = useState<HTMLVideoElement | null>(null);
   const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null);
+  const [tuning, setTuning] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
   const lastSan = useRef<string | null>(null);
   const plyRef = useRef(0);
@@ -352,10 +356,14 @@ export function GameView({ gameId }: { gameId: string }) {
     disabled: over,
     appearance: theme,
     skin,
+    outlineOn: prefs.outline,
   };
 
   return (
-    <main className="relative flex h-dvh max-h-dvh flex-col overflow-hidden bg-ink pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <main
+      className="relative flex h-dvh max-h-dvh flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+      style={{ backgroundColor: room }}
+    >
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
         <ClubBrand to="/" />
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
@@ -388,7 +396,13 @@ export function GameView({ gameId }: { gameId: string }) {
               3D
             </button>
           </div>
-          <BellControls />
+          <button
+            type="button"
+            className="min-h-11 rounded-full border border-line bg-panel px-4 py-2 text-sm font-medium text-ivory hover:border-line-strong"
+            onClick={() => setTuning(true)}
+          >
+            Use
+          </button>
           <ThemeToggle className="rounded-full" />
           {game.status === "active" ? (
             <Button
@@ -426,6 +440,7 @@ export function GameView({ gameId }: { gameId: string }) {
             >
               <ChessBoard3D
                 {...boardProps}
+                roomColor={room}
                 tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
                 seatVideo={seatVideo}
               />
@@ -441,6 +456,16 @@ export function GameView({ gameId }: { gameId: string }) {
           <p className="pointer-events-none absolute left-1/2 top-12 z-10 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1.5 text-[13px] text-danger">
             {error}
           </p>
+        ) : null}
+        {tuning ? (
+          <div className="absolute inset-x-3 bottom-[max(5.5rem,env(safe-area-inset-bottom))] z-30 flex justify-center sm:inset-x-4">
+            <BoardAdjustPanel
+              title="Board look"
+              enterLabel="Enter"
+              onEnter={() => setTuning(false)}
+              onClose={() => setTuning(false)}
+            />
+          </div>
         ) : null}
         <div className="pointer-events-none absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 flex justify-between gap-2 sm:inset-x-4 sm:bottom-4">
           <HudChip

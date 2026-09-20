@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { BOARD_CATALOG, boardCanPreview, boardUnlocked, rememberEquipped } from "@/lib/chess/board-skins";
-import { setEquippedBoard } from "@/lib/server/mores";
+import { BOARD_CATALOG, boardCanPreview, boardUnlocked } from "@/lib/chess/board-skins";
 import { ClubBrand, ClubHeaderActions } from "@/components/club-brand";
 import { Button } from "@/components/ui/button";
 import { BoardLook } from "@/components/board-look";
@@ -31,6 +30,7 @@ export function BoardGallery({
 }) {
   const [looking, setLooking] = useState<string | null>(null);
   const [equipped, setEquipped] = useState(equippedBoard);
+  const [tune, setTune] = useState(false);
   if (looking) {
     return (
       <BoardLook
@@ -38,7 +38,11 @@ export function BoardGallery({
         score={score}
         username={username}
         equippedBoard={equipped}
-        onBack={() => setLooking(null)}
+        startTuning={tune}
+        onBack={() => {
+          setLooking(null);
+          setTune(false);
+        }}
         onEquipped={setEquipped}
       />
     );
@@ -55,7 +59,7 @@ export function BoardGallery({
         <p className="text-xs uppercase tracking-[0.2em] text-mist">The cabinet</p>
         <h1 className="mt-2 font-display text-4xl text-ivory">Boards</h1>
         <p className="mt-3 max-w-xl text-base text-mist">
-          Click a picture to walk around it. Crimson and Mystery open at 100. Mystery stays sealed until you own it.
+          Click a picture to walk around it. Click Use, then the look buttons open so you can set outline, background, and light before you enter it for your games.
         </p>
       </section>
 
@@ -63,7 +67,7 @@ export function BoardGallery({
         {BOARD_CATALOG.map((board) => {
           const open = boardUnlocked(score, board, username);
           const peek = boardCanPreview(score, board, username);
-          const equipped = equippedBoard === board.id;
+          const inUse = equipped === board.id;
           return (
             <button
               key={board.id}
@@ -74,7 +78,7 @@ export function BoardGallery({
               }}
               className={cn(
                 "rounded-xl border p-3 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-line-strong",
-                equipped ? "border-gold-line bg-panel" : "border-line bg-panel/80",
+                inUse ? "border-gold-line bg-panel" : "border-line bg-panel/80",
                 !peek ? "cursor-not-allowed hover:translate-y-0 hover:border-line" : "",
               )}
             >
@@ -99,16 +103,14 @@ export function BoardGallery({
                     className="rounded-full border border-line px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-ivory hover:border-line-strong"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (equipped) return;
-                      rememberEquipped(board.id);
-                      setEquipped(board.id);
-                      void setEquippedBoard({ data: { boardId: board.id } }).catch(() => undefined);
+                      setTune(true);
+                      setLooking(board.id);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") e.currentTarget.click();
                     }}
                   >
-                    {equipped ? "Using" : "Use"}
+                    {inUse ? "Using" : "Use"}
                   </span>
                 ) : (
                   <span className="text-[11px] uppercase tracking-[0.14em] text-mist">

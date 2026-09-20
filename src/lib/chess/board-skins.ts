@@ -1,4 +1,4 @@
-export type TableKind = "felt" | "plank" | "shine" | "legend" | "walnut";
+export type TableKind = "felt" | "plank" | "shine" | "legend" | "walnut" | "studio";
 
 export type BoardSkin = {
   id: string;
@@ -85,6 +85,36 @@ export const BOARD_CATALOG: BoardSkin[] = [
     tableKind: "felt",
     pieceScale: 1,
     collar: null,
+  },
+  {
+    ...BASE,
+    id: "studio",
+    name: "Studio",
+    blurb: "A raised cabinet board with a thick wood frame, inlaid maple and walnut, and Staunton pieces.",
+    cost: 0,
+    tableKind: "studio",
+    pieceCut: "staunton",
+    htmlPieces: true,
+    pieceScale: 1.2,
+    collar: "#3a2418",
+    lightSq: "#e8cda4",
+    darkSq: "#6a4024",
+    table: "#4a2e1a",
+    felt: "#2a1a10",
+    select: "#8a5a32",
+    last: "#c4a06a",
+    fillLight: "#f0d2a0",
+    whitePiece: "#f7efe0",
+    blackPiece: "#16120e",
+    whiteStroke: "#3a2418",
+    blackStroke: "#f0d8b8",
+    sqMetal: 0.06,
+    sqRough: 0.5,
+    whiteMetal: 0.1,
+    blackMetal: 0.14,
+    whiteRough: 0.32,
+    blackRough: 0.36,
+    ring: "#2a1810",
   },
   {
     ...BASE,

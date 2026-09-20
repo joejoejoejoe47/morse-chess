@@ -303,6 +303,7 @@ function PieceMesh({
   ivory,
   ebony,
   skin,
+  outlineOn,
 }: {
   type: PieceSymbol;
   color: Color;
@@ -310,6 +311,7 @@ function PieceMesh({
   ivory: THREE.MeshStandardMaterial;
   ebony: THREE.MeshStandardMaterial;
   skin: BoardSkin;
+  outlineOn: boolean;
 }) {
   const mat = color === "w" ? ivory : ebony;
   const outline = color === "w" ? skin.whiteStroke : skin.blackStroke;
@@ -318,9 +320,11 @@ function PieceMesh({
   if (type === "n") {
     return (
       <group scale={scale}>
-        <mesh geometry={geometries.knightBase} scale={[1.1, 1.06, 1.1]}>
-          <meshBasicMaterial color={outline} side={THREE.BackSide} />
-        </mesh>
+        {outlineOn ? (
+          <mesh geometry={geometries.knightBase} scale={[1.1, 1.06, 1.1]}>
+            <meshBasicMaterial color={outline} side={THREE.BackSide} />
+          </mesh>
+        ) : null}
         <mesh geometry={geometries.knightBase} material={mat} castShadow />
         {geometries.knightHead ? (
           <mesh geometry={geometries.knightHead} position={[0, 0.28, 0]} material={mat} castShadow />
@@ -359,9 +363,11 @@ function PieceMesh({
             : geometries.king;
   return (
     <group scale={scale}>
-      <mesh geometry={geo} scale={[1.1, 1.07, 1.1]}>
-        <meshBasicMaterial color={outline} side={THREE.BackSide} />
-      </mesh>
+      {outlineOn ? (
+        <mesh geometry={geo} scale={[1.1, 1.07, 1.1]}>
+          <meshBasicMaterial color={outline} side={THREE.BackSide} />
+        </mesh>
+      ) : null}
       <mesh geometry={geo} material={mat} castShadow />
       {type === "k" ? (
         <group position={[0, fine ? 1.08 : 0.98, 0]}>
@@ -426,6 +432,7 @@ function AnimatedPiece({
   ebony,
   onClick,
   skin,
+  outlineOn,
 }: {
   square: string;
   spawnFrom: string;
@@ -438,6 +445,7 @@ function AnimatedPiece({
   ebony: THREE.MeshStandardMaterial;
   onClick: () => void;
   skin: BoardSkin;
+  outlineOn: boolean;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom);
@@ -458,7 +466,15 @@ function AnimatedPiece({
 
   return (
     <group ref={ref} onClick={(e) => { e.stopPropagation(); onClick(); }}>
-      <PieceMesh type={type} color={color} geometries={geometries} ivory={ivory} ebony={ebony} skin={skin} />
+      <PieceMesh
+        type={type}
+        color={color}
+        geometries={geometries}
+        ivory={ivory}
+        ebony={ebony}
+        skin={skin}
+        outlineOn={outlineOn}
+      />
     </group>
   );
 }
@@ -711,6 +727,96 @@ function WalnutTable({ map }: { map: THREE.Texture | null }) {
   );
 }
 
+function StudioTable({ map, brass }: { map: THREE.Texture | null; brass: string }) {
+  const wood = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#4a2e1a",
+        map: map ?? undefined,
+        roughness: 0.38,
+        metalness: 0.06,
+      }),
+    [map],
+  );
+  const rim = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#3a2214",
+        map: map ?? undefined,
+        roughness: 0.32,
+        metalness: 0.08,
+      }),
+    [map],
+  );
+  const pin = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: brass,
+        roughness: 0.28,
+        metalness: 0.72,
+      }),
+    [brass],
+  );
+  useEffect(
+    () => () => {
+      wood.dispose();
+      rim.dispose();
+      pin.dispose();
+    },
+    [wood, rim, pin],
+  );
+  return (
+    <group>
+      <mesh position={[0, -0.28, 0]} receiveShadow castShadow material={wood}>
+        <boxGeometry args={[12.2, 0.56, 12.2]} />
+      </mesh>
+      <mesh position={[0, 0.12, 5.12]} receiveShadow castShadow material={rim}>
+        <boxGeometry args={[12.05, 0.28, 1.82]} />
+      </mesh>
+      <mesh position={[0, 0.12, -5.12]} receiveShadow castShadow material={rim}>
+        <boxGeometry args={[12.05, 0.28, 1.82]} />
+      </mesh>
+      <mesh position={[5.12, 0.12, 0]} receiveShadow castShadow material={rim}>
+        <boxGeometry args={[1.82, 0.28, 8.42]} />
+      </mesh>
+      <mesh position={[-5.12, 0.12, 0]} receiveShadow castShadow material={rim}>
+        <boxGeometry args={[1.82, 0.28, 8.42]} />
+      </mesh>
+      <mesh position={[0, 0.02, 0]} receiveShadow material={wood}>
+        <boxGeometry args={[8.42, 0.08, 8.42]} />
+      </mesh>
+      <mesh position={[0, -0.62, 0]} receiveShadow material={wood}>
+        <boxGeometry args={[11.1, 0.2, 11.1]} />
+      </mesh>
+      {[
+        [-5.55, -5.55],
+        [5.55, -5.55],
+        [-5.55, 5.55],
+        [5.55, 5.55],
+      ].map(([x, z]) => (
+        <mesh key={`pin-${x}:${z}`} position={[x, 0.2, z]} castShadow material={pin}>
+          <cylinderGeometry args={[0.12, 0.12, 0.08, 16]} />
+        </mesh>
+      ))}
+      {[
+        [-4.85, -4.85],
+        [4.85, -4.85],
+        [-4.85, 4.85],
+        [4.85, 4.85],
+      ].map(([x, z]) => (
+        <group key={`leg-${x}:${z}`} position={[x, 0, z]}>
+          <mesh position={[0, -1.05, 0]} castShadow receiveShadow material={wood}>
+            <cylinderGeometry args={[0.22, 0.3, 1.55, 18]} />
+          </mesh>
+          <mesh position={[0, -1.86, 0]} receiveShadow material={wood}>
+            <cylinderGeometry args={[0.34, 0.34, 0.12, 18]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
 function Scene({
   fen,
   you,
@@ -724,6 +830,8 @@ function Scene({
   skin,
   tableSeat,
   seatVideo,
+  outlineOn,
+  roomColor,
 }: {
   fen: string;
   you: Side;
@@ -737,6 +845,8 @@ function Scene({
   skin: BoardSkin;
   tableSeat: "video" | "bot" | null;
   seatVideo: HTMLVideoElement | null;
+  outlineOn: boolean;
+  roomColor: string;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -789,7 +899,7 @@ function Scene({
       if (slab) slab.repeat.set(2.4, 2.4);
       return { slab, light, dark };
     }
-    if (skin.tableKind !== "walnut") return null;
+    if (skin.tableKind !== "walnut" && skin.tableKind !== "studio") return null;
     const slab = makeWoodTexture(skin.table, 1.2);
     const light = makeWoodTexture(skin.lightSq, 0.4);
     const dark = makeWoodTexture(skin.darkSq, 2.1);
@@ -809,14 +919,7 @@ function Scene({
   );
 
   const lightRoom = appearance === "light";
-  const sky =
-    skin.id === "tide" || skin.id === "master"
-      ? lightRoom
-        ? "#d8e4f4"
-        : "#02030a"
-      : lightRoom
-        ? "#f6f1e4"
-        : "#0c0d0b";
+  const sky = roomColor;
   const hemiSky = lightRoom ? "#fffaf1" : skin.fillLight;
   const hemiGround = skin.felt;
 
@@ -844,6 +947,8 @@ function Scene({
       ) : null}
       {skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
+      ) : skin.tableKind === "studio" ? (
+        <StudioTable map={wood?.slab ?? null} brass={skin.collar ?? "#c4a06a"} />
       ) : (
         <mesh position={[0, skin.tableKind === "felt" ? -0.18 : skin.tableKind === "plank" ? -0.26 : -0.32, 0]} receiveShadow>
           <boxGeometry
@@ -885,6 +990,7 @@ function Scene({
           ivory={ivory}
           ebony={ebony}
           skin={skin}
+          outlineOn={outlineOn}
           onClick={() => onSquare(p.sq)}
         />
       ))}
@@ -918,6 +1024,8 @@ export function ChessBoard3D({
   skin,
   tableSeat = null,
   seatVideo = null,
+  outlineOn = true,
+  roomColor,
 }: {
   fen: string;
   you: Side;
@@ -929,6 +1037,8 @@ export function ChessBoard3D({
   skin?: BoardSkin;
   tableSeat?: "video" | "bot" | null;
   seatVideo?: HTMLVideoElement | null;
+  outlineOn?: boolean;
+  roomColor?: string;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -1012,6 +1122,8 @@ export function ChessBoard3D({
           skin={resolved}
           tableSeat={tableSeat}
           seatVideo={seatVideo}
+          outlineOn={outlineOn}
+          roomColor={roomColor ?? (appearance === "light" ? "#f6f1e4" : "#0c0d0b")}
         />
       </Canvas>
     </div>

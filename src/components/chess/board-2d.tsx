@@ -25,6 +25,7 @@ export function ChessBoard2D({
   disabled,
   appearance = "dark",
   skin,
+  outlineOn = true,
 }: {
   fen: string;
   you: Side;
@@ -34,6 +35,7 @@ export function ChessBoard2D({
   disabled?: boolean;
   appearance?: "light" | "dark";
   skin?: BoardSkin;
+  outlineOn?: boolean;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const chess = useMemo(() => new Chess(fen), [fen]);
@@ -139,7 +141,16 @@ export function ChessBoard2D({
                       <HtmlPiece
                         kind={piece.type as PieceKind}
                         fill={piece.color === "w" ? look.whitePiece : look.blackPiece}
-                        edge={piece.color === "w" ? look.whiteStroke : look.blackStroke}
+                        edge={
+                          outlineOn
+                            ? piece.color === "w"
+                              ? look.whiteStroke
+                              : look.blackStroke
+                            : piece.color === "w"
+                              ? look.whitePiece
+                              : look.blackPiece
+                        }
+                        outlined={outlineOn}
                       />
                     ) : (
                     <span
@@ -147,12 +158,16 @@ export function ChessBoard2D({
                       style={{
                         fontSize: "clamp(1.6rem, 8vmin, 4.2rem)",
                         color: piece.color === "w" ? look.whitePiece : look.blackPiece,
-                        WebkitTextStroke:
-                          piece.color === "w" ? `1.6px ${look.whiteStroke}` : `2px ${look.blackStroke}`,
-                        textShadow:
-                          piece.color === "w"
+                        WebkitTextStroke: outlineOn
+                          ? piece.color === "w"
+                            ? `1.6px ${look.whiteStroke}`
+                            : `2px ${look.blackStroke}`
+                          : "0",
+                        textShadow: outlineOn
+                          ? piece.color === "w"
                             ? `0 2px 0 ${look.whiteStroke}, 0 0 0 1px ${look.whiteStroke}, 0 6px 14px rgba(0,0,0,0.35)`
-                            : `0 1px 0 ${look.blackStroke}, 0 0 0 1px ${look.blackStroke}, 0 10px 16px rgba(0,0,0,0.55)`,
+                            : `0 1px 0 ${look.blackStroke}, 0 0 0 1px ${look.blackStroke}, 0 10px 16px rgba(0,0,0,0.55)`
+                          : "0 6px 12px rgba(0,0,0,0.28)",
                       }}
                     >
                       {GLYPH[piece.type]}

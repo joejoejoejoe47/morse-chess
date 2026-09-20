@@ -1,11 +1,13 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Square } from "chess.js";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ClubBrand } from "@/components/club-brand";
+import { BoardAdjustPanel } from "@/components/board-adjust";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { boardById, boardCanPreview, boardUnlocked, rememberEquipped, type BoardSkin } from "@/lib/chess/board-skins";
+import { roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { setEquippedBoard } from "@/lib/server/mores";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,7 @@ export function BoardLook({
   score,
   username,
   equippedBoard,
+  startTuning = false,
   onBack,
   onEquipped,
 }: {
@@ -27,10 +30,13 @@ export function BoardLook({
   score: number;
   username?: string;
   equippedBoard: string;
+  startTuning?: boolean;
   onBack?: () => void;
   onEquipped?: (id: string) => void;
 }) {
   const theme = useTheme();
+  const prefs = useLookPrefs();
+  const room = roomColorFor(theme, prefs);
   const board: BoardSkin = boardById(boardId);
   const open = boardUnlocked(score, board, username);
   const peek = boardCanPreview(score, board, username);
@@ -38,6 +44,11 @@ export function BoardLook({
   const [view, setView] = useState<"2d" | "3d">("3d");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tuning, setTuning] = useState(startTuning && open);
+
+  useEffect(() => {
+    if (startTuning && open) setTuning(true);
+  }, [startTuning, open]);
 
   const boardProps = {
     fen: START_FEN,
@@ -48,20 +59,24 @@ export function BoardLook({
     disabled: true,
     appearance: theme,
     skin: board,
+    outlineOn: prefs.outline,
   };
 
   async function sitHere() {
-    if (!open || equipped) return;
+    if (!open) return;
     setBusy(true);
     setError(null);
     try {
-      try {
-        await setEquippedBoard({ data: { boardId: board.id } });
-      } catch {
-        /* still use it locally if this score unlocks it */
+      if (!equipped) {
+        try {
+          await setEquippedBoard({ data: { boardId: board.id } });
+        } catch {
+          /* still use it locally if this score unlocks it */
+        }
+        rememberEquipped(board.id);
+        onEquipped?.(board.id);
       }
-      rememberEquipped(board.id);
-      onEquipped?.(board.id);
+      setTuning(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sit at that table.");
     } finally {
@@ -71,7 +86,7 @@ export function BoardLook({
 
   if (!peek) {
     return (
-      <main className="relative flex h-dvh flex-col overflow-hidden bg-ink">
+      <main className="relative flex h-dvh flex-col overflow-hidden" style={{ backgroundColor: room }}>
         <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <ClubBrand to="/" />
           {onBack ? (
@@ -98,7 +113,7 @@ export function BoardLook({
   }
 
   return (
-    <main className="relative flex h-dvh flex-col overflow-hidden bg-ink">
+    <main className="relative flex h-dvh flex-col overflow-hidden" style={{ backgroundColor: room }}>
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <ClubBrand to="/" />
         <div className="flex flex-wrap items-center justify-end gap-3">
@@ -153,7 +168,7 @@ export function BoardLook({
                 <div className="grid h-full place-items-center text-base text-mist">Setting the table…</div>
               }
             >
-              <ChessBoard3D {...boardProps} />
+              <ChessBoard3D {...boardProps} roomColor={room} />
             </Suspense>
           )}
         </div>
@@ -162,24 +177,35 @@ export function BoardLook({
             Drag to turn the table · scroll to zoom · pieces stay still
           </p>
         ) : null}
-        <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex flex-col items-center gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="pointer-events-auto max-w-md rounded-xl border border-line bg-ink/75 px-4 py-3 backdrop-blur-sm">
-            <p className="font-display text-2xl text-ivory">{board.name}</p>
-            <p className="mt-1 text-[15px] text-mist">{board.blurb}</p>
-            {error ? <p className="mt-2 text-[13px] text-danger">{error}</p> : null}
+        {tuning ? (
+          <div className="absolute inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-4 sm:bottom-4">
+            <BoardAdjustPanel
+              title={`Use ${board.name}`}
+              enterLabel={busy ? "Saving…" : "Enter for your games"}
+              onEnter={() => void sitHere()}
+              onClose={() => setTuning(false)}
+            />
           </div>
-          <div className="pointer-events-auto flex gap-2">
-            {open ? (
-              <Button variant="solid" disabled={busy || equipped} onClick={() => void sitHere()}>
-                {equipped ? "Using this board" : busy ? "Saving…" : "Use this board"}
-              </Button>
-            ) : (
-              <Button variant="outline" disabled>
-                Look only · reach {board.cost} to sit
-              </Button>
-            )}
+        ) : (
+          <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex flex-col items-center gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="pointer-events-auto max-w-md rounded-xl border border-line bg-ink/75 px-4 py-3 backdrop-blur-sm">
+              <p className="font-display text-2xl text-ivory">{board.name}</p>
+              <p className="mt-1 text-[15px] text-mist">{board.blurb}</p>
+              {error ? <p className="mt-2 text-[13px] text-danger">{error}</p> : null}
+            </div>
+            <div className="pointer-events-auto flex gap-2">
+              {open ? (
+                <Button variant="solid" onClick={() => setTuning(true)}>
+                  {equipped ? "Use · adjust" : "Use this board"}
+                </Button>
+              ) : (
+                <Button variant="outline" disabled>
+                  Look only · reach {board.cost} to sit
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </main>
   );
