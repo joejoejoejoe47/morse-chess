@@ -4,15 +4,18 @@ export type LookPrefs = {
   version: 1;
   outline: boolean;
   roomColor: string | null;
+  roomImage: string | null;
 };
 
 const KEY = "morse-look-prefs";
 const EVENT = "morse-look-prefs";
+const MAX_IMAGE = 1_600_000;
 
 export const DEFAULT_LOOK: LookPrefs = {
   version: 1,
   outline: true,
   roomColor: null,
+  roomImage: null,
 };
 
 export const ROOM_SWATCHES = [
@@ -36,6 +39,10 @@ function isHex(v: string) {
   return /^#[0-9a-fA-F]{6}$/.test(v);
 }
 
+function isRoomImage(v: unknown): v is string {
+  return typeof v === "string" && v.startsWith("data:image/") && v.length > 32 && v.length < MAX_IMAGE;
+}
+
 function parsePrefs(raw: string | null): LookPrefs {
   if (!raw) return DEFAULT_LOOK;
   try {
@@ -44,6 +51,7 @@ function parsePrefs(raw: string | null): LookPrefs {
       version: 1,
       outline: parsed.outline !== false,
       roomColor: typeof parsed.roomColor === "string" && isHex(parsed.roomColor) ? parsed.roomColor : null,
+      roomImage: isRoomImage(parsed.roomImage) ? parsed.roomImage : null,
     };
   } catch {
     return DEFAULT_LOOK;
@@ -72,11 +80,12 @@ export function saveLookPrefs(patch: Partial<LookPrefs>) {
     version: 1,
   };
   if (next.roomColor && !isHex(next.roomColor)) next.roomColor = null;
+  if (!isRoomImage(next.roomImage)) next.roomImage = null;
   const raw = JSON.stringify(next);
   try {
     if (canStore()) localStorage.setItem(KEY, raw);
   } catch {
-    /* ignore */
+    return current;
   }
   snapshot = next;
   snapshotRaw = raw;
@@ -99,4 +108,15 @@ export function useLookPrefs(): LookPrefs {
 
 export function roomColorFor(theme: "light" | "dark", prefs: LookPrefs) {
   return prefs.roomColor ?? (theme === "light" ? "#f6f1e4" : "#0c0d0b");
+}
+
+export function roomBackdrop(color: string, image: string | null) {
+  if (!image) return { backgroundColor: color };
+  return {
+    backgroundColor: color,
+    backgroundImage: `url("${image}")`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  };
 }

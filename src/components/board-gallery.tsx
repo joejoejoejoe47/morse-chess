@@ -59,7 +59,7 @@ export function BoardGallery({
         <p className="text-xs uppercase tracking-[0.2em] text-mist">The cabinet</p>
         <h1 className="mt-2 font-display text-4xl text-ivory">Boards</h1>
         <p className="mt-3 max-w-xl text-base text-mist">
-          Click a picture to walk around it. Click Use, then the look buttons open so you can set outline, background, and light before you enter it for your games.
+          Click a picture to walk around it. Click Use to set the outline, background color, or upload a background photo before you play. Once a game starts, the background stays put.
         </p>
       </section>
 

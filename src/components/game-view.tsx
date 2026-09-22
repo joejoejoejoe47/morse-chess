@@ -24,7 +24,7 @@ import { ChessBoard2D } from "@/components/chess/board-2d";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { equippedSkin } from "@/lib/chess/board-skins";
-import { roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
+import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { cn } from "@/lib/utils";
 
 const ChessBoard3D = lazy(() =>
@@ -362,7 +362,7 @@ export function GameView({ gameId }: { gameId: string }) {
   return (
     <main
       className="relative flex h-dvh max-h-dvh flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
-      style={{ backgroundColor: room }}
+      style={roomBackdrop(room, prefs.roomImage)}
     >
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
         <ClubBrand to="/" />
@@ -441,6 +441,7 @@ export function GameView({ gameId }: { gameId: string }) {
               <ChessBoard3D
                 {...boardProps}
                 roomColor={room}
+                roomImage={prefs.roomImage}
                 tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
                 seatVideo={seatVideo}
               />
@@ -462,6 +463,7 @@ export function GameView({ gameId }: { gameId: string }) {
             <BoardAdjustPanel
               title="Board look"
               enterLabel="Enter"
+              allowBackground={false}
               onEnter={() => setTuning(false)}
               onClose={() => setTuning(false)}
             />

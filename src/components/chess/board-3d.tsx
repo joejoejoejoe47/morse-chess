@@ -104,7 +104,7 @@ function makeKnightHead() {
     curveSegments: 10,
   });
   g.translate(0, 0, -0.08);
-  g.rotateY(Math.PI / 2);
+  g.rotateY(-Math.PI / 2);
   return g;
 }
 
@@ -329,7 +329,7 @@ function PieceMesh({
         {geometries.knightHead ? (
           <mesh geometry={geometries.knightHead} position={[0, 0.28, 0]} material={mat} castShadow />
         ) : (
-          <>
+          <group rotation={[0, Math.PI, 0]}>
             <mesh position={[0, 0.42, 0.02]} rotation={[0.15, 0, 0]} castShadow>
               <boxGeometry args={[0.22, 0.38, 0.34]} />
               <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
@@ -346,7 +346,7 @@ function PieceMesh({
               <boxGeometry args={[0.08, 0.16, 0.1]} />
               <meshStandardMaterial color={mat.color} roughness={mat.roughness} metalness={mat.metalness} />
             </mesh>
-          </>
+          </group>
         )}
       </group>
     );
@@ -817,6 +817,24 @@ function StudioTable({ map, brass }: { map: THREE.Texture | null; brass: string 
   );
 }
 
+function RoomSky({ color, image }: { color: string; image: string | null }) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    if (!image) {
+      setTexture(null);
+      return;
+    }
+    const tex = new THREE.TextureLoader().load(image);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    setTexture(tex);
+    return () => {
+      tex.dispose();
+    };
+  }, [image]);
+  if (texture) return <primitive attach="background" object={texture} />;
+  return <color attach="background" args={[color]} />;
+}
+
 function Scene({
   fen,
   you,
@@ -832,6 +850,7 @@ function Scene({
   seatVideo,
   outlineOn,
   roomColor,
+  roomImage,
 }: {
   fen: string;
   you: Side;
@@ -847,6 +866,7 @@ function Scene({
   seatVideo: HTMLVideoElement | null;
   outlineOn: boolean;
   roomColor: string;
+  roomImage: string | null;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -925,7 +945,7 @@ function Scene({
 
   return (
     <>
-      <color attach="background" args={[sky]} />
+      <RoomSky color={sky} image={roomImage} />
       <hemisphereLight args={[hemiSky, hemiGround, lightRoom ? 0.95 : 0.7]} />
       <ambientLight intensity={lightRoom ? 0.58 : 0.42} />
       <directionalLight
@@ -1026,6 +1046,7 @@ export function ChessBoard3D({
   seatVideo = null,
   outlineOn = true,
   roomColor,
+  roomImage = null,
 }: {
   fen: string;
   you: Side;
@@ -1039,6 +1060,7 @@ export function ChessBoard3D({
   seatVideo?: HTMLVideoElement | null;
   outlineOn?: boolean;
   roomColor?: string;
+  roomImage?: string | null;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -1124,6 +1146,7 @@ export function ChessBoard3D({
           seatVideo={seatVideo}
           outlineOn={outlineOn}
           roomColor={roomColor ?? (appearance === "light" ? "#f6f1e4" : "#0c0d0b")}
+          roomImage={roomImage}
         />
       </Canvas>
     </div>

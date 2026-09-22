@@ -445,6 +445,7 @@ html.light .auth-wood {
   bottom: 34%;
   border-radius: 0;
   clip-path: polygon(16% 100%, 20% 62%, 6% 50%, 14% 18%, 40% 0, 52% 16%, 92% 28%, 96% 44%, 62% 50%, 70% 68%, 56% 100%);
+  transform: translateX(-50%) scaleX(-1);
 }
 .mp-n .mp-collar { bottom: 32%; width: 36%; }
 .mp-n .mp-hat,
