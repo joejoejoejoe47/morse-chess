@@ -98,11 +98,11 @@ export function SpaceSky() {
   return (
     <group>
       <Stars />
-      <Body map="/space/sun.jpg" radius={5.2} position={[-38, 26, -16]} spin={0.05} unlit />
-      <Body map="/space/venus.jpg" radius={1.35} position={[34, 22, 28]} spin={0.1} />
-      <Body map="/space/earth.jpg" radius={1.55} position={[-22, 8, 46]} spin={0.18} />
-      <Body map="/space/mars.jpg" radius={1.05} position={[48, 2, -14]} spin={0.16} />
-      <Body map="/space/jupiter.jpg" radius={4.8} position={[-6, 18, -62]} spin={0.22} unlit />
+      <Body map="/space/sun.jpg" radius={4.8} position={[-8, 28, 36]} spin={0.05} unlit />
+      <Body map="/space/venus.jpg" radius={1.9} position={[36, 22, 18]} spin={0.1} unlit />
+      <Body map="/space/earth.jpg" radius={2.2} position={[42, 10, 36]} spin={0.18} unlit />
+      <Body map="/space/mars.jpg" radius={1.6} position={[-28, 4, 22]} spin={0.16} unlit />
+      <Body map="/space/jupiter.jpg" radius={4.6} position={[-40, 14, 48]} spin={0.22} unlit />
       <Body map="/space/saturn.jpg" radius={3.5} position={[16, -2, 58]} spin={0.18} unlit ring />
     </group>
   );
