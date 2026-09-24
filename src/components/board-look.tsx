@@ -8,6 +8,7 @@ import { ThemeToggle, useTheme } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { boardById, boardCanPreview, boardUnlocked, rememberEquipped, type BoardSkin } from "@/lib/chess/board-skins";
 import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
+import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard } from "@/lib/server/mores";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,11 @@ export function BoardLook({
 }) {
   const theme = useTheme();
   const prefs = useLookPrefs();
+  const modelUrl = useRoomModelUrl(prefs.roomScene === "model", prefs.modelRev);
   const room = roomColorFor(theme, prefs);
+  const cosmic = prefs.roomScene === "space" || prefs.roomScene === "model";
+  const backdropColor = cosmic ? "#05060c" : room;
+  const backdropImage = prefs.roomScene === "photo" ? prefs.roomImage : null;
   const board: BoardSkin = boardById(boardId);
   const open = boardUnlocked(score, board, username);
   const peek = boardCanPreview(score, board, username);
@@ -86,7 +91,7 @@ export function BoardLook({
 
   if (!peek) {
     return (
-      <main className="relative flex h-dvh flex-col overflow-hidden" style={roomBackdrop(room, prefs.roomImage)}>
+      <main className="relative flex h-dvh flex-col overflow-hidden" style={roomBackdrop(backdropColor, backdropImage)}>
         <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <ClubBrand to="/" />
           {onBack ? (
@@ -113,7 +118,7 @@ export function BoardLook({
   }
 
   return (
-    <main className="relative flex h-dvh flex-col overflow-hidden" style={roomBackdrop(room, prefs.roomImage)}>
+    <main className="relative flex h-dvh flex-col overflow-hidden" style={roomBackdrop(backdropColor, backdropImage)}>
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <ClubBrand to="/" />
         <div className="flex flex-wrap items-center justify-end gap-3">
@@ -168,7 +173,13 @@ export function BoardLook({
                 <div className="grid h-full place-items-center text-base text-mist">Setting the table…</div>
               }
             >
-              <ChessBoard3D {...boardProps} roomColor={room} roomImage={prefs.roomImage} />
+              <ChessBoard3D
+                {...boardProps}
+                roomColor={backdropColor}
+                roomImage={backdropImage}
+                roomScene={prefs.roomScene}
+                modelUrl={modelUrl}
+              />
             </Suspense>
           )}
         </div>

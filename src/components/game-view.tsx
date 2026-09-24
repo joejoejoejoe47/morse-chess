@@ -25,6 +25,7 @@ import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { equippedSkin } from "@/lib/chess/board-skins";
 import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
+import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { cn } from "@/lib/utils";
 
 const ChessBoard3D = lazy(() =>
@@ -207,10 +208,13 @@ export function GameView({ gameId }: { gameId: string }) {
   const [wash, setWash] = useState<"dark" | "light" | "color">("dark");
   const [photoLight, setPhotoLight] = useState(false);
   const roomColor = prefs.roomColor ?? DARK_ROOM;
-  const pickedLight = prefs.roomImage ? photoLight : hexIsLight(roomColor);
+  const modelUrl = useRoomModelUrl(prefs.roomScene === "model", prefs.modelRev);
+  const cosmic = wash === "color" && (prefs.roomScene === "space" || prefs.roomScene === "model");
+  const pickedLight = prefs.roomScene === "photo" && prefs.roomImage ? photoLight : cosmic ? false : hexIsLight(roomColor);
   const buttons = wash === "light" || (wash === "color" && pickedLight) ? "light" : "dark";
-  const room = wash === "light" ? LIGHT_ROOM : wash === "dark" ? DARK_ROOM : roomColor;
-  const roomImage = wash === "color" ? prefs.roomImage : null;
+  const room = wash === "light" ? LIGHT_ROOM : wash === "dark" ? DARK_ROOM : cosmic ? "#05060c" : roomColor;
+  const roomImage = wash === "color" && prefs.roomScene === "photo" ? prefs.roomImage : null;
+  const liveScene = wash === "color" ? prefs.roomScene : "color";
   const [game, setGame] = useState<GameSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
@@ -487,13 +491,21 @@ export function GameView({ gameId }: { gameId: string }) {
               data-on={wash === "color" ? "true" : undefined}
               className="game-swatch size-11 rounded-full border border-line"
               style={
-                prefs.roomImage
+                prefs.roomScene === "space"
                   ? {
-                      backgroundImage: `url("${prefs.roomImage}")`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
+                      backgroundColor: "#070b16",
+                      backgroundImage:
+                        "radial-gradient(circle at 30% 35%, #f6e7b2 0 1.5px, transparent 2px), radial-gradient(circle at 68% 62%, #fff 0 1px, transparent 1.6px), radial-gradient(circle at 48% 70%, #9ecbff 0 1px, transparent 1.6px)",
                     }
-                  : { backgroundColor: prefs.roomColor ?? DARK_ROOM }
+                  : prefs.roomScene === "model"
+                    ? { backgroundColor: "#1c2030" }
+                    : prefs.roomImage
+                      ? {
+                          backgroundImage: `url("${prefs.roomImage}")`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                        }
+                      : { backgroundColor: prefs.roomColor ?? DARK_ROOM }
               }
               onClick={() => setWash("color")}
             />
@@ -536,6 +548,8 @@ export function GameView({ gameId }: { gameId: string }) {
                 {...boardProps}
                 roomColor={room}
                 roomImage={roomImage}
+                roomScene={liveScene}
+                modelUrl={liveScene === "model" ? modelUrl : null}
                 tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
                 seatVideo={seatVideo}
               />

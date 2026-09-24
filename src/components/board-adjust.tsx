@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { ROOM_SWATCHES, saveLookPrefs, useLookPrefs } from "@/lib/chess/look-prefs";
+import { clearRoomModel, saveRoomModel } from "@/lib/chess/room-model";
 import { cn } from "@/lib/utils";
 
 async function fileToRoomImage(file: File) {
@@ -115,6 +116,7 @@ export function BoardAdjustPanel({
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {ROOM_SWATCHES.map((swatch) => {
                 const active =
+                  prefs.roomScene === "color" &&
                   !prefs.roomImage &&
                   (swatch.value === null ? prefs.roomColor === null : prefs.roomColor === swatch.value);
                 return (
@@ -132,7 +134,7 @@ export function BoardAdjustPanel({
                         swatch.value ??
                         "linear-gradient(135deg, #0c0d0b 50%, #f6f1e4 50%)",
                     }}
-                    onClick={() => saveLookPrefs({ roomColor: swatch.value, roomImage: null })}
+                    onClick={() => saveLookPrefs({ roomColor: swatch.value, roomImage: null, roomScene: "color" })}
                   />
                 );
               })}
@@ -143,7 +145,7 @@ export function BoardAdjustPanel({
                   value={pickerValue}
                   aria-label="Pick a background color"
                   className="absolute inset-0 cursor-pointer opacity-0"
-                  onChange={(e) => saveLookPrefs({ roomColor: e.target.value, roomImage: null })}
+                  onChange={(e) => saveLookPrefs({ roomColor: e.target.value, roomImage: null, roomScene: "color" })}
                 />
               </label>
             </div>
@@ -171,7 +173,7 @@ export function BoardAdjustPanel({
                     setUploadError(null);
                     void fileToRoomImage(file)
                       .then((roomImage) => {
-                        const saved = saveLookPrefs({ roomImage });
+                        const saved = saveLookPrefs({ roomImage, roomScene: "photo" });
                         if (saved.roomImage !== roomImage) {
                           setUploadError("That picture is too large to keep on this device.");
                         }
@@ -189,7 +191,10 @@ export function BoardAdjustPanel({
                   className="min-h-11 rounded-full border border-line px-4 text-sm text-mist hover:border-line-strong hover:text-ivory"
                   onClick={() => {
                     setUploadError(null);
-                    saveLookPrefs({ roomImage: null });
+                    saveLookPrefs({
+                      roomImage: null,
+                      roomScene: prefs.roomScene === "photo" ? "color" : prefs.roomScene,
+                    });
                   }}
                 >
                   Remove photo
@@ -205,6 +210,75 @@ export function BoardAdjustPanel({
               />
             ) : null}
             {uploadError ? <p className="mt-2 text-[13px] text-danger">{uploadError}</p> : null}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={cn(
+                  "min-h-11 rounded-full border px-4 text-sm font-medium",
+                  prefs.roomScene === "space" ? "border-gold-line bg-ivory text-ink" : "border-line bg-panel text-ivory",
+                )}
+                onClick={() => saveLookPrefs({ roomScene: "space" })}
+              >
+                Space
+              </button>
+              <label className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-line bg-panel px-4 text-sm font-medium text-ivory hover:border-line-strong">
+                Upload 3D
+                <input
+                  type="file"
+                  accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    const name = file.name.toLowerCase();
+                    if (!name.endsWith(".glb") && !name.endsWith(".gltf")) {
+                      setUploadError("Upload a .glb or .gltf model.");
+                      return;
+                    }
+                    if (file.size > 24 * 1024 * 1024) {
+                      setUploadError("Use a 3D file under 24 MB.");
+                      return;
+                    }
+                    setUploadError(null);
+                    void file.arrayBuffer().then(async (data) => {
+                      const head = new TextDecoder().decode(new Uint8Array(data.slice(0, 4)));
+                      if (name.endsWith(".glb") && head !== "glTF") {
+                        setUploadError("That file is not a glTF model.");
+                        return;
+                      }
+                      await saveRoomModel(data, name.endsWith(".gltf") ? "room.gltf" : "room.glb");
+                      saveLookPrefs({
+                        roomScene: "model",
+                        modelRev: prefs.modelRev + 1,
+                      });
+                    }).catch((err: unknown) => {
+                      setUploadError(err instanceof Error ? err.message : "Could not use that model.");
+                    });
+                  }}
+                />
+              </label>
+              {prefs.roomScene === "model" ? (
+                <button
+                  type="button"
+                  className="min-h-11 rounded-full border border-line px-4 text-sm text-mist hover:border-line-strong hover:text-ivory"
+                  onClick={() => {
+                    setUploadError(null);
+                    void clearRoomModel().finally(() => {
+                      saveLookPrefs({ roomScene: "color", modelRev: prefs.modelRev + 1 });
+                    });
+                  }}
+                >
+                  Remove 3D
+                </button>
+              ) : null}
+            </div>
+            {prefs.roomScene === "space" ? (
+              <p className="mt-2 text-[13px] text-mist">3D space sits behind the board. Turn the table to see it.</p>
+            ) : null}
+            {prefs.roomScene === "model" ? (
+              <p className="mt-2 text-[13px] text-mist">Your model sits in the room behind the board.</p>
+            ) : null}
           </div>
         ) : null}
 

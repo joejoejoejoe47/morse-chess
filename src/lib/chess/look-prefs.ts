@@ -1,10 +1,14 @@
 import { useSyncExternalStore } from "react";
 
+export type RoomScene = "color" | "photo" | "space" | "model";
+
 export type LookPrefs = {
   version: 1;
   outline: boolean;
   roomColor: string | null;
   roomImage: string | null;
+  roomScene: RoomScene;
+  modelRev: number;
 };
 
 const KEY = "morse-look-prefs";
@@ -16,6 +20,8 @@ export const DEFAULT_LOOK: LookPrefs = {
   outline: true,
   roomColor: null,
   roomImage: null,
+  roomScene: "color",
+  modelRev: 0,
 };
 
 export const ROOM_SWATCHES = [
@@ -43,15 +49,26 @@ function isRoomImage(v: unknown): v is string {
   return typeof v === "string" && v.startsWith("data:image/") && v.length > 32 && v.length < MAX_IMAGE;
 }
 
+function roomSceneOf(parsed: Partial<LookPrefs>, image: string | null): RoomScene {
+  if (parsed.roomScene === "space" || parsed.roomScene === "model" || parsed.roomScene === "photo" || parsed.roomScene === "color") {
+    if (parsed.roomScene === "photo" && !image) return "color";
+    return parsed.roomScene;
+  }
+  return image ? "photo" : "color";
+}
+
 function parsePrefs(raw: string | null): LookPrefs {
   if (!raw) return DEFAULT_LOOK;
   try {
     const parsed = JSON.parse(raw) as Partial<LookPrefs>;
+    const roomImage = isRoomImage(parsed.roomImage) ? parsed.roomImage : null;
     return {
       version: 1,
       outline: parsed.outline !== false,
       roomColor: typeof parsed.roomColor === "string" && isHex(parsed.roomColor) ? parsed.roomColor : null,
-      roomImage: isRoomImage(parsed.roomImage) ? parsed.roomImage : null,
+      roomImage,
+      roomScene: roomSceneOf(parsed, roomImage),
+      modelRev: typeof parsed.modelRev === "number" && Number.isFinite(parsed.modelRev) ? parsed.modelRev : 0,
     };
   } catch {
     return DEFAULT_LOOK;
@@ -81,6 +98,11 @@ export function saveLookPrefs(patch: Partial<LookPrefs>) {
   };
   if (next.roomColor && !isHex(next.roomColor)) next.roomColor = null;
   if (!isRoomImage(next.roomImage)) next.roomImage = null;
+  if (next.roomScene === "photo" && !next.roomImage) next.roomScene = "color";
+  if (next.roomScene !== "color" && next.roomScene !== "photo" && next.roomScene !== "space" && next.roomScene !== "model") {
+    next.roomScene = "color";
+  }
+  if (!Number.isFinite(next.modelRev)) next.modelRev = 0;
   const raw = JSON.stringify(next);
   try {
     if (canStore()) localStorage.setItem(KEY, raw);

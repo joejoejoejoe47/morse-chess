@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
@@ -6,6 +6,8 @@ import * as THREE from "three";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
+import type { RoomScene } from "@/lib/chess/look-prefs";
+import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 
 function hexRgb(hex: string) {
   const n = hex.replace("#", "");
@@ -851,6 +853,8 @@ function Scene({
   outlineOn,
   roomColor,
   roomImage,
+  roomScene,
+  modelUrl,
 }: {
   fen: string;
   you: Side;
@@ -867,6 +871,8 @@ function Scene({
   outlineOn: boolean;
   roomColor: string;
   roomImage: string | null;
+  roomScene: RoomScene;
+  modelUrl: string | null;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -939,13 +945,20 @@ function Scene({
   );
 
   const lightRoom = appearance === "light";
-  const sky = roomColor;
+  const cosmic = roomScene === "space" || (roomScene === "model" && Boolean(modelUrl));
+  const sky = cosmic ? "#05060c" : roomColor;
   const hemiSky = lightRoom ? "#fffaf1" : skin.fillLight;
   const hemiGround = skin.felt;
 
   return (
     <>
-      <RoomSky color={sky} image={roomImage} />
+      {cosmic ? <color attach="background" args={["#05060c"]} /> : <RoomSky color={sky} image={roomImage} />}
+      {roomScene === "space" ? <SpaceSky /> : null}
+      {roomScene === "model" && modelUrl ? (
+        <Suspense fallback={null}>
+          <ModelSky url={modelUrl} />
+        </Suspense>
+      ) : null}
       <hemisphereLight args={[hemiSky, hemiGround, lightRoom ? 0.95 : 0.7]} />
       <ambientLight intensity={lightRoom ? 0.58 : 0.42} />
       <directionalLight
@@ -1047,6 +1060,8 @@ export function ChessBoard3D({
   outlineOn = true,
   roomColor,
   roomImage = null,
+  roomScene = "color",
+  modelUrl = null,
 }: {
   fen: string;
   you: Side;
@@ -1061,6 +1076,8 @@ export function ChessBoard3D({
   outlineOn?: boolean;
   roomColor?: string;
   roomImage?: string | null;
+  roomScene?: RoomScene;
+  modelUrl?: string | null;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -1115,7 +1132,7 @@ export function ChessBoard3D({
         key={you}
         shadows
         dpr={[1, 1.75]}
-        camera={{ position: cam, fov: 36, near: 0.1, far: 80 }}
+        camera={{ position: cam, fov: 36, near: 0.1, far: 180 }}
         gl={{ antialias: true, alpha: false }}
         onPointerDown={() => {
           dragged.current = false;
@@ -1147,6 +1164,8 @@ export function ChessBoard3D({
           outlineOn={outlineOn}
           roomColor={roomColor ?? (appearance === "light" ? "#f6f1e4" : "#0c0d0b")}
           roomImage={roomImage}
+          roomScene={roomScene}
+          modelUrl={modelUrl}
         />
       </Canvas>
     </div>
