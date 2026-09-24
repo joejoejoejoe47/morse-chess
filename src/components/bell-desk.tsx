@@ -30,6 +30,7 @@ export function BellDesk() {
   const [settings, setSettings] = useState<BellSettings>(defaultBellSettings);
   const [users, setUsers] = useState<ClubUserRow[] | null>(null);
   const [browseFor, setBrowseFor] = useState<string | null>(null);
+  const [userQuery, setUserQuery] = useState("");
   const [busySong, setBusySong] = useState<string | null>(null);
   const defaultFile = useRef<HTMLInputElement>(null);
   const rowFiles = useRef<Record<string, HTMLInputElement | null>>({});
@@ -46,6 +47,7 @@ export function BellDesk() {
   }
 
   async function openBrowse(watchId: string) {
+    setUserQuery("");
     setBrowseFor(watchId);
     try {
       setUsers(await listClubUsers());
@@ -251,13 +253,25 @@ export function BellDesk() {
                 <X className="size-4" />
               </button>
             </div>
+            <div className="border-b border-line px-5 py-3">
+              <Input
+                value={userQuery}
+                onChange={(e) => setUserQuery(e.target.value)}
+                placeholder="Search a user"
+                aria-label="Search a user"
+              />
+            </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
               {users === null ? (
                 <p className="px-2 py-6 text-sm text-mist">Loading the club roll…</p>
-              ) : users.length === 0 ? (
-                <p className="px-2 py-6 text-sm text-mist">No other seats claimed yet.</p>
+              ) : users.filter((p) => p.username.toLowerCase().includes(userQuery.trim().toLowerCase())).length === 0 ? (
+                <p className="px-2 py-6 text-sm text-mist">
+                  {users.length === 0 ? "No other seats claimed yet." : "No user by that name."}
+                </p>
               ) : (
-                users.map((p) => (
+                users
+                  .filter((p) => p.username.toLowerCase().includes(userQuery.trim().toLowerCase()))
+                  .map((p) => (
                   <button
                     key={p.username}
                     type="button"

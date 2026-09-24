@@ -49,6 +49,7 @@ type GameRow = {
   live_open?: boolean | string | number | null;
   camera_open?: boolean | string | number | null;
   last_prize?: number | string | null;
+  pull?: boolean | string | number | null;
 };
 
 export type PlayerInfo = { userId: string; username: string; score: number };
@@ -77,6 +78,7 @@ export type GameSnapshot = {
   cameraOpen: boolean;
   chat: { id: number; from: string; text: string }[];
   scorePrize: number | null;
+  pull: boolean;
 };
 
 export type ChallengeCard = {
@@ -187,7 +189,7 @@ async function ensureClockColumns(sql: Sql) {
   );
 }
 
-async function insertGame(sql: Sql, a: string, b: string, mode: GameMode) {
+async function insertGame(sql: Sql, a: string, b: string, mode: GameMode, pull = false) {
   const id = newId();
   const aWhite = Math.random() < 0.5;
   const white = aWhite ? a : b;
@@ -196,18 +198,23 @@ async function insertGame(sql: Sql, a: string, b: string, mode: GameMode) {
   const write = () => sql`
     insert into games (
       id, white_user_id, black_user_id, mode, fen, status, turn, turn_started_at,
-      white_clock_ms, black_clock_ms
+      white_clock_ms, black_clock_ms, pull
     ) values (
       ${id}, ${white}, ${black}, ${mode}, ${chess.fen()}, 'active', 'w', ${new Date().toISOString()},
-      ${TURN_MS}, ${TURN_MS}
+      ${TURN_MS}, ${TURN_MS}, ${pull}
     )
   `;
   try {
     await write();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.includes("white_clock_ms") && !msg.includes("black_clock_ms")) throw err;
-    await ensureClockColumns(sql);
+    if (msg.includes("white_clock_ms") || msg.includes("black_clock_ms")) {
+      await ensureClockColumns(sql);
+      await write();
+      return id;
+    }
+    if (!msg.includes("pull")) throw err;
+    await sql.query("alter table games add column if not exists pull boolean not null default false");
     await write();
   }
   return id;
@@ -238,12 +245,12 @@ async function ensureChat(sql: Sql) {
 async function ensureBots(sql: Sql) {
   await sql`
     insert into profiles (user_id, username, username_lc, score)
-    values (${BOT_USER_ID}, ${BOT_USERNAME}, ${BOT_USERNAME.toLowerCase()}, 1840)
+    values (${BOT_USER_ID}, ${BOT_USERNAME}, ${BOT_USERNAME.toLowerCase()}, ${START_SCORE})
     on conflict (user_id) do update set username = excluded.username, username_lc = excluded.username_lc
   `;
   await sql`
     insert into profiles (user_id, username, username_lc, score)
-    values (${BOT_V2_USER_ID}, ${BOT_V2_USERNAME}, ${BOT_V2_USERNAME.toLowerCase()}, 2200)
+    values (${BOT_V2_USER_ID}, ${BOT_V2_USERNAME}, ${BOT_V2_USERNAME.toLowerCase()}, ${START_SCORE})
     on conflict (user_id) do update set username = excluded.username, username_lc = excluded.username_lc
   `;
 }
@@ -651,12 +658,37 @@ async function snapshotFor(sql: Sql, game: GameRow, userId: string, playBot = fa
         : you === "w"
           ? toInt(fresh.last_prize, 0)
           : -toInt(fresh.last_prize, 0),
+    pull: asBool(fresh.pull),
   };
 }
 
 async function ensurePull(sql: Sql) {
   await sql.query("alter table challenges add column if not exists kind text not null default 'named'");
   await sql.query("alter table match_queue add column if not exists pinged integer not null default 0");
+}
+
+async function lastHumanOpponent(sql: Sql, userId: string) {
+  const rows = await sql<{ white_user_id: string; black_user_id: string }>`
+    select white_user_id, black_user_id from games
+    where white_user_id = ${userId} or black_user_id = ${userId}
+    order by created_at desc
+    limit 1
+  `;
+  const game = rows[0];
+  if (!game) return null;
+  const other = game.white_user_id === userId ? game.black_user_id : game.white_user_id;
+  return isBotUserId(other) ? null : other;
+}
+
+async function onlyOtherOnline(sql: Sql, userId: string, otherId: string) {
+  const seats = await sql<{ user_id: string }>`
+    select user_id from profiles
+    where last_seen > now() - interval '20 seconds'
+      and user_id <> ${userId}
+      and user_id <> ${BOT_USER_ID}
+      and user_id <> ${BOT_V2_USER_ID}
+  `;
+  return seats.length === 1 && seats[0]?.user_id === otherId;
 }
 
 async function tryMatch(sql: Sql, userId: string, score: number, mode: GameMode, _joinedAt: unknown) {
@@ -667,8 +699,12 @@ async function tryMatch(sql: Sql, userId: string, score: number, mode: GameMode,
     order by joined_at asc
   `;
   if (!rows.length) return null;
+  const avoid = await lastHumanOpponent(sql, userId);
+  const alone = avoid ? await onlyOtherOnline(sql, userId, avoid) : true;
+  const pick = rows.find((row) => alone || row.user_id !== avoid);
+  if (!pick) return null;
   const taken = await sql<{ user_id: string }>`
-    delete from match_queue where user_id = ${rows[0].user_id} returning user_id
+    delete from match_queue where user_id = ${pick.user_id} returning user_id
   `;
   if (!taken.length) return null;
   await sql`delete from match_queue where user_id = ${userId}`;
@@ -677,7 +713,7 @@ async function tryMatch(sql: Sql, userId: string, score: number, mode: GameMode,
     where status = 'pending' and kind = 'pull'
       and (from_user_id = ${userId} or from_user_id = ${taken[0].user_id} or to_user_id = ${userId} or to_user_id = ${taken[0].user_id})
   `;
-  return insertGame(sql, userId, taken[0].user_id, mode);
+  return insertGame(sql, userId, taken[0].user_id, mode, true);
 }
 
 async function expirePull(sql: Sql, userId: string, score: number, mode: GameMode, joinedAt: unknown, pinged: number) {
@@ -691,7 +727,7 @@ async function expirePull(sql: Sql, userId: string, score: number, mode: GameMod
     where from_user_id = ${userId} and kind = 'pull' and status = 'pending'
   `;
   if (pinged > 0) return { gameId: null as string | null, miss: true };
-  const gameId = await insertGame(sql, userId, BOT_USER_ID, mode);
+  const gameId = await insertGame(sql, userId, BOT_USER_ID, mode, true);
   return { gameId, miss: false };
 }
 
@@ -713,10 +749,6 @@ export const claimUsername = createServerFn({ method: "POST" })
     await ensureEloScale(sql);
     const existing = await profileById(sql, context.userId);
     if (existing) {
-      if (isMasterUsername(existing.username) && Number(existing.score) < MASTER_SCORE) {
-        await sql`update profiles set score = ${MASTER_SCORE} where user_id = ${existing.user_id}`;
-        return { username: existing.username, score: MASTER_SCORE };
-      }
       return { username: existing.username, score: existing.score };
     }
     const score = isMasterUsername(data.username) ? MASTER_SCORE : START_SCORE;
@@ -737,11 +769,7 @@ export const getHomeState = createServerFn({ method: "GET" })
     const sql = await getSql();
     await ensureBots(sql);
     await ensureEloScale(sql);
-    let profile = await profileById(sql, context.userId);
-    if (profile && isMasterUsername(profile.username) && Number(profile.score) < MASTER_SCORE) {
-      await sql`update profiles set score = ${MASTER_SCORE} where user_id = ${profile.user_id}`;
-      profile = { ...profile, score: MASTER_SCORE };
-    }
+    const profile = await profileById(sql, context.userId);
     if (!profile) {
       return {
         profile: null,
@@ -910,7 +938,11 @@ export const joinQueue = createServerFn({ method: "POST" })
         and user_id <> ${BOT_USER_ID}
         and user_id <> ${BOT_V2_USER_ID}
     `;
-    const targets = seats.map((s) => s.user_id).filter((id) => !skip.has(id));
+    const avoid = await lastHumanOpponent(sql, context.userId);
+    const alone = avoid ? await onlyOtherOnline(sql, context.userId, avoid) : true;
+    const targets = seats
+      .map((s) => s.user_id)
+      .filter((id) => !skip.has(id) && (alone || id !== avoid));
     for (const toId of targets) {
       const id = newId();
       await sql`
@@ -1012,6 +1044,13 @@ export const respondChallenge = createServerFn({ method: "POST" })
       await sql`update challenges set status = 'declined' where id = ${ch.id}`;
       return { ok: true as const };
     }
+    if (ch.kind === "pull") {
+      const avoid = await lastHumanOpponent(sql, ch.from_user_id);
+      if (avoid && avoid === ch.to_user_id && !(await onlyOtherOnline(sql, ch.from_user_id, avoid))) {
+        await sql`update challenges set status = 'cancelled' where id = ${ch.id}`;
+        return { ok: false as const, error: "That seat just played. Someone else can sit." };
+      }
+    }
     const claimed = await sql<{ id: string }>`
       update challenges set status = 'accepted' where id = ${ch.id} and status = 'pending' returning id
     `;
@@ -1021,7 +1060,7 @@ export const respondChallenge = createServerFn({ method: "POST" })
       where kind = 'pull' and status = 'pending' and from_user_id = ${ch.from_user_id} and id <> ${ch.id}
     `;
     await sql`delete from match_queue where user_id in (${ch.from_user_id}, ${ch.to_user_id})`;
-    const gameId = await insertGame(sql, ch.from_user_id, ch.to_user_id, parseMode(ch.mode));
+    const gameId = await insertGame(sql, ch.from_user_id, ch.to_user_id, parseMode(ch.mode), ch.kind === "pull");
     await sql`update challenges set game_id = ${gameId} where id = ${ch.id}`;
     return { ok: true as const, gameId };
   });

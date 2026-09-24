@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess, type Square } from "chess.js";
 import { Flag, Undo2 } from "lucide-react";
 import {
@@ -7,6 +7,8 @@ import {
   closeGameCamera,
   closeGameChat,
   getGame,
+  getHomeState,
+  joinQueue,
   makeMove,
   openGameCamera,
   openGameChat,
@@ -171,10 +173,48 @@ function PromotionPicker({
 }
 
 function ResultOverlay({ game }: { game: GameSnapshot }) {
+  const navigate = useNavigate();
   const won =
     (game.status === "white_win" && game.you === "w") ||
     (game.status === "black_win" && game.you === "b");
   const draw = game.status === "draw";
+  const [again, setAgain] = useState(false);
+  const [left, setLeft] = useState(5);
+  const [againError, setAgainError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!again) return;
+    const started = Date.now();
+    let live = true;
+    const tick = async () => {
+      setLeft(Math.max(0, 5 - Math.floor((Date.now() - started) / 1000)));
+      try {
+        const home = await getHomeState();
+        if (!live || !home.activeGameId || home.activeGameId === game.id) return;
+        await navigate({ to: "/play/$gameId", params: { gameId: home.activeGameId } });
+      } catch (err) {
+        if (live) setAgainError(err instanceof Error ? err.message : "Could not start the next game.");
+      }
+    };
+    void (async () => {
+      try {
+        const { gameId } = await joinQueue({ data: { mode: game.mode } });
+        if (!live) return;
+        if (gameId && gameId !== game.id) {
+          await navigate({ to: "/play/$gameId", params: { gameId } });
+          return;
+        }
+      } catch (err) {
+        if (live) setAgainError(err instanceof Error ? err.message : "Could not start the next game.");
+      }
+    })();
+    const id = window.setInterval(() => void tick(), 400);
+    return () => {
+      live = false;
+      window.clearInterval(id);
+    };
+  }, [again, game.id, game.mode, navigate]);
+
   return (
     <div className="absolute inset-0 z-20 grid place-items-center bg-ink/75 px-5">
       <div className="w-full max-w-md rounded-xl border border-line bg-panel p-8 text-center">
@@ -194,9 +234,24 @@ function ResultOverlay({ game }: { game: GameSnapshot }) {
               : `Elo ${formatEloDelta(game.scorePrize ?? 0)} for the loss.`}
         </p>
         <p className="mt-1 font-mono text-lg tabular-nums text-ivory">Elo {game.myScore}</p>
-        <Button asChild variant="solid" className="mt-6">
-          <Link to="/">Return to the lounge</Link>
-        </Button>
+        {again ? (
+          <div className="mt-6 space-y-2">
+            <p className="text-sm text-mist">Asking everyone at the boards.</p>
+            <p className="font-display text-3xl tabular-nums text-ivory">{left}s</p>
+          </div>
+        ) : (
+          <div className="mt-6 flex flex-col gap-2">
+            {won && game.pull ? (
+              <Button type="button" variant="solid" onClick={() => setAgain(true)}>
+                Play again
+              </Button>
+            ) : null}
+            <Button asChild variant={won && game.pull ? "outline" : "solid"}>
+              <Link to="/">Return to the lounge</Link>
+            </Button>
+          </div>
+        )}
+        {againError ? <p className="mt-3 text-sm text-danger">{againError}</p> : null}
       </div>
     </div>
   );
