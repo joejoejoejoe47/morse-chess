@@ -77,7 +77,7 @@ function Body({
   return (
     <group ref={ref} position={position}>
       <mesh>
-        <sphereGeometry args={[radius, 48, 32]} />
+        <sphereGeometry args={[radius, 64, 48]} />
         {unlit ? (
           <meshBasicMaterial map={tex} />
         ) : (
@@ -85,8 +85,8 @@ function Body({
         )}
       </mesh>
       {ring && ringTex ? (
-        <mesh rotation={[1.15, 0.15, 0.35]}>
-          <ringGeometry args={[radius * 1.35, radius * 2.15, 72]} />
+        <mesh rotation={[Math.PI / 2.35, 0.2, 0.15]}>
+          <ringGeometry args={[radius * 1.25, radius * 2.25, 96]} />
           <meshBasicMaterial map={ringTex} transparent side={THREE.DoubleSide} depthWrite={false} />
         </mesh>
       ) : null}
@@ -95,19 +95,15 @@ function Body({
 }
 
 export function SpaceSky() {
-  const rig = useRef<THREE.Group>(null);
-  useFrame((_, dt) => {
-    if (rig.current) rig.current.rotation.y += dt * 0.025;
-  });
   return (
-    <group ref={rig}>
+    <group>
       <Stars />
-      <Body map="/space/sun.jpg" radius={3.5} position={[-22, 7.2, -30]} spin={0.05} unlit />
-      <Body map="/space/venus.jpg" radius={1.15} position={[-12, 2.1, -24]} spin={0.12} />
-      <Body map="/space/earth.jpg" radius={1.28} position={[-3.5, 4.4, -26]} spin={0.2} />
-      <Body map="/space/mars.jpg" radius={0.92} position={[6.5, 1.2, -22]} spin={0.18} />
-      <Body map="/space/jupiter.jpg" radius={2.75} position={[15, 5.6, -33]} spin={0.32} />
-      <Body map="/space/saturn.jpg" radius={2.15} position={[25, 2.6, -28]} spin={0.26} ring />
+      <Body map="/space/sun.jpg" radius={5.2} position={[-38, 26, -16]} spin={0.05} unlit />
+      <Body map="/space/venus.jpg" radius={1.35} position={[34, 22, 28]} spin={0.1} />
+      <Body map="/space/earth.jpg" radius={1.55} position={[-22, 8, 46]} spin={0.18} />
+      <Body map="/space/mars.jpg" radius={1.05} position={[48, 2, -14]} spin={0.16} />
+      <Body map="/space/jupiter.jpg" radius={4.8} position={[-6, 18, -62]} spin={0.22} unlit />
+      <Body map="/space/saturn.jpg" radius={3.5} position={[16, -2, 58]} spin={0.18} unlit ring />
     </group>
   );
 }
