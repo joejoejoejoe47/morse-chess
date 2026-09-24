@@ -42,12 +42,16 @@ export function BoardAdjustPanel({
   onEnter,
   onClose,
   allowBackground = true,
+  showClubLight = true,
+  buttonClass,
 }: {
   title?: string;
   enterLabel?: string;
   onEnter: () => void;
   onClose?: () => void;
   allowBackground?: boolean;
+  showClubLight?: boolean;
+  buttonClass?: string;
 }) {
   const prefs = useLookPrefs();
   const pickerValue = prefs.roomColor ?? "#0c0d0b";
@@ -64,7 +68,10 @@ export function BoardAdjustPanel({
         {onClose ? (
           <button
             type="button"
-            className="rounded-full border border-line px-3 text-sm text-mist hover:border-line-strong hover:text-ivory"
+            className={cn(
+              "rounded-full border border-line px-3 text-sm text-mist hover:border-line-strong hover:text-ivory",
+              buttonClass,
+            )}
             onClick={onClose}
           >
             Close
@@ -201,15 +208,17 @@ export function BoardAdjustPanel({
           </div>
         ) : null}
 
-        <div>
-          <p className="text-[13px] uppercase tracking-[0.14em] text-mist">Club light</p>
-          <div className="mt-2">
-            <ThemeToggle className="rounded-full" />
+        {showClubLight ? (
+          <div>
+            <p className="text-[13px] uppercase tracking-[0.14em] text-mist">Club light</p>
+            <div className="mt-2">
+              <ThemeToggle className={cn("rounded-full", buttonClass)} />
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
-      <Button variant="solid" className="mt-5 w-full rounded-full" onClick={onEnter}>
+      <Button variant="solid" className={cn("mt-5 w-full rounded-full", buttonClass)} onClick={onEnter}>
         {enterLabel}
       </Button>
     </div>
