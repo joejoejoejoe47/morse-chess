@@ -215,33 +215,6 @@ html.light .felt-inset {
     var(--color-panel);
 }
 
-.game-shell[data-buttons="light"] header .text-ivory,
-.game-shell[data-buttons="light"] header .text-mist {
-  color: #1c1914 !important;
-}
-.game-shell[data-buttons="dark"] header .text-ivory,
-.game-shell[data-buttons="dark"] header .text-mist {
-  color: #f3ead8 !important;
-}
-.game-shell[data-buttons="light"] .game-btn,
-.game-shell[data-buttons="light"] .game-btn:hover {
-  background-color: #fffdf8 !important;
-  color: #1c1914 !important;
-  border-color: rgba(28, 25, 20, 0.18) !important;
-}
-.game-shell[data-buttons="dark"] .game-btn,
-.game-shell[data-buttons="dark"] .game-btn:hover {
-  background-color: #141512 !important;
-  color: #f3ead8 !important;
-  border-color: rgba(243, 234, 216, 0.22) !important;
-}
-.game-shell .game-btn[data-on="true"] {
-  box-shadow: inset 0 0 0 2px currentColor;
-}
-.game-swatch[data-on="true"] {
-  box-shadow: 0 0 0 2px #f3ead8, 0 0 0 4px #1c1914;
-}
-
 html.light .bg-ivory:hover,
 html.light .hover\:bg-cream:hover {
   background-color: #1c1914 !important;

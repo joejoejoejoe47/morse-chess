@@ -35,47 +35,6 @@ const ChessBoard3D = lazy(() =>
 const DARK_ROOM = "#0c0d0b";
 const LIGHT_ROOM = "#f6f1e4";
 
-function colorLightness(r: number, g: number, b: number) {
-  return (Math.max(r, g, b) + Math.min(r, g, b)) / 2 / 255;
-}
-
-function hexIsLight(hex: string) {
-  const n = hex.replace("#", "");
-  if (n.length < 6) return false;
-  return (
-    colorLightness(
-      Number.parseInt(n.slice(0, 2), 16),
-      Number.parseInt(n.slice(2, 4), 16),
-      Number.parseInt(n.slice(4, 6), 16),
-    ) >= 0.5
-  );
-}
-
-function imageIsLight(src: string) {
-  return new Promise<boolean>((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 16;
-      canvas.height = 16;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) {
-        resolve(false);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, 16, 16);
-      const data = ctx.getImageData(0, 0, 16, 16).data;
-      let sum = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        sum += colorLightness(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0);
-      }
-      resolve(sum / (data.length / 4) >= 0.5);
-    };
-    img.onerror = () => resolve(false);
-    img.src = src;
-  });
-}
-
 type BoardView = "2d" | "3d";
 
 function readBoardView(): BoardView {
@@ -206,12 +165,9 @@ export function GameView({ gameId }: { gameId: string }) {
   const theme = useTheme();
   const prefs = useLookPrefs();
   const [wash, setWash] = useState<"dark" | "light" | "color">("dark");
-  const [photoLight, setPhotoLight] = useState(false);
   const roomColor = prefs.roomColor ?? DARK_ROOM;
   const modelUrl = useRoomModelUrl(prefs.roomScene === "model", prefs.modelRev);
   const cosmic = wash === "color" && (prefs.roomScene === "space" || prefs.roomScene === "model");
-  const pickedLight = prefs.roomScene === "photo" && prefs.roomImage ? photoLight : cosmic ? false : hexIsLight(roomColor);
-  const buttons = wash === "light" || (wash === "color" && pickedLight) ? "light" : "dark";
   const room = wash === "light" ? LIGHT_ROOM : wash === "dark" ? DARK_ROOM : cosmic ? "#05060c" : roomColor;
   const roomImage = wash === "color" && prefs.roomScene === "photo" ? prefs.roomImage : null;
   const liveScene = wash === "color" ? prefs.roomScene : "color";
@@ -229,17 +185,6 @@ export function GameView({ gameId }: { gameId: string }) {
   const pollGen = useRef(0);
   const pendingMove = useRef(false);
   const claimingTimeout = useRef(false);
-
-  useEffect(() => {
-    if (!prefs.roomImage) return;
-    let live = true;
-    void imageIsLight(prefs.roomImage).then((light) => {
-      if (live) setPhotoLight(light);
-    });
-    return () => {
-      live = false;
-    };
-  }, [prefs.roomImage]);
 
   function applySnap(snap: GameSnapshot, fromMove = false) {
     const ply = snap.moves.length;
@@ -426,8 +371,7 @@ export function GameView({ gameId }: { gameId: string }) {
 
   return (
     <main
-      className="game-shell relative flex h-dvh max-h-dvh flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
-      data-buttons={buttons}
+      className="relative flex h-dvh max-h-dvh flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
       style={roomBackdrop(room, roomImage)}
     >
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
@@ -440,19 +384,23 @@ export function GameView({ gameId }: { gameId: string }) {
             {" · "}
             {skin.name}
           </span>
-          <div className="flex overflow-hidden rounded-full border border-line">
+          <div className="flex overflow-hidden rounded-full border border-line bg-panel">
             <button
               type="button"
-              data-on={view === "2d" ? "true" : undefined}
-              className="game-btn min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]"
+              className={cn(
+                "min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+                view === "2d" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
               onClick={() => setBoardView("2d")}
             >
               2D
             </button>
             <button
               type="button"
-              data-on={view === "3d" ? "true" : undefined}
-              className="game-btn min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]"
+              className={cn(
+                "min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+                view === "3d" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
               onClick={() => setBoardView("3d")}
             >
               3D
@@ -460,25 +408,29 @@ export function GameView({ gameId }: { gameId: string }) {
           </div>
           <button
             type="button"
-            className="game-btn min-h-11 rounded-full border px-4 py-2 text-sm font-medium"
+            className="min-h-11 rounded-full border border-line bg-panel px-4 py-2 text-sm font-medium text-ivory hover:border-line-strong"
             onClick={() => setTuning(true)}
           >
             Use
           </button>
           <div className="flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-full border border-line">
+            <div className="flex overflow-hidden rounded-full border border-line bg-panel">
               <button
                 type="button"
-                data-on={wash === "dark" ? "true" : undefined}
-                className="game-btn min-h-11 px-3 text-sm font-medium"
+                className={cn(
+                  "min-h-11 px-3 text-sm font-medium",
+                  wash === "dark" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                )}
                 onClick={() => setWash("dark")}
               >
                 Dark
               </button>
               <button
                 type="button"
-                data-on={wash === "light" ? "true" : undefined}
-                className="game-btn min-h-11 px-3 text-sm font-medium"
+                className={cn(
+                  "min-h-11 px-3 text-sm font-medium",
+                  wash === "light" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                )}
                 onClick={() => setWash("light")}
               >
                 Light
@@ -488,8 +440,10 @@ export function GameView({ gameId }: { gameId: string }) {
               type="button"
               aria-label="Board color"
               title="Board color"
-              data-on={wash === "color" ? "true" : undefined}
-              className="game-swatch size-11 rounded-full border border-line"
+              className={cn(
+                "size-11 rounded-full border",
+                wash === "color" ? "border-gold-line ring-2 ring-gold-line/50" : "border-line",
+              )}
               style={
                 prefs.roomScene === "space"
                   ? {
@@ -514,7 +468,7 @@ export function GameView({ gameId }: { gameId: string }) {
             <Button
               size="sm"
               variant="outline"
-              className="game-btn rounded-full"
+              className="rounded-full"
               onClick={async () => {
                 const snap = await resignGame({ data: { gameId } });
                 if (snap) applySnap(snap, true);
@@ -524,7 +478,7 @@ export function GameView({ gameId }: { gameId: string }) {
               Resign
             </Button>
           ) : (
-            <Button asChild size="sm" variant="outline" className="game-btn rounded-full">
+            <Button asChild size="sm" variant="outline" className="rounded-full">
               <Link to="/">
                 <Undo2 className="size-3.5" />
                 Lounge
@@ -573,7 +527,6 @@ export function GameView({ gameId }: { gameId: string }) {
               enterLabel="Enter"
               allowBackground={false}
               showClubLight={false}
-              buttonClass="game-btn"
               onEnter={() => setTuning(false)}
               onClose={() => setTuning(false)}
             />
@@ -625,7 +578,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 {view === "3d" ? (
                   <button
                     type="button"
-                    className="game-btn min-h-11 rounded-full border px-3 text-sm"
+                    className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory hover:border-line-strong"
                     onClick={async () => {
                       const snap = game.cameraOpen
                         ? await closeGameCamera({ data: { gameId } })
@@ -638,7 +591,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 ) : null}
                 <button
                   type="button"
-                  className="game-btn min-h-11 rounded-full border px-3 text-sm"
+                  className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory hover:border-line-strong"
                   onClick={async () => {
                     const snap = await closeGameChat({ data: { gameId } });
                     if (snap) applySnap(snap, true);
@@ -686,7 +639,7 @@ export function GameView({ gameId }: { gameId: string }) {
               <div className="border-t border-line p-2">
                 <button
                   type="button"
-                  className="game-btn min-h-11 w-full rounded-lg border px-3 text-sm disabled:opacity-40"
+                  className="min-h-11 w-full rounded-lg border border-line bg-forest px-3 text-sm text-ivory disabled:opacity-40"
                   disabled={vsBot}
                   onClick={async () => {
                     const snap = await openGameLive({ data: { gameId } });
@@ -702,7 +655,7 @@ export function GameView({ gameId }: { gameId: string }) {
           <div className="absolute right-3 top-[42%] z-10 flex -translate-y-1/2 flex-col items-end gap-2">
             <button
               type="button"
-              className="game-btn min-h-11 rounded-full border px-4 py-2 text-sm"
+              className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
               onClick={async () => {
                 const snap = await openGameChat({ data: { gameId } });
                 if (snap) applySnap(snap, true);
@@ -714,7 +667,7 @@ export function GameView({ gameId }: { gameId: string }) {
               game.cameraOpen ? (
                 <button
                   type="button"
-                  className="game-btn min-h-11 rounded-full border px-4 py-2 text-sm"
+                  className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
                   onClick={async () => {
                     const snap = await closeGameCamera({ data: { gameId } });
                     if (snap) applySnap(snap, true);
@@ -725,7 +678,7 @@ export function GameView({ gameId }: { gameId: string }) {
               ) : (
                 <button
                   type="button"
-                  className="game-btn min-h-11 rounded-full border px-4 py-2 text-sm"
+                  className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
                   onClick={async () => {
                     const snap = await openGameCamera({ data: { gameId } });
                     if (snap) applySnap(snap, true);
