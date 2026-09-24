@@ -19,18 +19,19 @@ export function MorseCrest({ className }: { className?: string }) {
   );
 }
 
-export function ClubBrand({ to }: { to?: "/" }) {
+export function ClubBrand({ to, tone = "light" }: { to?: "/"; tone?: "light" | "dark" }) {
+  const ink = tone === "dark" ? "text-ink" : "text-ivory";
   const inner = (
     <>
       <MorseCrest />
-      <span className="font-display text-[1.85rem] font-semibold leading-none tracking-display text-ivory">
+      <span className={cn("font-display text-[1.85rem] font-semibold leading-none tracking-display", ink)}>
         Morse Chess
       </span>
     </>
   );
   if (to) {
     return (
-      <Link to={to} className="inline-flex items-center gap-3.5 text-ivory hover:opacity-90">
+      <Link to={to} className={cn("inline-flex items-center gap-3.5 hover:opacity-90", ink)}>
         {inner}
       </Link>
     );

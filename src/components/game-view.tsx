@@ -35,6 +35,47 @@ const ChessBoard3D = lazy(() =>
 const DARK_ROOM = "#0c0d0b";
 const LIGHT_ROOM = "#f6f1e4";
 
+function colorLightness(r: number, g: number, b: number) {
+  return (Math.max(r, g, b) + Math.min(r, g, b)) / 2 / 255;
+}
+
+function hexIsLight(hex: string) {
+  const n = hex.replace("#", "");
+  if (n.length < 6) return false;
+  return (
+    colorLightness(
+      Number.parseInt(n.slice(0, 2), 16),
+      Number.parseInt(n.slice(2, 4), 16),
+      Number.parseInt(n.slice(4, 6), 16),
+    ) >= 0.5
+  );
+}
+
+function imageIsLight(src: string) {
+  return new Promise<boolean>((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        resolve(false);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, 16, 16);
+      const data = ctx.getImageData(0, 0, 16, 16).data;
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        sum += colorLightness(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0);
+      }
+      resolve(sum / (data.length / 4) >= 0.5);
+    };
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+}
+
 type BoardView = "2d" | "3d";
 
 function readBoardView(): BoardView {
@@ -165,12 +206,19 @@ export function GameView({ gameId }: { gameId: string }) {
   const theme = useTheme();
   const prefs = useLookPrefs();
   const [wash, setWash] = useState<"dark" | "light" | "color">("dark");
+  const [photoLight, setPhotoLight] = useState(false);
   const roomColor = prefs.roomColor ?? DARK_ROOM;
   const modelUrl = useRoomModelUrl(prefs.roomScene === "model", prefs.modelRev);
   const cosmic = wash === "color" && (prefs.roomScene === "space" || prefs.roomScene === "model");
   const room = wash === "light" ? LIGHT_ROOM : wash === "dark" ? DARK_ROOM : cosmic ? "#05060c" : roomColor;
   const roomImage = wash === "color" && prefs.roomScene === "photo" ? prefs.roomImage : null;
   const liveScene = wash === "color" ? prefs.roomScene : "color";
+  const backdropLight =
+    wash === "light" ||
+    (wash === "color" &&
+      prefs.roomScene !== "space" &&
+      prefs.roomScene !== "model" &&
+      (prefs.roomScene === "photo" ? photoLight : hexIsLight(roomColor)));
   const [game, setGame] = useState<GameSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
@@ -185,6 +233,17 @@ export function GameView({ gameId }: { gameId: string }) {
   const pollGen = useRef(0);
   const pendingMove = useRef(false);
   const claimingTimeout = useRef(false);
+
+  useEffect(() => {
+    if (wash !== "color" || prefs.roomScene !== "photo" || !prefs.roomImage) return;
+    let live = true;
+    void imageIsLight(prefs.roomImage).then((light) => {
+      if (live) setPhotoLight(light);
+    });
+    return () => {
+      live = false;
+    };
+  }, [wash, prefs.roomScene, prefs.roomImage]);
 
   function applySnap(snap: GameSnapshot, fromMove = false) {
     const ply = snap.moves.length;
@@ -375,7 +434,7 @@ export function GameView({ gameId }: { gameId: string }) {
       style={roomBackdrop(room, roomImage)}
     >
       <header className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
-        <ClubBrand to="/" />
+        <ClubBrand to="/" tone={backdropLight ? "dark" : "light"} />
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-[15px] text-mist md:inline">
             {game.mode === "timed" ? "Timed · 1 min / turn" : "Breeze"}
@@ -510,11 +569,6 @@ export function GameView({ gameId }: { gameId: string }) {
             </Suspense>
           )}
         </div>
-        {view === "3d" ? (
-          <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-ink/55 px-3 py-1.5 text-[13px] text-mist">
-            Drag to turn the table · scroll to zoom
-          </p>
-        ) : null}
         {error ? (
           <p className="pointer-events-none absolute left-1/2 top-12 z-10 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1.5 text-[13px] text-danger">
             {error}
