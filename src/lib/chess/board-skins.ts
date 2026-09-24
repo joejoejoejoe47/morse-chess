@@ -39,7 +39,7 @@ export type BoardSkin = {
 };
 
 export const MASTER_USERNAME = "MasterGus";
-export const MASTER_SCORE = 8888;
+export const MASTER_SCORE = 9000;
 export const DEFAULT_BOARD_ID = "lodge";
 
 export function isMasterUsername(name: string) {
