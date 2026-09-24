@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Chess, type Square } from "chess.js";
 import { FILES } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
-import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
-import { HtmlPiece } from "@/components/chess/html-piece";
-import type { PieceKind } from "@/components/chess/marks";
+import { boardById, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import { cn } from "@/lib/utils";
 
 const GLYPH: Record<string, string> = {
@@ -65,6 +63,7 @@ export function ChessBoard2D({
   const files = you === "w" ? [...FILES] : [...FILES].reverse();
   const lightRoom = appearance === "light";
   const look = skin ?? boardById("lodge");
+  const lodge = boardById("lodge");
   const [fade, setFade] = useState<[string, string] | null>(null);
   useEffect(() => {
     if (look.id !== "mystery") {
@@ -77,7 +76,6 @@ export function ChessBoard2D({
   }, [look.id]);
   const lightSq = fade?.[0] ?? look.lightSq;
   const darkSq = fade?.[1] ?? look.darkSq;
-  const fine = boardUsesFinePieces(look);
 
   function onSquare(sq: Square) {
     if (disabled || !myTurn) {
@@ -137,42 +135,25 @@ export function ChessBoard2D({
                   aria-label={sq}
                 >
                   {piece ? (
-                    fine ? (
-                      <HtmlPiece
-                        kind={piece.type as PieceKind}
-                        fill={piece.color === "w" ? look.whitePiece : look.blackPiece}
-                        edge={
-                          outlineOn
-                            ? piece.color === "w"
-                              ? look.whiteStroke
-                              : look.blackStroke
-                            : piece.color === "w"
-                              ? look.whitePiece
-                              : look.blackPiece
-                        }
-                        outlined={outlineOn}
-                      />
-                    ) : (
                     <span
                       className="pointer-events-none select-none font-display leading-none"
                       style={{
                         fontSize: "clamp(1.6rem, 8vmin, 4.2rem)",
-                        color: piece.color === "w" ? look.whitePiece : look.blackPiece,
+                        color: piece.color === "w" ? lodge.whitePiece : lodge.blackPiece,
                         WebkitTextStroke: outlineOn
                           ? piece.color === "w"
-                            ? `1.6px ${look.whiteStroke}`
-                            : `2px ${look.blackStroke}`
+                            ? `1.6px ${lodge.whiteStroke}`
+                            : `2px ${lodge.blackStroke}`
                           : "0",
                         textShadow: outlineOn
                           ? piece.color === "w"
-                            ? `0 2px 0 ${look.whiteStroke}, 0 0 0 1px ${look.whiteStroke}, 0 6px 14px rgba(0,0,0,0.35)`
-                            : `0 1px 0 ${look.blackStroke}, 0 0 0 1px ${look.blackStroke}, 0 10px 16px rgba(0,0,0,0.55)`
+                            ? `0 2px 0 ${lodge.whiteStroke}, 0 0 0 1px ${lodge.whiteStroke}, 0 6px 14px rgba(0,0,0,0.35)`
+                            : `0 1px 0 ${lodge.blackStroke}, 0 0 0 1px ${lodge.blackStroke}, 0 10px 16px rgba(0,0,0,0.55)`
                           : "0 6px 12px rgba(0,0,0,0.28)",
                       }}
                     >
                       {GLYPH[piece.type]}
                     </span>
-                    )
                   ) : null}
                   {legal.has(sq) && !piece ? (
                     <span className="pointer-events-none absolute left-1/2 top-1/2 size-[28%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink/35" />
