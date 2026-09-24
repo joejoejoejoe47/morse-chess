@@ -657,7 +657,7 @@ export function GameView({ gameId }: { gameId: string }) {
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
               {(game.chat ?? []).length === 0 ? (
-                <p className="text-[13px] text-mist">Say something. They see it on this same table.</p>
+                <p className="text-[13px] text-mist">Say something. The user sees it on this same table.</p>
               ) : (
                 (game.chat ?? []).map((m) => (
                   <div key={m.id} className="rounded-lg bg-panel px-3 py-2">

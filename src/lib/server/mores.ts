@@ -976,7 +976,7 @@ export const sendChallenge = createServerFn({ method: "POST" })
       where from_user_id = ${context.userId} and to_user_id = ${to.user_id} and status = 'pending'
       limit 1
     `;
-    if (pending.length) return { ok: false as const, error: "You already sent them a challenge." };
+    if (pending.length) return { ok: false as const, error: "You already sent the user a challenge." };
     const id = newId();
     await sql`
       insert into challenges (id, from_user_id, to_user_id, mode, status)

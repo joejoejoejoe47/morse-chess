@@ -179,7 +179,7 @@ export function BellDesk() {
           <h2 className="font-display text-2xl text-ivory">Who rings</h2>
           <p className="mt-1 text-sm text-mist">
             {named
-              ? "Only these usernames trip the bell. Each may keep their own song."
+              ? "Only these usernames trip the bell. Each user may keep the user's own song."
               : "Leave the names empty and every challenge rings."}
           </p>
         </div>
@@ -335,7 +335,7 @@ function WatchRow({
         <input ref={fileRef} type="file" accept="audio/*" className="hidden" onChange={onSong} />
         <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onPickSong}>
           <Upload className="size-3.5" />
-          {row.songId ? "Replace their song" : "Song for this user"}
+          {row.songId ? "Replace the user's song" : "Song for this user"}
         </Button>
         {row.songId ? (
           <Button type="button" variant="ghost" size="sm" onClick={onClearSong}>

@@ -225,9 +225,9 @@ export function ClubHome() {
         <p className="text-xs uppercase tracking-[0.2em] text-mist">The lounge</p>
         <h1 className="mt-2 max-w-2xl font-display text-4xl text-ivory">Your board is waiting.</h1>
         <p className="mt-3 max-w-xl text-base text-mist">
-          Pull a random seat. Everyone online is asked. First yes sits. Two randoms in the same five
+          Pull a random seat. Everyone online is asked. The first yes sits. Two random players in the same five
           seconds pair at once. Alone in the chair, MorseBot sits. Timed games give each player one
-          minute a turn.
+          minute per turn.
         </p>
         {error && flow.kind === "idle" ? <p className="mt-3 text-base text-danger">{error}</p> : null}
       </section>
@@ -244,7 +244,7 @@ export function ClubHome() {
           </div>
           <h2 className="mt-4 font-display text-2xl text-ivory">Random pull-up</h2>
           <p className="mt-2 text-sm text-mist">
-            Sit across from whoever answers first. Everyone at the boards is asked. Two randoms pair
+            Sit across from whoever answers first. Everyone at the boards is asked. Two random players pair
             at once. Five seconds with no yes is an error — unless you are sitting alone, then MorseBot
             takes the chair.
           </p>
@@ -260,7 +260,7 @@ export function ClubHome() {
           </div>
           <h2 className="mt-4 font-display text-2xl text-ivory">Intended pull-up</h2>
           <p className="mt-2 text-sm text-mist">
-            Type their username. They must have signed in and created that account. They tap yes, and you
+            Type the user's username. The user must have signed in and created that account. The user taps yes, and you
             both sit at the 3D table. MorseBot answers if you name MorseBot.
           </p>
         </button>
@@ -304,12 +304,12 @@ export function ClubHome() {
                     {c.kind === "pull" ? (
                       <>
                         Random pull-up — <span className="font-medium">{c.fromUsername}</span> is asking
-                        everyone. First yes sits. {c.mode}.
+                        everyone. The first yes sits. {c.mode}.
                       </>
                     ) : (
                       <>
-                        <span className="font-medium">{c.fromUsername}</span> wants to battle you in chess{" "}
-                        {c.mode}.
+                        <span className="font-medium">{c.fromUsername}</span> wants to battle you in a {c.mode}{" "}
+                        chess game.
                       </>
                     )}
                   </p>
@@ -486,7 +486,7 @@ export function ClubHome() {
                     autoFocus
                     value={target}
                     onChange={(e) => setTarget(e.target.value)}
-                    placeholder="Type their club name"
+                    placeholder="Type the user's club name"
                   />
                 </div>
                 {error ? <p className="text-sm text-danger">{error}</p> : null}
@@ -502,8 +502,8 @@ export function ClubHome() {
 
             {flow.kind === "waiting" ? (
               <p className="mt-5 text-sm text-mist">
-                {home.profile.username} wants to battle {flow.username} in chess {flow.mode}. Waiting for
-                their yes.
+                {home.profile.username} wants to battle {flow.username} in a {flow.mode} chess game. Waiting for
+                the user's yes.
               </p>
             ) : null}
 

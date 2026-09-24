@@ -179,7 +179,7 @@ export function LiveCall({
           t.enabled = audio && !mutedRef.current;
         });
         streamRef.current = outgoing;
-        setStatus(video ? "Waiting for their camera…" : "Waiting for them…");
+        setStatus(video ? "Waiting for the user's camera…" : "Waiting for the user…");
         void poll();
       } catch {
         setStatus(video ? "Allow the camera to sit at the table" : "Allow the microphone to go live");
