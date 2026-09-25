@@ -3,6 +3,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
+import { StonePerson, type PeopleCast } from "@/components/chess/stone-people";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
@@ -105,7 +106,7 @@ function makeKnightHead() {
     bevelSegments: 2,
     curveSegments: 10,
   });
-  g.translate(0, 0, -0.08);
+  g.translate(-0.12, 0, -0.08);
   g.rotateY(-Math.PI / 2);
   return g;
 }
@@ -435,6 +436,8 @@ function AnimatedPiece({
   onClick,
   skin,
   outlineOn,
+  people,
+  cast,
 }: {
   square: string;
   spawnFrom: string;
@@ -448,35 +451,54 @@ function AnimatedPiece({
   onClick: () => void;
   skin: BoardSkin;
   outlineOn: boolean;
+  people: boolean;
+  cast: PeopleCast;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom);
   const pos = useRef(new THREE.Vector3(start[0], 0, start[2]));
   const lift = useRef(selected ? 0.22 : 0);
+  const gait = useRef({ phase: 0, amp: 0 });
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
     const dest = squareToWorld(square);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
-    const k = 1 - Math.exp(-14 * dt);
+    const k = 1 - Math.exp((people ? -4.2 : -14) * dt);
+    const before = pos.current.clone();
     pos.current.lerp(target, k);
+    const moved = before.distanceTo(pos.current);
     lift.current += ((selected ? 0.24 : 0) - lift.current) * (1 - Math.exp(-16 * dt));
     if (!ref.current) return;
     ref.current.position.set(pos.current.x, 0.08 + lift.current, pos.current.z);
+    if (people) {
+      const traveling = pos.current.distanceTo(target) > 0.05 || moved > 0.002;
+      gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
+      if (traveling) gait.current.phase += dt * 9;
+      const dx = target.x - pos.current.x;
+      const dz = target.z - pos.current.z;
+      if (Math.hypot(dx, dz) > 0.08) ref.current.rotation.y = Math.atan2(dx, dz);
+      else ref.current.rotation.y = color === "w" ? Math.PI : 0;
+      return;
+    }
     ref.current.rotation.y = type === "n" ? (color === "w" ? Math.PI : 0) : 0;
   });
 
   return (
     <group ref={ref} onClick={(e) => { e.stopPropagation(); onClick(); }}>
-      <PieceMesh
-        type={type}
-        color={color}
-        geometries={geometries}
-        ivory={ivory}
-        ebony={ebony}
-        skin={skin}
-        outlineOn={outlineOn}
-      />
+      {people ? (
+        <StonePerson type={type} white={color === "w"} cast={cast} gait={gait} />
+      ) : (
+        <PieceMesh
+          type={type}
+          color={color}
+          geometries={geometries}
+          ivory={ivory}
+          ebony={ebony}
+          skin={skin}
+          outlineOn={outlineOn}
+        />
+      )}
     </group>
   );
 }
@@ -855,6 +877,7 @@ function Scene({
   roomImage,
   roomScene,
   modelUrl,
+  people,
 }: {
   fen: string;
   you: Side;
@@ -873,6 +896,7 @@ function Scene({
   roomImage: string | null;
   roomScene: RoomScene;
   modelUrl: string | null;
+  people: boolean;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -1024,6 +1048,8 @@ function Scene({
           ebony={ebony}
           skin={skin}
           outlineOn={outlineOn}
+          people={people}
+          cast={skin.anSet ?? "stone"}
           onClick={() => onSquare(p.sq)}
         />
       ))}
@@ -1062,6 +1088,7 @@ export function ChessBoard3D({
   roomImage = null,
   roomScene = "color",
   modelUrl = null,
+  people = false,
 }: {
   fen: string;
   you: Side;
@@ -1078,6 +1105,7 @@ export function ChessBoard3D({
   roomImage?: string | null;
   roomScene?: RoomScene;
   modelUrl?: string | null;
+  people?: boolean;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -1166,6 +1194,7 @@ export function ChessBoard3D({
           roomImage={roomImage}
           roomScene={roomScene}
           modelUrl={modelUrl}
+          people={people}
         />
       </Canvas>
     </div>

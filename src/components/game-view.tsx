@@ -78,11 +78,13 @@ function imageIsLight(src: string) {
   });
 }
 
-type BoardView = "2d" | "3d";
+type BoardView = "2d" | "3d" | "an";
 
 function readBoardView(): BoardView {
   try {
-    return localStorage.getItem("morse-board-view") === "2d" ? "2d" : "3d";
+    const saved = localStorage.getItem("morse-board-view");
+    if (saved === "2d" || saved === "an") return saved;
+    return "3d";
   } catch {
     return "3d";
   }
@@ -519,6 +521,16 @@ export function GameView({ gameId }: { gameId: string }) {
             >
               3D
             </button>
+            <button
+              type="button"
+              className={cn(
+                "min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+                view === "an" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
+              onClick={() => setBoardView("an")}
+            >
+              AN
+            </button>
           </div>
           <button
             type="button"
@@ -620,6 +632,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 modelUrl={liveScene === "model" ? modelUrl : null}
                 tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
                 seatVideo={seatVideo}
+                people={view === "an"}
               />
             </Suspense>
           )}

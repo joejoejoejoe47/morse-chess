@@ -46,7 +46,7 @@ export function BoardLook({
   const open = boardUnlocked(score, board, username);
   const peek = boardCanPreview(score, board, username);
   const equipped = equippedBoard === board.id;
-  const [view, setView] = useState<"2d" | "3d">("3d");
+  const [view, setView] = useState<"2d" | "3d" | "an">("3d");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tuning, setTuning] = useState(startTuning && open);
@@ -149,6 +149,16 @@ export function BoardLook({
             >
               3D
             </button>
+            <button
+              type="button"
+              className={cn(
+                "px-3 py-1.5 text-[13px] font-medium",
+                view === "an" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
+              onClick={() => setView("an")}
+            >
+              AN
+            </button>
           </div>
           <ThemeToggle className="rounded-full" />
           {onBack ? (
@@ -179,6 +189,7 @@ export function BoardLook({
                 roomImage={backdropImage}
                 roomScene={prefs.roomScene}
                 modelUrl={modelUrl}
+                people={view === "an"}
               />
             </Suspense>
           )}

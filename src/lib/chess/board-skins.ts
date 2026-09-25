@@ -36,6 +36,7 @@ export type BoardSkin = {
   animated?: boolean;
   pieceCut?: "club" | "staunton";
   htmlPieces?: boolean;
+  anSet?: "pipe" | "ring";
 };
 
 export const MASTER_USERNAME = "MasterGus";
@@ -85,6 +86,44 @@ export const BOARD_CATALOG: BoardSkin[] = [
     tableKind: "felt",
     pieceScale: 1,
     collar: null,
+  },
+  {
+    ...BASE,
+    id: "pipe-court",
+    name: "Pipe Court",
+    blurb: "Animation board. A short hero leads the light. A horned king leads the dark.",
+    cost: 0,
+    tableKind: "felt",
+    anSet: "pipe",
+    lightSq: "#d7e38a",
+    darkSq: "#6a4a28",
+    table: "#3a6a32",
+    felt: "#234a28",
+    select: "#e0b04a",
+    last: "#c47a32",
+    whitePiece: "#f4e4d4",
+    blackPiece: "#1c2818",
+    whiteStroke: "#8a3030",
+    blackStroke: "#d4a84a",
+  },
+  {
+    ...BASE,
+    id: "ring-march",
+    name: "Ring March",
+    blurb: "Animation board. A light host against a dark host. The figures walk when you move.",
+    cost: 0,
+    tableKind: "felt",
+    anSet: "ring",
+    lightSq: "#e4d2a8",
+    darkSq: "#2a332c",
+    table: "#3a2a1c",
+    felt: "#1c2820",
+    select: "#8a7048",
+    last: "#5a6848",
+    whitePiece: "#e6dcc8",
+    blackPiece: "#141618",
+    whiteStroke: "#4a4034",
+    blackStroke: "#6e3030",
   },
   {
     ...BASE,
