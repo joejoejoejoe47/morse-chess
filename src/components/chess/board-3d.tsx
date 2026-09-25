@@ -3,7 +3,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
-import { StonePerson, type PeopleCast } from "@/components/chess/stone-people";
+import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
@@ -438,6 +438,7 @@ function AnimatedPiece({
   outlineOn,
   people,
   cast,
+  slay,
 }: {
   square: string;
   spawnFrom: string;
@@ -453,12 +454,15 @@ function AnimatedPiece({
   outlineOn: boolean;
   people: boolean;
   cast: PeopleCast;
+  slay: boolean;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom);
   const pos = useRef(new THREE.Vector3(start[0], 0, start[2]));
   const lift = useRef(selected ? 0.22 : 0);
-  const gait = useRef({ phase: 0, amp: 0 });
+  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
+  const swung = useRef(false);
+  const attackUntil = useRef(0);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
@@ -475,10 +479,15 @@ function AnimatedPiece({
       const traveling = pos.current.distanceTo(target) > 0.05 || moved > 0.002;
       gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
       if (traveling) gait.current.phase += dt * 9;
+      if (!traveling && slay && !swung.current) {
+        swung.current = true;
+        attackUntil.current = performance.now() + 980;
+      }
+      gait.current.act = performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
       const dx = target.x - pos.current.x;
       const dz = target.z - pos.current.z;
       if (Math.hypot(dx, dz) > 0.08) ref.current.rotation.y = Math.atan2(dx, dz);
-      else ref.current.rotation.y = color === "w" ? Math.PI : 0;
+      else if (gait.current.act !== "attack") ref.current.rotation.y = color === "w" ? Math.PI : 0;
       return;
     }
     ref.current.rotation.y = type === "n" ? (color === "w" ? Math.PI : 0) : 0;
@@ -941,6 +950,53 @@ function Scene({
     return list;
   }, [fen]);
 
+  const prevPieces = useRef<typeof pieces | null>(null);
+  const seenCapture = useRef("");
+  const [bodies, setBodies] = useState<
+    { id: string; sq: Square; type: PieceSymbol; color: Color; delay: number }[]
+  >([]);
+  const [captureSq, setCaptureSq] = useState<string | null>(null);
+
+  useEffect(() => {
+    const before = prevPieces.current;
+    prevPieces.current = pieces;
+    if (!before) return;
+    if (!people || !lastMove) {
+      setCaptureSq(null);
+      return;
+    }
+    const key = `${fen}|${lastMove.from}${lastMove.to}`;
+    if (seenCapture.current === key) return;
+    seenCapture.current = key;
+    const was = before.find((p) => p.sq === lastMove.to);
+    const now = pieces.find((p) => p.sq === lastMove.to);
+    let victim = was && (!now || now.color !== was.color) ? was : undefined;
+    if (!victim) {
+      const beside = `${lastMove.to[0]}${lastMove.from[1]}` as Square;
+      const pawn = before.find((p) => p.sq === beside && p.type === "p");
+      if (pawn && !pieces.some((p) => p.sq === beside && p.color === pawn.color && p.type === "p")) victim = pawn;
+    }
+    if (!victim) {
+      setCaptureSq(null);
+      return;
+    }
+    const steps = Math.max(
+      Math.abs(lastMove.from.charCodeAt(0) - victim.sq.charCodeAt(0)),
+      Math.abs(Number(lastMove.from[1]) - Number(victim.sq[1])),
+    );
+    setCaptureSq(lastMove.to);
+    setBodies((list) => [
+      ...list,
+      {
+        id: `${victim.sq}-${victim.color}${victim.type}-${key}`,
+        sq: victim.sq,
+        type: victim.type,
+        color: victim.color,
+        delay: 0.42 + steps * 0.26,
+      },
+    ]);
+  }, [pieces, people, lastMove, fen]);
+
   const wood = useMemo(() => {
     if (skin.id === "marble") {
       const slab = makeMarbleTexture(skin.table, 0.7);
@@ -1050,9 +1106,30 @@ function Scene({
           outlineOn={outlineOn}
           people={people}
           cast={skin.anSet ?? "stone"}
+          slay={captureSq === p.sq}
           onClick={() => onSquare(p.sq)}
         />
       ))}
+      {people
+        ? bodies.map((body) => {
+            const spot = squareToWorld(body.sq);
+            return (
+              <group
+                key={body.id}
+                position={[spot[0], 0.08, spot[2]]}
+                rotation={[0, body.color === "w" ? Math.PI : 0, 0]}
+              >
+                <WarCorpse
+                  type={body.type}
+                  white={body.color === "w"}
+                  cast={skin.anSet ?? "stone"}
+                  delay={body.delay}
+                  onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
+                />
+              </group>
+            );
+          })
+        : null}
       <OrbitControls
         enablePan={false}
         enableRotate
