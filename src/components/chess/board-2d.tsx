@@ -120,7 +120,7 @@ export function ChessBoard2D({
                   key={sq}
                   type="button"
                   onClick={() => onSquare(sq)}
-                  className="relative aspect-square min-h-0"
+                  className="relative grid aspect-square min-h-0 place-items-center [container-type:size]"
                   style={{
                     background: isCheck
                       ? look.check
@@ -138,7 +138,7 @@ export function ChessBoard2D({
                     <span
                       className="pointer-events-none select-none font-display leading-none"
                       style={{
-                        fontSize: "clamp(1.6rem, 8vmin, 4.2rem)",
+                        fontSize: "90cqmin",
                         color: piece.color === "w" ? lodge.whitePiece : lodge.blackPiece,
                         WebkitTextStroke: outlineOn
                           ? piece.color === "w"
