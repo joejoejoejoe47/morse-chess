@@ -463,20 +463,29 @@ function AnimatedPiece({
   const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
   const swung = useRef(false);
   const attackUntil = useRef(0);
+  const trip = useRef<{ from: THREE.Vector3; to: THREE.Vector3; t: number } | null>(null);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
     const dest = squareToWorld(square);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
-    const k = 1 - Math.exp((people ? -4.2 : -14) * dt);
-    const before = pos.current.clone();
-    pos.current.lerp(target, k);
-    const moved = before.distanceTo(pos.current);
+    if (people) {
+      if (!trip.current || trip.current.to.distanceTo(target) > 0.01) {
+        trip.current = { from: pos.current.clone(), to: target.clone(), t: 0 };
+      }
+      const span = trip.current.from.distanceTo(trip.current.to);
+      if (span > 0.02) trip.current.t = Math.min(1, trip.current.t + dt / 0.72);
+      else trip.current.t = 1;
+      pos.current.lerpVectors(trip.current.from, trip.current.to, trip.current.t);
+    } else {
+      const k = 1 - Math.exp(-14 * dt);
+      pos.current.lerp(target, k);
+    }
     lift.current += ((selected ? 0.24 : 0) - lift.current) * (1 - Math.exp(-16 * dt));
     if (!ref.current) return;
     ref.current.position.set(pos.current.x, 0.08 + lift.current, pos.current.z);
     if (people) {
-      const traveling = pos.current.distanceTo(target) > 0.05 || moved > 0.002;
+      const traveling = (trip.current?.t ?? 1) < 1;
       gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
       if (traveling) gait.current.phase += dt * 9;
       if (!traveling && slay && !swung.current) {
@@ -980,10 +989,6 @@ function Scene({
       setCaptureSq(null);
       return;
     }
-    const steps = Math.max(
-      Math.abs(lastMove.from.charCodeAt(0) - victim.sq.charCodeAt(0)),
-      Math.abs(Number(lastMove.from[1]) - Number(victim.sq[1])),
-    );
     setCaptureSq(lastMove.to);
     setBodies((list) => [
       ...list,
@@ -992,7 +997,7 @@ function Scene({
         sq: victim.sq,
         type: victim.type,
         color: victim.color,
-        delay: 0.42 + steps * 0.26,
+        delay: 0.72,
       },
     ]);
   }, [pieces, people, lastMove, fen]);
