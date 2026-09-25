@@ -106,7 +106,7 @@ function WarUnit({
     return next;
   }, [scene, allow, tint]);
   const ref = useRef<THREE.Group>(null);
-  const { actions } = useAnimations(animations, ref);
+  const { actions } = useAnimations(animations, clone);
   const mode = useRef<Gait["act"]>("idle");
   const breath = useRef(Math.random() * Math.PI * 2);
   const rate = useRef(0.75 + Math.random() * 0.7);
