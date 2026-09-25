@@ -194,11 +194,6 @@ export function BoardLook({
             </Suspense>
           )}
         </div>
-        {view === "3d" ? (
-          <p className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-ink/55 px-3 py-1.5 text-[13px] text-mist">
-            Drag to turn the table · scroll to zoom · pieces stay still
-          </p>
-        ) : null}
         {tuning ? (
           <div className="absolute inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-4 sm:bottom-4">
             <BoardAdjustPanel
