@@ -499,7 +499,9 @@ function AnimatedPiece({
       else if (gait.current.act !== "attack") ref.current.rotation.y = color === "w" ? Math.PI : 0;
       return;
     }
-    ref.current.rotation.y = type === "n" ? (color === "w" ? Math.PI : 0) : 0;
+    const knightTurn =
+      skin.id === "lodge" || skin.id === "pine" || skin.id === "pipe-court" || skin.id === "ring-march";
+    ref.current.rotation.y = type === "n" ? (color === "w" ? Math.PI : 0) + (knightTurn ? Math.PI : 0) : 0;
   });
 
   return (
