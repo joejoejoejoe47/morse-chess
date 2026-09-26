@@ -94,12 +94,13 @@ function WarUnit({
         mesh.castShadow = true;
         mesh.frustumCulled = false;
         const src = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        mesh.material = src.map((mat) => {
+        const copies = src.map((mat) => {
           const copy = mat.clone();
           const colored = copy as THREE.MeshStandardMaterial;
           if (tintColor && colored.color) colored.color.multiply(tintColor);
           return copy;
         });
+        mesh.material = copies.length === 1 ? copies[0] : copies;
       }
       if (PROP.test(obj.name) && !BODY.test(obj.name) && !allow.has(obj.name)) obj.visible = false;
     });
