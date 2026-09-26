@@ -90,6 +90,14 @@ function readBoardView(): BoardView {
   }
 }
 
+function readLife() {
+  try {
+    return localStorage.getItem("morse-an-life") === "1";
+  } catch {
+    return false;
+  }
+}
+
 let clickCtx: AudioContext | null = null;
 let woodBuf: AudioBuffer | null = null;
 
@@ -280,6 +288,7 @@ export function GameView({ gameId }: { gameId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
   const [view, setView] = useState<BoardView>(readBoardView);
+  const [life, setLife] = useState(readLife);
   const [draft, setDraft] = useState("");
   const [seatVideo, setSeatVideo] = useState<HTMLVideoElement | null>(null);
   const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null);
@@ -532,6 +541,28 @@ export function GameView({ gameId }: { gameId: string }) {
               AN
             </button>
           </div>
+          {view === "an" ? (
+            <button
+              type="button"
+              className={cn(
+                "min-h-11 rounded-full border border-line px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+                life ? "bg-ivory text-ink" : "bg-panel text-mist hover:text-ivory",
+              )}
+              onClick={() => {
+                setLife((on) => {
+                  const next = !on;
+                  try {
+                    localStorage.setItem("morse-an-life", next ? "1" : "0");
+                  } catch {
+                    /* ignore */
+                  }
+                  return next;
+                });
+              }}
+            >
+              Life
+            </button>
+          ) : null}
           <button
             type="button"
             className="min-h-11 rounded-full border border-line bg-panel px-4 py-2 text-sm font-medium text-ivory hover:border-line-strong"
@@ -633,6 +664,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
                 seatVideo={seatVideo}
                 people={view === "an"}
+                life={view === "an" && life}
               />
             </Suspense>
           )}

@@ -19,31 +19,31 @@ const LOOK: Record<
     w: "/units/knight.glb",
     b: "/units/skeleton-warrior.glb",
     show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"],
-    scale: 0.9,
+    scale: 0.76,
   },
   q: {
     w: "/units/rogue-hooded.glb",
     b: "/units/skeleton-rogue.glb",
     show: ["Knife", "Knife_Offhand", "Rogue_Cape", "Rogue_Head_Hooded", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape", "Skeleton_Rogue_Head"],
-    scale: 0.85,
+    scale: 0.72,
   },
   b: {
     w: "/units/mage.glb",
     b: "/units/skeleton-mage.glb",
     show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"],
-    scale: 0.82,
+    scale: 0.7,
   },
   n: {
     w: "/units/barbarian.glb",
     b: "/units/skeleton-warrior.glb",
     show: ["1H_Axe", "Barbarian_Round_Shield", "Barbarian_Hat", "Skeleton_Warrior_Helmet"],
-    scale: 0.85,
+    scale: 0.72,
   },
   r: {
     w: "/units/knight.glb",
     b: "/units/knight.glb",
     show: ["1H_Sword", "Rectangle_Shield", "Knight_Helmet"],
-    scale: 1,
+    scale: 0.84,
     darkTint: "#3e3832",
   },
   p: {
@@ -53,6 +53,31 @@ const LOOK: Record<
     scale: 0.62,
   },
 };
+
+const TOY_CLIPS = {
+  idle: "Idle",
+  walk: "Walking_A",
+  attack: "1H_Melee_Attack_Slice_Horizontal",
+  death: "Death_A",
+};
+
+const LIFE_CLIPS = {
+  idle: "Idle",
+  walk: "Walk",
+  attack: "SwordSlash",
+  death: "Death",
+};
+
+const LIFE: Record<PieceSymbol, { w: string; b: string; scale: number; darkTint?: string }> = {
+  k: { w: "/life/Knight_Golden_Male.glb", b: "/life/Knight_Male.glb", scale: 0.7 },
+  q: { w: "/life/Knight_Golden_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.66 },
+  b: { w: "/life/Wizard.glb", b: "/life/Wizard.glb", scale: 0.66 },
+  n: { w: "/life/Viking_Male.glb", b: "/life/Ninja_Male.glb", scale: 0.66 },
+  r: { w: "/life/BlueSoldier_Male.glb", b: "/life/Soldier_Male.glb", scale: 0.68 },
+  p: { w: "/life/Casual_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.56 },
+};
+
+type Clips = { idle: string; walk: string; attack: string; death: string };
 
 const URLS = [...new Set(Object.values(LOOK).flatMap((row) => [row.w, row.b]))];
 for (const url of URLS) useGLTF.preload(url);
@@ -75,12 +100,14 @@ function WarUnit({
   show,
   scale,
   tint,
+  clips,
   gait,
 }: {
   url: string;
   show: string[];
   scale: number;
   tint?: string;
+  clips: Clips;
   gait: MutableRefObject<Gait>;
 }) {
   const { scene, animations } = useGLTF(url);
@@ -132,8 +159,8 @@ function WarUnit({
     mixer.update(Math.min(raw, 0.05));
     const want = gait.current.act;
     if (want !== mode.current) {
-      const prev = actions[clipFor(mode.current)];
-      const next = actions[clipFor(want)];
+      const prev = actions[clipName(clips, mode.current)];
+      const next = actions[clipName(clips, want)];
       prev?.fadeOut(0.1);
       if (next) {
         const once = want === "attack" || want === "death";
@@ -152,10 +179,11 @@ function WarUnit({
       ref.current.scale.set(scale, scale, scale);
     }
     if (want === "walk") {
-      const root = clone.getObjectByName("root");
-      if (root) {
-        root.position.x = 0;
-        root.position.z = 0;
+      for (const name of ["root", "hips", "Bone", "Hips"]) {
+        const bone = clone.getObjectByName(name);
+        if (!bone) continue;
+        bone.position.x = 0;
+        bone.position.z = 0;
       }
     }
     if (gait.current.fade < 0.99) paint(clone, gait.current.fade);
@@ -168,30 +196,33 @@ function WarUnit({
   );
 }
 
-function clipFor(act: Gait["act"]) {
-  if (act === "walk") return "Walking_A";
-  if (act === "attack") return "1H_Melee_Attack_Slice_Horizontal";
-  if (act === "death") return "Death_A";
-  return "Idle";
+function clipName(clips: Clips, act: Gait["act"]) {
+  if (act === "walk") return clips.walk;
+  if (act === "attack") return clips.attack;
+  if (act === "death") return clips.death;
+  return clips.idle;
 }
 
 export function StonePerson({
   type,
   white,
+  life,
   gait,
 }: {
   type: PieceSymbol;
   white: boolean;
   cast: PeopleCast;
+  life?: boolean;
   gait: MutableRefObject<Gait>;
 }) {
-  const look = LOOK[type];
+  const look = life ? LIFE[type] : LOOK[type];
   return (
     <WarUnit
       url={white ? look.w : look.b}
-      show={look.show}
+      show={life ? [] : LOOK[type].show}
       scale={look.scale}
       tint={!white ? look.darkTint : undefined}
+      clips={life ? LIFE_CLIPS : TOY_CLIPS}
       gait={gait}
     />
   );
@@ -201,12 +232,14 @@ export function WarCorpse({
   type,
   white,
   cast,
+  life,
   delay,
   onDone,
 }: {
   type: PieceSymbol;
   white: boolean;
   cast: PeopleCast;
+  life?: boolean;
   delay: number;
   onDone: () => void;
 }) {
@@ -232,5 +265,5 @@ export function WarCorpse({
   });
 
   if (!show) return null;
-  return <StonePerson type={type} white={white} cast={cast} gait={gait} />;
+  return <StonePerson type={type} white={white} cast={cast} life={life} gait={gait} />;
 }

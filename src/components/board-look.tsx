@@ -47,6 +47,7 @@ export function BoardLook({
   const peek = boardCanPreview(score, board, username);
   const equipped = equippedBoard === board.id;
   const [view, setView] = useState<"2d" | "3d" | "an">("3d");
+  const [life, setLife] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tuning, setTuning] = useState(startTuning && open);
@@ -160,6 +161,18 @@ export function BoardLook({
               AN
             </button>
           </div>
+          {view === "an" ? (
+            <button
+              type="button"
+              className={cn(
+                "rounded-full border border-line px-3 py-1.5 text-[13px] font-medium",
+                life ? "bg-ivory text-ink" : "bg-panel text-mist hover:text-ivory",
+              )}
+              onClick={() => setLife((on) => !on)}
+            >
+              Life
+            </button>
+          ) : null}
           <ThemeToggle className="rounded-full" />
           {onBack ? (
             <Button size="sm" variant="outline" className="rounded-full" onClick={onBack}>
@@ -190,6 +203,7 @@ export function BoardLook({
                 roomScene={prefs.roomScene}
                 modelUrl={modelUrl}
                 people={view === "an"}
+                life={view === "an" && life}
               />
             </Suspense>
           )}
