@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { useAnimations, useGLTF } from "@react-three/drei";
+import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
@@ -19,38 +19,38 @@ const LOOK: Record<
     w: "/units/knight.glb",
     b: "/units/skeleton-warrior.glb",
     show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"],
-    scale: 0.64,
+    scale: 0.9,
   },
   q: {
     w: "/units/rogue-hooded.glb",
     b: "/units/skeleton-rogue.glb",
     show: ["Knife", "Knife_Offhand", "Rogue_Cape", "Rogue_Head_Hooded", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape", "Skeleton_Rogue_Head"],
-    scale: 0.58,
+    scale: 0.85,
   },
   b: {
     w: "/units/mage.glb",
     b: "/units/skeleton-mage.glb",
     show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"],
-    scale: 0.56,
+    scale: 0.82,
   },
   n: {
     w: "/units/barbarian.glb",
     b: "/units/skeleton-warrior.glb",
     show: ["1H_Axe", "Barbarian_Round_Shield", "Barbarian_Hat", "Skeleton_Warrior_Helmet"],
-    scale: 0.58,
+    scale: 0.85,
   },
   r: {
     w: "/units/knight.glb",
     b: "/units/knight.glb",
     show: ["1H_Sword", "Rectangle_Shield", "Knight_Helmet"],
-    scale: 0.74,
+    scale: 1,
     darkTint: "#3e3832",
   },
   p: {
     w: "/units/rogue.glb",
     b: "/units/skeleton-minion.glb",
     show: ["Knife", "Rogue_Cape", "Skeleton_Minion_Cloak"],
-    scale: 0.42,
+    scale: 0.62,
   },
 };
 
@@ -106,7 +106,12 @@ function WarUnit({
     return next;
   }, [scene, allow, tint]);
   const ref = useRef<THREE.Group>(null);
-  const { actions } = useAnimations(animations, clone);
+  const mixer = useMemo(() => new THREE.AnimationMixer(clone), [clone]);
+  const actions = useMemo(() => {
+    const map: Record<string, THREE.AnimationAction> = {};
+    for (const clip of animations) map[clip.name] = mixer.clipAction(clip);
+    return map;
+  }, [animations, mixer]);
   const mode = useRef<Gait["act"]>("idle");
   const breath = useRef(Math.random() * Math.PI * 2);
   const rate = useRef(0.75 + Math.random() * 0.7);
@@ -116,13 +121,14 @@ function WarUnit({
     if (!idle) return;
     idle.reset();
     idle.time = Math.random() * idle.getClip().duration;
-    idle.fadeIn(0.15).play();
+    idle.play();
     return () => {
-      idle.fadeOut(0.1);
+      mixer.stopAllAction();
     };
-  }, [actions]);
+  }, [actions, mixer]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, raw) => {
+    mixer.update(Math.min(raw, 0.05));
     const want = gait.current.act;
     if (want !== mode.current) {
       const prev = actions[clipFor(mode.current)];
@@ -150,13 +156,8 @@ function WarUnit({
         root.position.x = 0;
         root.position.z = 0;
       }
-      const hips = clone.getObjectByName("hips");
-      if (hips) {
-        hips.position.x = 0;
-        hips.position.z = 0;
-      }
     }
-    paint(clone, gait.current.fade);
+    if (gait.current.fade < 0.99) paint(clone, gait.current.fade);
   });
 
   return (
