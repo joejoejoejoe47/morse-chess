@@ -221,6 +221,7 @@ function WarUnit({
   const mode = useRef<Gait["act"]>("idle");
   const breath = useRef(Math.random() * Math.PI * 2);
   const rate = useRef(0.75 + Math.random() * 0.7);
+  const fall = useRef(0);
 
   useEffect(() => {
     const idle = actions.Idle;
@@ -267,6 +268,17 @@ function WarUnit({
       }
     }
     if (gait.current.fade < 0.99) paint(clone, gait.current.fade);
+    if (!ref.current) return;
+    if (want === "death") {
+      fall.current = Math.min(1, fall.current + Math.min(raw, 0.05) / 0.48);
+      const k = 1 - (1 - fall.current) ** 3;
+      ref.current.rotation.x = k * (Math.PI / 2);
+      ref.current.position.y = k * 0.04;
+    } else {
+      fall.current = 0;
+      ref.current.rotation.x = 0;
+      ref.current.position.y = 0;
+    }
   });
 
   return (
@@ -296,6 +308,8 @@ function PartySprite({
   const tex = useTexture(src);
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   const mesh = useRef<THREE.Mesh>(null);
+  const rig = useRef<THREE.Group>(null);
+  const fall = useRef(0);
   const h = PARTY[type].h;
   const img = tex.image as { width?: number; height?: number };
   const aspect = img?.width && img?.height ? img.width / img.height : 0.66;
@@ -305,25 +319,31 @@ function PartySprite({
     tex.needsUpdate = true;
   }, [tex]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, raw) => {
     const fade = gait.current.fade;
     if (mat.current) {
       mat.current.opacity = fade;
       mat.current.depthWrite = fade > 0.25;
     }
-    if (!mesh.current) return;
+    if (!rig.current || !mesh.current) return;
+    const dead = gait.current.act === "death";
+    if (dead) fall.current = Math.min(1, fall.current + Math.min(raw, 0.05) / 0.48);
+    else fall.current = 0;
+    const k = 1 - (1 - fall.current) ** 3;
     const walk = gait.current.act === "walk";
-    const bob = walk ? Math.abs(Math.sin(clock.elapsedTime * 8)) * 0.08 : Math.sin(clock.elapsedTime * 1.7) * 0.02;
-    mesh.current.position.y = h * 0.5 + bob;
+    const bob = dead ? 0 : walk ? Math.abs(Math.sin(clock.elapsedTime * 8)) * 0.08 : Math.sin(clock.elapsedTime * 1.7) * 0.02;
+    rig.current.rotation.x = k * (Math.PI / 2);
+    rig.current.position.y = bob;
     mesh.current.rotation.z = gait.current.act === "attack" ? 0.28 : 0;
-    mesh.current.rotation.x = gait.current.act === "death" ? 1.15 : 0;
   });
 
   return (
-    <mesh ref={mesh} position={[0, h * 0.5, 0]}>
-      <planeGeometry args={[h * aspect, h]} />
-      <meshBasicMaterial ref={mat} map={tex} transparent side={THREE.DoubleSide} alphaTest={0.05} />
-    </mesh>
+    <group ref={rig}>
+      <mesh ref={mesh} position={[0, h * 0.5, 0]}>
+        <planeGeometry args={[h * aspect, h]} />
+        <meshBasicMaterial ref={mat} map={tex} transparent side={THREE.DoubleSide} alphaTest={0.05} />
+      </mesh>
+    </group>
   );
 }
 
