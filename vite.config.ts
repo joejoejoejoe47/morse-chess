@@ -157,6 +157,10 @@ export default defineConfig(({ command, isPreview }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  build: {
+    // Safari fails route import() when Vite preloads the chunk graph.
+    modulePreload: false,
+  },
   plugins: [
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
@@ -168,7 +172,11 @@ export default defineConfig(({ command, isPreview }) => ({
     tailwindcss(),
     tanstackStart({
       router: {
-        autoCodeSplitting: false,
+        // Start's schema drops `autoCodeSplitting`. An empty split list keeps
+        // every route, including /boards, in the main bundle instead of import().
+        codeSplittingOptions: {
+          splitBehavior: () => [],
+        },
       },
     }),
     ...(command === "build" || isPreview
