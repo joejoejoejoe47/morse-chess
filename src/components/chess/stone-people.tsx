@@ -284,23 +284,33 @@ function WarUnit({
     const dt = Math.min(raw, 0.05);
     if (want === "death") {
       air.current = 0;
-      fall.current = Math.min(1.2, fall.current + dt / 0.8);
+      fall.current = Math.min(1.4, fall.current + dt / 0.75);
       ref.current.rotation.x = 0;
       ref.current.position.y = 0;
       ref.current.position.z = 0;
-      if (!laid.current && fall.current >= 0.9) {
-        const lie = actions.Lie_Idle ?? actions.Lie_Pose;
+      if (!laid.current && fall.current >= 0.82) {
+        const lie = actions.Lie_Pose ?? actions.Lie_Idle;
         if (lie) {
-          actions[clipName(clips, "death")]?.fadeOut(0.25);
+          actions[clipName(clips, "death")]?.fadeOut(0.28);
           lie.reset();
           lie.timeScale = 1;
-          lie.setLoop(THREE.LoopRepeat, Infinity);
-          lie.clampWhenFinished = false;
-          lie.fadeIn(0.25).play();
+          lie.paused = false;
+          lie.setLoop(THREE.LoopOnce, 1);
+          lie.clampWhenFinished = true;
+          lie.fadeIn(0.28).play();
           laid.current = true;
         }
       }
+      if (laid.current && fall.current >= 1.2) {
+        const lie = actions.Lie_Pose ?? actions.Lie_Idle;
+        if (lie) {
+          lie.paused = true;
+          lie.timeScale = 0;
+        }
+        mixer.timeScale = 0;
+      }
     } else if (flip && want === "attack") {
+      mixer.timeScale = 1;
       laid.current = false;
       fall.current = 0;
       air.current = Math.min(1, air.current + dt / 0.72);
@@ -308,6 +318,7 @@ function WarUnit({
       ref.current.position.y = Math.sin(air.current * Math.PI) * 1.55;
       ref.current.position.z = air.current * 0.35;
     } else {
+      mixer.timeScale = 1;
       fall.current = 0;
       air.current = 0;
       if (laid.current) {
