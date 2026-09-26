@@ -364,7 +364,7 @@ export function ClubHome() {
             <div className="mt-4 space-y-2">
               {home.online.length === 0 ? (
                 <p className="text-sm text-mist">
-                  The other chairs are empty. MorseBot, the house chess master, is always ready.
+                  The other chairs are empty. Only people you have already played on an intended pull-up show up here. MorseBot, the house chess master, is always ready.
                 </p>
               ) : (
                 home.online.map((p) => (

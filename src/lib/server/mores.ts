@@ -835,6 +835,7 @@ export const getHomeState = createServerFn({ method: "GET" })
     const sql = await getSql();
     await ensureBots(sql);
     await ensureEloScale(sql);
+    await sql.query("alter table games add column if not exists pull boolean not null default false");
     const profile = await profileById(sql, context.userId);
     if (!profile) {
       return {
@@ -915,12 +916,21 @@ export const getHomeState = createServerFn({ method: "GET" })
       limit 8
     `;
     const online = await sql<{ username: string; score: number }>`
-      select username, score from profiles
-      where user_id <> ${context.userId}
-        and user_id <> ${BOT_USER_ID}
-        and user_id <> ${BOT_V2_USER_ID}
-        and last_seen > now() - interval '20 seconds'
-      order by score desc
+      select p.username, p.score
+      from profiles p
+      where p.user_id <> ${context.userId}
+        and p.user_id <> ${BOT_USER_ID}
+        and p.user_id <> ${BOT_V2_USER_ID}
+        and p.last_seen > now() - interval '20 seconds'
+        and exists (
+          select 1 from games g
+          where g.pull = false
+            and (
+              (g.white_user_id = ${context.userId} and g.black_user_id = p.user_id)
+              or (g.black_user_id = ${context.userId} and g.white_user_id = p.user_id)
+            )
+        )
+      order by p.score desc
       limit 12
     `;
     const leaders = await sql<{ username: string; score: number }>`
