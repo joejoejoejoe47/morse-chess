@@ -16,6 +16,14 @@ function BoardsPage() {
   const [home, setHome] = useState<Awaited<ReturnType<typeof getHomeState>> | null>(null);
 
   useEffect(() => {
+    try {
+      sessionStorage.removeItem("mores-chunk-reload");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     let live = true;
     void getHomeState()
