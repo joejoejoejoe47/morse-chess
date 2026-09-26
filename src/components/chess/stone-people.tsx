@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { SpaceCrew } from "@/components/chess/space-crew";
 
 export type PeopleCast = "stone" | "pipe" | "ring" | "wars" | "mario" | "lotr";
 export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "attack" | "death"; fade: number };
@@ -96,18 +97,6 @@ const PARTY: Record<PieceSymbol, { w: string; b: string; h: number }> = {
 for (const row of Object.values(PARTY)) {
   useTexture.preload(row.w);
   useTexture.preload(row.b);
-}
-
-const SAGA: Record<PieceSymbol, { w: [string, string]; b: [string, string]; h: number }> = {
-  k: { w: ["/saga/w-k.png", "/saga/w-k.png"], b: ["/saga/b-k.png", "/saga/b-k.png"], h: 1.46 },
-  q: { w: ["/saga/w-q.png", "/saga/w-q.png"], b: ["/saga/b-q.png", "/saga/b-q.png"], h: 1.48 },
-  b: { w: ["/saga/w-b.png", "/saga/w-b.png"], b: ["/saga/b-b.png", "/saga/b-b.png"], h: 1.4 },
-  n: { w: ["/saga/w-n.png", "/saga/w-n2.png"], b: ["/saga/b-n.png", "/saga/b-n2.png"], h: 1.38 },
-  r: { w: ["/saga/w-r.png", "/saga/w-r.png"], b: ["/saga/b-r.png", "/saga/b-r.png"], h: 1.42 },
-  p: { w: ["/saga/w-p.png", "/saga/w-p.png"], b: ["/saga/b-p.png", "/saga/b-p.png"], h: 1.02 },
-};
-for (const row of Object.values(SAGA)) {
-  for (const url of [...row.w, ...row.b]) useTexture.preload(url);
 }
 
 const TOY_CLIPS = {
@@ -408,9 +397,7 @@ export function StonePerson({
 }) {
   if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} clip={clip} />;
   if (cast === "wars") {
-    const row = SAGA[type];
-    const pair = white ? row.w : row.b;
-    return <PictureSprite src={wing === "b" ? pair[1] : pair[0]} h={row.h} gait={gait} clip={clip} />;
+    return <SpaceCrew type={type} white={white} wing={wing} clip={clip} gait={gait} />;
   }
   const themed = cast === "lotr";
   const look = themed ? CASTS[cast][type] : LOOK[type];
