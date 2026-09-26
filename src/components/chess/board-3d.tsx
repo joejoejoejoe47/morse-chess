@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
@@ -442,6 +442,7 @@ function AnimatedPiece({
   slay,
   showTip,
   clash,
+  duelAt,
 }: {
   square: string;
   spawnFrom: string;
@@ -460,6 +461,7 @@ function AnimatedPiece({
   slay: boolean;
   showTip: boolean;
   clash: boolean;
+  duelAt: string | null;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom);
@@ -501,9 +503,16 @@ function AnimatedPiece({
       if (traveling) gait.current.phase += dt * 9;
       if (!traveling && slay && !swung.current) {
         swung.current = true;
-        attackUntil.current = performance.now() + (clash ? 1900 : 980);
+        attackUntil.current = performance.now() + (clash || duelAt ? 1900 : 980);
       }
       gait.current.act = performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
+      if (duelAt && gait.current.act === "attack") {
+        const foe = squareToWorld(duelAt as Square);
+        const fx = foe[0] - pos.current.x;
+        const fz = foe[2] - pos.current.z;
+        if (Math.hypot(fx, fz) > 0.05) ref.current.rotation.y = Math.atan2(fx, fz);
+        return;
+      }
       const dx = target.x - pos.current.x;
       const dz = target.z - pos.current.z;
       if (Math.hypot(dx, dz) > 0.08) ref.current.rotation.y = Math.atan2(dx, dz);
@@ -1008,10 +1017,11 @@ function Scene({
   const prevPieces = useRef<typeof pieces | null>(null);
   const seenCapture = useRef("");
   const [bodies, setBodies] = useState<
-    { id: string; sq: Square; type: PieceSymbol; color: Color; delay: number }[]
+    { id: string; sq: Square; aside: Square; type: PieceSymbol; color: Color; delay: number }[]
   >([]);
   const [captureSq, setCaptureSq] = useState<string | null>(null);
-  const [fightSq, setFightSq] = useState<string | null>(null);
+  const [duelAside, setDuelAside] = useState<Square | null>(null);
+  const [fightLook, setFightLook] = useState<{ x: number; z: number } | null>(null);
   const fightTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -1035,19 +1045,28 @@ function Scene({
     }
     if (!victim) {
       setCaptureSq(null);
+      setDuelAside(null);
       return;
     }
+    const aside = stepAside(lastMove.from as Square, victim.sq, new Set(pieces.map((p) => p.sq)));
     setCaptureSq(lastMove.to);
-    if (fightZoom) {
-      setFightSq(victim.sq);
-      if (fightTimer.current) window.clearTimeout(fightTimer.current);
-      fightTimer.current = window.setTimeout(() => setFightSq(null), 2200);
+    setDuelAside(aside !== victim.sq ? aside : null);
+    if (fightZoom && aside !== victim.sq) {
+      const here = squareToWorld(lastMove.to);
+      const there = squareToWorld(aside);
+      setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
     }
+    if (fightTimer.current) window.clearTimeout(fightTimer.current);
+    fightTimer.current = window.setTimeout(() => {
+      setFightLook(null);
+      setDuelAside(null);
+    }, 2600);
     setBodies((list) => [
       ...list,
       {
         id: `${victim.sq}-${victim.color}${victim.type}-${key}`,
         sq: victim.sq,
+        aside,
         type: victim.type,
         color: victim.color,
         delay: 0.72,
@@ -1167,11 +1186,33 @@ function Scene({
           slay={captureSq === p.sq}
           showTip={showTip}
           clash={fightZoom}
+          duelAt={captureSq === p.sq ? duelAside : null}
           onClick={() => onSquare(p.sq)}
         />
       ))}
       {people
         ? bodies.map((body) => {
+            const corpse = (
+              <WarCorpse
+                type={body.type}
+                white={body.color === "w"}
+                cast={skin.anSet ?? "stone"}
+                sword={
+                  (skin.anSet === "wars" || skin.anSet === "mario" || skin.anSet === "lotr") &&
+                  body.color !== you
+                }
+                clash={body.aside !== body.sq || fightZoom}
+                delay={body.aside !== body.sq ? 1.9 : body.delay}
+                onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
+              />
+            );
+            if (body.aside !== body.sq) {
+              return (
+                <DuelShift key={body.id} from={body.sq} to={body.aside} face={(lastMove?.to ?? body.sq) as Square}>
+                  {corpse}
+                </DuelShift>
+              );
+            }
             const spot = squareToWorld(body.sq);
             return (
               <group
@@ -1179,23 +1220,15 @@ function Scene({
                 position={[spot[0], 0.08, spot[2]]}
                 rotation={[0, body.color === "w" ? Math.PI : 0, 0]}
               >
-                <WarCorpse
-                  type={body.type}
-                  white={body.color === "w"}
-                  cast={skin.anSet ?? "stone"}
-                  sword={
-                    (skin.anSet === "wars" || skin.anSet === "mario" || skin.anSet === "lotr") &&
-                    body.color !== you
-                  }
-                  clash={fightZoom}
-                  delay={fightZoom ? 1.35 : body.delay}
-                  onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
-                />
+                {corpse}
               </group>
             );
           })
         : null}
-      <FightCam square={fightSq} />
+      {duelAside && captureSq && duelAside !== captureSq ? (
+        <SwordTing a={captureSq as Square} b={duelAside} />
+      ) : null}
+      <FightCam look={fightLook} />
       <OrbitControls
         makeDefault
         enablePan={false}
@@ -1216,7 +1249,94 @@ function Scene({
   );
 }
 
-function FightCam({ square }: { square: string | null }) {
+function stepAside(from: Square, to: Square, taken: Set<string>): Square {
+  const tf = FILES.indexOf(to[0] as (typeof FILES)[number]);
+  const tr = Number(to[1]);
+  const ff = FILES.indexOf(from[0] as (typeof FILES)[number]);
+  const fr = Number(from[1]);
+  const sf = Math.sign(tf - ff);
+  const sr = Math.sign(tr - fr);
+  const tries: [number, number][] = [
+    [sf, sr],
+    [sf, 0],
+    [0, sr],
+    [-sr || 1, sf],
+    [sr, -sf || 1],
+    [-sf, -sr],
+  ];
+  for (const [df, dr] of tries) {
+    if (df === 0 && dr === 0) continue;
+    const file = tf + df;
+    const rank = tr + dr;
+    if (file < 0 || file > 7 || rank < 1 || rank > 8) continue;
+    const sq = `${FILES[file]}${rank}` as Square;
+    if (sq === from || taken.has(sq)) continue;
+    return sq;
+  }
+  return to;
+}
+
+function DuelShift({
+  from,
+  to,
+  face,
+  children,
+}: {
+  from: Square;
+  to: Square;
+  face: Square;
+  children: ReactNode;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  const t = useRef(0);
+  const a = squareToWorld(from);
+  const b = squareToWorld(to);
+  const look = squareToWorld(face);
+
+  useFrame((_, raw) => {
+    if (!ref.current) return;
+    t.current = Math.min(1, t.current + Math.min(raw, 0.1) / 0.46);
+    const x = a[0] + (b[0] - a[0]) * t.current;
+    const z = a[2] + (b[2] - a[2]) * t.current;
+    ref.current.position.set(x, 0.08, z);
+    const dx = look[0] - x;
+    const dz = look[2] - z;
+    if (Math.hypot(dx, dz) > 0.04) ref.current.rotation.y = Math.atan2(dx, dz);
+  });
+
+  return <group ref={ref}>{children}</group>;
+}
+
+function SwordTing({ a, b }: { a: Square; b: Square }) {
+  const mesh = useRef<THREE.Mesh>(null);
+  const light = useRef<THREE.PointLight>(null);
+  const born = useRef<number | null>(null);
+  const wa = squareToWorld(a);
+  const wb = squareToWorld(b);
+
+  useFrame(({ clock }) => {
+    if (born.current == null) born.current = clock.elapsedTime;
+    const age = clock.elapsedTime - born.current;
+    const flash = age > 0.62 && age < 2.15 ? Math.max(0, Math.sin((age - 0.62) * 16)) : 0;
+    if (mesh.current) {
+      mesh.current.visible = flash > 0.05;
+      mesh.current.scale.setScalar(0.08 + flash * 0.34);
+    }
+    if (light.current) light.current.intensity = flash * 6;
+  });
+
+  return (
+    <group position={[(wa[0] + wb[0]) / 2, 0.92, (wa[2] + wb[2]) / 2]}>
+      <mesh ref={mesh} visible={false}>
+        <sphereGeometry args={[0.14, 14, 14]} />
+        <meshBasicMaterial color="#fff6cf" />
+      </mesh>
+      <pointLight ref={light} color="#ffe7a0" distance={5} intensity={0} />
+    </group>
+  );
+}
+
+function FightCam({ look }: { look: { x: number; z: number } | null }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as {
     target: THREE.Vector3;
@@ -1229,16 +1349,15 @@ function FightCam({ square }: { square: string | null }) {
   useFrame((_, raw) => {
     if (!controls?.target) return;
     const dt = Math.min(raw, 0.05);
-    if (square) {
+    if (look) {
       if (!home.current) home.current = { pos: camera.position.clone(), target: controls.target.clone() };
       back.current = true;
       controls.enabled = false;
-      const spot = squareToWorld(square as Square);
-      const look = new THREE.Vector3(spot[0], 0.95, spot[2]);
-      const dest = new THREE.Vector3(spot[0] + 2.35, 2.55, spot[2] + 2.7);
+      const gaze = new THREE.Vector3(look.x, 0.95, look.z);
+      const dest = new THREE.Vector3(look.x + 2.15, 2.35, look.z + 2.45);
       const k = 1 - Math.exp(-4.2 * dt);
       camera.position.lerp(dest, k);
-      controls.target.lerp(look, k);
+      controls.target.lerp(gaze, k);
       camera.lookAt(controls.target);
       return;
     }
