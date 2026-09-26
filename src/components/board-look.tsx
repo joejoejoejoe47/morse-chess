@@ -10,6 +10,7 @@ import { boardById, boardCanPreview, boardUnlocked, rememberEquipped, type Board
 import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard } from "@/lib/server/mores";
+import { LoadingTitle } from "@/components/loading-title";
 import { cn } from "@/lib/utils";
 
 const ChessBoard3D = lazy(() =>
@@ -193,7 +194,7 @@ export function BoardLook({
           ) : (
             <Suspense
               fallback={
-                <div className="grid h-full place-items-center text-base text-mist">Setting the table…</div>
+                <LoadingTitle text="Setting the table…" />
               }
             >
               <ChessBoard3D

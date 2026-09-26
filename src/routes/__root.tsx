@@ -3,6 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { ThemeProvider } from "@/components/theme";
 import { BellHost } from "@/components/bell-host";
+import { StudioSplash } from "@/components/studio-splash";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
@@ -55,6 +56,7 @@ export const Route = createRootRoute({
             <Outlet />
           </ThemeProvider>
         </AuthProvider>
+        <StudioSplash />
         <Toaster
           theme="system"
           position="top-center"

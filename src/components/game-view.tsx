@@ -28,6 +28,7 @@ import { LiveCall } from "@/components/live-call";
 import { equippedSkin } from "@/lib/chess/board-skins";
 import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
+import { LoadingTitle } from "@/components/loading-title";
 import { cn } from "@/lib/utils";
 
 const ChessBoard3D = lazy(() =>
@@ -467,7 +468,7 @@ export function GameView({ gameId }: { gameId: string }) {
   if (!game) {
     return (
       <main className="grid min-h-dvh place-items-center">
-        <p className="text-base text-mist">Setting the board…</p>
+        <LoadingTitle text="Setting the board…" />
       </main>
     );
   }
@@ -652,7 +653,7 @@ export function GameView({ gameId }: { gameId: string }) {
           ) : (
             <Suspense
               fallback={
-                <div className="grid h-full place-items-center text-base text-mist">Setting the board…</div>
+                <LoadingTitle text="Setting the board…" />
               }
             >
               <ChessBoard3D
