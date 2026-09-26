@@ -125,7 +125,7 @@ function findNamed(root: THREE.Object3D, test: RegExp): THREE.Object3D | null {
 }
 
 function findHand(root: THREE.Object3D): THREE.Object3D | null {
-  return findNamed(root, /hand/i) && findNamed(root, /hand.*r|r.*hand/i);
+  return root.getObjectByName("handslot.r") ?? root.getObjectByName("hand.r") ?? findNamed(root, /handslot\.r|hand\.r/i);
 }
 
 function paint(root: THREE.Object3D, opacity: number) {
@@ -204,6 +204,7 @@ function WarUnit({
         if (blade && hand) {
           const copy = blade.clone(true);
           copy.visible = true;
+          copy.frustumCulled = false;
           copy.traverse((obj) => {
             const mesh = obj as THREE.Mesh;
             if (!mesh.isMesh) return;

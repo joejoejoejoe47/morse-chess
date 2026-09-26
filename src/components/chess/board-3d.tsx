@@ -443,6 +443,7 @@ function AnimatedPiece({
   showTip,
   clash,
   duelAt,
+  pitch = 1,
 }: {
   square: string;
   spawnFrom: string;
@@ -462,9 +463,10 @@ function AnimatedPiece({
   showTip: boolean;
   clash: boolean;
   duelAt: string | null;
+  pitch?: number;
 }) {
   const ref = useRef<THREE.Group>(null);
-  const start = squareToWorld(spawnFrom);
+  const start = squareToWorld(spawnFrom, pitch);
   const pos = useRef(new THREE.Vector3(start[0], 0, start[2]));
   const lift = useRef(selected ? 0.22 : 0);
   const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
@@ -475,7 +477,7 @@ function AnimatedPiece({
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
-    const dest = squareToWorld(square);
+    const dest = squareToWorld(square, pitch);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
     const jumping = type === "n";
     if (people || jumping) {
@@ -496,7 +498,8 @@ function AnimatedPiece({
       jumping && trip.current && trip.current.t > 0 && trip.current.t < 1
         ? Math.sin(trip.current.t * Math.PI) * 2.05
         : 0;
-    ref.current.position.set(pos.current.x, 0.08 + lift.current + hop, pos.current.z);
+    const groundY = pitch > 1 ? gladeHeight(pos.current.x, pos.current.z) : 0;
+    ref.current.position.set(pos.current.x, 0.08 + lift.current + hop + groundY, pos.current.z);
     if (people) {
       const traveling = (trip.current?.t ?? 1) < 1;
       gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
@@ -507,7 +510,7 @@ function AnimatedPiece({
       }
       gait.current.act = performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
       if (duelAt && gait.current.act === "attack") {
-        const foe = squareToWorld(duelAt as Square);
+        const foe = squareToWorld(duelAt as Square, pitch);
         const fx = foe[0] - pos.current.x;
         const fz = foe[2] - pos.current.z;
         if (Math.hypot(fx, fz) > 0.05) ref.current.rotation.y = Math.atan2(fx, fz);
@@ -583,6 +586,7 @@ function BoardSquares({
   lightMap,
   darkMap,
   meadow = false,
+  pitch = 1,
 }: {
   selected: string | null;
   legal: Set<string>;
@@ -593,17 +597,18 @@ function BoardSquares({
   lightMap?: THREE.Texture | null;
   darkMap?: THREE.Texture | null;
   meadow?: boolean;
+  pitch?: number;
 }) {
   const squares = useMemo(() => {
     const list: { sq: Square; x: number; z: number; light: boolean }[] = [];
     for (let r = 0; r < 8; r++) {
       for (let f = 0; f < 8; f++) {
         const sq = `${FILES[f]}${r + 1}` as Square;
-        list.push({ sq, x: f - 3.5, z: 3.5 - r, light: (f + r) % 2 === 1 });
+        list.push({ sq, x: (f - 3.5) * pitch, z: (3.5 - r) * pitch, light: (f + r) % 2 === 1 });
       }
     }
     return list;
-  }, []);
+  }, [pitch]);
 
   const group = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
@@ -621,7 +626,6 @@ function BoardSquares({
 
   return (
     <group ref={group}>
-      {meadow ? <MeadowGrid /> : null}
       {squares.map(({ sq, x, z, light }) => {
         const isSel = selected === sq;
         const isLast = lastMove?.from === sq || lastMove?.to === sq;
@@ -639,7 +643,7 @@ function BoardSquares({
           <group key={sq}>
             {meadow ? (
               <mesh
-                position={[x, 0.11, z]}
+                position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.14, z]}
                 rotation={[-Math.PI / 2, 0, 0]}
                 userData={{ light, lock: true }}
                 onClick={(e) => {
@@ -654,7 +658,7 @@ function BoardSquares({
                   document.body.style.cursor = "default";
                 }}
               >
-                <planeGeometry args={[0.96, 0.96]} />
+                <planeGeometry args={[pitch * 0.98, pitch * 0.98]} />
                 <meshBasicMaterial
                   color={isCheck ? skin.check : isSel ? skin.select : isLast ? skin.last : "#ffffff"}
                   transparent
@@ -689,8 +693,8 @@ function BoardSquares({
             </mesh>
             )}
             {legal.has(sq) ? (
-              <mesh position={[x, 0.14, z]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[0.16, 22]} />
+              <mesh position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.18, z]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[meadow ? 0.2 : 0.16, 22]} />
                 <meshBasicMaterial color={skin.dot} transparent opacity={0.88} />
               </mesh>
             ) : null}
@@ -757,9 +761,91 @@ function RobotFigure() {
   );
 }
 
+const GLADE_PITCH = 2;
+
 function unitHash(n: number) {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
+}
+
+function gladeHeight(x: number, z: number) {
+  const board = 4 * GLADE_PITCH;
+  const court = Math.max(Math.abs(x), Math.abs(z));
+  const mask = THREE.MathUtils.smoothstep(court, board + 0.15, board + 9);
+  const roll =
+    Math.sin(x * 0.07) * Math.cos(z * 0.06) * 0.55 +
+    Math.sin(x * 0.15 + 0.7) * Math.sin(z * 0.13) * 0.22 +
+    Math.cos(x * 0.038 - z * 0.032) * 0.7;
+  const lawn = Math.sin(x * 0.28) * Math.cos(z * 0.24) * 0.12 + Math.sin(x * 0.7 + z * 0.55) * 0.04;
+  return roll * mask + lawn * (1 - mask);
+}
+
+function makeCourtPaint() {
+  const size = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const span = 8 * GLADE_PITCH + 0.8;
+  const px = (v: number) => ((v + span / 2) / span) * size;
+  ctx.clearRect(0, 0, size, size);
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const x0 = (f - 4) * GLADE_PITCH;
+      const z0 = (3 - r) * GLADE_PITCH;
+      const light = (f + r) % 2 === 1;
+      ctx.fillStyle = light ? "rgba(255, 252, 236, 0.1)" : "rgba(18, 42, 16, 0.2)";
+      ctx.fillRect(px(x0), px(z0), (GLADE_PITCH / span) * size, (GLADE_PITCH / span) * size);
+    }
+  }
+  for (let i = 0; i < 9; i++) {
+    const p = (i - 4) * GLADE_PITCH;
+    const a = px(-4 * GLADE_PITCH);
+    const b = px(4 * GLADE_PITCH);
+    const c = px(p);
+    ctx.strokeStyle = "rgba(28, 48, 22, 0.45)";
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.moveTo(a, c);
+    ctx.lineTo(b, c);
+    ctx.moveTo(c, a);
+    ctx.lineTo(c, b);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(244, 236, 214, 0.9)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(a, c);
+    ctx.lineTo(b, c);
+    ctx.moveTo(c, a);
+    ctx.lineTo(c, b);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return { tex, span };
+}
+
+function makeBladeTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 96;
+  canvas.height = 160;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, 96, 160);
+  for (let i = 0; i < 8; i++) {
+    const x = 14 + (i % 4) * 18;
+    ctx.strokeStyle = i % 2 === 0 ? "rgba(78, 122, 46, 0.95)" : "rgba(176, 204, 104, 0.9)";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(x, 156);
+    ctx.quadraticCurveTo(x + (i % 2 ? 8 : -7), 70, x + ((i % 3) - 1) * 5, 18 + (i % 5) * 6);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function makeGrassTexture() {
@@ -828,31 +914,6 @@ function makeGladeSky() {
   return tex;
 }
 
-function MeadowGrid() {
-  const bars: { x: number; z: number; w: number; d: number }[] = [];
-  for (let i = 0; i < 9; i++) {
-    const p = i - 4;
-    bars.push({ x: p, z: 0, w: 0.045, d: 8.12 });
-    bars.push({ x: 0, z: p, w: 8.12, d: 0.045 });
-  }
-  return (
-    <group>
-      {bars.map((bar, i) => (
-        <group key={i} position={[bar.x, 0, bar.z]}>
-          <mesh position={[0, 0.055, 0]} castShadow receiveShadow>
-            <boxGeometry args={[bar.w, 0.028, bar.d]} />
-            <meshStandardMaterial color="#e8e0d0" roughness={0.62} metalness={0.04} />
-          </mesh>
-          <mesh position={[0, 0.072, 0]}>
-            <boxGeometry args={[bar.w > 1 ? bar.w * 0.98 : 0.014, 0.008, bar.d > 1 ? bar.d * 0.98 : 0.014]} />
-            <meshStandardMaterial color="#c6a15a" roughness={0.35} metalness={0.55} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-}
-
 type Sprout = {
   x: number;
   z: number;
@@ -865,14 +926,15 @@ type Sprout = {
 };
 
 function buildForest() {
+  const board = 4 * GLADE_PITCH;
   const trees: Sprout[] = [];
-  for (let i = 0; i < 280 && trees.length < 104; i++) {
+  for (let i = 0; i < 340 && trees.length < 118; i++) {
     const a = unitHash(i * 1.7) * Math.PI * 2;
-    const near = unitHash(i + 5) < 0.62;
-    const rad = near ? 10.4 + unitHash(i + 9) * 7.5 : 18 + unitHash(i + 9) * 20;
-    const x = Math.cos(a) * rad + (unitHash(i + 13) - 0.5) * 1.6;
-    const z = Math.sin(a) * rad + (unitHash(i + 21) - 0.5) * 1.6;
-    if (Math.abs(x) < 8.6 && Math.abs(z) < 8.6) continue;
+    const near = unitHash(i + 5) < 0.58;
+    const rad = near ? board + 3.2 + unitHash(i + 9) * 6 : board + 10 + unitHash(i + 9) * 22;
+    const x = Math.cos(a) * rad + (unitHash(i + 13) - 0.5) * 1.8;
+    const z = Math.sin(a) * rad + (unitHash(i + 21) - 0.5) * 1.8;
+    if (Math.abs(x) < board + 1.6 && Math.abs(z) < board + 1.6) continue;
     const gap = near ? 2.35 : 3.1;
     if (trees.some((t) => (t.x - x) ** 2 + (t.z - z) ** 2 < gap * gap)) continue;
     const roll = unitHash(i + 19);
@@ -902,25 +964,41 @@ function buildForest() {
   }
 
   const tufts: { x: number; z: number; h: number; r: number; rot: number }[] = [];
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 220; i++) {
     const a = unitHash(i + 80) * Math.PI * 2;
-    const rad = 5.15 + unitHash(i + 81) * 3.4;
+    const rad = board + 1.3 + unitHash(i + 81) * 14;
     const x = Math.cos(a) * rad;
     const z = Math.sin(a) * rad;
-    if (Math.abs(x) < 4.4 && Math.abs(z) < 4.4) continue;
+    if (Math.abs(x) < board + 0.4 && Math.abs(z) < board + 0.4) continue;
     tufts.push({
       x,
       z,
-      h: 0.22 + unitHash(i + 82) * 0.42,
-      r: 0.07 + unitHash(i + 83) * 0.07,
+      h: 0.35 + unitHash(i + 82) * 0.7,
+      r: 0.16 + unitHash(i + 83) * 0.16,
       rot: unitHash(i + 84) * Math.PI,
     });
   }
 
+  const bushes: { x: number; z: number; s: number; rot: number; c: string }[] = [];
+  for (let i = 0; i < 64; i++) {
+    const a = unitHash(i + 260) * Math.PI * 2;
+    const rad = board + 1.8 + unitHash(i + 261) * 8;
+    const x = Math.cos(a) * rad;
+    const z = Math.sin(a) * rad;
+    if (Math.abs(x) < board + 0.8 && Math.abs(z) < board + 0.8) continue;
+    bushes.push({
+      x,
+      z,
+      s: 0.7 + unitHash(i + 262) * 0.85,
+      rot: unitHash(i + 263) * Math.PI,
+      c: unitHash(i + 264) > 0.5 ? "#2f6a34" : "#3e8444",
+    });
+  }
+
   const rocks: { x: number; z: number; s: number; rot: number; c: string }[] = [];
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < 36; i++) {
     const a = unitHash(i + 140) * Math.PI * 2;
-    const rad = 8.8 + unitHash(i + 141) * 16;
+    const rad = board + 2.4 + unitHash(i + 141) * 18;
     rocks.push({
       x: Math.cos(a) * rad,
       z: Math.sin(a) * rad,
@@ -934,14 +1012,14 @@ function buildForest() {
   const petal = ["#f4efd8", "#f3d36a", "#e7b7c6", "#f7f4ea"];
   for (let i = 0; i < 40; i++) {
     const a = (i / 40) * Math.PI * 2 + unitHash(i + 200) * 0.4;
-    const rad = 5.05 + unitHash(i + 201) * 2.6;
+    const rad = board + 1.15 + unitHash(i + 201) * 3.2;
     const x = Math.cos(a) * rad;
     const z = Math.sin(a) * rad;
-    if (Math.abs(x) < 4.45 && Math.abs(z) < 4.45) continue;
+    if (Math.abs(x) < board + 0.35 && Math.abs(z) < board + 0.35) continue;
     flowers.push({ x, z, c: petal[i % petal.length] });
   }
 
-  return { trees, tufts, rocks, flowers };
+  return { trees, tufts, rocks, flowers, bushes };
 }
 
 function stamp(
@@ -973,28 +1051,40 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
     const pines = data.trees.filter((t) => t.kind === 0);
     const oaks = data.trees.filter((t) => t.kind === 1);
     const birches = data.trees.filter((t) => t.kind === 2);
-    const ground = new THREE.PlaneGeometry(96, 96, 46, 46);
+    const ground = new THREE.PlaneGeometry(150, 150, 72, 72);
     ground.rotateX(-Math.PI / 2);
     const pos = ground.attributes.position;
     const colors = new Float32Array(pos.count * 3);
     const tint = new THREE.Color();
-    const lawn = new THREE.Color("#d5e2ad");
-    const glade = new THREE.Color("#6ea24a");
-    const deep = new THREE.Color("#1a3324");
+    const lawn = new THREE.Color("#c9dc9a");
+    const glade = new THREE.Color("#4f8a3c");
+    const deep = new THREE.Color("#173024");
+    const board = 4 * GLADE_PITCH;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
+      pos.setY(i, gladeHeight(x, z));
       const d = Math.hypot(x, z);
       const court = Math.max(Math.abs(x), Math.abs(z));
-      const intoWoods = THREE.MathUtils.smoothstep(court, 4.2, 13);
-      const far = THREE.MathUtils.smoothstep(d, 24, 46);
-      tint.copy(lawn).lerp(glade, intoWoods).lerp(deep, far * 0.9);
-      tint.offsetHSL(0, 0, Math.sin(x * 0.55) * Math.cos(z * 0.48) * 0.04);
+      const intoWoods = THREE.MathUtils.smoothstep(court, board, board + 10);
+      const far = THREE.MathUtils.smoothstep(d, 28, 62);
+      tint.copy(lawn).lerp(glade, intoWoods).lerp(deep, far * 0.92);
+      tint.offsetHSL(0, 0, Math.sin(x * 0.35) * Math.cos(z * 0.31) * 0.03);
       colors[i * 3] = tint.r;
       colors[i * 3 + 1] = tint.g;
       colors[i * 3 + 2] = tint.b;
     }
+    ground.computeVertexNormals();
     ground.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    const paint = makeCourtPaint();
+    const court = new THREE.PlaneGeometry(paint?.span ?? 16, paint?.span ?? 16, 36, 36);
+    court.rotateX(-Math.PI / 2);
+    const cpos = court.attributes.position;
+    for (let i = 0; i < cpos.count; i++) {
+      cpos.setY(i, gladeHeight(cpos.getX(i), cpos.getZ(i)) + 0.03);
+    }
+    court.computeVertexNormals();
+    const bladeTex = makeBladeTexture();
 
     const barkMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9, metalness: 0.02 });
     const leafMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.78, metalness: 0 });
@@ -1010,7 +1100,7 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
     if (data.trees.length) {
       stamp(trunks, data.trees.length, (i, dummy, color) => {
         const t = data.trees[i];
-        dummy.position.set(t.x, 0, t.z);
+        dummy.position.set(t.x, gladeHeight(t.x, t.z), t.z);
         dummy.rotation.y = t.rot;
         dummy.scale.set(t.trunkR, t.h, t.trunkR);
         color.set(t.bark);
@@ -1024,7 +1114,7 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
         const layer = i % 3;
         const lift = t.h * (0.46 + layer * 0.16);
         const width = t.h * (0.34 - layer * 0.07);
-        dummy.position.set(t.x, lift, t.z);
+        dummy.position.set(t.x, gladeHeight(t.x, t.z) + lift, t.z);
         dummy.rotation.y = t.rot + layer;
         dummy.scale.set(width, t.h * (0.42 - layer * 0.06), width);
         color.set(t.leaf).offsetHSL(0, 0, layer * 0.04);
@@ -1039,7 +1129,7 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
         const spread = t.h * 0.16;
         const ox = layer === 0 ? 0 : Math.cos(t.rot + layer) * spread;
         const oz = layer === 0 ? 0 : Math.sin(t.rot + layer) * spread;
-        dummy.position.set(t.x + ox, t.h * (layer === 0 ? 0.78 : 0.68), t.z + oz);
+        dummy.position.set(t.x + ox, gladeHeight(t.x, t.z) + t.h * (layer === 0 ? 0.78 : 0.68), t.z + oz);
         dummy.rotation.y = t.rot;
         const s = t.h * (layer === 0 ? 0.32 : 0.22);
         dummy.scale.set(s, s * 0.82, s);
@@ -1052,7 +1142,7 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
       stamp(birchTops, birches.length * 2, (i, dummy, color) => {
         const t = birches[Math.floor(i / 2)];
         const layer = i % 2;
-        dummy.position.set(t.x + (layer ? 0.25 : -0.1), t.h * (0.82 - layer * 0.08), t.z);
+        dummy.position.set(t.x + (layer ? 0.25 : -0.1), gladeHeight(t.x, t.z) + t.h * (0.82 - layer * 0.08), t.z);
         dummy.rotation.y = t.rot;
         const s = t.h * (layer ? 0.16 : 0.2);
         dummy.scale.set(s, s * 0.9, s);
@@ -1064,7 +1154,7 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
     if (data.tufts.length) {
       stamp(ferns, data.tufts.length, (i, dummy, color) => {
         const t = data.tufts[i];
-        dummy.position.set(t.x, 0, t.z);
+        dummy.position.set(t.x, gladeHeight(t.x, t.z), t.z);
         dummy.rotation.y = t.rot;
         dummy.scale.set(t.r, t.h, t.r);
         color.set(i % 2 === 0 ? "#6f9a3e" : "#3f6e32");
@@ -1074,23 +1164,76 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
     const stones = new THREE.InstancedMesh(rockGeo, rockMat, data.rocks.length);
     stamp(stones, data.rocks.length, (i, dummy, color) => {
       const r = data.rocks[i];
-      dummy.position.set(r.x, r.s * 0.28, r.z);
+      dummy.position.set(r.x, gladeHeight(r.x, r.z) + r.s * 0.22, r.z);
       dummy.rotation.set(r.rot, r.rot * 0.6, 0);
       dummy.scale.set(r.s * 1.3, r.s * 0.55, r.s);
       color.set(r.c);
     });
 
+    const bushMesh = new THREE.InstancedMesh(puffGeo, leafMat, Math.max(1, data.bushes.length));
+    if (data.bushes.length) {
+      stamp(bushMesh, data.bushes.length, (i, dummy, color) => {
+        const b = data.bushes[i];
+        dummy.position.set(b.x, gladeHeight(b.x, b.z) + b.s * 0.28, b.z);
+        dummy.rotation.y = b.rot;
+        dummy.scale.set(b.s * 1.35, b.s * 0.48, b.s * 1.2);
+        color.set(b.c);
+      });
+    }
+    const bladeGeo = new THREE.PlaneGeometry(0.72, 1.05);
+    bladeGeo.translate(0, 0.52, 0);
+    const bladeMat = new THREE.MeshStandardMaterial({
+      map: bladeTex ?? undefined,
+      transparent: true,
+      alphaTest: 0.28,
+      roughness: 0.92,
+      side: THREE.DoubleSide,
+      color: "#ffffff",
+    });
+    const blades = new THREE.InstancedMesh(bladeGeo, bladeMat, Math.max(1, data.tufts.length * 2));
+    if (data.tufts.length) {
+      stamp(blades, data.tufts.length * 2, (i, dummy, color) => {
+        const t = data.tufts[Math.floor(i / 2)];
+        dummy.position.set(t.x, gladeHeight(t.x, t.z), t.z);
+        dummy.rotation.y = t.rot + (i % 2) * Math.PI * 0.5;
+        dummy.scale.set(t.r * 3.4, t.h * 1.7, 1);
+        color.set(i % 2 ? "#e4f0bf" : "#ffffff");
+      });
+    }
+
     const sky = makeGladeSky();
-    return { ground, trunks, pineTops, oakTops, birchTops, ferns, stones, sky, flowers: data.flowers, trees: data.trees.length, pines: pines.length, oaks: oaks.length, birches: birches.length, tufts: data.tufts.length };
+    return {
+      ground,
+      court,
+      paint: paint?.tex ?? null,
+      trunks,
+      pineTops,
+      oakTops,
+      birchTops,
+      ferns,
+      stones,
+      bushMesh,
+      blades,
+      sky,
+      flowers: data.flowers,
+      trees: data.trees.length,
+      pines: pines.length,
+      oaks: oaks.length,
+      birches: birches.length,
+      tufts: data.tufts.length,
+      bushes: data.bushes.length,
+    };
   }, []);
 
   useEffect(
     () => () => {
       forest.ground.dispose();
+      forest.court.dispose();
+      forest.paint?.dispose();
       forest.sky?.dispose();
       const geos = new Set<THREE.BufferGeometry>();
       const mats = new Set<THREE.Material>();
-      for (const mesh of [forest.trunks, forest.pineTops, forest.oakTops, forest.birchTops, forest.ferns, forest.stones]) {
+      for (const mesh of [forest.trunks, forest.pineTops, forest.oakTops, forest.birchTops, forest.ferns, forest.stones, forest.bushMesh, forest.blades]) {
         geos.add(mesh.geometry);
         const mat = mesh.material;
         if (Array.isArray(mat)) mat.forEach((item) => mats.add(item));
@@ -1102,66 +1245,33 @@ function MeadowField({ map }: { map: THREE.Texture | null }) {
     [forest],
   );
 
-  const curb = 4.32;
   return (
     <group>
       {forest.sky ? (
         <mesh>
-          <sphereGeometry args={[86, 28, 18]} />
+          <sphereGeometry args={[120, 28, 18]} />
           <meshBasicMaterial map={forest.sky} side={THREE.BackSide} depthWrite={false} fog={false} />
         </mesh>
       ) : null}
       <mesh geometry={forest.ground} receiveShadow dispose={null}>
-        <meshStandardMaterial map={map ?? undefined} vertexColors roughness={0.94} metalness={0} />
+        <meshStandardMaterial map={map ?? undefined} vertexColors roughness={0.8} metalness={0} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} receiveShadow>
-        <ringGeometry args={[7.2, 18, 64]} />
-        <meshStandardMaterial color="#2f5a30" roughness={1} transparent opacity={0.28} />
-      </mesh>
-      {[
-        [0, curb],
-        [0, -curb],
-      ].map(([x, z]) => (
-        <mesh key={`curb-z-${z}`} position={[x, 0.04, z]} receiveShadow castShadow>
-          <boxGeometry args={[8.8, 0.045, 0.16]} />
-          <meshStandardMaterial color="#e5dcc8" roughness={0.74} metalness={0.04} />
+      {forest.paint ? (
+        <mesh geometry={forest.court} receiveShadow dispose={null}>
+          <meshStandardMaterial map={forest.paint} transparent depthWrite={false} roughness={1} polygonOffset polygonOffsetFactor={-2} />
         </mesh>
-      ))}
-      {[
-        [curb, 0],
-        [-curb, 0],
-      ].map(([x, z]) => (
-        <mesh key={`curb-x-${x}`} position={[x, 0.04, z]} receiveShadow castShadow>
-          <boxGeometry args={[0.16, 0.045, 8.8]} />
-          <meshStandardMaterial color="#e5dcc8" roughness={0.74} metalness={0.04} />
-        </mesh>
-      ))}
-      {[
-        [4.72, 4.72],
-        [4.72, -4.72],
-        [-4.72, 4.72],
-        [-4.72, -4.72],
-      ].map(([x, z]) => (
-        <group key={`pier-${x}-${z}`} position={[x, 0, z]}>
-          <mesh position={[0, 0.38, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.16, 0.2, 0.76, 8]} />
-            <meshStandardMaterial color="#d9d0be" roughness={0.7} />
-          </mesh>
-          <mesh position={[0, 0.8, 0]} castShadow>
-            <cylinderGeometry args={[0.22, 0.22, 0.06, 8]} />
-            <meshStandardMaterial color="#b8924a" roughness={0.32} metalness={0.62} />
-          </mesh>
-        </group>
-      ))}
+      ) : null}
       {forest.trees > 0 ? <primitive object={forest.trunks} /> : null}
       {forest.pines > 0 ? <primitive object={forest.pineTops} /> : null}
       {forest.oaks > 0 ? <primitive object={forest.oakTops} /> : null}
       {forest.birches > 0 ? <primitive object={forest.birchTops} /> : null}
+      {forest.bushes > 0 ? <primitive object={forest.bushMesh} /> : null}
       {forest.tufts > 0 ? <primitive object={forest.ferns} /> : null}
+      {forest.tufts > 0 ? <primitive object={forest.blades} /> : null}
       <primitive object={forest.stones} />
       {forest.flowers.map((b, i) => (
-        <mesh key={i} position={[b.x, 0.12, b.z]}>
-          <sphereGeometry args={[0.07, 8, 8]} />
+        <mesh key={i} position={[b.x, gladeHeight(b.x, b.z) + 0.08, b.z]}>
+          <sphereGeometry args={[0.09, 8, 8]} />
           <meshStandardMaterial color={b.c} roughness={0.55} />
         </mesh>
       ))}
@@ -1173,13 +1283,15 @@ function TableSeat({
   you,
   mode,
   video,
+  back = 5.55,
 }: {
   you: Side;
   mode: "video" | "bot" | null;
   video: HTMLVideoElement | null;
+  back?: number;
 }) {
   const behindFar = you === "w";
-  const z = behindFar ? -5.55 : 5.55;
+  const z = behindFar ? -back : back;
   const rotY = behindFar ? 0 : Math.PI;
   const [tex, setTex] = useState<THREE.VideoTexture | null>(null);
 
@@ -1466,6 +1578,8 @@ function Scene({
   const [duelAside, setDuelAside] = useState<Square | null>(null);
   const [fightLook, setFightLook] = useState<{ x: number; z: number } | null>(null);
   const fightTimer = useRef<number | null>(null);
+  const meadow = skin.id === "grassland";
+  const pitch = meadow ? GLADE_PITCH : 1;
 
   useEffect(() => {
     const before = prevPieces.current;
@@ -1495,8 +1609,8 @@ function Scene({
     setCaptureSq(lastMove.to);
     setDuelAside(aside !== victim.sq ? aside : null);
     if (fightZoom && aside !== victim.sq) {
-      const here = squareToWorld(lastMove.to);
-      const there = squareToWorld(aside);
+      const here = squareToWorld(lastMove.to, pitch);
+      const there = squareToWorld(aside, pitch);
       setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
     }
     if (fightTimer.current) window.clearTimeout(fightTimer.current);
@@ -1515,7 +1629,7 @@ function Scene({
         delay: 0.72,
       },
     ]);
-  }, [pieces, people, lastMove, fen, fightZoom]);
+  }, [pieces, people, lastMove, fen, fightZoom, pitch]);
 
   const wood = useMemo(() => {
     if (skin.id === "marble") {
@@ -1546,7 +1660,6 @@ function Scene({
 
   const lightRoom = appearance === "light";
   const cosmic = roomScene === "space" || (roomScene === "model" && Boolean(modelUrl));
-  const meadow = skin.id === "grassland";
   const grass = useMemo(() => (meadow ? makeGrassTexture() : null), [meadow]);
   useEffect(() => () => grass?.dispose(), [grass]);
   const sky = cosmic ? "#05060c" : meadow ? "#a9c0cf" : roomColor;
@@ -1554,14 +1667,14 @@ function Scene({
   const hemiGround = meadow ? "#1d3b26" : skin.felt;
   const sun: [number, number, number] = meadow ? [16, 24, 9] : [8, 14, 6];
   const sunPower = meadow ? 1.75 : lightRoom ? 1.2 : 1.4;
-  const shadowSpan = meadow ? 28 : 10;
+  const shadowSpan = meadow ? 42 : 10;
 
   return (
     <>
       {meadow ? (
         <>
           <color attach="background" args={["#a9c0cf"]} />
-          <fog attach="fog" args={["#c5d0d6", 26, 74]} />
+          <fog attach="fog" args={["#c5d0d6", 42, 128]} />
         </>
       ) : cosmic ? (
         <color attach="background" args={["#05060c"]} />
@@ -1628,8 +1741,9 @@ function Scene({
         lightMap={wood?.light}
         darkMap={wood?.dark}
         meadow={meadow}
+        pitch={pitch}
       />
-      <TableSeat you={you} mode={tableSeat} video={seatVideo} />
+      <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
       {pieces.map((p) => (
         <AnimatedPiece
           key={`${p.color}${p.type}${p.sq}`}
@@ -1649,6 +1763,7 @@ function Scene({
           slay={captureSq === p.sq}
           showTip={showTip}
           clash={fightZoom}
+          pitch={pitch}
           duelAt={captureSq === p.sq ? duelAside : null}
           onClick={() => onSquare(p.sq)}
         />
@@ -1669,16 +1784,16 @@ function Scene({
             );
             if (body.aside !== body.sq) {
               return (
-                <DuelShift key={body.id} from={body.sq} to={body.aside} face={(lastMove?.to ?? body.sq) as Square}>
+                <DuelShift key={body.id} from={body.sq} to={body.aside} face={(lastMove?.to ?? body.sq) as Square} pitch={pitch}>
                   {corpse}
                 </DuelShift>
               );
             }
-            const spot = squareToWorld(body.sq);
+            const spot = squareToWorld(body.sq, pitch);
             return (
               <group
                 key={body.id}
-                position={[spot[0], 0.08, spot[2]]}
+                position={[spot[0], 0.08 + (pitch > 1 ? gladeHeight(spot[0], spot[2]) : 0), spot[2]]}
                 rotation={[0, body.color === "w" ? Math.PI : 0, 0]}
               >
                 {corpse}
@@ -1687,7 +1802,7 @@ function Scene({
           })
         : null}
       {duelAside && captureSq && duelAside !== captureSq ? (
-        <SwordTing a={captureSq as Square} b={duelAside} />
+        <SwordTing a={captureSq as Square} b={duelAside} pitch={pitch} />
       ) : null}
       <FightCam look={fightLook} />
       <OrbitControls
@@ -1697,8 +1812,8 @@ function Scene({
         enableZoom
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
-        minDistance={meadow ? 7 : 8}
-        maxDistance={meadow ? 64 : 22}
+        minDistance={meadow ? 5 : 8}
+        maxDistance={meadow ? 96 : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -1741,25 +1856,27 @@ function DuelShift({
   from,
   to,
   face,
+  pitch = 1,
   children,
 }: {
   from: Square;
   to: Square;
   face: Square;
+  pitch?: number;
   children: ReactNode;
 }) {
   const ref = useRef<THREE.Group>(null);
   const t = useRef(0);
-  const a = squareToWorld(from);
-  const b = squareToWorld(to);
-  const look = squareToWorld(face);
+  const a = squareToWorld(from, pitch);
+  const b = squareToWorld(to, pitch);
+  const look = squareToWorld(face, pitch);
 
   useFrame((_, raw) => {
     if (!ref.current) return;
     t.current = Math.min(1, t.current + Math.min(raw, 0.1) / 0.46);
     const x = a[0] + (b[0] - a[0]) * t.current;
     const z = a[2] + (b[2] - a[2]) * t.current;
-    ref.current.position.set(x, 0.08, z);
+    ref.current.position.set(x, 0.08 + (pitch > 1 ? gladeHeight(x, z) : 0), z);
     const dx = look[0] - x;
     const dz = look[2] - z;
     if (Math.hypot(dx, dz) > 0.04) ref.current.rotation.y = Math.atan2(dx, dz);
@@ -1768,12 +1885,12 @@ function DuelShift({
   return <group ref={ref}>{children}</group>;
 }
 
-function SwordTing({ a, b }: { a: Square; b: Square }) {
+function SwordTing({ a, b, pitch = 1 }: { a: Square; b: Square; pitch?: number }) {
   const mesh = useRef<THREE.Mesh>(null);
   const light = useRef<THREE.PointLight>(null);
   const born = useRef<number | null>(null);
-  const wa = squareToWorld(a);
-  const wb = squareToWorld(b);
+  const wa = squareToWorld(a, pitch);
+  const wb = squareToWorld(b, pitch);
 
   useFrame(({ clock }) => {
     if (born.current == null) born.current = clock.elapsedTime;
@@ -1802,27 +1919,55 @@ function FightCam({ look }: { look: { x: number; z: number } | null }) {
   const controls = useThree((s) => s.controls) as {
     target: THREE.Vector3;
     enabled: boolean;
+    minDistance: number;
+    maxDistance: number;
     update: () => void;
   } | null;
-  const home = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+  const home = useRef<{ pos: THREE.Vector3; target: THREE.Vector3; min: number; max: number } | null>(null);
   const back = useRef(false);
+  const free = useRef(false);
+  const lookKey = useRef("");
 
   useFrame((_, raw) => {
     if (!controls?.target) return;
     const dt = Math.min(raw, 0.05);
     if (look) {
-      if (!home.current) home.current = { pos: camera.position.clone(), target: controls.target.clone() };
+      const key = `${look.x.toFixed(2)}:${look.z.toFixed(2)}`;
+      if (!home.current) {
+        home.current = {
+          pos: camera.position.clone(),
+          target: controls.target.clone(),
+          min: controls.minDistance,
+          max: controls.maxDistance,
+        };
+        controls.minDistance = 2.1;
+        controls.maxDistance = 40;
+      }
+      if (lookKey.current !== key) {
+        lookKey.current = key;
+        free.current = false;
+      }
       back.current = true;
-      controls.enabled = false;
-      const gaze = new THREE.Vector3(look.x, 0.95, look.z);
-      const dest = new THREE.Vector3(look.x + 2.15, 2.35, look.z + 2.45);
-      const k = 1 - Math.exp(-4.2 * dt);
-      camera.position.lerp(dest, k);
-      controls.target.lerp(gaze, k);
-      camera.lookAt(controls.target);
+      if (!free.current) {
+        controls.enabled = false;
+        const gaze = new THREE.Vector3(look.x, 1.05, look.z);
+        const dest = new THREE.Vector3(look.x + 3.2, 3.9, look.z + 3.55);
+        const k = 1 - Math.exp(-4.2 * dt);
+        camera.position.lerp(dest, k);
+        controls.target.lerp(gaze, k);
+        camera.lookAt(controls.target);
+        if (camera.position.distanceTo(dest) < 0.4) {
+          free.current = true;
+          controls.enabled = true;
+          controls.update();
+        }
+      }
       return;
     }
+    lookKey.current = "";
     if (!back.current || !home.current) return;
+    free.current = false;
+    controls.enabled = false;
     const k = 1 - Math.exp(-3.2 * dt);
     camera.position.lerp(home.current.pos, k);
     controls.target.lerp(home.current.target, k);
@@ -1830,6 +1975,8 @@ function FightCam({ look }: { look: { x: number; z: number } | null }) {
     if (camera.position.distanceTo(home.current.pos) < 0.12) {
       camera.position.copy(home.current.pos);
       controls.target.copy(home.current.target);
+      controls.minDistance = home.current.min;
+      controls.maxDistance = home.current.max;
       controls.enabled = true;
       controls.update();
       home.current = null;
@@ -1927,8 +2074,8 @@ export function ChessBoard3D({
   const cam: [number, number, number] =
     resolved.id === "grassland"
       ? you === "w"
-        ? [0.4, 12.4, 13.2]
-        : [-0.4, 12.4, -13.2]
+        ? [1.1, 28, 30]
+        : [-1.1, 28, -30]
       : you === "w"
         ? [0, 15.2, 11.2]
         : [0, 15.2, -11.2];
