@@ -443,6 +443,7 @@ function AnimatedPiece({
   showTip,
   clash,
   duelAt,
+  strike,
 }: {
   square: string;
   spawnFrom: string;
@@ -462,6 +463,7 @@ function AnimatedPiece({
   showTip: boolean;
   clash: boolean;
   duelAt: string | null;
+  strike: "fire" | "shot" | "slice" | "sword" | null;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom);
@@ -471,13 +473,28 @@ function AnimatedPiece({
   const swung = useRef(false);
   const attackUntil = useRef(0);
   const trip = useRef<{ from: THREE.Vector3; to: THREE.Vector3; t: number } | null>(null);
+  const wind = useRef(strike === "fire" ? 0.74 : strike === "shot" ? 0.46 : 0);
+  const locked = useRef(strike);
+  if (strike) locked.current = strike;
   const [tip, setTip] = useState(false);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
     const dest = squareToWorld(square);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
-    const jumping = type === "n";
+    const jumping = type === "n" && locked.current !== "shot";
+    if (wind.current > 0) {
+      wind.current = Math.max(0, wind.current - dt);
+      lift.current += ((selected ? 0.24 : 0) - lift.current) * (1 - Math.exp(-16 * dt));
+      if (ref.current) {
+        ref.current.position.set(pos.current.x, 0.08 + lift.current, pos.current.z);
+        const dx = target.x - pos.current.x;
+        const dz = target.z - pos.current.z;
+        if (Math.hypot(dx, dz) > 0.05) ref.current.rotation.y = Math.atan2(dx, dz);
+        gait.current.act = "attack";
+      }
+      return;
+    }
     if (people || jumping) {
       if (!trip.current || trip.current.to.distanceTo(target) > 0.01) {
         trip.current = { from: pos.current.clone(), to: target.clone(), t: 0 };
@@ -511,12 +528,13 @@ function AnimatedPiece({
         const fx = foe[0] - pos.current.x;
         const fz = foe[2] - pos.current.z;
         if (Math.hypot(fx, fz) > 0.05) ref.current.rotation.y = Math.atan2(fx, fz);
-        return;
+      } else {
+        const dx = target.x - pos.current.x;
+        const dz = target.z - pos.current.z;
+        if (Math.hypot(dx, dz) > 0.08) ref.current.rotation.y = Math.atan2(dx, dz);
+        else if (gait.current.act !== "attack") ref.current.rotation.y = color === "w" ? Math.PI : 0;
       }
-      const dx = target.x - pos.current.x;
-      const dz = target.z - pos.current.z;
-      if (Math.hypot(dx, dz) > 0.08) ref.current.rotation.y = Math.atan2(dx, dz);
-      else if (gait.current.act !== "attack") ref.current.rotation.y = color === "w" ? Math.PI : 0;
+      ref.current.rotation.x = locked.current === "slice" && traveling ? (trip.current?.t ?? 0) * Math.PI * 2 : 0;
       return;
     }
     const knightTurn =
@@ -1018,11 +1036,12 @@ function Scene({
   const prevPieces = useRef<typeof pieces | null>(null);
   const seenCapture = useRef("");
   const [bodies, setBodies] = useState<
-    { id: string; sq: Square; aside: Square; type: PieceSymbol; color: Color; delay: number }[]
+    { id: string; sq: Square; aside: Square; type: PieceSymbol; color: Color; delay: number; style: "sword" | "fire" | "shot" | "slice" }[]
   >([]);
   const [captureSq, setCaptureSq] = useState<string | null>(null);
   const [duelAside, setDuelAside] = useState<Square | null>(null);
   const [fightLook, setFightLook] = useState<{ x: number; z: number } | null>(null);
+  const [bolt, setBolt] = useState<{ from: Square; to: Square; kind: "fire" | "shot" } | null>(null);
   const fightTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -1049,13 +1068,19 @@ function Scene({
       setDuelAside(null);
       return;
     }
-    const aside = stepAside(lastMove.from as Square, victim.sq, new Set(pieces.map((p) => p.sq)));
+    const style = killStyle(mover?.type ?? "p", skin.anSet ?? "stone");
+    const aside = style === "sword" ? stepAside(lastMove.from as Square, victim.sq, new Set(pieces.map((p) => p.sq))) : victim.sq;
+    const delay = style === "fire" ? 0.62 : style === "shot" ? 0.38 : style === "slice" ? 0.68 : 0.72;
     setCaptureSq(lastMove.to);
-    setDuelAside(aside !== victim.sq ? aside : null);
-    if (fightZoom && aside !== victim.sq) {
-      const here = squareToWorld(lastMove.to);
-      const there = squareToWorld(aside);
+    setDuelAside(style === "sword" && aside !== victim.sq ? aside : null);
+    if (fightZoom) {
+      const here = squareToWorld(style === "sword" ? lastMove.to : lastMove.from);
+      const there = squareToWorld(style === "sword" ? aside : victim.sq);
       setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
+    }
+    if (style === "fire" || style === "shot") {
+      setBolt({ from: lastMove.from as Square, to: victim.sq, kind: style });
+      window.setTimeout(() => setBolt(null), style === "shot" ? 420 : 700);
     }
     if (fightTimer.current) window.clearTimeout(fightTimer.current);
     fightTimer.current = window.setTimeout(() => {
@@ -1070,7 +1095,8 @@ function Scene({
         aside,
         type: victim.type,
         color: victim.color,
-        delay: 0.72,
+        delay,
+        style,
       },
     ]);
   }, [pieces, people, lastMove, fen, fightZoom]);
@@ -1188,6 +1214,22 @@ function Scene({
           showTip={showTip}
           clash={fightZoom}
           duelAt={captureSq === p.sq ? duelAside : null}
+          strike={
+            prevPieces.current && lastMove && p.sq === lastMove.to
+              ? (() => {
+                  const before = prevPieces.current;
+                  if (!before) return null;
+                  const was = before.find((q) => q.sq === lastMove.to);
+                  let foe = was && was.color !== p.color ? was : undefined;
+                  if (!foe && p.type === "p" && lastMove.from[0] !== lastMove.to[0]) {
+                    const beside = `${lastMove.to[0]}${lastMove.from[1]}`;
+                    const pawn = before.find((q) => q.sq === beside && q.type === "p" && q.color !== p.color);
+                    if (pawn && !pieces.some((q) => q.sq === beside)) foe = pawn;
+                  }
+                  return foe ? killStyle(p.type, skin.anSet ?? "stone") : null;
+                })()
+              : null
+          }
           onClick={() => onSquare(p.sq)}
         />
       ))}
@@ -1202,9 +1244,10 @@ function Scene({
                   (skin.anSet === "wars" || skin.anSet === "mario" || skin.anSet === "lotr") &&
                   body.color !== you
                 }
-                clash={body.aside !== body.sq || fightZoom}
+                clash={body.style === "sword" && (body.aside !== body.sq || fightZoom)}
                 wing={body.sq[0] < "e" ? "a" : "b"}
-                delay={body.aside !== body.sq ? 1.9 : body.delay}
+                style={body.style}
+                delay={body.style === "sword" && body.aside !== body.sq ? 1.9 : body.delay}
                 onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
               />
             );
@@ -1230,6 +1273,7 @@ function Scene({
       {duelAside && captureSq && duelAside !== captureSq ? (
         <SwordTing a={captureSq as Square} b={duelAside} />
       ) : null}
+      {bolt ? <Bolt from={bolt.from} to={bolt.to} kind={bolt.kind} /> : null}
       <FightCam look={fightLook} />
       <OrbitControls
         makeDefault
@@ -1248,6 +1292,38 @@ function Scene({
         touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
     </>
+  );
+}
+
+function killStyle(type: PieceSymbol, cast: PeopleCast): "fire" | "shot" | "slice" | "sword" {
+  if (type === "b") return "fire";
+  if (type === "q") return "slice";
+  if (type === "n" && cast === "wars") return "shot";
+  return "sword";
+}
+
+function Bolt({ from, to, kind }: { from: Square; to: Square; kind: "fire" | "shot" }) {
+  const mesh = useRef<THREE.Mesh>(null);
+  const t = useRef(0);
+  const a = squareToWorld(from);
+  const b = squareToWorld(to);
+
+  useFrame((_, raw) => {
+    if (!mesh.current) return;
+    t.current = Math.min(1, t.current + Math.min(raw, 0.1) / (kind === "shot" ? 0.28 : 0.48));
+    const x = a[0] + (b[0] - a[0]) * t.current;
+    const z = a[2] + (b[2] - a[2]) * t.current;
+    const arc = Math.sin(t.current * Math.PI) * (kind === "shot" ? 0.05 : 0.28);
+    mesh.current.position.set(x, 1.05 + arc, z);
+    mesh.current.visible = t.current < 0.98;
+    mesh.current.scale.setScalar(kind === "shot" ? 0.07 : 0.16);
+  });
+
+  return (
+    <mesh ref={mesh}>
+      <sphereGeometry args={[1, 12, 12]} />
+      <meshBasicMaterial color={kind === "shot" ? "#fff1a8" : "#ff6a1a"} />
+    </mesh>
   );
 }
 
@@ -1487,6 +1563,7 @@ export function ChessBoard3D({
           camera.lookAt(0, 0.2, 0);
           gl.shadowMap.enabled = true;
           gl.shadowMap.type = THREE.PCFShadowMap;
+          gl.localClippingEnabled = true;
         }}
       >
         <Scene

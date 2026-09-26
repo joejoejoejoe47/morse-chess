@@ -161,6 +161,7 @@ function WarUnit({
   gait,
   sword = false,
   clash = false,
+  clip = null,
 }: {
   url: string;
   show: string[];
@@ -170,6 +171,7 @@ function WarUnit({
   gait: MutableRefObject<Gait>;
   sword?: boolean;
   clash?: boolean;
+  clip?: THREE.Plane | null;
 }) {
   const { scene, animations } = useGLTF(url);
   const donor = useGLTF("/units/knight.glb");
@@ -187,6 +189,10 @@ function WarUnit({
           const copy = mat.clone();
           const colored = copy as THREE.MeshStandardMaterial;
           if (tintColor && colored.color) colored.color.multiply(tintColor);
+          if (clip) {
+            colored.clippingPlanes = [clip];
+            colored.clipShadows = true;
+          }
           return copy;
         });
         mesh.material = copies.length === 1 ? copies[0] : copies;
@@ -222,7 +228,7 @@ function WarUnit({
       }
     }
     return next;
-  }, [scene, allow, tint, sword, donor.scene]);
+  }, [scene, allow, tint, sword, donor.scene, clip]);
   const ref = useRef<THREE.Group>(null);
   const mixer = useMemo(() => new THREE.AnimationMixer(clone), [clone]);
   const actions = useMemo(() => {
@@ -311,10 +317,12 @@ function PictureSprite({
   src,
   h,
   gait,
+  clip = null,
 }: {
   src: string;
   h: number;
   gait: MutableRefObject<Gait>;
+  clip?: THREE.Plane | null;
 }) {
   const tex = useTexture(src);
   const mat = useRef<THREE.MeshBasicMaterial>(null);
@@ -351,7 +359,14 @@ function PictureSprite({
     <group ref={rig}>
       <mesh ref={mesh} position={[0, h * 0.5, 0]}>
         <planeGeometry args={[h * aspect, h]} />
-        <meshBasicMaterial ref={mat} map={tex} transparent side={THREE.DoubleSide} alphaTest={0.05} />
+        <meshBasicMaterial
+          ref={mat}
+          map={tex}
+          transparent
+          side={THREE.DoubleSide}
+          alphaTest={0.05}
+          clippingPlanes={clip ? [clip] : []}
+        />
       </mesh>
     </group>
   );
@@ -361,13 +376,15 @@ function PartySprite({
   type,
   white,
   gait,
+  clip = null,
 }: {
   type: PieceSymbol;
   white: boolean;
   gait: MutableRefObject<Gait>;
+  clip?: THREE.Plane | null;
 }) {
   const row = PARTY[type];
-  return <PictureSprite src={white ? row.w : row.b} h={row.h} gait={gait} />;
+  return <PictureSprite src={white ? row.w : row.b} h={row.h} gait={gait} clip={clip} />;
 }
 
 export function StonePerson({
@@ -377,6 +394,7 @@ export function StonePerson({
   sword,
   clash,
   wing = "a",
+  clip = null,
   gait,
 }: {
   type: PieceSymbol;
@@ -385,13 +403,14 @@ export function StonePerson({
   sword?: boolean;
   clash?: boolean;
   wing?: "a" | "b";
+  clip?: THREE.Plane | null;
   gait: MutableRefObject<Gait>;
 }) {
-  if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} />;
+  if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} clip={clip} />;
   if (cast === "wars") {
     const row = SAGA[type];
     const pair = white ? row.w : row.b;
-    return <PictureSprite src={wing === "b" ? pair[1] : pair[0]} h={row.h} gait={gait} />;
+    return <PictureSprite src={wing === "b" ? pair[1] : pair[0]} h={row.h} gait={gait} clip={clip} />;
   }
   const themed = cast === "lotr";
   const look = themed ? CASTS[cast][type] : LOOK[type];
@@ -405,7 +424,64 @@ export function StonePerson({
       gait={gait}
       sword={sword}
       clash={clash}
+      clip={clip}
     />
+  );
+}
+
+export type KillStyle = "sword" | "fire" | "shot" | "slice";
+
+function HalfBody({
+  side,
+  gait,
+  person,
+}: {
+  side: "left" | "right";
+  gait: MutableRefObject<Gait>;
+  person: {
+    type: PieceSymbol;
+    white: boolean;
+    cast: PeopleCast;
+    sword?: boolean;
+    wing?: "a" | "b";
+  };
+}) {
+  const group = useRef<THREE.Group>(null);
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(side === "left" ? -1 : 1, 0, 0), 0), [side]);
+  const t = useRef(0);
+
+  useFrame((_, raw) => {
+    if (!group.current) return;
+    t.current = Math.min(1, t.current + Math.min(raw, 0.1) / 0.7);
+    const k = t.current;
+    const dir = side === "left" ? -1 : 1;
+    group.current.position.x = dir * k * 0.36;
+    group.current.position.y = -k * k * 0.42;
+    group.current.rotation.z = dir * k * 1.2;
+    const world = new THREE.Vector3();
+    group.current.getWorldPosition(world);
+    if (side === "left") {
+      plane.normal.set(-1, 0, 0);
+      plane.constant = world.x;
+    } else {
+      plane.normal.set(1, 0, 0);
+      plane.constant = -world.x;
+    }
+  });
+
+  return (
+    <group ref={group}>
+      <StonePerson
+        type={person.type}
+        white={person.white}
+        cast={person.cast}
+        sword={person.sword}
+        wing={person.wing}
+        clash={false}
+        clip={plane}
+        gait={gait}
+      />
+    </group>
   );
 }
 
@@ -416,6 +492,7 @@ export function WarCorpse({
   sword,
   clash,
   wing = "a",
+  style = "sword",
   delay,
   onDone,
 }: {
@@ -425,6 +502,7 @@ export function WarCorpse({
   sword?: boolean;
   clash?: boolean;
   wing?: "a" | "b";
+  style?: KillStyle;
   delay: number;
   onDone: () => void;
 }) {
@@ -432,11 +510,19 @@ export function WarCorpse({
   const born = useRef<number | null>(null);
   const done = useRef(false);
   const [show, setShow] = useState(true);
+  const [split, setSplit] = useState(false);
+  const splitOnce = useRef(false);
 
   useFrame(({ clock }) => {
     if (born.current == null) born.current = clock.elapsedTime;
     const age = clock.elapsedTime - born.current;
-    if (age > delay) gait.current.act = "death";
+    if (age > delay) {
+      gait.current.act = "death";
+      if (style === "slice" && !splitOnce.current) {
+        splitOnce.current = true;
+        setSplit(true);
+      }
+    }
     const fadeAt = delay + 1.7;
     if (age > fadeAt) {
       const u = Math.min(1, (age - fadeAt) / 2.4);
@@ -450,5 +536,14 @@ export function WarCorpse({
   });
 
   if (!show) return null;
+  if (split) {
+    const person = { type, white, cast, sword, wing };
+    return (
+      <>
+        <HalfBody side="left" gait={gait} person={person} />
+        <HalfBody side="right" gait={gait} person={person} />
+      </>
+    );
+  }
   return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} wing={wing} gait={gait} />;
 }
