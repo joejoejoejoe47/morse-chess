@@ -4,6 +4,7 @@ import { Html, OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
+import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
@@ -761,23 +762,9 @@ function RobotFigure() {
   );
 }
 
-const GLADE_PITCH = 2;
-
 function unitHash(n: number) {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
-}
-
-function gladeHeight(x: number, z: number) {
-  const board = 4 * GLADE_PITCH;
-  const court = Math.max(Math.abs(x), Math.abs(z));
-  const mask = THREE.MathUtils.smoothstep(court, board + 0.15, board + 9);
-  const roll =
-    Math.sin(x * 0.07) * Math.cos(z * 0.06) * 0.55 +
-    Math.sin(x * 0.15 + 0.7) * Math.sin(z * 0.13) * 0.22 +
-    Math.cos(x * 0.038 - z * 0.032) * 0.7;
-  const lawn = Math.sin(x * 0.28) * Math.cos(z * 0.24) * 0.12 + Math.sin(x * 0.7 + z * 0.55) * 0.04;
-  return roll * mask + lawn * (1 - mask);
 }
 
 function makeCourtPaint() {
@@ -1043,240 +1030,6 @@ function stamp(
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   mesh.frustumCulled = false;
-}
-
-function MeadowField({ map }: { map: THREE.Texture | null }) {
-  const forest = useMemo(() => {
-    const data = buildForest();
-    const pines = data.trees.filter((t) => t.kind === 0);
-    const oaks = data.trees.filter((t) => t.kind === 1);
-    const birches = data.trees.filter((t) => t.kind === 2);
-    const ground = new THREE.PlaneGeometry(150, 150, 72, 72);
-    ground.rotateX(-Math.PI / 2);
-    const pos = ground.attributes.position;
-    const colors = new Float32Array(pos.count * 3);
-    const tint = new THREE.Color();
-    const lawn = new THREE.Color("#c9dc9a");
-    const glade = new THREE.Color("#4f8a3c");
-    const deep = new THREE.Color("#173024");
-    const board = 4 * GLADE_PITCH;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      pos.setY(i, gladeHeight(x, z));
-      const d = Math.hypot(x, z);
-      const court = Math.max(Math.abs(x), Math.abs(z));
-      const intoWoods = THREE.MathUtils.smoothstep(court, board, board + 10);
-      const far = THREE.MathUtils.smoothstep(d, 28, 62);
-      tint.copy(lawn).lerp(glade, intoWoods).lerp(deep, far * 0.92);
-      tint.offsetHSL(0, 0, Math.sin(x * 0.35) * Math.cos(z * 0.31) * 0.03);
-      colors[i * 3] = tint.r;
-      colors[i * 3 + 1] = tint.g;
-      colors[i * 3 + 2] = tint.b;
-    }
-    ground.computeVertexNormals();
-    ground.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    const paint = makeCourtPaint();
-    const court = new THREE.PlaneGeometry(paint?.span ?? 16, paint?.span ?? 16, 36, 36);
-    court.rotateX(-Math.PI / 2);
-    const cpos = court.attributes.position;
-    for (let i = 0; i < cpos.count; i++) {
-      cpos.setY(i, gladeHeight(cpos.getX(i), cpos.getZ(i)) + 0.03);
-    }
-    court.computeVertexNormals();
-    const bladeTex = makeBladeTexture();
-
-    const barkMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9, metalness: 0.02 });
-    const leafMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.78, metalness: 0 });
-    const rockMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.96, metalness: 0.02 });
-    const trunkGeo = new THREE.CylinderGeometry(0.62, 1, 1, 7);
-    trunkGeo.translate(0, 0.5, 0);
-    const coneGeo = new THREE.ConeGeometry(1, 1, 8);
-    coneGeo.translate(0, 0.5, 0);
-    const puffGeo = new THREE.IcosahedronGeometry(1, 1);
-    const rockGeo = new THREE.DodecahedronGeometry(1, 0);
-
-    const trunks = new THREE.InstancedMesh(trunkGeo, barkMat, Math.max(1, data.trees.length));
-    if (data.trees.length) {
-      stamp(trunks, data.trees.length, (i, dummy, color) => {
-        const t = data.trees[i];
-        dummy.position.set(t.x, gladeHeight(t.x, t.z), t.z);
-        dummy.rotation.y = t.rot;
-        dummy.scale.set(t.trunkR, t.h, t.trunkR);
-        color.set(t.bark);
-      });
-    }
-
-    const pineTops = new THREE.InstancedMesh(coneGeo, leafMat, Math.max(1, pines.length * 3));
-    if (pines.length) {
-      stamp(pineTops, pines.length * 3, (i, dummy, color) => {
-        const t = pines[Math.floor(i / 3)];
-        const layer = i % 3;
-        const lift = t.h * (0.46 + layer * 0.16);
-        const width = t.h * (0.34 - layer * 0.07);
-        dummy.position.set(t.x, gladeHeight(t.x, t.z) + lift, t.z);
-        dummy.rotation.y = t.rot + layer;
-        dummy.scale.set(width, t.h * (0.42 - layer * 0.06), width);
-        color.set(t.leaf).offsetHSL(0, 0, layer * 0.04);
-      });
-    }
-
-    const oakTops = new THREE.InstancedMesh(puffGeo, leafMat, Math.max(1, oaks.length * 3));
-    if (oaks.length) {
-      stamp(oakTops, oaks.length * 3, (i, dummy, color) => {
-        const t = oaks[Math.floor(i / 3)];
-        const layer = i % 3;
-        const spread = t.h * 0.16;
-        const ox = layer === 0 ? 0 : Math.cos(t.rot + layer) * spread;
-        const oz = layer === 0 ? 0 : Math.sin(t.rot + layer) * spread;
-        dummy.position.set(t.x + ox, gladeHeight(t.x, t.z) + t.h * (layer === 0 ? 0.78 : 0.68), t.z + oz);
-        dummy.rotation.y = t.rot;
-        const s = t.h * (layer === 0 ? 0.32 : 0.22);
-        dummy.scale.set(s, s * 0.82, s);
-        color.set(t.leaf).offsetHSL(0, 0, layer === 0 ? -0.03 : 0.05);
-      });
-    }
-
-    const birchTops = new THREE.InstancedMesh(puffGeo, leafMat, Math.max(1, birches.length * 2));
-    if (birches.length) {
-      stamp(birchTops, birches.length * 2, (i, dummy, color) => {
-        const t = birches[Math.floor(i / 2)];
-        const layer = i % 2;
-        dummy.position.set(t.x + (layer ? 0.25 : -0.1), gladeHeight(t.x, t.z) + t.h * (0.82 - layer * 0.08), t.z);
-        dummy.rotation.y = t.rot;
-        const s = t.h * (layer ? 0.16 : 0.2);
-        dummy.scale.set(s, s * 0.9, s);
-        color.set(t.leaf);
-      });
-    }
-
-    const ferns = new THREE.InstancedMesh(coneGeo, leafMat, Math.max(1, data.tufts.length));
-    if (data.tufts.length) {
-      stamp(ferns, data.tufts.length, (i, dummy, color) => {
-        const t = data.tufts[i];
-        dummy.position.set(t.x, gladeHeight(t.x, t.z), t.z);
-        dummy.rotation.y = t.rot;
-        dummy.scale.set(t.r, t.h, t.r);
-        color.set(i % 2 === 0 ? "#6f9a3e" : "#3f6e32");
-      });
-    }
-
-    const stones = new THREE.InstancedMesh(rockGeo, rockMat, data.rocks.length);
-    stamp(stones, data.rocks.length, (i, dummy, color) => {
-      const r = data.rocks[i];
-      dummy.position.set(r.x, gladeHeight(r.x, r.z) + r.s * 0.22, r.z);
-      dummy.rotation.set(r.rot, r.rot * 0.6, 0);
-      dummy.scale.set(r.s * 1.3, r.s * 0.55, r.s);
-      color.set(r.c);
-    });
-
-    const bushMesh = new THREE.InstancedMesh(puffGeo, leafMat, Math.max(1, data.bushes.length));
-    if (data.bushes.length) {
-      stamp(bushMesh, data.bushes.length, (i, dummy, color) => {
-        const b = data.bushes[i];
-        dummy.position.set(b.x, gladeHeight(b.x, b.z) + b.s * 0.28, b.z);
-        dummy.rotation.y = b.rot;
-        dummy.scale.set(b.s * 1.35, b.s * 0.48, b.s * 1.2);
-        color.set(b.c);
-      });
-    }
-    const bladeGeo = new THREE.PlaneGeometry(0.72, 1.05);
-    bladeGeo.translate(0, 0.52, 0);
-    const bladeMat = new THREE.MeshStandardMaterial({
-      map: bladeTex ?? undefined,
-      transparent: true,
-      alphaTest: 0.28,
-      roughness: 0.92,
-      side: THREE.DoubleSide,
-      color: "#ffffff",
-    });
-    const blades = new THREE.InstancedMesh(bladeGeo, bladeMat, Math.max(1, data.tufts.length * 2));
-    if (data.tufts.length) {
-      stamp(blades, data.tufts.length * 2, (i, dummy, color) => {
-        const t = data.tufts[Math.floor(i / 2)];
-        dummy.position.set(t.x, gladeHeight(t.x, t.z), t.z);
-        dummy.rotation.y = t.rot + (i % 2) * Math.PI * 0.5;
-        dummy.scale.set(t.r * 3.4, t.h * 1.7, 1);
-        color.set(i % 2 ? "#e4f0bf" : "#ffffff");
-      });
-    }
-
-    const sky = makeGladeSky();
-    return {
-      ground,
-      court,
-      paint: paint?.tex ?? null,
-      trunks,
-      pineTops,
-      oakTops,
-      birchTops,
-      ferns,
-      stones,
-      bushMesh,
-      blades,
-      sky,
-      flowers: data.flowers,
-      trees: data.trees.length,
-      pines: pines.length,
-      oaks: oaks.length,
-      birches: birches.length,
-      tufts: data.tufts.length,
-      bushes: data.bushes.length,
-    };
-  }, []);
-
-  useEffect(
-    () => () => {
-      forest.ground.dispose();
-      forest.court.dispose();
-      forest.paint?.dispose();
-      forest.sky?.dispose();
-      const geos = new Set<THREE.BufferGeometry>();
-      const mats = new Set<THREE.Material>();
-      for (const mesh of [forest.trunks, forest.pineTops, forest.oakTops, forest.birchTops, forest.ferns, forest.stones, forest.bushMesh, forest.blades]) {
-        geos.add(mesh.geometry);
-        const mat = mesh.material;
-        if (Array.isArray(mat)) mat.forEach((item) => mats.add(item));
-        else mats.add(mat);
-      }
-      geos.forEach((geo) => geo.dispose());
-      mats.forEach((mat) => mat.dispose());
-    },
-    [forest],
-  );
-
-  return (
-    <group>
-      {forest.sky ? (
-        <mesh>
-          <sphereGeometry args={[120, 28, 18]} />
-          <meshBasicMaterial map={forest.sky} side={THREE.BackSide} depthWrite={false} fog={false} />
-        </mesh>
-      ) : null}
-      <mesh geometry={forest.ground} receiveShadow dispose={null}>
-        <meshStandardMaterial map={map ?? undefined} vertexColors roughness={0.8} metalness={0} />
-      </mesh>
-      {forest.paint ? (
-        <mesh geometry={forest.court} receiveShadow dispose={null}>
-          <meshStandardMaterial map={forest.paint} transparent depthWrite={false} roughness={1} polygonOffset polygonOffsetFactor={-2} />
-        </mesh>
-      ) : null}
-      {forest.trees > 0 ? <primitive object={forest.trunks} /> : null}
-      {forest.pines > 0 ? <primitive object={forest.pineTops} /> : null}
-      {forest.oaks > 0 ? <primitive object={forest.oakTops} /> : null}
-      {forest.birches > 0 ? <primitive object={forest.birchTops} /> : null}
-      {forest.bushes > 0 ? <primitive object={forest.bushMesh} /> : null}
-      {forest.tufts > 0 ? <primitive object={forest.ferns} /> : null}
-      {forest.tufts > 0 ? <primitive object={forest.blades} /> : null}
-      <primitive object={forest.stones} />
-      {forest.flowers.map((b, i) => (
-        <mesh key={i} position={[b.x, gladeHeight(b.x, b.z) + 0.08, b.z]}>
-          <sphereGeometry args={[0.09, 8, 8]} />
-          <meshStandardMaterial color={b.c} roughness={0.55} />
-        </mesh>
-      ))}
-    </group>
-  );
 }
 
 function TableSeat({
@@ -1660,21 +1413,19 @@ function Scene({
 
   const lightRoom = appearance === "light";
   const cosmic = roomScene === "space" || (roomScene === "model" && Boolean(modelUrl));
-  const grass = useMemo(() => (meadow ? makeGrassTexture() : null), [meadow]);
-  useEffect(() => () => grass?.dispose(), [grass]);
-  const sky = cosmic ? "#05060c" : meadow ? "#a9c0cf" : roomColor;
-  const hemiSky = meadow ? "#d5e7ff" : lightRoom ? "#fffaf1" : skin.fillLight;
-  const hemiGround = meadow ? "#1d3b26" : skin.felt;
-  const sun: [number, number, number] = meadow ? [16, 24, 9] : [8, 14, 6];
-  const sunPower = meadow ? 1.75 : lightRoom ? 1.2 : 1.4;
-  const shadowSpan = meadow ? 42 : 10;
+  const sky = cosmic ? "#05060c" : meadow ? "#9eb8cc" : roomColor;
+  const hemiSky = meadow ? "#c5def7" : lightRoom ? "#fffaf1" : skin.fillLight;
+  const hemiGround = meadow ? "#3d6a32" : skin.felt;
+  const sun: [number, number, number] = meadow ? [28, 22, 10] : [8, 14, 6];
+  const sunPower = meadow ? 2.15 : lightRoom ? 1.2 : 1.4;
+  const shadowSpan = meadow ? 36 : 10;
 
   return (
     <>
       {meadow ? (
         <>
-          <color attach="background" args={["#a9c0cf"]} />
-          <fog attach="fog" args={["#c5d0d6", 42, 128]} />
+          <color attach="background" args={["#9eb8cc"]} />
+          <fog attach="fog" args={["#d5e0dc", 58, 150]} />
         </>
       ) : cosmic ? (
         <color attach="background" args={["#05060c"]} />
@@ -1687,8 +1438,8 @@ function Scene({
           <ModelSky url={modelUrl} />
         </Suspense>
       ) : null}
-      <hemisphereLight args={[hemiSky, hemiGround, meadow ? 0.62 : lightRoom ? 0.95 : 0.7]} />
-      <ambientLight intensity={meadow ? 0.28 : lightRoom ? 0.58 : 0.42} />
+      <hemisphereLight args={[hemiSky, hemiGround, meadow ? 0.5 : lightRoom ? 0.95 : 0.7]} />
+      <ambientLight intensity={meadow ? 0.16 : lightRoom ? 0.58 : 0.42} />
       <directionalLight
         position={sun}
         intensity={sunPower}
@@ -1704,12 +1455,12 @@ function Scene({
         shadow-camera-top={shadowSpan}
         shadow-camera-bottom={-shadowSpan}
       />
-      <directionalLight position={meadow ? [-10, 8, -6] : [-6, 8, -8]} intensity={meadow ? 0.38 : lightRoom ? 0.45 : 0.7} color={meadow ? "#c5d8ee" : skin.fillLight} />
+      <directionalLight position={meadow ? [-14, 9, -8] : [-6, 8, -8]} intensity={meadow ? 0.22 : lightRoom ? 0.45 : 0.7} color={meadow ? "#9eb6d6" : skin.fillLight} />
       {skin.tableKind === "legend" ? (
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
       {meadow ? (
-        <MeadowField map={grass} />
+        <MeadowField />
       ) : skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
       ) : skin.tableKind === "studio" ? (
