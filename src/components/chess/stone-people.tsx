@@ -282,11 +282,19 @@ function WarUnit({
     const dt = Math.min(raw, 0.05);
     if (want === "death") {
       air.current = 0;
-      fall.current = Math.min(1, fall.current + dt / 0.42);
-      const k = 1 - (1 - fall.current) ** 3;
-      ref.current.rotation.x = -k * (Math.PI * 0.95);
-      ref.current.position.z = -k * 1.05;
-      ref.current.position.y = Math.sin(k * Math.PI) * 0.42;
+      const clip = actions[clipName(clips, "death")];
+      if (clip) {
+        fall.current = 0;
+        ref.current.rotation.x = 0;
+        ref.current.position.y = 0;
+        ref.current.position.z = 0;
+      } else {
+        fall.current = Math.min(1, fall.current + dt / 0.7);
+        const k = 1 - (1 - fall.current) ** 3;
+        ref.current.rotation.x = -k * (Math.PI * 0.5);
+        ref.current.position.z = -k * 0.4;
+        ref.current.position.y = Math.sin(k * Math.PI) * 0.12;
+      }
     } else if (flip && want === "attack") {
       fall.current = 0;
       air.current = Math.min(1, air.current + dt / 0.72);
@@ -353,7 +361,7 @@ function PictureSprite({
     const dead = gait.current.act === "death";
     const attacking = gait.current.act === "attack";
     const dt = Math.min(raw, 0.05);
-    if (dead) fall.current = Math.min(1, fall.current + dt / 0.42);
+    if (dead) fall.current = Math.min(1, fall.current + dt / 0.7);
     else fall.current = 0;
     if (flip && attacking) air.current = Math.min(1, air.current + dt / 0.72);
     else air.current = 0;
@@ -361,9 +369,9 @@ function PictureSprite({
     const walk = gait.current.act === "walk";
     const bob = dead ? Math.sin(k * Math.PI) * 0.35 : walk ? Math.abs(Math.sin(clock.elapsedTime * 8)) * 0.08 : Math.sin(clock.elapsedTime * 1.7) * 0.02;
     if (dead) {
-      rig.current.rotation.x = -k * (Math.PI * 0.95);
-      rig.current.position.z = -k * 0.7;
-      rig.current.position.y = bob;
+      rig.current.rotation.x = -k * (Math.PI * 0.5);
+      rig.current.position.z = -k * 0.28;
+      rig.current.position.y = Math.sin(k * Math.PI) * 0.08;
     } else if (flip && attacking) {
       rig.current.rotation.x = -air.current * Math.PI * 2;
       rig.current.position.y = Math.sin(air.current * Math.PI) * 1.2;
@@ -477,9 +485,9 @@ export function WarCorpse({
     if (born.current == null) born.current = clock.elapsedTime;
     const age = clock.elapsedTime - born.current;
     if (age > delay) gait.current.act = "death";
-    const fadeAt = delay + 1.7;
+    const fadeAt = delay + 1.05;
     if (age > fadeAt) {
-      const u = Math.min(1, (age - fadeAt) / 2.4);
+      const u = Math.min(1, (age - fadeAt) / 4.2);
       gait.current.fade = 1 - u;
       if (u >= 1 && !done.current) {
         done.current = true;

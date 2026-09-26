@@ -98,7 +98,7 @@ export function SpaceCrew({
     const act = gait.current.act;
     const dead = act === "death";
     const dt = Math.min(raw, 0.05);
-    if (dead) fall.current = Math.min(1, fall.current + dt / 0.42);
+    if (dead) fall.current = Math.min(1, fall.current + dt / 0.7);
     else fall.current = 0;
     if (flip && act === "attack") air.current = Math.min(1, air.current + dt / 0.72);
     else air.current = 0;
@@ -111,9 +111,9 @@ export function SpaceCrew({
         ? Math.abs(Math.sin(gait.current.phase)) * 0.04
         : Math.sin(clock.elapsedTime * 1.6) * 0.012;
     if (dead) {
-      rig.current.rotation.x = -k * (Math.PI * 0.95);
-      rig.current.position.z = -k * 0.7;
-      rig.current.position.y = bob;
+      rig.current.rotation.x = -k * (Math.PI * 0.5);
+      rig.current.position.z = -k * 0.32;
+      rig.current.position.y = Math.sin(k * Math.PI) * 0.08;
     } else if (flip && act === "attack") {
       rig.current.rotation.x = -air.current * Math.PI * 2;
       rig.current.position.y = Math.sin(air.current * Math.PI) * 1.15;
