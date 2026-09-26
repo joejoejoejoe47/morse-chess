@@ -9,6 +9,8 @@ export type LookPrefs = {
   roomImage: string | null;
   roomScene: RoomScene;
   modelRev: number;
+  pieceTip: boolean;
+  fightZoom: boolean;
 };
 
 const KEY = "morse-look-prefs";
@@ -22,6 +24,8 @@ export const DEFAULT_LOOK: LookPrefs = {
   roomImage: null,
   roomScene: "color",
   modelRev: 0,
+  pieceTip: true,
+  fightZoom: false,
 };
 
 export const ROOM_SWATCHES = [
@@ -69,6 +73,8 @@ function parsePrefs(raw: string | null): LookPrefs {
       roomImage,
       roomScene: roomSceneOf(parsed, roomImage),
       modelRev: typeof parsed.modelRev === "number" && Number.isFinite(parsed.modelRev) ? parsed.modelRev : 0,
+      pieceTip: parsed.pieceTip !== false,
+      fightZoom: parsed.fightZoom === true,
     };
   } catch {
     return DEFAULT_LOOK;

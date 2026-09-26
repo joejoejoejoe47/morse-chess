@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { boardById, boardCanPreview, boardUnlocked, rememberEquipped, type BoardSkin } from "@/lib/chess/board-skins";
 import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
-import { setEquippedBoard } from "@/lib/server/mores";
+import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
 import { LoadingTitle } from "@/components/loading-title";
 import { cn } from "@/lib/utils";
 
@@ -24,17 +24,23 @@ export function BoardLook({
   score,
   username,
   equippedBoard,
+  coins = 0,
+  ownedBoards = [],
   startTuning = false,
   onBack,
   onEquipped,
+  onPurse,
 }: {
   boardId: string;
   score: number;
   username?: string;
   equippedBoard: string;
+  coins?: number;
+  ownedBoards?: string[];
   startTuning?: boolean;
   onBack?: () => void;
   onEquipped?: (id: string) => void;
+  onPurse?: (purse: { coins: number; owned: string[] }) => void;
 }) {
   const theme = useTheme();
   const prefs = useLookPrefs();
@@ -44,7 +50,8 @@ export function BoardLook({
   const backdropColor = cosmic ? "#05060c" : room;
   const backdropImage = prefs.roomScene === "photo" ? prefs.roomImage : null;
   const board: BoardSkin = boardById(boardId);
-  const open = boardUnlocked(score, board, username);
+  const [owned, setOwned] = useState(ownedBoards);
+  const open = boardUnlocked(score, board, username, owned);
   const peek = boardCanPreview(score, board, username);
   const equipped = equippedBoard === board.id;
   const [view, setView] = useState<"2d" | "3d" | "an">("3d");
@@ -67,6 +74,23 @@ export function BoardLook({
     skin: board,
     outlineOn: prefs.outline,
   };
+
+  async function purchase() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await buyBoard({ data: { boardId: board.id } });
+      if (!res.ok) setError(res.error ?? "Could not buy that board.");
+      else {
+        setOwned(res.owned);
+        onPurse?.({ coins: res.coins, owned: res.owned });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not buy that board.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function sitHere() {
     if (!open) return;
@@ -126,7 +150,7 @@ export function BoardLook({
           <span className="text-[15px] text-mist">
             {board.name}
             {" · "}
-            {board.cost === 0 ? "starter" : `${board.cost} Elo`}
+            {(board.coinCost ?? 0) > 0 ? `${board.coinCost} coins` : board.cost === 0 ? "starter" : `${board.cost} Elo`}
             {" · look only"}
           </span>
           <div className="flex overflow-hidden rounded-full border border-line bg-panel">
@@ -215,6 +239,10 @@ export function BoardLook({
               {open ? (
                 <Button variant="solid" onClick={() => setTuning(true)}>
                   {equipped ? "Use · adjust" : "Use this board"}
+                </Button>
+              ) : (board.coinCost ?? 0) > 0 ? (
+                <Button variant="solid" disabled={busy} onClick={() => void purchase()}>
+                  {busy ? "Buying…" : `Buy · ${board.coinCost} coins${coins < (board.coinCost ?? 0) ? ` · you have ${coins}` : ""}`}
                 </Button>
               ) : (
                 <Button variant="outline" disabled>

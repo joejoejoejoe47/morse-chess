@@ -5,7 +5,7 @@ import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 
-export type PeopleCast = "stone" | "pipe" | "ring";
+export type PeopleCast = "stone" | "pipe" | "ring" | "wars" | "mario" | "lotr";
 export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "attack" | "death"; fade: number };
 
 const PROP = /sword|shield|axe|knife|crossbow|throw|spell|wand|staff|mug|cape|helmet|hat|hood|cloak|badge/i;
@@ -54,6 +54,37 @@ const LOOK: Record<
   },
 };
 
+type CastLook = Record<PieceSymbol, { w: string; b: string; show: string[]; scale: number; darkTint?: string }>;
+
+const WARS: CastLook = {
+  k: { w: "/units/knight.glb", b: "/units/skeleton-warrior.glb", show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.78 },
+  q: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-rogue.glb", show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"], scale: 0.7, darkTint: "#6a3040" },
+  b: { w: "/units/mage.glb", b: "/units/skeleton-mage.glb", show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.68, darkTint: "#304060" },
+  n: { w: "/units/barbarian.glb", b: "/units/skeleton-minion.glb", show: ["1H_Axe", "Barbarian_Hat", "Barbarian_Round_Shield", "Skeleton_Minion_Cloak"], scale: 0.74 },
+  r: { w: "/units/rogue.glb", b: "/units/knight.glb", show: ["Knife", "Rogue_Cape", "1H_Sword", "Rectangle_Shield"], scale: 0.82, darkTint: "#2a3344" },
+  p: { w: "/units/mage.glb", b: "/units/skeleton-warrior.glb", show: ["Mage_Cape", "1H_Sword"], scale: 0.52, darkTint: "#402028" },
+};
+
+const MARIO: CastLook = {
+  k: { w: "/units/knight.glb", b: "/units/barbarian.glb", show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "1H_Axe", "Barbarian_Hat"], scale: 0.8 },
+  q: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-rogue.glb", show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood"], scale: 0.7, darkTint: "#3a2010" },
+  b: { w: "/units/mage.glb", b: "/units/skeleton-mage.glb", show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.66, darkTint: "#204020" },
+  n: { w: "/units/barbarian.glb", b: "/units/knight.glb", show: ["1H_Axe", "Barbarian_Round_Shield", "Barbarian_Hat", "1H_Sword", "Knight_Helmet"], scale: 0.72, darkTint: "#503018" },
+  r: { w: "/units/rogue.glb", b: "/units/skeleton-warrior.glb", show: ["Knife", "Rogue_Cape", "1H_Sword", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.84, darkTint: "#2a4018" },
+  p: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-minion.glb", show: ["Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Minion_Cloak", "1H_Sword"], scale: 0.5, darkTint: "#402010" },
+};
+
+const LOTR: CastLook = {
+  k: { w: "/units/knight.glb", b: "/units/skeleton-warrior.glb", show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.8 },
+  q: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-rogue.glb", show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"], scale: 0.72, darkTint: "#3a2820" },
+  b: { w: "/units/mage.glb", b: "/units/skeleton-mage.glb", show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.7, darkTint: "#241c18" },
+  n: { w: "/units/barbarian.glb", b: "/units/knight.glb", show: ["1H_Axe", "Barbarian_Hat", "Barbarian_Round_Shield", "1H_Sword", "Knight_Helmet", "Rectangle_Shield"], scale: 0.74, darkTint: "#1a1816" },
+  r: { w: "/units/rogue.glb", b: "/units/skeleton-minion.glb", show: ["Knife", "Rogue_Cape", "1H_Sword", "Skeleton_Minion_Cloak"], scale: 0.86, darkTint: "#2a2420" },
+  p: { w: "/units/mage.glb", b: "/units/skeleton-warrior.glb", show: ["Mage_Cape", "1H_Sword", "Skeleton_Warrior_Cloak"], scale: 0.54, darkTint: "#201814" },
+};
+
+const CASTS: Record<"wars" | "mario" | "lotr", CastLook> = { wars: WARS, mario: MARIO, lotr: LOTR };
+
 const TOY_CLIPS = {
   idle: "Idle",
   walk: "Walking_A",
@@ -63,8 +94,25 @@ const TOY_CLIPS = {
 
 type Clips = { idle: string; walk: string; attack: string; death: string };
 
-const URLS = [...new Set(Object.values(LOOK).flatMap((row) => [row.w, row.b]))];
+const URLS = [
+  ...new Set([
+    ...Object.values(LOOK).flatMap((row) => [row.w, row.b]),
+    ...Object.values(CASTS).flatMap((set) => Object.values(set).flatMap((row) => [row.w, row.b])),
+  ]),
+];
 for (const url of URLS) useGLTF.preload(url);
+
+function findNamed(root: THREE.Object3D, test: RegExp): THREE.Object3D | null {
+  const hits: THREE.Object3D[] = [];
+  root.traverse((obj) => {
+    if (hits.length === 0 && test.test(obj.name)) hits.push(obj);
+  });
+  return hits[0] ?? null;
+}
+
+function findHand(root: THREE.Object3D): THREE.Object3D | null {
+  return findNamed(root, /hand/i) && findNamed(root, /hand.*r|r.*hand/i);
+}
 
 function paint(root: THREE.Object3D, opacity: number) {
   root.traverse((obj) => {
@@ -86,6 +134,8 @@ function WarUnit({
   tint,
   clips,
   gait,
+  sword = false,
+  clash = false,
 }: {
   url: string;
   show: string[];
@@ -93,8 +143,11 @@ function WarUnit({
   tint?: string;
   clips: Clips;
   gait: MutableRefObject<Gait>;
+  sword?: boolean;
+  clash?: boolean;
 }) {
   const { scene, animations } = useGLTF(url);
+  const donor = useGLTF("/units/knight.glb");
   const allow = useMemo(() => new Set(show), [show]);
   const clone = useMemo(() => {
     const next = cloneSkeleton(scene);
@@ -115,8 +168,36 @@ function WarUnit({
       }
       if (PROP.test(obj.name) && !BODY.test(obj.name) && !allow.has(obj.name)) obj.visible = false;
     });
+    if (sword) {
+      let found = false;
+      next.traverse((obj) => {
+        if (/sword/i.test(obj.name)) {
+          obj.visible = true;
+          found = true;
+        }
+      });
+      if (!found) {
+        const blade = donor.scene.getObjectByName("1H_Sword") ?? findNamed(donor.scene, /sword/i);
+        const hand = findHand(next);
+        if (blade && hand) {
+          const copy = blade.clone(true);
+          copy.visible = true;
+          copy.traverse((obj) => {
+            const mesh = obj as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            const src = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            const copies = src.map((mat) => mat.clone());
+            mesh.material = copies.length === 1 ? copies[0] : copies;
+          });
+          copy.position.copy(blade.position);
+          copy.quaternion.copy(blade.quaternion);
+          copy.scale.copy(blade.scale);
+          hand.add(copy);
+        }
+      }
+    }
     return next;
-  }, [scene, allow, tint]);
+  }, [scene, allow, tint, sword, donor.scene]);
   const ref = useRef<THREE.Group>(null);
   const mixer = useMemo(() => new THREE.AnimationMixer(clone), [clone]);
   const actions = useMemo(() => {
@@ -148,7 +229,9 @@ function WarUnit({
       prev?.fadeOut(0.1);
       if (next) {
         const once = want === "attack" || want === "death";
-        next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
+        const duel = clash && want === "attack";
+        next.timeScale = duel ? 0.7 : 1;
+        next.setLoop(duel ? THREE.LoopRepeat : once ? THREE.LoopOnce : THREE.LoopRepeat, duel ? 2 : once ? 1 : Infinity);
         next.clampWhenFinished = once;
         next.reset();
         if (want === "idle") next.time = breath.current % next.getClip().duration;
@@ -190,14 +273,20 @@ function clipName(clips: Clips, act: Gait["act"]) {
 export function StonePerson({
   type,
   white,
+  cast,
+  sword,
+  clash,
   gait,
 }: {
   type: PieceSymbol;
   white: boolean;
   cast: PeopleCast;
+  sword?: boolean;
+  clash?: boolean;
   gait: MutableRefObject<Gait>;
 }) {
-  const look = LOOK[type];
+  const themed = cast === "wars" || cast === "mario" || cast === "lotr";
+  const look = themed ? CASTS[cast][type] : LOOK[type];
   return (
     <WarUnit
       url={white ? look.w : look.b}
@@ -206,6 +295,8 @@ export function StonePerson({
       tint={!white ? look.darkTint : undefined}
       clips={TOY_CLIPS}
       gait={gait}
+      sword={sword}
+      clash={clash}
     />
   );
 }
@@ -214,16 +305,20 @@ export function WarCorpse({
   type,
   white,
   cast,
+  sword,
+  clash,
   delay,
   onDone,
 }: {
   type: PieceSymbol;
   white: boolean;
   cast: PeopleCast;
+  sword?: boolean;
+  clash?: boolean;
   delay: number;
   onDone: () => void;
 }) {
-  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
+  const gait = useRef<Gait>({ phase: 0, amp: 0, act: clash ? "attack" : "idle", fade: 1 });
   const born = useRef<number | null>(null);
   const done = useRef(false);
   const [show, setShow] = useState(true);
@@ -245,5 +340,5 @@ export function WarCorpse({
   });
 
   if (!show) return null;
-  return <StonePerson type={type} white={white} cast={cast} gait={gait} />;
+  return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} gait={gait} />;
 }

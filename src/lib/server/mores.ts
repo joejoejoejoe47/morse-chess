@@ -29,6 +29,7 @@ type ProfileRow = {
   equipped_board?: string | null;
   coins?: number | string | null;
   bot_streak?: number | string | null;
+  owned_boards?: string | null;
 };
 
 type GameRow = {
@@ -84,6 +85,7 @@ export type GameSnapshot = {
   pull: boolean;
   coins: number;
   coinAward: number;
+  ownedBoards: string[];
 };
 
 export type ChallengeCard = {
@@ -97,7 +99,7 @@ export type ChallengeCard = {
 };
 
 export type HomeState = {
-  profile: { username: string; score: number; equippedBoard: string; coins: number } | null;
+  profile: { username: string; score: number; equippedBoard: string; coins: number; ownedBoards: string[] } | null;
   inbox: ChallengeCard[];
   outgoing: ChallengeCard[];
   activeGameId: string | null;
@@ -175,13 +177,25 @@ async function ensurePurse(sql: Sql) {
   await sql.query("alter table profiles add column if not exists coins integer not null default 0");
   await sql.query("alter table profiles add column if not exists bot_streak integer not null default 0");
   await sql.query("alter table games add column if not exists coin_award integer not null default 0");
+  await sql.query("alter table profiles add column if not exists owned_boards text not null default ''");
+  await sql.query("alter table profiles add column if not exists coins_ready boolean not null default false");
+  await sql.query(
+    "update profiles set coins = 1000, coins_ready = true where username_lc = 'mastergus' and coins_ready = false",
+  );
+}
+
+function ownedList(raw: unknown) {
+  return String(raw ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 async function profileById(sql: Sql, userId: string) {
   await ensureBoardColumn(sql);
   await ensurePurse(sql);
   const rows = await sql<ProfileRow>`
-    select user_id, username, username_lc, score, equipped_board, coins, bot_streak from profiles where user_id = ${userId} limit 1
+    select user_id, username, username_lc, score, equipped_board, coins, bot_streak, owned_boards from profiles where user_id = ${userId} limit 1
   `;
   const row = rows[0];
   if (!row) return null;
@@ -191,6 +205,7 @@ async function profileById(sql: Sql, userId: string) {
     equipped_board: row.equipped_board || DEFAULT_BOARD_ID,
     coins: toInt(row.coins, 0),
     bot_streak: toInt(row.bot_streak, 0),
+    owned_boards: ownedList(row.owned_boards).join(","),
   };
 }
 
@@ -716,6 +731,7 @@ async function snapshotFor(sql: Sql, game: GameRow, userId: string, playBot = fa
     pull: asBool(fresh.pull),
     coins: me?.coins ?? 0,
     coinAward: fresh.winner_user_id === userId ? toInt(fresh.coin_award, 0) : 0,
+    ownedBoards: ownedList(me?.owned_boards),
   };
 }
 
@@ -809,10 +825,11 @@ export const claimUsername = createServerFn({ method: "POST" })
       return { username: existing.username, score: existing.score };
     }
     const score = isMasterUsername(data.username) ? MASTER_SCORE : START_SCORE;
+    const coins = isMasterUsername(data.username) ? 1000 : 0;
     try {
       await sql`
-        insert into profiles (user_id, username, username_lc, score, equipped_board, elo_scaled)
-        values (${context.userId}, ${data.username}, ${data.username.toLowerCase()}, ${score}, ${DEFAULT_BOARD_ID}, true)
+        insert into profiles (user_id, username, username_lc, score, equipped_board, elo_scaled, coins, coins_ready)
+        values (${context.userId}, ${data.username}, ${data.username.toLowerCase()}, ${score}, ${DEFAULT_BOARD_ID}, true, ${coins}, ${coins > 0})
       `;
     } catch {
       throw new Error("That club name is already taken.");
@@ -945,6 +962,7 @@ export const getHomeState = createServerFn({ method: "GET" })
         score: Number(profile.score),
         equippedBoard: boardById(profile.equipped_board).id,
         coins: profile.coins ?? 0,
+        ownedBoards: ownedList(profile.owned_boards),
       },
       inbox: inboxRows.map((r) => ({
         id: r.id,
@@ -1348,6 +1366,28 @@ export const startBotGame = createServerFn({ method: "POST" })
     return { gameId };
   });
 
+export const buyBoard = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { boardId: string }) => ({ boardId: String(input.boardId) }))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await profileById(sql, context.userId);
+    if (!me) throw new Error("Choose a club name first.");
+    const board = boardById(data.boardId);
+    const price = board.coinCost ?? 0;
+    if (price <= 0) return { ok: false as const, error: "That board is not sold for coins." };
+    const owned = ownedList(me.owned_boards);
+    if (owned.includes(board.id)) return { ok: true as const, coins: me.coins ?? 0, owned };
+    if ((me.coins ?? 0) < price) return { ok: false as const, error: "You need more coins." };
+    const coins = (me.coins ?? 0) - price;
+    const next = [...owned, board.id];
+    await sql`
+      update profiles set coins = ${coins}, owned_boards = ${next.join(",")}
+      where user_id = ${context.userId}
+    `;
+    return { ok: true as const, coins, owned: next };
+  });
+
 export const setEquippedBoard = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { boardId: string }) => ({ boardId: String(input.boardId) }))
@@ -1357,8 +1397,13 @@ export const setEquippedBoard = createServerFn({ method: "POST" })
     const me = await profileById(sql, context.userId);
     if (!me) throw new Error("Choose a club name first.");
     const board = boardById(data.boardId);
-    if (!boardUnlocked(Number(me.score), board, me.username)) {
-      throw new Error(`Reach ${board.cost} Elo to sit at ${board.name}.`);
+    const owned = ownedList(me.owned_boards);
+    if (!boardUnlocked(Number(me.score), board, me.username, owned)) {
+      throw new Error(
+        (board.coinCost ?? 0) > 0
+          ? `Buy ${board.name} with ${board.coinCost} coins.`
+          : `Reach ${board.cost} Elo to sit at ${board.name}.`,
+      );
     }
     await sql`update profiles set equipped_board = ${board.id} where user_id = ${context.userId}`;
     return { equippedBoard: board.id, score: Number(me.score) };

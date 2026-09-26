@@ -36,7 +36,8 @@ export type BoardSkin = {
   animated?: boolean;
   pieceCut?: "club" | "staunton";
   htmlPieces?: boolean;
-  anSet?: "pipe" | "ring";
+  anSet?: "pipe" | "ring" | "wars" | "mario" | "lotr";
+  coinCost?: number;
 };
 
 export const MASTER_USERNAME = "MasterGus";
@@ -490,6 +491,96 @@ export const BOARD_CATALOG: BoardSkin[] = [
     blackGlow: 0.04,
     ring: "#4a1c10",
   },
+  {
+    ...BASE,
+    id: "star-wars",
+    name: "Star Wars",
+    blurb: "A dark space board. Twenty coins. The free AN set stays as it is.",
+    cost: 0,
+    coinCost: 20,
+    tableKind: "shine",
+    anSet: "wars",
+    lightSq: "#d8e4ee",
+    darkSq: "#121820",
+    table: "#070b12",
+    felt: "#0c121c",
+    select: "#3a6ea8",
+    last: "#1c3a58",
+    check: "#8a2430",
+    fillLight: "#9ec4e8",
+    whitePiece: "#f4f7fb",
+    blackPiece: "#1a1014",
+    whiteStroke: "#16324a",
+    blackStroke: "#e8c0c0",
+    ring: "#16324a",
+    sqMetal: 0.45,
+    sqRough: 0.28,
+  },
+  {
+    ...BASE,
+    id: "super-mario",
+    name: "Super Mario",
+    blurb: "A bright brick board. Thirty coins. The free AN set stays as it is.",
+    cost: 0,
+    coinCost: 30,
+    tableKind: "plank",
+    anSet: "mario",
+    lightSq: "#f6e27a",
+    darkSq: "#c44828",
+    table: "#3a8a34",
+    felt: "#2a6a28",
+    select: "#f0c040",
+    last: "#e07030",
+    fillLight: "#ffe090",
+    whitePiece: "#fff4e0",
+    blackPiece: "#241408",
+    whiteStroke: "#8a3030",
+    blackStroke: "#f0d080",
+    collar: "#e8b030",
+  },
+  {
+    ...BASE,
+    id: "ring-hall",
+    name: "Lord of the Rings",
+    blurb: "A styled hall board. The free AN figures stay on this table.",
+    cost: 0,
+    tableKind: "walnut",
+    lightSq: "#e6d2a4",
+    darkSq: "#3a4034",
+    table: "#4a3420",
+    felt: "#243028",
+    select: "#8a7040",
+    last: "#5a6840",
+    fillLight: "#e0c898",
+    whitePiece: "#f3ead4",
+    blackPiece: "#161410",
+    whiteStroke: "#3a3024",
+    blackStroke: "#c4a080",
+    collar: "#6a5030",
+  },
+  {
+    ...BASE,
+    id: "ring-host",
+    name: "Real Rings",
+    blurb: "Forty coins. A real host: every figure is different, and the enemy side carries swords.",
+    cost: 0,
+    coinCost: 40,
+    tableKind: "walnut",
+    anSet: "lotr",
+    lightSq: "#efe0bc",
+    darkSq: "#2c241c",
+    table: "#3a2818",
+    felt: "#1c1814",
+    select: "#a08048",
+    last: "#6a5838",
+    fillLight: "#f0d8a8",
+    whitePiece: "#f7f0e0",
+    blackPiece: "#100e0c",
+    whiteStroke: "#4a3828",
+    blackStroke: "#a06048",
+    ring: "#3a2818",
+    collar: "#8a6840",
+  },
 ];
 
 const BY_ID = new Map(BOARD_CATALOG.map((b) => [b.id, b]));
@@ -503,8 +594,14 @@ export function boardById(id: string | null | undefined): BoardSkin {
   return BY_ID.get(id ?? "") ?? BOARD_CATALOG[0];
 }
 
-export function boardUnlocked(score: number, board: BoardSkin | string, _username?: string) {
+export function boardUnlocked(
+  score: number,
+  board: BoardSkin | string,
+  _username?: string,
+  owned: string[] = [],
+) {
   const b = typeof board === "string" ? boardById(board) : board;
+  if ((b.coinCost ?? 0) > 0) return owned.includes(b.id);
   return (Number.isFinite(score) ? score : 0) >= b.cost;
 }
 
@@ -554,10 +651,15 @@ export function readEquipped() {
   }
 }
 
-export function equippedSkin(score: number, serverId?: string | null, username?: string) {
+export function equippedSkin(
+  score: number,
+  serverId?: string | null,
+  username?: string,
+  owned: string[] = [],
+) {
   const local = readEquipped();
   const candidate = serverId && serverId !== DEFAULT_BOARD_ID ? serverId : local || serverId || DEFAULT_BOARD_ID;
   const board = boardById(candidate);
-  if (!boardUnlocked(score, board, username)) return boardById(DEFAULT_BOARD_ID);
+  if (!boardUnlocked(score, board, username, owned)) return boardById(DEFAULT_BOARD_ID);
   return board;
 }

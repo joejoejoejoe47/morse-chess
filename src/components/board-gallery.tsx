@@ -23,14 +23,19 @@ export function BoardGallery({
   score,
   username,
   equippedBoard,
+  coins,
+  ownedBoards,
 }: {
   score: number;
   username: string;
   equippedBoard: string;
+  coins: number;
+  ownedBoards: string[];
 }) {
   const [looking, setLooking] = useState<string | null>(null);
   const [equipped, setEquipped] = useState(equippedBoard);
   const [tune, setTune] = useState(false);
+  const [purse, setPurse] = useState({ coins, owned: ownedBoards });
   if (looking) {
     return (
       <BoardLook
@@ -38,12 +43,15 @@ export function BoardGallery({
         score={score}
         username={username}
         equippedBoard={equipped}
+        coins={purse.coins}
+        ownedBoards={purse.owned}
         startTuning={tune}
         onBack={() => {
           setLooking(null);
           setTune(false);
         }}
         onEquipped={setEquipped}
+        onPurse={(next) => setPurse({ coins: next.coins, owned: next.owned })}
       />
     );
   }
@@ -65,7 +73,7 @@ export function BoardGallery({
 
       <div className="relative mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {BOARD_CATALOG.map((board) => {
-          const open = boardUnlocked(score, board, username);
+          const open = boardUnlocked(score, board, username, purse.owned);
           const peek = boardCanPreview(score, board, username);
           const inUse = equipped === board.id;
           return (
@@ -93,7 +101,7 @@ export function BoardGallery({
                 <div>
                   <p className="font-display text-xl text-ivory">{board.name}</p>
                   <p className="mt-0.5 text-[13px] text-mist">
-                    {board.cost === 0 ? "Yours" : `${board.cost} Elo`}
+                    {(board.coinCost ?? 0) > 0 ? `${board.coinCost} coins` : board.cost === 0 ? "Yours" : `${board.cost} Elo`}
                   </p>
                 </div>
                 {open ? (

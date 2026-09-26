@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
@@ -440,6 +440,8 @@ function AnimatedPiece({
   people,
   cast,
   slay,
+  showTip,
+  clash,
 }: {
   square: string;
   spawnFrom: string;
@@ -456,6 +458,8 @@ function AnimatedPiece({
   people: boolean;
   cast: PeopleCast;
   slay: boolean;
+  showTip: boolean;
+  clash: boolean;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom);
@@ -497,7 +501,7 @@ function AnimatedPiece({
       if (traveling) gait.current.phase += dt * 9;
       if (!traveling && slay && !swung.current) {
         swung.current = true;
-        attackUntil.current = performance.now() + 980;
+        attackUntil.current = performance.now() + (clash ? 1900 : 980);
       }
       gait.current.act = performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
       const dx = target.x - pos.current.x;
@@ -518,11 +522,12 @@ function AnimatedPiece({
       onPointerOver={(e) => {
         const kind = (e.nativeEvent as PointerEvent).pointerType;
         if (kind && kind !== "mouse") return;
+        if (!showTip) return;
         setTip(true);
       }}
       onPointerOut={() => setTip(false)}
     >
-      {tip ? (
+      {tip && showTip ? (
         <Html position={[0, 1.45, 0]} center zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
           <span className="grid size-12 place-items-center rounded-md border border-white/25 bg-black/60 shadow-lg">
             <HtmlPiece
@@ -535,7 +540,14 @@ function AnimatedPiece({
         </Html>
       ) : null}
       {people ? (
-        <StonePerson type={type} white={color === "w"} cast={cast} gait={gait} />
+        <StonePerson
+          type={type}
+          white={color === "w"}
+          cast={cast}
+          sword={cast === "wars" || cast === "mario" || cast === "lotr" ? color !== you : false}
+          clash={clash}
+          gait={gait}
+        />
       ) : (
         <PieceMesh
           type={type}
@@ -926,6 +938,8 @@ function Scene({
   roomScene,
   modelUrl,
   people,
+  showTip,
+  fightZoom,
 }: {
   fen: string;
   you: Side;
@@ -945,6 +959,8 @@ function Scene({
   roomScene: RoomScene;
   modelUrl: string | null;
   people: boolean;
+  showTip: boolean;
+  fightZoom: boolean;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -995,6 +1011,8 @@ function Scene({
     { id: string; sq: Square; type: PieceSymbol; color: Color; delay: number }[]
   >([]);
   const [captureSq, setCaptureSq] = useState<string | null>(null);
+  const [fightSq, setFightSq] = useState<string | null>(null);
+  const fightTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const before = prevPieces.current;
@@ -1020,6 +1038,11 @@ function Scene({
       return;
     }
     setCaptureSq(lastMove.to);
+    if (fightZoom) {
+      setFightSq(victim.sq);
+      if (fightTimer.current) window.clearTimeout(fightTimer.current);
+      fightTimer.current = window.setTimeout(() => setFightSq(null), 2200);
+    }
     setBodies((list) => [
       ...list,
       {
@@ -1030,7 +1053,7 @@ function Scene({
         delay: 0.72,
       },
     ]);
-  }, [pieces, people, lastMove, fen]);
+  }, [pieces, people, lastMove, fen, fightZoom]);
 
   const wood = useMemo(() => {
     if (skin.id === "marble") {
@@ -1142,6 +1165,8 @@ function Scene({
           people={people}
           cast={skin.anSet ?? "stone"}
           slay={captureSq === p.sq}
+          showTip={showTip}
+          clash={fightZoom}
           onClick={() => onSquare(p.sq)}
         />
       ))}
@@ -1158,14 +1183,21 @@ function Scene({
                   type={body.type}
                   white={body.color === "w"}
                   cast={skin.anSet ?? "stone"}
-                  delay={body.delay}
+                  sword={
+                    (skin.anSet === "wars" || skin.anSet === "mario" || skin.anSet === "lotr") &&
+                    body.color !== you
+                  }
+                  clash={fightZoom}
+                  delay={fightZoom ? 1.35 : body.delay}
                   onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
                 />
               </group>
             );
           })
         : null}
+      <FightCam square={fightSq} />
       <OrbitControls
+        makeDefault
         enablePan={false}
         enableRotate
         enableZoom
@@ -1182,6 +1214,50 @@ function Scene({
       />
     </>
   );
+}
+
+function FightCam({ square }: { square: string | null }) {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as {
+    target: THREE.Vector3;
+    enabled: boolean;
+    update: () => void;
+  } | null;
+  const home = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+  const back = useRef(false);
+
+  useFrame((_, raw) => {
+    if (!controls?.target) return;
+    const dt = Math.min(raw, 0.05);
+    if (square) {
+      if (!home.current) home.current = { pos: camera.position.clone(), target: controls.target.clone() };
+      back.current = true;
+      controls.enabled = false;
+      const spot = squareToWorld(square as Square);
+      const look = new THREE.Vector3(spot[0], 0.95, spot[2]);
+      const dest = new THREE.Vector3(spot[0] + 2.35, 2.55, spot[2] + 2.7);
+      const k = 1 - Math.exp(-4.2 * dt);
+      camera.position.lerp(dest, k);
+      controls.target.lerp(look, k);
+      camera.lookAt(controls.target);
+      return;
+    }
+    if (!back.current || !home.current) return;
+    const k = 1 - Math.exp(-3.2 * dt);
+    camera.position.lerp(home.current.pos, k);
+    controls.target.lerp(home.current.target, k);
+    camera.lookAt(controls.target);
+    if (camera.position.distanceTo(home.current.pos) < 0.12) {
+      camera.position.copy(home.current.pos);
+      controls.target.copy(home.current.target);
+      controls.enabled = true;
+      controls.update();
+      home.current = null;
+      back.current = false;
+    }
+  });
+
+  return null;
 }
 
 export function ChessBoard3D({
@@ -1201,6 +1277,8 @@ export function ChessBoard3D({
   roomScene = "color",
   modelUrl = null,
   people = false,
+  showTip = true,
+  fightZoom = false,
 }: {
   fen: string;
   you: Side;
@@ -1218,6 +1296,8 @@ export function ChessBoard3D({
   roomScene?: RoomScene;
   modelUrl?: string | null;
   people?: boolean;
+  showTip?: boolean;
+  fightZoom?: boolean;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -1307,6 +1387,8 @@ export function ChessBoard3D({
           roomScene={roomScene}
           modelUrl={modelUrl}
           people={people}
+          showTip={showTip}
+          fightZoom={fightZoom}
         />
       </Canvas>
     </div>

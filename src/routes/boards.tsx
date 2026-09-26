@@ -38,6 +38,8 @@ function BoardsPage() {
       score={home.profile.score}
       username={home.profile.username}
       equippedBoard={home.profile.equippedBoard}
+      coins={home.profile.coins}
+      ownedBoards={home.profile.ownedBoards}
     />
   );
 }

@@ -26,7 +26,7 @@ import { ChessBoard2D } from "@/components/chess/board-2d";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { equippedSkin } from "@/lib/chess/board-skins";
-import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
+import { roomBackdrop, saveLookPrefs, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { LoadingTitle } from "@/components/loading-title";
 import { cn } from "@/lib/utils";
@@ -483,7 +483,7 @@ export function GameView({ gameId }: { gameId: string }) {
   const myClock = game.you === "w" ? clocks.w : clocks.b;
   const oppClock = game.you === "w" ? clocks.b : clocks.w;
   const over = game.status !== "active";
-  const skin = equippedSkin(game.myScore, game.myBoard, myName);
+  const skin = equippedSkin(game.myScore, game.myBoard, myName, game.ownedBoards);
   const vsBot = isBotUserId(opp.userId);
   const selfId = game.you === "w" ? game.white.userId : game.black.userId;
   const cameraOn = view === "3d" && game.cameraOpen;
@@ -546,6 +546,26 @@ export function GameView({ gameId }: { gameId: string }) {
               AN
             </button>
           </div>
+          <button
+            type="button"
+            className={cn(
+              "min-h-11 rounded-full border border-line px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+              prefs.pieceTip ? "bg-ivory text-ink" : "bg-panel text-mist hover:text-ivory",
+            )}
+            onClick={() => saveLookPrefs({ pieceTip: !prefs.pieceTip })}
+          >
+            Mark
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "min-h-11 rounded-full border border-line px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+              prefs.fightZoom ? "bg-ivory text-ink" : "bg-panel text-mist hover:text-ivory",
+            )}
+            onClick={() => saveLookPrefs({ fightZoom: !prefs.fightZoom })}
+          >
+            Fight
+          </button>
           <button
             type="button"
             className="min-h-11 rounded-full border border-line bg-panel px-4 py-2 text-sm font-medium text-ivory hover:border-line-strong"
@@ -647,6 +667,8 @@ export function GameView({ gameId }: { gameId: string }) {
                 tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
                 seatVideo={seatVideo}
                 people={view === "an"}
+                showTip={prefs.pieceTip}
+                fightZoom={view === "an" && prefs.fightZoom}
               />
             </Suspense>
           )}
@@ -669,12 +691,14 @@ export function GameView({ gameId }: { gameId: string }) {
           </div>
         ) : null}
         <div className="pointer-events-none absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 flex justify-between gap-2 sm:inset-x-4 sm:bottom-4">
-          <HudChip
-            label="Opponent"
-            name={opp.username}
-            clock={game.mode === "timed" ? oppClock : null}
-            hot={!myTurn && !over}
-          />
+          <div className="pl-16">
+            <HudChip
+              label="Opponent"
+              name={opp.username}
+              clock={game.mode === "timed" ? oppClock : null}
+              hot={!myTurn && !over}
+            />
+          </div>
           <HudChip
             label="You"
             name={myName}
