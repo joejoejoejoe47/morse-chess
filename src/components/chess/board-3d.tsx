@@ -757,6 +757,11 @@ function RobotFigure() {
   );
 }
 
+function unitHash(n: number) {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function makeGrassTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -767,30 +772,59 @@ function makeGrassTexture() {
   for (let y = 0; y < 512; y++) {
     for (let x = 0; x < 512; x++) {
       const n =
-        Math.sin(x * 0.17) * Math.cos(y * 0.13) * 18 +
-        Math.sin(x * 0.05 + y * 0.04) * 22 +
-        (((x * 13 + y * 29) % 17) - 8);
-      const blade = (x * 3 + y) % 7 === 0 ? 16 : 0;
+        Math.sin(x * 0.08) * Math.cos(y * 0.07) * 16 +
+        Math.sin(x * 0.21 + y * 0.13) * 10 +
+        Math.sin(x * 0.47 - y * 0.33) * 6 +
+        (((x * 13 + y * 29) % 19) - 9);
+      const soil = (x * 17 + y * 9) % 53 === 0 ? -36 : 0;
       const i = (y * 512 + x) * 4;
-      img.data[i] = Math.max(0, Math.min(255, 78 + n * 0.35));
-      img.data[i + 1] = Math.max(0, Math.min(255, 158 + n + blade));
-      img.data[i + 2] = Math.max(0, Math.min(255, 52 + n * 0.2));
+      img.data[i] = Math.max(0, Math.min(255, 214 + n * 0.55 + soil));
+      img.data[i + 1] = Math.max(0, Math.min(255, 226 + n * 0.45 + soil * 0.5));
+      img.data[i + 2] = Math.max(0, Math.min(255, 196 + n * 0.25));
       img.data[i + 3] = 255;
     }
   }
   ctx.putImageData(img, 0, 0);
-  ctx.fillStyle = "rgba(255,255,255,0.16)";
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 1400; i++) {
+    const x = (i * 73) % 512;
+    const y = (i * 41) % 512;
+    const h = 4 + (i % 7);
+    ctx.strokeStyle = i % 3 === 0 ? "rgba(86, 62, 36, 0.18)" : i % 2 === 0 ? "rgba(232, 236, 196, 0.16)" : "rgba(20, 48, 22, 0.28)";
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc((i * 97) % 512, (i * 53) % 512, 1.2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + ((i % 5) - 2), y - h);
+    ctx.stroke();
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(10, 10);
+  tex.repeat.set(22, 22);
   tex.anisotropy = 8;
+  return tex;
+}
+
+function makeGladeSky() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 32;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const sky = ctx.createLinearGradient(0, 0, 0, 256);
+  sky.addColorStop(0, "#6f9fc6");
+  sky.addColorStop(0.42, "#b7d0e2");
+  sky.addColorStop(0.7, "#f0ddc4");
+  sky.addColorStop(1, "#c9d5cc");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 32, 256);
+  const glow = ctx.createRadialGradient(22, 78, 2, 22, 78, 36);
+  glow.addColorStop(0, "rgba(255, 244, 214, 0.95)");
+  glow.addColorStop(1, "rgba(255, 244, 214, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 40, 32, 90);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
@@ -798,56 +832,338 @@ function MeadowGrid() {
   const bars: { x: number; z: number; w: number; d: number }[] = [];
   for (let i = 0; i < 9; i++) {
     const p = i - 4;
-    bars.push({ x: p, z: 0, w: 0.09, d: 8.2 });
-    bars.push({ x: 0, z: p, w: 8.2, d: 0.09 });
+    bars.push({ x: p, z: 0, w: 0.045, d: 8.12 });
+    bars.push({ x: 0, z: p, w: 8.12, d: 0.045 });
   }
   return (
     <group>
       {bars.map((bar, i) => (
-        <mesh key={i} position={[bar.x, 0.14, bar.z]} castShadow>
-          <boxGeometry args={[bar.w, 0.06, bar.d]} />
-          <meshStandardMaterial color="#f4ead0" roughness={0.42} metalness={0.08} />
-        </mesh>
+        <group key={i} position={[bar.x, 0, bar.z]}>
+          <mesh position={[0, 0.055, 0]} castShadow receiveShadow>
+            <boxGeometry args={[bar.w, 0.028, bar.d]} />
+            <meshStandardMaterial color="#e8e0d0" roughness={0.62} metalness={0.04} />
+          </mesh>
+          <mesh position={[0, 0.072, 0]}>
+            <boxGeometry args={[bar.w > 1 ? bar.w * 0.98 : 0.014, 0.008, bar.d > 1 ? bar.d * 0.98 : 0.014]} />
+            <meshStandardMaterial color="#c6a15a" roughness={0.35} metalness={0.55} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
 }
 
-const BLOOMS = [
-  { x: -9.2, z: -6.4, c: "#f6d24a" },
-  { x: -7.4, z: 8.1, c: "#f08aa8" },
-  { x: 8.6, z: -7.2, c: "#fff4c8" },
-  { x: 10.1, z: 5.4, c: "#f6d24a" },
-  { x: -11.5, z: 1.2, c: "#ffffff" },
-  { x: 6.8, z: 10.4, c: "#f08aa8" },
-  { x: 12.2, z: -1.6, c: "#fff6d0" },
-  { x: -5.5, z: -10.8, c: "#f6d24a" },
-  { x: 2.4, z: -12.2, c: "#ffffff" },
-  { x: -13, z: -8.5, c: "#f08aa8" },
-];
+type Sprout = {
+  x: number;
+  z: number;
+  rot: number;
+  trunkR: number;
+  h: number;
+  bark: string;
+  leaf: string;
+  kind: 0 | 1 | 2;
+};
+
+function buildForest() {
+  const trees: Sprout[] = [];
+  for (let i = 0; i < 280 && trees.length < 104; i++) {
+    const a = unitHash(i * 1.7) * Math.PI * 2;
+    const near = unitHash(i + 5) < 0.62;
+    const rad = near ? 10.4 + unitHash(i + 9) * 7.5 : 18 + unitHash(i + 9) * 20;
+    const x = Math.cos(a) * rad + (unitHash(i + 13) - 0.5) * 1.6;
+    const z = Math.sin(a) * rad + (unitHash(i + 21) - 0.5) * 1.6;
+    if (Math.abs(x) < 8.6 && Math.abs(z) < 8.6) continue;
+    const gap = near ? 2.35 : 3.1;
+    if (trees.some((t) => (t.x - x) ** 2 + (t.z - z) ** 2 < gap * gap)) continue;
+    const roll = unitHash(i + 19);
+    const kind: 0 | 1 | 2 = roll < 0.4 ? 0 : roll < 0.74 ? 1 : 2;
+    const h = kind === 0 ? 10 + unitHash(i + 3) * 9 : kind === 2 ? 8 + unitHash(i + 3) * 4.5 : 7.2 + unitHash(i + 3) * 5.5;
+    const bark = kind === 2 ? (unitHash(i + 6) > 0.45 ? "#ddd6c8" : "#c9c0ae") : unitHash(i + 6) > 0.5 ? "#6b4630" : "#3f2c20";
+    const leaf =
+      kind === 0
+        ? unitHash(i + 11) > 0.5
+          ? "#1d4a2b"
+          : "#2d6840"
+        : kind === 2
+          ? "#86b256"
+          : unitHash(i + 11) > 0.5
+            ? "#3f7c3c"
+            : "#2a5834";
+    trees.push({
+      x,
+      z,
+      rot: unitHash(i + 15) * Math.PI * 2,
+      trunkR: kind === 2 ? 0.09 + unitHash(i + 2) * 0.04 : 0.14 + unitHash(i + 2) * 0.16,
+      h,
+      bark,
+      leaf,
+      kind,
+    });
+  }
+
+  const tufts: { x: number; z: number; h: number; r: number; rot: number }[] = [];
+  for (let i = 0; i < 90; i++) {
+    const a = unitHash(i + 80) * Math.PI * 2;
+    const rad = 5.15 + unitHash(i + 81) * 3.4;
+    const x = Math.cos(a) * rad;
+    const z = Math.sin(a) * rad;
+    if (Math.abs(x) < 4.4 && Math.abs(z) < 4.4) continue;
+    tufts.push({
+      x,
+      z,
+      h: 0.22 + unitHash(i + 82) * 0.42,
+      r: 0.07 + unitHash(i + 83) * 0.07,
+      rot: unitHash(i + 84) * Math.PI,
+    });
+  }
+
+  const rocks: { x: number; z: number; s: number; rot: number; c: string }[] = [];
+  for (let i = 0; i < 28; i++) {
+    const a = unitHash(i + 140) * Math.PI * 2;
+    const rad = 8.8 + unitHash(i + 141) * 16;
+    rocks.push({
+      x: Math.cos(a) * rad,
+      z: Math.sin(a) * rad,
+      s: 0.28 + unitHash(i + 142) * 0.55,
+      rot: unitHash(i + 143) * Math.PI,
+      c: unitHash(i + 144) > 0.5 ? "#8a8174" : "#5e584e",
+    });
+  }
+
+  const flowers: { x: number; z: number; c: string }[] = [];
+  const petal = ["#f4efd8", "#f3d36a", "#e7b7c6", "#f7f4ea"];
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2 + unitHash(i + 200) * 0.4;
+    const rad = 5.05 + unitHash(i + 201) * 2.6;
+    const x = Math.cos(a) * rad;
+    const z = Math.sin(a) * rad;
+    if (Math.abs(x) < 4.45 && Math.abs(z) < 4.45) continue;
+    flowers.push({ x, z, c: petal[i % petal.length] });
+  }
+
+  return { trees, tufts, rocks, flowers };
+}
+
+function stamp(
+  mesh: THREE.InstancedMesh,
+  count: number,
+  place: (i: number, dummy: THREE.Object3D, color: THREE.Color) => void,
+) {
+  const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
+  for (let i = 0; i < count; i++) {
+    dummy.position.set(0, 0, 0);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    place(i, dummy, color);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    mesh.setColorAt(i, color);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
+}
 
 function MeadowField({ map }: { map: THREE.Texture | null }) {
+  const forest = useMemo(() => {
+    const data = buildForest();
+    const pines = data.trees.filter((t) => t.kind === 0);
+    const oaks = data.trees.filter((t) => t.kind === 1);
+    const birches = data.trees.filter((t) => t.kind === 2);
+    const ground = new THREE.PlaneGeometry(96, 96, 46, 46);
+    ground.rotateX(-Math.PI / 2);
+    const pos = ground.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
+    const tint = new THREE.Color();
+    const lawn = new THREE.Color("#d5e2ad");
+    const glade = new THREE.Color("#6ea24a");
+    const deep = new THREE.Color("#1a3324");
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const d = Math.hypot(x, z);
+      const court = Math.max(Math.abs(x), Math.abs(z));
+      const intoWoods = THREE.MathUtils.smoothstep(court, 4.2, 13);
+      const far = THREE.MathUtils.smoothstep(d, 24, 46);
+      tint.copy(lawn).lerp(glade, intoWoods).lerp(deep, far * 0.9);
+      tint.offsetHSL(0, 0, Math.sin(x * 0.55) * Math.cos(z * 0.48) * 0.04);
+      colors[i * 3] = tint.r;
+      colors[i * 3 + 1] = tint.g;
+      colors[i * 3 + 2] = tint.b;
+    }
+    ground.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+    const barkMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9, metalness: 0.02 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.78, metalness: 0 });
+    const rockMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.96, metalness: 0.02 });
+    const trunkGeo = new THREE.CylinderGeometry(0.62, 1, 1, 7);
+    trunkGeo.translate(0, 0.5, 0);
+    const coneGeo = new THREE.ConeGeometry(1, 1, 8);
+    coneGeo.translate(0, 0.5, 0);
+    const puffGeo = new THREE.IcosahedronGeometry(1, 1);
+    const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+
+    const trunks = new THREE.InstancedMesh(trunkGeo, barkMat, Math.max(1, data.trees.length));
+    if (data.trees.length) {
+      stamp(trunks, data.trees.length, (i, dummy, color) => {
+        const t = data.trees[i];
+        dummy.position.set(t.x, 0, t.z);
+        dummy.rotation.y = t.rot;
+        dummy.scale.set(t.trunkR, t.h, t.trunkR);
+        color.set(t.bark);
+      });
+    }
+
+    const pineTops = new THREE.InstancedMesh(coneGeo, leafMat, Math.max(1, pines.length * 3));
+    if (pines.length) {
+      stamp(pineTops, pines.length * 3, (i, dummy, color) => {
+        const t = pines[Math.floor(i / 3)];
+        const layer = i % 3;
+        const lift = t.h * (0.46 + layer * 0.16);
+        const width = t.h * (0.34 - layer * 0.07);
+        dummy.position.set(t.x, lift, t.z);
+        dummy.rotation.y = t.rot + layer;
+        dummy.scale.set(width, t.h * (0.42 - layer * 0.06), width);
+        color.set(t.leaf).offsetHSL(0, 0, layer * 0.04);
+      });
+    }
+
+    const oakTops = new THREE.InstancedMesh(puffGeo, leafMat, Math.max(1, oaks.length * 3));
+    if (oaks.length) {
+      stamp(oakTops, oaks.length * 3, (i, dummy, color) => {
+        const t = oaks[Math.floor(i / 3)];
+        const layer = i % 3;
+        const spread = t.h * 0.16;
+        const ox = layer === 0 ? 0 : Math.cos(t.rot + layer) * spread;
+        const oz = layer === 0 ? 0 : Math.sin(t.rot + layer) * spread;
+        dummy.position.set(t.x + ox, t.h * (layer === 0 ? 0.78 : 0.68), t.z + oz);
+        dummy.rotation.y = t.rot;
+        const s = t.h * (layer === 0 ? 0.32 : 0.22);
+        dummy.scale.set(s, s * 0.82, s);
+        color.set(t.leaf).offsetHSL(0, 0, layer === 0 ? -0.03 : 0.05);
+      });
+    }
+
+    const birchTops = new THREE.InstancedMesh(puffGeo, leafMat, Math.max(1, birches.length * 2));
+    if (birches.length) {
+      stamp(birchTops, birches.length * 2, (i, dummy, color) => {
+        const t = birches[Math.floor(i / 2)];
+        const layer = i % 2;
+        dummy.position.set(t.x + (layer ? 0.25 : -0.1), t.h * (0.82 - layer * 0.08), t.z);
+        dummy.rotation.y = t.rot;
+        const s = t.h * (layer ? 0.16 : 0.2);
+        dummy.scale.set(s, s * 0.9, s);
+        color.set(t.leaf);
+      });
+    }
+
+    const ferns = new THREE.InstancedMesh(coneGeo, leafMat, Math.max(1, data.tufts.length));
+    if (data.tufts.length) {
+      stamp(ferns, data.tufts.length, (i, dummy, color) => {
+        const t = data.tufts[i];
+        dummy.position.set(t.x, 0, t.z);
+        dummy.rotation.y = t.rot;
+        dummy.scale.set(t.r, t.h, t.r);
+        color.set(i % 2 === 0 ? "#6f9a3e" : "#3f6e32");
+      });
+    }
+
+    const stones = new THREE.InstancedMesh(rockGeo, rockMat, data.rocks.length);
+    stamp(stones, data.rocks.length, (i, dummy, color) => {
+      const r = data.rocks[i];
+      dummy.position.set(r.x, r.s * 0.28, r.z);
+      dummy.rotation.set(r.rot, r.rot * 0.6, 0);
+      dummy.scale.set(r.s * 1.3, r.s * 0.55, r.s);
+      color.set(r.c);
+    });
+
+    const sky = makeGladeSky();
+    return { ground, trunks, pineTops, oakTops, birchTops, ferns, stones, sky, flowers: data.flowers, trees: data.trees.length, pines: pines.length, oaks: oaks.length, birches: birches.length, tufts: data.tufts.length };
+  }, []);
+
+  useEffect(
+    () => () => {
+      forest.ground.dispose();
+      forest.sky?.dispose();
+      const geos = new Set<THREE.BufferGeometry>();
+      const mats = new Set<THREE.Material>();
+      for (const mesh of [forest.trunks, forest.pineTops, forest.oakTops, forest.birchTops, forest.ferns, forest.stones]) {
+        geos.add(mesh.geometry);
+        const mat = mesh.material;
+        if (Array.isArray(mat)) mat.forEach((item) => mats.add(item));
+        else mats.add(mat);
+      }
+      geos.forEach((geo) => geo.dispose());
+      mats.forEach((mat) => mat.dispose());
+    },
+    [forest],
+  );
+
+  const curb = 4.32;
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
-        <planeGeometry args={[46, 46]} />
-        <meshStandardMaterial map={map} color={map ? "#ffffff" : "#5aaa34"} roughness={0.92} metalness={0} />
+      {forest.sky ? (
+        <mesh>
+          <sphereGeometry args={[86, 28, 18]} />
+          <meshBasicMaterial map={forest.sky} side={THREE.BackSide} depthWrite={false} fog={false} />
+        </mesh>
+      ) : null}
+      <mesh geometry={forest.ground} receiveShadow dispose={null}>
+        <meshStandardMaterial map={map ?? undefined} vertexColors roughness={0.94} metalness={0} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <ringGeometry args={[16, 23, 48]} />
-        <meshStandardMaterial color="#3e9224" roughness={1} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} receiveShadow>
+        <ringGeometry args={[7.2, 18, 64]} />
+        <meshStandardMaterial color="#2f5a30" roughness={1} transparent opacity={0.28} />
       </mesh>
-      {BLOOMS.map((b, i) => (
-        <group key={i} position={[b.x, 0.2, b.z]}>
-          <mesh position={[0, 0.15, 0]}>
-            <cylinderGeometry args={[0.03, 0.04, 0.4, 6]} />
-            <meshStandardMaterial color="#2f7a22" />
+      {[
+        [0, curb],
+        [0, -curb],
+      ].map(([x, z]) => (
+        <mesh key={`curb-z-${z}`} position={[x, 0.04, z]} receiveShadow castShadow>
+          <boxGeometry args={[8.8, 0.045, 0.16]} />
+          <meshStandardMaterial color="#e5dcc8" roughness={0.74} metalness={0.04} />
+        </mesh>
+      ))}
+      {[
+        [curb, 0],
+        [-curb, 0],
+      ].map(([x, z]) => (
+        <mesh key={`curb-x-${x}`} position={[x, 0.04, z]} receiveShadow castShadow>
+          <boxGeometry args={[0.16, 0.045, 8.8]} />
+          <meshStandardMaterial color="#e5dcc8" roughness={0.74} metalness={0.04} />
+        </mesh>
+      ))}
+      {[
+        [4.72, 4.72],
+        [4.72, -4.72],
+        [-4.72, 4.72],
+        [-4.72, -4.72],
+      ].map(([x, z]) => (
+        <group key={`pier-${x}-${z}`} position={[x, 0, z]}>
+          <mesh position={[0, 0.38, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.16, 0.2, 0.76, 8]} />
+            <meshStandardMaterial color="#d9d0be" roughness={0.7} />
           </mesh>
-          <mesh position={[0, 0.38, 0]}>
-            <sphereGeometry args={[0.16, 10, 10]} />
-            <meshStandardMaterial color={b.c} roughness={0.55} />
+          <mesh position={[0, 0.8, 0]} castShadow>
+            <cylinderGeometry args={[0.22, 0.22, 0.06, 8]} />
+            <meshStandardMaterial color="#b8924a" roughness={0.32} metalness={0.62} />
           </mesh>
         </group>
+      ))}
+      {forest.trees > 0 ? <primitive object={forest.trunks} /> : null}
+      {forest.pines > 0 ? <primitive object={forest.pineTops} /> : null}
+      {forest.oaks > 0 ? <primitive object={forest.oakTops} /> : null}
+      {forest.birches > 0 ? <primitive object={forest.birchTops} /> : null}
+      {forest.tufts > 0 ? <primitive object={forest.ferns} /> : null}
+      <primitive object={forest.stones} />
+      {forest.flowers.map((b, i) => (
+        <mesh key={i} position={[b.x, 0.12, b.z]}>
+          <sphereGeometry args={[0.07, 8, 8]} />
+          <meshStandardMaterial color={b.c} roughness={0.55} />
+        </mesh>
       ))}
     </group>
   );
@@ -1233,35 +1549,49 @@ function Scene({
   const meadow = skin.id === "grassland";
   const grass = useMemo(() => (meadow ? makeGrassTexture() : null), [meadow]);
   useEffect(() => () => grass?.dispose(), [grass]);
-  const sky = cosmic ? "#05060c" : meadow ? "#8ec8f0" : roomColor;
-  const hemiSky = lightRoom ? "#fffaf1" : skin.fillLight;
-  const hemiGround = skin.felt;
+  const sky = cosmic ? "#05060c" : meadow ? "#a9c0cf" : roomColor;
+  const hemiSky = meadow ? "#d5e7ff" : lightRoom ? "#fffaf1" : skin.fillLight;
+  const hemiGround = meadow ? "#1d3b26" : skin.felt;
+  const sun: [number, number, number] = meadow ? [16, 24, 9] : [8, 14, 6];
+  const sunPower = meadow ? 1.75 : lightRoom ? 1.2 : 1.4;
+  const shadowSpan = meadow ? 28 : 10;
 
   return (
     <>
-      {cosmic ? <color attach="background" args={["#05060c"]} /> : <RoomSky color={sky} image={roomImage} />}
-      {roomScene === "space" ? <SpaceSky /> : null}
-      {roomScene === "model" && modelUrl ? (
+      {meadow ? (
+        <>
+          <color attach="background" args={["#a9c0cf"]} />
+          <fog attach="fog" args={["#c5d0d6", 26, 74]} />
+        </>
+      ) : cosmic ? (
+        <color attach="background" args={["#05060c"]} />
+      ) : (
+        <RoomSky color={sky} image={roomImage} />
+      )}
+      {!meadow && roomScene === "space" ? <SpaceSky /> : null}
+      {!meadow && roomScene === "model" && modelUrl ? (
         <Suspense fallback={null}>
           <ModelSky url={modelUrl} />
         </Suspense>
       ) : null}
-      <hemisphereLight args={[hemiSky, hemiGround, lightRoom ? 0.95 : 0.7]} />
-      <ambientLight intensity={lightRoom ? 0.58 : 0.42} />
+      <hemisphereLight args={[hemiSky, hemiGround, meadow ? 0.62 : lightRoom ? 0.95 : 0.7]} />
+      <ambientLight intensity={meadow ? 0.28 : lightRoom ? 0.58 : 0.42} />
       <directionalLight
-        position={[8, 14, 6]}
-        intensity={lightRoom ? 1.2 : 1.4}
+        position={sun}
+        intensity={sunPower}
+        color={meadow ? "#fff1d0" : "#ffffff"}
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={meadow ? 2048 : 1024}
+        shadow-mapSize-height={meadow ? 2048 : 1024}
+        shadow-bias={meadow ? -0.0004 : 0}
         shadow-camera-near={1}
-        shadow-camera-far={40}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
+        shadow-camera-far={meadow ? 80 : 40}
+        shadow-camera-left={-shadowSpan}
+        shadow-camera-right={shadowSpan}
+        shadow-camera-top={shadowSpan}
+        shadow-camera-bottom={-shadowSpan}
       />
-      <directionalLight position={[-6, 8, -8]} intensity={lightRoom ? 0.45 : 0.7} color={skin.fillLight} />
+      <directionalLight position={meadow ? [-10, 8, -6] : [-6, 8, -8]} intensity={meadow ? 0.38 : lightRoom ? 0.45 : 0.7} color={meadow ? "#c5d8ee" : skin.fillLight} />
       {skin.tableKind === "legend" ? (
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
@@ -1370,8 +1700,8 @@ function Scene({
         enableZoom
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
-        minDistance={8}
-        maxDistance={meadow ? 52 : 22}
+        minDistance={meadow ? 7 : 8}
+        maxDistance={meadow ? 64 : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -1600,8 +1930,8 @@ export function ChessBoard3D({
   const cam: [number, number, number] =
     resolved.id === "grassland"
       ? you === "w"
-        ? [0, 22, 16]
-        : [0, 22, -16]
+        ? [0.4, 12.4, 13.2]
+        : [-0.4, 12.4, -13.2]
       : you === "w"
         ? [0, 15.2, 11.2]
         : [0, 15.2, -11.2];
@@ -1612,7 +1942,7 @@ export function ChessBoard3D({
         key={you}
         shadows
         dpr={[1, 1.75]}
-        camera={{ position: cam, fov: 36, near: 0.1, far: 180 }}
+        camera={{ position: cam, fov: resolved.id === "grassland" ? 38 : 36, near: 0.1, far: 180 }}
         gl={{ antialias: true, alpha: false }}
         onPointerDown={() => {
           dragged.current = false;
