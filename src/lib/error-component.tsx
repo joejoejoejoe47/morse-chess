@@ -1,9 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 
 const FALLBACK_MESSAGE = "An unexpected error occurred. Try reloading the page.";
-const CHUNK_KEY = "mores-chunk-reload";
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
@@ -15,20 +14,27 @@ function staleChunk(message: string) {
   return /dynamically imported module|module script failed|Importing a module script failed/i.test(message);
 }
 
-export function AppErrorComponent({ error }: ErrorComponentProps) {
+export function AppErrorComponent({ error, reset }: ErrorComponentProps) {
   const message = errorMessage(error);
-  const reloading = typeof window !== "undefined" && staleChunk(message);
+  const once = useRef(false);
 
   useEffect(() => {
-    if (!staleChunk(message)) return;
+    if (!staleChunk(message) || once.current) return;
+    once.current = true;
+    reset();
+    let tried = false;
     try {
-      if (sessionStorage.getItem(CHUNK_KEY) === location.pathname) return;
-      sessionStorage.setItem(CHUNK_KEY, location.pathname);
+      tried = sessionStorage.getItem("mores-boards-retry") === "1";
+      if (!tried) sessionStorage.setItem("mores-boards-retry", "1");
     } catch {
-      return;
+      tried = true;
     }
-    location.reload();
-  }, [message]);
+    if (tried) return;
+    const timer = window.setTimeout(() => {
+      window.location.assign("/boards");
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [message, reset]);
 
   return (
     <main
@@ -41,9 +47,7 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
         <TriangleAlert className="size-10" strokeWidth={2} />
       </span>
       <h1 className="text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">
-        {reloading ? "Loading the boards again…" : message}
-      </p>
+      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">{message}</p>
     </main>
   );
 }

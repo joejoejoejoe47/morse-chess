@@ -17,13 +17,10 @@ function BoardsPage() {
 
   useEffect(() => {
     try {
-      sessionStorage.removeItem("mores-chunk-reload");
+      sessionStorage.removeItem("mores-boards-retry");
     } catch {
       /* ignore */
     }
-  }, []);
-
-  useEffect(() => {
     if (!user) return;
     let live = true;
     void getHomeState()
