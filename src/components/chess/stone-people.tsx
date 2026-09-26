@@ -416,62 +416,6 @@ export function StonePerson({
   );
 }
 
-export type KillStyle = "sword" | "fire" | "shot" | "slice";
-
-function HalfBody({
-  side,
-  gait,
-  person,
-}: {
-  side: "left" | "right";
-  gait: MutableRefObject<Gait>;
-  person: {
-    type: PieceSymbol;
-    white: boolean;
-    cast: PeopleCast;
-    sword?: boolean;
-    wing?: "a" | "b";
-  };
-}) {
-  const group = useRef<THREE.Group>(null);
-  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(side === "left" ? -1 : 1, 0, 0), 0), [side]);
-  const t = useRef(0);
-
-  useFrame((_, raw) => {
-    if (!group.current) return;
-    t.current = Math.min(1, t.current + Math.min(raw, 0.1) / 0.7);
-    const k = t.current;
-    const dir = side === "left" ? -1 : 1;
-    group.current.position.x = dir * k * 0.36;
-    group.current.position.y = -k * k * 0.42;
-    group.current.rotation.z = dir * k * 1.2;
-    const world = new THREE.Vector3();
-    group.current.getWorldPosition(world);
-    if (side === "left") {
-      plane.normal.set(-1, 0, 0);
-      plane.constant = world.x;
-    } else {
-      plane.normal.set(1, 0, 0);
-      plane.constant = -world.x;
-    }
-  });
-
-  return (
-    <group ref={group}>
-      <StonePerson
-        type={person.type}
-        white={person.white}
-        cast={person.cast}
-        sword={person.sword}
-        wing={person.wing}
-        clash={false}
-        clip={plane}
-        gait={gait}
-      />
-    </group>
-  );
-}
-
 export function WarCorpse({
   type,
   white,
@@ -479,7 +423,6 @@ export function WarCorpse({
   sword,
   clash,
   wing = "a",
-  style = "sword",
   delay,
   onDone,
 }: {
@@ -489,7 +432,6 @@ export function WarCorpse({
   sword?: boolean;
   clash?: boolean;
   wing?: "a" | "b";
-  style?: KillStyle;
   delay: number;
   onDone: () => void;
 }) {
@@ -497,19 +439,11 @@ export function WarCorpse({
   const born = useRef<number | null>(null);
   const done = useRef(false);
   const [show, setShow] = useState(true);
-  const [split, setSplit] = useState(false);
-  const splitOnce = useRef(false);
 
   useFrame(({ clock }) => {
     if (born.current == null) born.current = clock.elapsedTime;
     const age = clock.elapsedTime - born.current;
-    if (age > delay) {
-      gait.current.act = "death";
-      if (style === "slice" && !splitOnce.current) {
-        splitOnce.current = true;
-        setSplit(true);
-      }
-    }
+    if (age > delay) gait.current.act = "death";
     const fadeAt = delay + 1.7;
     if (age > fadeAt) {
       const u = Math.min(1, (age - fadeAt) / 2.4);
@@ -523,14 +457,5 @@ export function WarCorpse({
   });
 
   if (!show) return null;
-  if (split) {
-    const person = { type, white, cast, sword, wing };
-    return (
-      <>
-        <HalfBody side="left" gait={gait} person={person} />
-        <HalfBody side="right" gait={gait} person={person} />
-      </>
-    );
-  }
   return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} wing={wing} gait={gait} />;
 }
