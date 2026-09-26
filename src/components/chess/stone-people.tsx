@@ -69,12 +69,12 @@ const LIFE_CLIPS = {
 };
 
 const LIFE: Record<PieceSymbol, { w: string; b: string; scale: number; darkTint?: string }> = {
-  k: { w: "/life/Knight_Golden_Male.glb", b: "/life/Knight_Male.glb", scale: 0.7 },
-  q: { w: "/life/Knight_Golden_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.66 },
-  b: { w: "/life/Wizard.glb", b: "/life/Wizard.glb", scale: 0.66 },
-  n: { w: "/life/Viking_Male.glb", b: "/life/Ninja_Male.glb", scale: 0.66 },
-  r: { w: "/life/BlueSoldier_Male.glb", b: "/life/Soldier_Male.glb", scale: 0.68 },
-  p: { w: "/life/Casual_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.56 },
+  k: { w: "/life/Knight_Golden_Male.glb", b: "/life/Knight_Male.glb", scale: 0.46 },
+  q: { w: "/life/Knight_Golden_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.44 },
+  b: { w: "/life/Wizard.glb", b: "/life/Wizard.glb", scale: 0.44 },
+  n: { w: "/life/Viking_Male.glb", b: "/life/Ninja_Male.glb", scale: 0.44 },
+  r: { w: "/life/BlueSoldier_Male.glb", b: "/life/Soldier_Male.glb", scale: 0.46 },
+  p: { w: "/life/Casual_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.36 },
 };
 
 type Clips = { idle: string; walk: string; attack: string; death: string };
