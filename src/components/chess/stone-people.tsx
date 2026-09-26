@@ -232,6 +232,7 @@ function WarUnit({
   const rate = useRef(0.75 + Math.random() * 0.7);
   const fall = useRef(0);
   const air = useRef(0);
+  const laid = useRef(false);
 
   useEffect(() => {
     const idle = actions.Idle;
@@ -282,20 +283,24 @@ function WarUnit({
     const dt = Math.min(raw, 0.05);
     if (want === "death") {
       air.current = 0;
-      const clip = actions[clipName(clips, "death")];
-      if (clip) {
-        fall.current = 0;
-        ref.current.rotation.x = 0;
-        ref.current.position.y = 0;
-        ref.current.position.z = 0;
-      } else {
-        fall.current = Math.min(1, fall.current + dt / 0.7);
-        const k = 1 - (1 - fall.current) ** 3;
-        ref.current.rotation.x = -k * (Math.PI * 0.5);
-        ref.current.position.z = -k * 0.4;
-        ref.current.position.y = Math.sin(k * Math.PI) * 0.12;
+      fall.current = Math.min(1.2, fall.current + dt / 0.8);
+      ref.current.rotation.x = 0;
+      ref.current.position.y = 0;
+      ref.current.position.z = 0;
+      if (!laid.current && fall.current >= 0.9) {
+        const lie = actions.Lie_Idle ?? actions.Lie_Pose;
+        if (lie) {
+          actions[clipName(clips, "death")]?.fadeOut(0.25);
+          lie.reset();
+          lie.timeScale = 1;
+          lie.setLoop(THREE.LoopRepeat, Infinity);
+          lie.clampWhenFinished = false;
+          lie.fadeIn(0.25).play();
+          laid.current = true;
+        }
       }
     } else if (flip && want === "attack") {
+      laid.current = false;
       fall.current = 0;
       air.current = Math.min(1, air.current + dt / 0.72);
       ref.current.rotation.x = -air.current * Math.PI * 2;
@@ -304,6 +309,11 @@ function WarUnit({
     } else {
       fall.current = 0;
       air.current = 0;
+      if (laid.current) {
+        actions.Lie_Idle?.stop();
+        actions.Lie_Pose?.stop();
+        laid.current = false;
+      }
       ref.current.rotation.x = 0;
       ref.current.position.y = 0;
       ref.current.position.z = 0;
