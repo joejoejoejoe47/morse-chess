@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF, useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
@@ -84,6 +84,19 @@ const LOTR: CastLook = {
 };
 
 const CASTS: Record<"wars" | "mario" | "lotr", CastLook> = { wars: WARS, mario: MARIO, lotr: LOTR };
+
+const PARTY: Record<PieceSymbol, { w: string; b: string; h: number }> = {
+  k: { w: "/party/w-k.png", b: "/party/b-k.png", h: 1.42 },
+  q: { w: "/party/w-q.png", b: "/party/b-q.png", h: 1.38 },
+  b: { w: "/party/w-b.png", b: "/party/b-b.png", h: 1.36 },
+  n: { w: "/party/w-n.png", b: "/party/b-n.png", h: 1.22 },
+  r: { w: "/party/w-r.png", b: "/party/b-r.png", h: 1.32 },
+  p: { w: "/party/w-p.png", b: "/party/b-p.png", h: 0.92 },
+};
+for (const row of Object.values(PARTY)) {
+  useTexture.preload(row.w);
+  useTexture.preload(row.b);
+}
 
 const TOY_CLIPS = {
   idle: "Idle",
@@ -270,6 +283,50 @@ function clipName(clips: Clips, act: Gait["act"]) {
   return clips.idle;
 }
 
+function PartySprite({
+  type,
+  white,
+  gait,
+}: {
+  type: PieceSymbol;
+  white: boolean;
+  gait: MutableRefObject<Gait>;
+}) {
+  const src = white ? PARTY[type].w : PARTY[type].b;
+  const tex = useTexture(src);
+  const mat = useRef<THREE.MeshBasicMaterial>(null);
+  const mesh = useRef<THREE.Mesh>(null);
+  const h = PARTY[type].h;
+  const img = tex.image as { width?: number; height?: number };
+  const aspect = img?.width && img?.height ? img.width / img.height : 0.66;
+
+  useEffect(() => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+  }, [tex]);
+
+  useFrame(({ clock }) => {
+    const fade = gait.current.fade;
+    if (mat.current) {
+      mat.current.opacity = fade;
+      mat.current.depthWrite = fade > 0.25;
+    }
+    if (!mesh.current) return;
+    const walk = gait.current.act === "walk";
+    const bob = walk ? Math.abs(Math.sin(clock.elapsedTime * 8)) * 0.08 : Math.sin(clock.elapsedTime * 1.7) * 0.02;
+    mesh.current.position.y = h * 0.5 + bob;
+    mesh.current.rotation.z = gait.current.act === "attack" ? 0.28 : 0;
+    mesh.current.rotation.x = gait.current.act === "death" ? 1.15 : 0;
+  });
+
+  return (
+    <mesh ref={mesh} position={[0, h * 0.5, 0]}>
+      <planeGeometry args={[h * aspect, h]} />
+      <meshBasicMaterial ref={mat} map={tex} transparent side={THREE.DoubleSide} alphaTest={0.05} />
+    </mesh>
+  );
+}
+
 export function StonePerson({
   type,
   white,
@@ -285,7 +342,8 @@ export function StonePerson({
   clash?: boolean;
   gait: MutableRefObject<Gait>;
 }) {
-  const themed = cast === "wars" || cast === "mario" || cast === "lotr";
+  if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} />;
+  const themed = cast === "wars" || cast === "lotr";
   const look = themed ? CASTS[cast][type] : LOOK[type];
   return (
     <WarUnit
