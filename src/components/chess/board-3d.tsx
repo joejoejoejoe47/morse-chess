@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { Html, OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
@@ -8,6 +8,7 @@ import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import type { RoomScene } from "@/lib/chess/look-prefs";
+import { HtmlPiece } from "@/components/chess/html-piece";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 
 function hexRgb(hex: string) {
@@ -466,6 +467,7 @@ function AnimatedPiece({
   const swung = useRef(false);
   const attackUntil = useRef(0);
   const trip = useRef<{ from: THREE.Vector3; to: THREE.Vector3; t: number } | null>(null);
+  const [tip, setTip] = useState(false);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
@@ -507,7 +509,28 @@ function AnimatedPiece({
   });
 
   return (
-    <group ref={ref} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+    <group
+      ref={ref}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onPointerOver={(e) => {
+        const kind = (e.nativeEvent as PointerEvent).pointerType;
+        if (kind && kind !== "mouse") return;
+        setTip(true);
+      }}
+      onPointerOut={() => setTip(false)}
+    >
+      {tip ? (
+        <Html position={[0, 1.45, 0]} center zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
+          <span className="grid size-12 place-items-center rounded-md border border-white/25 bg-black/60 shadow-lg">
+            <HtmlPiece
+              kind={type}
+              fill={color === "w" ? "#f7f3ea" : "#1c140e"}
+              edge={color === "w" ? "#2a1810" : "#f4efe4"}
+              className="!m-0 !h-10 !w-8"
+            />
+          </span>
+        </Html>
+      ) : null}
       {people ? (
         <StonePerson type={type} white={color === "w"} cast={cast} life={life} gait={gait} />
       ) : (
@@ -984,12 +1007,12 @@ function Scene({
     if (seenCapture.current === key) return;
     seenCapture.current = key;
     const was = before.find((p) => p.sq === lastMove.to);
-    const now = pieces.find((p) => p.sq === lastMove.to);
-    let victim = was && (!now || now.color !== was.color) ? was : undefined;
-    if (!victim) {
+    const mover = pieces.find((p) => p.sq === lastMove.to);
+    let victim = was && mover && was.color !== mover.color ? was : undefined;
+    if (!victim && mover?.type === "p" && lastMove.from[0] !== lastMove.to[0]) {
       const beside = `${lastMove.to[0]}${lastMove.from[1]}` as Square;
-      const pawn = before.find((p) => p.sq === beside && p.type === "p");
-      if (pawn && !pieces.some((p) => p.sq === beside && p.color === pawn.color && p.type === "p")) victim = pawn;
+      const pawn = before.find((p) => p.sq === beside && p.type === "p" && p.color !== mover.color);
+      if (pawn && !pieces.some((p) => p.sq === beside)) victim = pawn;
     }
     if (!victim) {
       setCaptureSq(null);
