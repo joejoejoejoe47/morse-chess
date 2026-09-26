@@ -98,6 +98,18 @@ for (const row of Object.values(PARTY)) {
   useTexture.preload(row.b);
 }
 
+const SAGA: Record<PieceSymbol, { w: [string, string]; b: [string, string]; h: number }> = {
+  k: { w: ["/saga/w-k.png", "/saga/w-k.png"], b: ["/saga/b-k.png", "/saga/b-k.png"], h: 1.46 },
+  q: { w: ["/saga/w-q.png", "/saga/w-q.png"], b: ["/saga/b-q.png", "/saga/b-q.png"], h: 1.48 },
+  b: { w: ["/saga/w-b.png", "/saga/w-b.png"], b: ["/saga/b-b.png", "/saga/b-b.png"], h: 1.4 },
+  n: { w: ["/saga/w-n.png", "/saga/w-n2.png"], b: ["/saga/b-n.png", "/saga/b-n2.png"], h: 1.38 },
+  r: { w: ["/saga/w-r.png", "/saga/w-r.png"], b: ["/saga/b-r.png", "/saga/b-r.png"], h: 1.42 },
+  p: { w: ["/saga/w-p.png", "/saga/w-p.png"], b: ["/saga/b-p.png", "/saga/b-p.png"], h: 1.02 },
+};
+for (const row of Object.values(SAGA)) {
+  for (const url of [...row.w, ...row.b]) useTexture.preload(url);
+}
+
 const TOY_CLIPS = {
   idle: "Idle",
   walk: "Walking_A",
@@ -295,22 +307,20 @@ function clipName(clips: Clips, act: Gait["act"]) {
   return clips.idle;
 }
 
-function PartySprite({
-  type,
-  white,
+function PictureSprite({
+  src,
+  h,
   gait,
 }: {
-  type: PieceSymbol;
-  white: boolean;
+  src: string;
+  h: number;
   gait: MutableRefObject<Gait>;
 }) {
-  const src = white ? PARTY[type].w : PARTY[type].b;
   const tex = useTexture(src);
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   const mesh = useRef<THREE.Mesh>(null);
   const rig = useRef<THREE.Group>(null);
   const fall = useRef(0);
-  const h = PARTY[type].h;
   const img = tex.image as { width?: number; height?: number };
   const aspect = img?.width && img?.height ? img.width / img.height : 0.66;
 
@@ -347,12 +357,26 @@ function PartySprite({
   );
 }
 
+function PartySprite({
+  type,
+  white,
+  gait,
+}: {
+  type: PieceSymbol;
+  white: boolean;
+  gait: MutableRefObject<Gait>;
+}) {
+  const row = PARTY[type];
+  return <PictureSprite src={white ? row.w : row.b} h={row.h} gait={gait} />;
+}
+
 export function StonePerson({
   type,
   white,
   cast,
   sword,
   clash,
+  wing = "a",
   gait,
 }: {
   type: PieceSymbol;
@@ -360,10 +384,16 @@ export function StonePerson({
   cast: PeopleCast;
   sword?: boolean;
   clash?: boolean;
+  wing?: "a" | "b";
   gait: MutableRefObject<Gait>;
 }) {
   if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} />;
-  const themed = cast === "wars" || cast === "lotr";
+  if (cast === "wars") {
+    const row = SAGA[type];
+    const pair = white ? row.w : row.b;
+    return <PictureSprite src={wing === "b" ? pair[1] : pair[0]} h={row.h} gait={gait} />;
+  }
+  const themed = cast === "lotr";
   const look = themed ? CASTS[cast][type] : LOOK[type];
   return (
     <WarUnit
@@ -385,6 +415,7 @@ export function WarCorpse({
   cast,
   sword,
   clash,
+  wing = "a",
   delay,
   onDone,
 }: {
@@ -393,6 +424,7 @@ export function WarCorpse({
   cast: PeopleCast;
   sword?: boolean;
   clash?: boolean;
+  wing?: "a" | "b";
   delay: number;
   onDone: () => void;
 }) {
@@ -418,5 +450,5 @@ export function WarCorpse({
   });
 
   if (!show) return null;
-  return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} gait={gait} />;
+  return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} wing={wing} gait={gait} />;
 }

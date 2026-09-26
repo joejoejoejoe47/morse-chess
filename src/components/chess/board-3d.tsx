@@ -555,6 +555,7 @@ function AnimatedPiece({
           cast={cast}
           sword={cast === "wars" || cast === "mario" || cast === "lotr" ? color !== you : false}
           clash={clash}
+          wing={square[0] < "e" ? "a" : "b"}
           gait={gait}
         />
       ) : (
@@ -1202,6 +1203,7 @@ function Scene({
                   body.color !== you
                 }
                 clash={body.aside !== body.sq || fightZoom}
+                wing={body.sq[0] < "e" ? "a" : "b"}
                 delay={body.aside !== body.sq ? 1.9 : body.delay}
                 onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
               />
