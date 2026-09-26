@@ -151,6 +151,7 @@ function WarUnit({
   sword = false,
   clash = false,
   clip = null,
+  flip = false,
 }: {
   url: string;
   show: string[];
@@ -161,6 +162,7 @@ function WarUnit({
   sword?: boolean;
   clash?: boolean;
   clip?: THREE.Plane | null;
+  flip?: boolean;
 }) {
   const { scene, animations } = useGLTF(url);
   const donor = useGLTF("/units/knight.glb");
@@ -229,6 +231,7 @@ function WarUnit({
   const breath = useRef(Math.random() * Math.PI * 2);
   const rate = useRef(0.75 + Math.random() * 0.7);
   const fall = useRef(0);
+  const air = useRef(0);
 
   useEffect(() => {
     const idle = actions.Idle;
@@ -276,15 +279,26 @@ function WarUnit({
     }
     if (gait.current.fade < 0.99) paint(clone, gait.current.fade);
     if (!ref.current) return;
+    const dt = Math.min(raw, 0.05);
     if (want === "death") {
-      fall.current = Math.min(1, fall.current + Math.min(raw, 0.05) / 0.48);
+      air.current = 0;
+      fall.current = Math.min(1, fall.current + dt / 0.42);
       const k = 1 - (1 - fall.current) ** 3;
-      ref.current.rotation.x = k * (Math.PI / 2);
-      ref.current.position.y = k * 0.04;
+      ref.current.rotation.x = -k * (Math.PI * 0.95);
+      ref.current.position.z = -k * 1.05;
+      ref.current.position.y = Math.sin(k * Math.PI) * 0.42;
+    } else if (flip && want === "attack") {
+      fall.current = 0;
+      air.current = Math.min(1, air.current + dt / 0.72);
+      ref.current.rotation.x = -air.current * Math.PI * 2;
+      ref.current.position.y = Math.sin(air.current * Math.PI) * 1.55;
+      ref.current.position.z = air.current * 0.35;
     } else {
       fall.current = 0;
+      air.current = 0;
       ref.current.rotation.x = 0;
       ref.current.position.y = 0;
+      ref.current.position.z = 0;
     }
   });
 
@@ -307,17 +321,20 @@ function PictureSprite({
   h,
   gait,
   clip = null,
+  flip = false,
 }: {
   src: string;
   h: number;
   gait: MutableRefObject<Gait>;
   clip?: THREE.Plane | null;
+  flip?: boolean;
 }) {
   const tex = useTexture(src);
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   const mesh = useRef<THREE.Mesh>(null);
   const rig = useRef<THREE.Group>(null);
   const fall = useRef(0);
+  const air = useRef(0);
   const img = tex.image as { width?: number; height?: number };
   const aspect = img?.width && img?.height ? img.width / img.height : 0.66;
 
@@ -334,14 +351,29 @@ function PictureSprite({
     }
     if (!rig.current || !mesh.current) return;
     const dead = gait.current.act === "death";
-    if (dead) fall.current = Math.min(1, fall.current + Math.min(raw, 0.05) / 0.48);
+    const attacking = gait.current.act === "attack";
+    const dt = Math.min(raw, 0.05);
+    if (dead) fall.current = Math.min(1, fall.current + dt / 0.42);
     else fall.current = 0;
+    if (flip && attacking) air.current = Math.min(1, air.current + dt / 0.72);
+    else air.current = 0;
     const k = 1 - (1 - fall.current) ** 3;
     const walk = gait.current.act === "walk";
-    const bob = dead ? 0 : walk ? Math.abs(Math.sin(clock.elapsedTime * 8)) * 0.08 : Math.sin(clock.elapsedTime * 1.7) * 0.02;
-    rig.current.rotation.x = k * (Math.PI / 2);
-    rig.current.position.y = bob;
-    mesh.current.rotation.z = gait.current.act === "attack" ? 0.28 : 0;
+    const bob = dead ? Math.sin(k * Math.PI) * 0.35 : walk ? Math.abs(Math.sin(clock.elapsedTime * 8)) * 0.08 : Math.sin(clock.elapsedTime * 1.7) * 0.02;
+    if (dead) {
+      rig.current.rotation.x = -k * (Math.PI * 0.95);
+      rig.current.position.z = -k * 0.7;
+      rig.current.position.y = bob;
+    } else if (flip && attacking) {
+      rig.current.rotation.x = -air.current * Math.PI * 2;
+      rig.current.position.y = Math.sin(air.current * Math.PI) * 1.2;
+      rig.current.position.z = air.current * 0.2;
+    } else {
+      rig.current.rotation.x = 0;
+      rig.current.position.y = bob;
+      rig.current.position.z = 0;
+    }
+    mesh.current.rotation.z = attacking && !flip ? 0.28 : 0;
   });
 
   return (
@@ -373,7 +405,7 @@ function PartySprite({
   clip?: THREE.Plane | null;
 }) {
   const row = PARTY[type];
-  return <PictureSprite src={white ? row.w : row.b} h={row.h} gait={gait} clip={clip} />;
+  return <PictureSprite src={white ? row.w : row.b} h={row.h} gait={gait} clip={clip} flip={type === "q"} />;
 }
 
 export function StonePerson({
@@ -397,7 +429,7 @@ export function StonePerson({
 }) {
   if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} clip={clip} />;
   if (cast === "wars") {
-    return <SpaceCrew type={type} white={white} wing={wing} clip={clip} gait={gait} />;
+    return <SpaceCrew type={type} white={white} wing={wing} clip={clip} gait={gait} flip={type === "q"} />;
   }
   const themed = cast === "lotr";
   const look = themed ? CASTS[cast][type] : LOOK[type];
@@ -412,6 +444,7 @@ export function StonePerson({
       sword={sword}
       clash={clash}
       clip={clip}
+      flip={type === "q"}
     />
   );
 }

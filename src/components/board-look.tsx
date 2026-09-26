@@ -6,7 +6,7 @@ import { ClubBrand } from "@/components/club-brand";
 import { BoardAdjustPanel } from "@/components/board-adjust";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { Button } from "@/components/ui/button";
-import { boardById, boardCanPreview, boardUnlocked, rememberEquipped, type BoardSkin } from "@/lib/chess/board-skins";
+import { boardById, boardCanPreview, boardPriceLabel, boardUnlocked, rememberEquipped, type BoardSkin } from "@/lib/chess/board-skins";
 import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
@@ -150,7 +150,7 @@ export function BoardLook({
           <span className="text-[15px] text-mist">
             {board.name}
             {" · "}
-            {(board.coinCost ?? 0) > 0 ? `${board.coinCost} coins` : board.cost === 0 ? "starter" : `${board.cost} Elo`}
+            {boardPriceLabel(board)}
             {" · look only"}
           </span>
           <div className="flex overflow-hidden rounded-full border border-line bg-panel">
@@ -242,7 +242,7 @@ export function BoardLook({
                 </Button>
               ) : (board.coinCost ?? 0) > 0 ? (
                 <Button variant="solid" disabled={busy} onClick={() => void purchase()}>
-                  {busy ? "Buying…" : `Buy · ${board.coinCost} coins${coins < (board.coinCost ?? 0) ? ` · you have ${coins}` : ""}`}
+                  {busy ? "Buying…" : `Buy · ${boardPriceLabel(board)}${coins < (board.coinCost ?? 0) ? ` · you have ${coins}` : ""}`}
                 </Button>
               ) : (
                 <Button variant="outline" disabled>

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { BOARD_CATALOG, boardCanPreview, boardUnlocked } from "@/lib/chess/board-skins";
+import { BOARD_CATALOG, boardCanPreview, boardPriceLabel, boardUnlocked } from "@/lib/chess/board-skins";
 import { ClubBrand, ClubHeaderActions } from "@/components/club-brand";
 import { Button } from "@/components/ui/button";
 import { BoardLook } from "@/components/board-look";
@@ -101,7 +101,7 @@ export function BoardGallery({
                 <div>
                   <p className="font-display text-xl text-ivory">{board.name}</p>
                   <p className="mt-0.5 text-[13px] text-mist">
-                    {(board.coinCost ?? 0) > 0 ? `${board.coinCost} coins` : board.cost === 0 ? "Yours" : `${board.cost} Elo`}
+                    {(board.coinCost ?? 0) > 0 || board.cost > 0 ? boardPriceLabel(board) : "Yours"}
                   </p>
                 </div>
                 {open ? (

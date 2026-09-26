@@ -582,6 +582,7 @@ function BoardSquares({
   skin,
   lightMap,
   darkMap,
+  meadow = false,
 }: {
   selected: string | null;
   legal: Set<string>;
@@ -591,6 +592,7 @@ function BoardSquares({
   skin: BoardSkin;
   lightMap?: THREE.Texture | null;
   darkMap?: THREE.Texture | null;
+  meadow?: boolean;
 }) {
   const squares = useMemo(() => {
     const list: { sq: Square; x: number; z: number; light: boolean }[] = [];
@@ -619,6 +621,7 @@ function BoardSquares({
 
   return (
     <group ref={group}>
+      {meadow ? <MeadowGrid /> : null}
       {squares.map(({ sq, x, z, light }) => {
         const isSel = selected === sq;
         const isLast = lastMove?.from === sq || lastMove?.to === sq;
@@ -634,6 +637,32 @@ function BoardSquares({
                 : skin.darkSq;
         return (
           <group key={sq}>
+            {meadow ? (
+              <mesh
+                position={[x, 0.11, z]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                userData={{ light, lock: true }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSquare(sq);
+                }}
+                onPointerOver={(e) => {
+                  e.stopPropagation();
+                  document.body.style.cursor = "pointer";
+                }}
+                onPointerOut={() => {
+                  document.body.style.cursor = "default";
+                }}
+              >
+                <planeGeometry args={[0.96, 0.96]} />
+                <meshBasicMaterial
+                  color={isCheck ? skin.check : isSel ? skin.select : isLast ? skin.last : "#ffffff"}
+                  transparent
+                  opacity={isCheck || isSel || isLast ? 0.38 : 0}
+                  depthWrite={false}
+                />
+              </mesh>
+            ) : (
             <mesh
               position={[x, 0.08, z]}
               receiveShadow
@@ -658,6 +687,7 @@ function BoardSquares({
                 metalness={skin.sqMetal}
               />
             </mesh>
+            )}
             {legal.has(sq) ? (
               <mesh position={[x, 0.14, z]} rotation={[-Math.PI / 2, 0, 0]}>
                 <circleGeometry args={[0.16, 22]} />
@@ -723,6 +753,102 @@ function RobotFigure() {
         <boxGeometry args={[1.4, 0.35, 0.7]} />
         <meshStandardMaterial color={panel} roughness={0.5} metalness={0.1} />
       </mesh>
+    </group>
+  );
+}
+
+function makeGrassTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const img = ctx.createImageData(512, 512);
+  for (let y = 0; y < 512; y++) {
+    for (let x = 0; x < 512; x++) {
+      const n =
+        Math.sin(x * 0.17) * Math.cos(y * 0.13) * 18 +
+        Math.sin(x * 0.05 + y * 0.04) * 22 +
+        (((x * 13 + y * 29) % 17) - 8);
+      const blade = (x * 3 + y) % 7 === 0 ? 16 : 0;
+      const i = (y * 512 + x) * 4;
+      img.data[i] = Math.max(0, Math.min(255, 78 + n * 0.35));
+      img.data[i + 1] = Math.max(0, Math.min(255, 158 + n + blade));
+      img.data[i + 2] = Math.max(0, Math.min(255, 52 + n * 0.2));
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  ctx.fillStyle = "rgba(255,255,255,0.16)";
+  for (let i = 0; i < 80; i++) {
+    ctx.beginPath();
+    ctx.arc((i * 97) % 512, (i * 53) % 512, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(10, 10);
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function MeadowGrid() {
+  const bars: { x: number; z: number; w: number; d: number }[] = [];
+  for (let i = 0; i < 9; i++) {
+    const p = i - 4;
+    bars.push({ x: p, z: 0, w: 0.09, d: 8.2 });
+    bars.push({ x: 0, z: p, w: 8.2, d: 0.09 });
+  }
+  return (
+    <group>
+      {bars.map((bar, i) => (
+        <mesh key={i} position={[bar.x, 0.14, bar.z]} castShadow>
+          <boxGeometry args={[bar.w, 0.06, bar.d]} />
+          <meshStandardMaterial color="#f4ead0" roughness={0.42} metalness={0.08} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+const BLOOMS = [
+  { x: -9.2, z: -6.4, c: "#f6d24a" },
+  { x: -7.4, z: 8.1, c: "#f08aa8" },
+  { x: 8.6, z: -7.2, c: "#fff4c8" },
+  { x: 10.1, z: 5.4, c: "#f6d24a" },
+  { x: -11.5, z: 1.2, c: "#ffffff" },
+  { x: 6.8, z: 10.4, c: "#f08aa8" },
+  { x: 12.2, z: -1.6, c: "#fff6d0" },
+  { x: -5.5, z: -10.8, c: "#f6d24a" },
+  { x: 2.4, z: -12.2, c: "#ffffff" },
+  { x: -13, z: -8.5, c: "#f08aa8" },
+];
+
+function MeadowField({ map }: { map: THREE.Texture | null }) {
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
+        <planeGeometry args={[46, 46]} />
+        <meshStandardMaterial map={map} color={map ? "#ffffff" : "#5aaa34"} roughness={0.92} metalness={0} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[16, 23, 48]} />
+        <meshStandardMaterial color="#3e9224" roughness={1} />
+      </mesh>
+      {BLOOMS.map((b, i) => (
+        <group key={i} position={[b.x, 0.2, b.z]}>
+          <mesh position={[0, 0.15, 0]}>
+            <cylinderGeometry args={[0.03, 0.04, 0.4, 6]} />
+            <meshStandardMaterial color="#2f7a22" />
+          </mesh>
+          <mesh position={[0, 0.38, 0]}>
+            <sphereGeometry args={[0.16, 10, 10]} />
+            <meshStandardMaterial color={b.c} roughness={0.55} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -1104,7 +1230,10 @@ function Scene({
 
   const lightRoom = appearance === "light";
   const cosmic = roomScene === "space" || (roomScene === "model" && Boolean(modelUrl));
-  const sky = cosmic ? "#05060c" : roomColor;
+  const meadow = skin.id === "grassland";
+  const grass = useMemo(() => (meadow ? makeGrassTexture() : null), [meadow]);
+  useEffect(() => () => grass?.dispose(), [grass]);
+  const sky = cosmic ? "#05060c" : meadow ? "#8ec8f0" : roomColor;
   const hemiSky = lightRoom ? "#fffaf1" : skin.fillLight;
   const hemiGround = skin.felt;
 
@@ -1136,7 +1265,9 @@ function Scene({
       {skin.tableKind === "legend" ? (
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
-      {skin.tableKind === "walnut" ? (
+      {meadow ? (
+        <MeadowField map={grass} />
+      ) : skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
       ) : skin.tableKind === "studio" ? (
         <StudioTable map={wood?.slab ?? null} brass={skin.collar ?? "#c4a06a"} />
@@ -1166,6 +1297,7 @@ function Scene({
         skin={skin}
         lightMap={wood?.light}
         darkMap={wood?.dark}
+        meadow={meadow}
       />
       <TableSeat you={you} mode={tableSeat} video={seatVideo} />
       {pieces.map((p) => (
@@ -1239,7 +1371,7 @@ function Scene({
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
         minDistance={8}
-        maxDistance={22}
+        maxDistance={meadow ? 52 : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -1464,7 +1596,14 @@ export function ChessBoard3D({
     setSelected(null);
   }
 
-  const cam: [number, number, number] = you === "w" ? [0, 15.2, 11.2] : [0, 15.2, -11.2];
+  const cam: [number, number, number] =
+    resolved.id === "grassland"
+      ? you === "w"
+        ? [0, 22, 16]
+        : [0, 22, -16]
+      : you === "w"
+        ? [0, 15.2, 11.2]
+        : [0, 15.2, -11.2];
   const resolved = skin ?? boardById("lodge");
 
   return (

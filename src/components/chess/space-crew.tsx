@@ -75,12 +75,14 @@ export function SpaceCrew({
   wing = "a",
   clip = null,
   gait,
+  flip = false,
 }: {
   type: PieceSymbol;
   white: boolean;
   wing?: "a" | "b";
   clip?: THREE.Plane | null;
   gait: MutableRefObject<Gait>;
+  flip?: boolean;
 }) {
   const look = CREW[keyOf(type, white, wing)] ?? CREW["w-p"];
   const rig = useRef<THREE.Group>(null);
@@ -88,20 +90,39 @@ export function SpaceCrew({
   const legL = useRef<THREE.Group>(null);
   const legR = useRef<THREE.Group>(null);
   const fall = useRef(0);
+  const air = useRef(0);
   const s = look.tall;
 
   useFrame(({ clock }, raw) => {
     if (!rig.current) return;
     const act = gait.current.act;
     const dead = act === "death";
-    if (dead) fall.current = Math.min(1, fall.current + Math.min(raw, 0.05) / 0.48);
+    const dt = Math.min(raw, 0.05);
+    if (dead) fall.current = Math.min(1, fall.current + dt / 0.42);
     else fall.current = 0;
+    if (flip && act === "attack") air.current = Math.min(1, air.current + dt / 0.72);
+    else air.current = 0;
     const k = 1 - (1 - fall.current) ** 3;
     const walk = act === "walk" ? 1 : 0;
     const swing = Math.sin(gait.current.phase) * walk;
-    const bob = dead ? 0 : walk ? Math.abs(Math.sin(gait.current.phase)) * 0.04 : Math.sin(clock.elapsedTime * 1.6) * 0.012;
-    rig.current.position.y = bob;
-    rig.current.rotation.x = k * (Math.PI / 2);
+    const bob = dead
+      ? Math.sin(k * Math.PI) * 0.28
+      : walk
+        ? Math.abs(Math.sin(gait.current.phase)) * 0.04
+        : Math.sin(clock.elapsedTime * 1.6) * 0.012;
+    if (dead) {
+      rig.current.rotation.x = -k * (Math.PI * 0.95);
+      rig.current.position.z = -k * 0.7;
+      rig.current.position.y = bob;
+    } else if (flip && act === "attack") {
+      rig.current.rotation.x = -air.current * Math.PI * 2;
+      rig.current.position.y = Math.sin(air.current * Math.PI) * 1.15;
+      rig.current.position.z = air.current * 0.2;
+    } else {
+      rig.current.rotation.x = 0;
+      rig.current.position.y = bob;
+      rig.current.position.z = 0;
+    }
     rig.current.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;

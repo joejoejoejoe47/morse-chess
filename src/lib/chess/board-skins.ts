@@ -517,6 +517,32 @@ export const BOARD_CATALOG: BoardSkin[] = [
     sqMetal: 0.22,
     sqRough: 0.55,
   },
+  {
+    ...BASE,
+    id: "grassland",
+    name: "Grassland",
+    blurb: "A wide sunny meadow. The chess grid is only lines. Inside every square is grass.",
+    cost: 0,
+    coinCost: 100_000_000,
+    tableKind: "felt",
+    lightSq: "#7dce4a",
+    darkSq: "#5eae32",
+    table: "#3f8f28",
+    felt: "#2f6a1c",
+    select: "#f6e27a",
+    last: "#e7c45a",
+    check: "#e07050",
+    dot: "#fff6c8",
+    fillLight: "#fff4c2",
+    whitePiece: "#fffdf6",
+    blackPiece: "#1a140e",
+    whiteStroke: "#2a3a18",
+    blackStroke: "#f4efe4",
+    sqMetal: 0,
+    sqRough: 1,
+    ring: "#f3e7b0",
+    collar: "#c6a24a",
+  },
 ];
 
 const BY_ID = new Map(BOARD_CATALOG.map((b) => [b.id, b]));
@@ -524,6 +550,17 @@ const BY_ID = new Map(BOARD_CATALOG.map((b) => [b.id, b]));
 export function boardUsesFinePieces(board: BoardSkin | string) {
   const b = typeof board === "string" ? boardById(board) : board;
   return b.pieceCut === "staunton" || b.htmlPieces === true || b.cost >= 1300;
+}
+
+export function boardPriceLabel(board: BoardSkin) {
+  const coins = board.coinCost ?? 0;
+  if (coins >= 1_000_000) {
+    const m = coins / 1_000_000;
+    return `${Number.isInteger(m) ? m : m.toFixed(1)}M coins`;
+  }
+  if (coins > 0) return `${coins} coins`;
+  if (board.cost === 0) return "starter";
+  return `${board.cost} Elo`;
 }
 
 export function boardById(id: string | null | undefined): BoardSkin {
