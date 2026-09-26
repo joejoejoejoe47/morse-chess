@@ -451,3 +451,28 @@ html.light .auth-wood {
 .mp-n .mp-hat,
 .mp-n .mp-ear { display: none; }
 
+@keyframes morse-coin-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+  }
+  16% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    left: 36px;
+    top: calc(100% - 78px);
+    transform: translate(0, 0) scale(0.28);
+    opacity: 1;
+  }
+}
+
+.coin-fly {
+  position: fixed;
+  width: 168px;
+  height: 168px;
+  animation: morse-coin-fly 1.05s cubic-bezier(0.16, 0.84, 0.28, 1) forwards;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.45));
+}
+

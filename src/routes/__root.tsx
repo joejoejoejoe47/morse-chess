@@ -4,6 +4,7 @@ import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { ThemeProvider } from "@/components/theme";
 import { BellHost } from "@/components/bell-host";
 import { StudioSplash } from "@/components/studio-splash";
+import { CoinDock } from "@/components/coin-dock";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
@@ -57,6 +58,7 @@ export const Route = createRootRoute({
           </ThemeProvider>
         </AuthProvider>
         <StudioSplash />
+        <CoinDock />
         <Toaster
           theme="system"
           position="top-center"

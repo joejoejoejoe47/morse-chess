@@ -27,6 +27,8 @@ type ProfileRow = {
   username_lc: string;
   score: number;
   equipped_board?: string | null;
+  coins?: number | string | null;
+  bot_streak?: number | string | null;
 };
 
 type GameRow = {
@@ -49,6 +51,7 @@ type GameRow = {
   live_open?: boolean | string | number | null;
   camera_open?: boolean | string | number | null;
   last_prize?: number | string | null;
+  coin_award?: number | string | null;
   pull?: boolean | string | number | null;
 };
 
@@ -79,6 +82,8 @@ export type GameSnapshot = {
   chat: { id: number; from: string; text: string }[];
   scorePrize: number | null;
   pull: boolean;
+  coins: number;
+  coinAward: number;
 };
 
 export type ChallengeCard = {
@@ -92,7 +97,7 @@ export type ChallengeCard = {
 };
 
 export type HomeState = {
-  profile: { username: string; score: number; equippedBoard: string } | null;
+  profile: { username: string; score: number; equippedBoard: string; coins: number } | null;
   inbox: ChallengeCard[];
   outgoing: ChallengeCard[];
   activeGameId: string | null;
@@ -166,14 +171,27 @@ async function ensureBoardColumn(sql: Sql) {
   );
 }
 
+async function ensurePurse(sql: Sql) {
+  await sql.query("alter table profiles add column if not exists coins integer not null default 0");
+  await sql.query("alter table profiles add column if not exists bot_streak integer not null default 0");
+  await sql.query("alter table games add column if not exists coin_award integer not null default 0");
+}
+
 async function profileById(sql: Sql, userId: string) {
   await ensureBoardColumn(sql);
+  await ensurePurse(sql);
   const rows = await sql<ProfileRow>`
-    select user_id, username, username_lc, score, equipped_board from profiles where user_id = ${userId} limit 1
+    select user_id, username, username_lc, score, equipped_board, coins, bot_streak from profiles where user_id = ${userId} limit 1
   `;
   const row = rows[0];
   if (!row) return null;
-  return { ...row, score: Number(row.score), equipped_board: row.equipped_board || DEFAULT_BOARD_ID };
+  return {
+    ...row,
+    score: Number(row.score),
+    equipped_board: row.equipped_board || DEFAULT_BOARD_ID,
+    coins: toInt(row.coins, 0),
+    bot_streak: toInt(row.bot_streak, 0),
+  };
 }
 
 async function touchProfile(sql: Sql, userId: string) {
@@ -313,6 +331,43 @@ async function finishGame(
   await settleElo(sql, game, status, winnerUserId);
   game.status = status;
   game.winner_user_id = winnerUserId;
+  await noteBotStreak(sql, game, status, winnerUserId);
+}
+
+async function noteBotStreak(sql: Sql, game: GameRow, status: GameStatus, winnerUserId: string | null) {
+  await ensurePurse(sql);
+  const whiteBot = isBotUserId(game.white_user_id);
+  const blackBot = isBotUserId(game.black_user_id);
+  if (whiteBot === blackBot) {
+    if (!whiteBot) {
+      await sql`update profiles set bot_streak = 0 where user_id = ${game.white_user_id}`;
+      await sql`update profiles set bot_streak = 0 where user_id = ${game.black_user_id}`;
+    }
+    return;
+  }
+  const humanId = whiteBot ? game.black_user_id : game.white_user_id;
+  const won = status !== "draw" && winnerUserId === humanId;
+  if (!won) {
+    await sql`update profiles set bot_streak = 0 where user_id = ${humanId}`;
+    return;
+  }
+  const rows = await sql<{ bot_streak: number | string; coins: number | string }>`
+    select bot_streak, coins from profiles where user_id = ${humanId} limit 1
+  `;
+  const streak = toInt(rows[0]?.bot_streak, 0) + 1;
+  let coins = toInt(rows[0]?.coins, 0);
+  let award = 0;
+  let next = streak;
+  if (streak >= 6) {
+    coins += 5;
+    award = 5;
+    next = 0;
+  }
+  await sql`update profiles set bot_streak = ${next}, coins = ${coins} where user_id = ${humanId}`;
+  if (award) {
+    await sql`update games set coin_award = ${award} where id = ${game.id}`;
+    game.coin_award = award;
+  }
 }
 
 const PST: Record<string, number[]> = {
@@ -659,6 +714,8 @@ async function snapshotFor(sql: Sql, game: GameRow, userId: string, playBot = fa
           ? toInt(fresh.last_prize, 0)
           : -toInt(fresh.last_prize, 0),
     pull: asBool(fresh.pull),
+    coins: me?.coins ?? 0,
+    coinAward: fresh.winner_user_id === userId ? toInt(fresh.coin_award, 0) : 0,
   };
 }
 
@@ -761,6 +818,15 @@ export const claimUsername = createServerFn({ method: "POST" })
       throw new Error("That club name is already taken.");
     }
     return { username: data.username, score };
+  });
+
+export const getPurse = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const profile = await profileById(sql, context.userId);
+    if (!profile) return null;
+    return { coins: profile.coins ?? 0 };
   });
 
 export const getHomeState = createServerFn({ method: "GET" })
@@ -868,6 +934,7 @@ export const getHomeState = createServerFn({ method: "GET" })
         username: profile.username,
         score: Number(profile.score),
         equippedBoard: boardById(profile.equipped_board).id,
+        coins: profile.coins ?? 0,
       },
       inbox: inboxRows.map((r) => ({
         id: r.id,

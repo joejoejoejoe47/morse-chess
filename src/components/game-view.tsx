@@ -321,6 +321,19 @@ export function GameView({ gameId }: { gameId: string }) {
     setGame(snap);
     setError(null);
     setClocks({ w: snap.whiteClockMs ?? 60_000, b: snap.blackClockMs ?? 60_000 });
+    if (snap.coinAward >= 5) {
+      const key = `morse-coin-${snap.id}`;
+      let fresh = true;
+      try {
+        fresh = sessionStorage.getItem(key) !== "1";
+        if (fresh) sessionStorage.setItem(key, "1");
+      } catch {
+        /* still show it once in this tab */
+      }
+      if (fresh) {
+        window.dispatchEvent(new CustomEvent("morse-coins", { detail: { coins: snap.coins, gameId: snap.id } }));
+      }
+    }
     if (snap.lastMove && snap.lastMove.san !== lastSan.current) {
       chessClick(snap.lastMove.san);
       lastSan.current = snap.lastMove.san;
