@@ -646,7 +646,8 @@ async function maybeBotMove(sql: Sql, game: GameRow) {
   if (position.turn() !== botSide) return;
   const kind: BotKind =
     game.white_user_id === BOT_V2_USER_ID || game.black_user_id === BOT_V2_USER_ID ? "v2" : "v1";
-  const thinkMs = kind === "v2" ? 280 : 420;
+  const battle = (game.last_move_san ?? "").includes("x");
+  const thinkMs = battle ? 4200 : kind === "v2" ? 280 : 420;
   if (Date.now() - asTime(game.turn_started_at) < thinkMs) return;
   const pick = pickBotMove(game.fen, botSide, kind);
   if (!pick) {
