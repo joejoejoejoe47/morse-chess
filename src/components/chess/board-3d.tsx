@@ -1596,6 +1596,7 @@ export function ChessBoard3D({
     setSelected(null);
   }
 
+  const resolved = skin ?? boardById("lodge");
   const cam: [number, number, number] =
     resolved.id === "grassland"
       ? you === "w"
@@ -1604,7 +1605,6 @@ export function ChessBoard3D({
       : you === "w"
         ? [0, 15.2, 11.2]
         : [0, 15.2, -11.2];
-  const resolved = skin ?? boardById("lodge");
 
   return (
     <div className="h-full w-full touch-none">
