@@ -61,22 +61,6 @@ const TOY_CLIPS = {
   death: "Death_A",
 };
 
-const LIFE_CLIPS = {
-  idle: "Idle",
-  walk: "Walk",
-  attack: "SwordSlash",
-  death: "Death",
-};
-
-const LIFE: Record<PieceSymbol, { w: string; b: string; scale: number; darkTint?: string }> = {
-  k: { w: "/life/Knight_Golden_Male.glb", b: "/life/Knight_Male.glb", scale: 0.46 },
-  q: { w: "/life/Knight_Golden_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.44 },
-  b: { w: "/life/Wizard.glb", b: "/life/Wizard.glb", scale: 0.44 },
-  n: { w: "/life/Viking_Male.glb", b: "/life/Ninja_Male.glb", scale: 0.44 },
-  r: { w: "/life/BlueSoldier_Male.glb", b: "/life/Soldier_Male.glb", scale: 0.46 },
-  p: { w: "/life/Casual_Female.glb", b: "/life/Soldier_Female.glb", scale: 0.36 },
-};
-
 type Clips = { idle: string; walk: string; attack: string; death: string };
 
 const URLS = [...new Set(Object.values(LOOK).flatMap((row) => [row.w, row.b]))];
@@ -206,23 +190,21 @@ function clipName(clips: Clips, act: Gait["act"]) {
 export function StonePerson({
   type,
   white,
-  life,
   gait,
 }: {
   type: PieceSymbol;
   white: boolean;
   cast: PeopleCast;
-  life?: boolean;
   gait: MutableRefObject<Gait>;
 }) {
-  const look = life ? LIFE[type] : LOOK[type];
+  const look = LOOK[type];
   return (
     <WarUnit
       url={white ? look.w : look.b}
-      show={life ? [] : LOOK[type].show}
+      show={look.show}
       scale={look.scale}
       tint={!white ? look.darkTint : undefined}
-      clips={life ? LIFE_CLIPS : TOY_CLIPS}
+      clips={TOY_CLIPS}
       gait={gait}
     />
   );
@@ -232,14 +214,12 @@ export function WarCorpse({
   type,
   white,
   cast,
-  life,
   delay,
   onDone,
 }: {
   type: PieceSymbol;
   white: boolean;
   cast: PeopleCast;
-  life?: boolean;
   delay: number;
   onDone: () => void;
 }) {
@@ -265,5 +245,5 @@ export function WarCorpse({
   });
 
   if (!show) return null;
-  return <StonePerson type={type} white={white} cast={cast} life={life} gait={gait} />;
+  return <StonePerson type={type} white={white} cast={cast} gait={gait} />;
 }

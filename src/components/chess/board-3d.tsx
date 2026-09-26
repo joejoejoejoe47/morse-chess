@@ -438,7 +438,6 @@ function AnimatedPiece({
   skin,
   outlineOn,
   people,
-  life,
   cast,
   slay,
 }: {
@@ -455,7 +454,6 @@ function AnimatedPiece({
   skin: BoardSkin;
   outlineOn: boolean;
   people: boolean;
-  life: boolean;
   cast: PeopleCast;
   slay: boolean;
 }) {
@@ -537,7 +535,7 @@ function AnimatedPiece({
         </Html>
       ) : null}
       {people ? (
-        <StonePerson type={type} white={color === "w"} cast={cast} life={life} gait={gait} />
+        <StonePerson type={type} white={color === "w"} cast={cast} gait={gait} />
       ) : (
         <PieceMesh
           type={type}
@@ -928,7 +926,6 @@ function Scene({
   roomScene,
   modelUrl,
   people,
-  life,
 }: {
   fen: string;
   you: Side;
@@ -948,7 +945,6 @@ function Scene({
   roomScene: RoomScene;
   modelUrl: string | null;
   people: boolean;
-  life: boolean;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -1144,7 +1140,6 @@ function Scene({
           skin={skin}
           outlineOn={outlineOn}
           people={people}
-          life={life}
           cast={skin.anSet ?? "stone"}
           slay={captureSq === p.sq}
           onClick={() => onSquare(p.sq)}
@@ -1163,7 +1158,6 @@ function Scene({
                   type={body.type}
                   white={body.color === "w"}
                   cast={skin.anSet ?? "stone"}
-                  life={life}
                   delay={body.delay}
                   onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
                 />
@@ -1207,7 +1201,6 @@ export function ChessBoard3D({
   roomScene = "color",
   modelUrl = null,
   people = false,
-  life = false,
 }: {
   fen: string;
   you: Side;
@@ -1225,7 +1218,6 @@ export function ChessBoard3D({
   roomScene?: RoomScene;
   modelUrl?: string | null;
   people?: boolean;
-  life?: boolean;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -1315,7 +1307,6 @@ export function ChessBoard3D({
           roomScene={roomScene}
           modelUrl={modelUrl}
           people={people}
-          life={life}
         />
       </Canvas>
     </div>
