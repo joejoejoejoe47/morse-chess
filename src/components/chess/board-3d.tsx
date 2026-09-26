@@ -473,12 +473,13 @@ function AnimatedPiece({
     const dt = Math.min(raw, 0.1);
     const dest = squareToWorld(square);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
-    if (people) {
+    const jumping = type === "n";
+    if (people || jumping) {
       if (!trip.current || trip.current.to.distanceTo(target) > 0.01) {
         trip.current = { from: pos.current.clone(), to: target.clone(), t: 0 };
       }
       const span = trip.current.from.distanceTo(trip.current.to);
-      if (span > 0.02) trip.current.t = Math.min(1, trip.current.t + dt / 0.72);
+      if (span > 0.02) trip.current.t = Math.min(1, trip.current.t + dt / (jumping ? 0.86 : 0.72));
       else trip.current.t = 1;
       pos.current.lerpVectors(trip.current.from, trip.current.to, trip.current.t);
     } else {
@@ -487,7 +488,11 @@ function AnimatedPiece({
     }
     lift.current += ((selected ? 0.24 : 0) - lift.current) * (1 - Math.exp(-16 * dt));
     if (!ref.current) return;
-    ref.current.position.set(pos.current.x, 0.08 + lift.current, pos.current.z);
+    const hop =
+      jumping && trip.current && trip.current.t > 0 && trip.current.t < 1
+        ? Math.sin(trip.current.t * Math.PI) * 2.05
+        : 0;
+    ref.current.position.set(pos.current.x, 0.08 + lift.current + hop, pos.current.z);
     if (people) {
       const traveling = (trip.current?.t ?? 1) < 1;
       gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
