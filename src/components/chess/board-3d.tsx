@@ -553,7 +553,7 @@ function AnimatedPiece({
           type={type}
           white={color === "w"}
           cast={cast}
-          sword={cast === "wars" || cast === "mario" || cast === "lotr" ? color !== you : false}
+          sword={color !== you}
           clash={clash}
           wing={square[0] < "e" ? "a" : "b"}
           gait={gait}
@@ -1660,10 +1660,7 @@ function Scene({
                 type={body.type}
                 white={body.color === "w"}
                 cast={skin.anSet ?? "stone"}
-                sword={
-                  (skin.anSet === "wars" || skin.anSet === "mario" || skin.anSet === "lotr") &&
-                  body.color !== you
-                }
+                sword={body.color !== you}
                 clash={body.aside !== body.sq || fightZoom}
                 wing={body.sq[0] < "e" ? "a" : "b"}
                 delay={body.aside !== body.sq ? 1.9 : body.delay}
