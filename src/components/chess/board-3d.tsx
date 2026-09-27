@@ -1429,14 +1429,14 @@ function Scene({
   const hemiGround = meadow ? "#3d6a32" : skin.felt;
   const sun: [number, number, number] = meadow ? [28, 22, 10] : [8, 14, 6];
   const sunPower = meadow ? 2.15 : lightRoom ? 1.2 : 1.4;
-  const shadowSpan = meadow ? 36 : 10;
+  const shadowSpan = meadow ? 70 : 10;
 
   return (
     <>
       {meadow ? (
         <>
           <color attach="background" args={["#9eb8cc"]} />
-          <fog attach="fog" args={["#d5e0dc", 58, 150]} />
+          <fog attach="fog" args={["#c5d4e4", 110, 240]} />
         </>
       ) : cosmic ? (
         <color attach="background" args={["#05060c"]} />
@@ -1460,7 +1460,7 @@ function Scene({
         shadow-mapSize-height={meadow ? 2048 : 1024}
         shadow-bias={meadow ? -0.0004 : 0}
         shadow-camera-near={1}
-        shadow-camera-far={meadow ? 80 : 40}
+        shadow-camera-far={meadow ? 180 : 40}
         shadow-camera-left={-shadowSpan}
         shadow-camera-right={shadowSpan}
         shadow-camera-top={shadowSpan}
@@ -1577,7 +1577,7 @@ function Scene({
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
         minDistance={meadow ? 5 : 8}
-        maxDistance={meadow ? 96 : 22}
+        maxDistance={meadow ? 160 : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -1838,8 +1838,8 @@ export function ChessBoard3D({
   const cam: [number, number, number] =
     resolved.id === "grassland"
       ? you === "w"
-        ? [0.6, 34, 40]
-        : [-0.6, 34, -40]
+        ? [0.4, 42, 68]
+        : [-0.4, 42, -68]
       : you === "w"
         ? [0, 15.2, 11.2]
         : [0, 15.2, -11.2];
@@ -1850,7 +1850,7 @@ export function ChessBoard3D({
         key={you}
         shadows
         dpr={[1, 1.75]}
-        camera={{ position: cam, fov: resolved.id === "grassland" ? 38 : 36, near: 0.1, far: 180 }}
+        camera={{ position: cam, fov: resolved.id === "grassland" ? 42 : 36, near: 0.1, far: 400 }}
         gl={{ antialias: true, alpha: false }}
         onPointerDown={() => {
           dragged.current = false;
