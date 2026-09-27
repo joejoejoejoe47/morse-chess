@@ -1460,7 +1460,9 @@ function Scene({
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
       {meadow ? (
-        <MeadowField />
+        <Suspense fallback={null}>
+          <MeadowField />
+        </Suspense>
       ) : skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
       ) : skin.tableKind === "studio" ? (
