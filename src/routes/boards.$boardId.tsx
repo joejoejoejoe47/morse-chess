@@ -36,8 +36,8 @@ function BoardLookPage() {
     };
   }, [user]);
 
-  if (door.status === "pending") return <SplashSkeleton />;
-  if (door.status === "auth") return <AuthScreen />;
+  if (door.status === "pending" && board.id !== "grassland") return <SplashSkeleton />;
+  if (door.status === "auth" && board.id !== "grassland") return <AuthScreen />;
   return (
     <BoardLook
       boardId={board.id}

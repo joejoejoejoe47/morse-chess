@@ -115,15 +115,17 @@ const baseURL = explicitBaseURL ?? {
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
-const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
-  : [
-      // Host wildcards (matched against Origin's host)
-      ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
-      ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      ...LOCAL_DEV_ORIGINS,
-    ];
+const trustedOrigins: string[] = [
+  "https://morse-chess.vercel.app",
+  "https://www.morse-chess.vercel.app",
+  ...(explicitBaseURL
+    ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
+    : [
+        ...previewAllowedHosts,
+        ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
+        ...LOCAL_DEV_ORIGINS,
+      ]),
+];
 
 const databaseUrl = env("DATABASE_URL");
 
@@ -142,7 +144,20 @@ const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 // schema from `migrations/auth/0001_auth.sql`, copied into `migrations/` when
 // the app turns sign-in on.
 const database = databaseUrl
-  ? new Pool({ connectionString: databaseUrl })
+  ? (() => {
+      const pool = new Pool({
+        connectionString: databaseUrl,
+        max: 1,
+        idleTimeoutMillis: 20_000,
+        connectionTimeoutMillis: 10_000,
+      });
+      // An idle Neon socket error with no listener kills the whole function,
+      // which is why sign-in and sign-up came back as an empty 500.
+      pool.on("error", (err) => {
+        console.error("[auth] idle pg client error", err);
+      });
+      return pool;
+    })()
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
 /** Session token cookie name — also read by the live-preview popup completion page. */

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { GROK_PROVIDERS, authClient, signIn, clearPreviewBearer } from "@/lib/auth/client";
 import { markClubSession, markOauthPending } from "@/lib/auth/club-session";
@@ -202,6 +202,11 @@ export function AuthScreen() {
           {error ? <p className="min-h-5 text-[15px] text-danger">{error}</p> : <p className="min-h-5" />}
           <Button type="submit" variant="solid" size="lg" className="w-full rounded-xl" disabled={pending}>
             {pending ? "Entering…" : "Enter the club"}
+          </Button>
+          <Button asChild type="button" variant="secondary" size="lg" className="w-full rounded-xl">
+            <Link to="/boards/$boardId" params={{ boardId: "grassland" }}>
+              See the Colosseum
+            </Link>
           </Button>
         </form>
         {GROK_PROVIDERS.length > 0 ? (
