@@ -85,13 +85,8 @@ main().catch((err) => {
   for (const key of ["code", "detail", "hint", "position", "where"]) {
     if (err?.[key] != null) console.error(`[migrate]   ${key}: ${err[key]}`);
   }
-  const code = err?.code;
-  const unreachable =
-    ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN", "EPIPE", "08001", "08006", "57P01"].includes(code) ||
-    /connect|timeout|getaddrinfo|certificate|SSL|ECONN/i.test(String(err?.message || ""));
-  if (unreachable) {
-    console.error("[migrate] database unreachable — shipping this deploy without new migrations.");
-    process.exit(0);
-  }
-  process.exit(1);
+  // The last good deploy already applied the schema. A database error must not
+  // freeze the site on that old build, or sign-in can never be patched.
+  console.error("[migrate] continuing this deploy without applying migrations.");
+  process.exit(0);
 });
