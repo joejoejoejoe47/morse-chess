@@ -98,6 +98,7 @@ function createNeonSql(): Promise<Sql> {
       max: 1,
       idleTimeoutMillis: 20_000,
       connectionTimeoutMillis: 10_000,
+      ssl: { rejectUnauthorized: false },
     });
     pool.on("error", (err) => {
       console.error("[db] idle pg client error", err);

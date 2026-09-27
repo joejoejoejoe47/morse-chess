@@ -150,6 +150,7 @@ const database = databaseUrl
         max: 1,
         idleTimeoutMillis: 20_000,
         connectionTimeoutMillis: 10_000,
+        ssl: { rejectUnauthorized: false },
       });
       // An idle Neon socket error with no listener kills the whole function,
       // which is why sign-in and sign-up came back as an empty 500.

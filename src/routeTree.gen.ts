@@ -14,6 +14,7 @@ import { Route as BellRouteImport } from './routes/bell'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as ChessRouteImport } from './routes/chess'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiRtcRouteImport } from './routes/api/rtc'
 import { Route as BoardsBoardIdRouteImport } from './routes/boards.$boardId'
 import { Route as PlayGameIdRouteImport } from './routes/play.$gameId'
@@ -44,6 +45,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRtcRoute = ApiRtcRouteImport.update({
   id: '/api/rtc',
   path: '/api/rtc',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/login': typeof LoginRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/rtc': typeof ApiRtcRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/login': typeof LoginRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/rtc': typeof ApiRtcRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/login': typeof LoginRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/rtc': typeof ApiRtcRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/chess'
     | '/login'
+    | '/api/health'
     | '/api/rtc'
     | '/boards/$boardId'
     | '/play/$gameId'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/chess'
     | '/login'
+    | '/api/health'
     | '/api/rtc'
     | '/boards/$boardId'
     | '/play/$gameId'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/boards'
     | '/chess'
     | '/login'
+    | '/api/health'
     | '/api/rtc'
     | '/boards/$boardId'
     | '/play/$gameId'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   BoardsRoute: typeof BoardsRouteWithChildren
   ChessRoute: typeof ChessRoute
   LoginRoute: typeof LoginRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiRtcRoute: typeof ApiRtcRoute
   PlayGameIdRoute: typeof PlayGameIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -181,6 +194,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/rtc': {
@@ -231,6 +251,7 @@ const rootRouteChildren: RootRouteChildren = {
   BoardsRoute: BoardsRouteWithChildren,
   ChessRoute: ChessRoute,
   LoginRoute: LoginRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiRtcRoute: ApiRtcRoute,
   PlayGameIdRoute: PlayGameIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

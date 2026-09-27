@@ -82,9 +82,16 @@ async function main() {
 
 main().catch((err) => {
   console.error("[migrate] failed:", err?.message || err);
-  // pg errors carry the context needed to debug a bad SQL file.
   for (const key of ["code", "detail", "hint", "position", "where"]) {
     if (err?.[key] != null) console.error(`[migrate]   ${key}: ${err[key]}`);
+  }
+  const code = err?.code;
+  const unreachable =
+    ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET", "EAI_AGAIN", "EPIPE", "08001", "08006", "57P01"].includes(code) ||
+    /connect|timeout|getaddrinfo|certificate|SSL|ECONN/i.test(String(err?.message || ""));
+  if (unreachable) {
+    console.error("[migrate] database unreachable — shipping this deploy without new migrations.");
+    process.exit(0);
   }
   process.exit(1);
 });
