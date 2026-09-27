@@ -1838,8 +1838,8 @@ export function ChessBoard3D({
   const cam: [number, number, number] =
     resolved.id === "grassland"
       ? you === "w"
-        ? [1.1, 28, 30]
-        : [-1.1, 28, -30]
+        ? [0.6, 34, 40]
+        : [-0.6, 34, -40]
       : you === "w"
         ? [0, 15.2, 11.2]
         : [0, 15.2, -11.2];
