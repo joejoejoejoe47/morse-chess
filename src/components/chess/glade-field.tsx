@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 
@@ -118,7 +119,205 @@ useGLTF.preload("/glade/clump1/grass_medium_01_1k.gltf");
 useGLTF.preload("/glade/clump2/grass_medium_02_1k.gltf");
 useGLTF.preload("/glade/lawn/grass_bermuda_01_1k.gltf");
 
-export function MeadowField() {
+type Side = "w" | "b";
+
+type Fan = { x: number; y: number; z: number; rot: number; side: Side };
+
+function buildFans() {
+  const fans: Fan[] = [];
+  const tiers = 4;
+  const per = 16;
+  for (const side of ["w", "b"] as const) {
+    for (let tier = 0; tier < tiers; tier++) {
+      for (let i = 0; i < per; i++) {
+        const u = i / (per - 1);
+        const theta = (u - 0.5) * 2.15;
+        const a = (side === "w" ? 0 : Math.PI) + theta;
+        const radius = 13.4 + tier * 1.42;
+        const x = Math.sin(a) * radius;
+        const z = Math.cos(a) * radius;
+        fans.push({
+          x,
+          z,
+          y: gladeHeight(x, z) + 0.22 + tier * 0.58,
+          rot: a + Math.PI,
+          side,
+        });
+      }
+    }
+  }
+  return fans;
+}
+
+function Arena({ cheer }: { cheer: Side | null }) {
+  const built = useMemo(() => {
+    const fans = buildFans();
+    const bodyGeo = new THREE.CapsuleGeometry(0.15, 0.4, 3, 6);
+    bodyGeo.translate(0, 0.4, 0);
+    const headGeo = new THREE.SphereGeometry(0.13, 8, 7);
+    const armGeo = new THREE.BoxGeometry(0.07, 0.4, 0.07);
+    armGeo.translate(0, -0.2, 0);
+    const seatGeo = new THREE.BoxGeometry(0.78, 0.2, 0.52);
+    const tunic = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.85, metalness: 0 });
+    const skin = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.72, metalness: 0 });
+    const stone = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.94, metalness: 0.02 });
+    const bodies = new THREE.InstancedMesh(bodyGeo, tunic, fans.length);
+    const heads = new THREE.InstancedMesh(headGeo, skin, fans.length);
+    const armsL = new THREE.InstancedMesh(armGeo, skin, fans.length);
+    const armsR = new THREE.InstancedMesh(armGeo, skin, fans.length);
+    const seats = new THREE.InstancedMesh(seatGeo, stone, fans.length);
+    bodies.castShadow = heads.castShadow = armsL.castShadow = armsR.castShadow = true;
+    seats.receiveShadow = true;
+    seats.castShadow = true;
+    for (const mesh of [bodies, heads, armsL, armsR, seats]) mesh.frustumCulled = false;
+    const color = new THREE.Color();
+    const skins = ["#f0c7a4", "#c68642", "#8d5524", "#e0ac69", "#6b3a22"];
+    const dummy = new THREE.Object3D();
+    fans.forEach((f, i) => {
+      color.set(f.side === "w" ? (i % 3 === 0 ? "#f7f1e4" : i % 3 === 1 ? "#e6d39a" : "#fffaf2") : i % 3 === 0 ? "#241c18" : i % 3 === 1 ? "#7a2432" : "#1b2436");
+      bodies.setColorAt(i, color);
+      color.set(skins[i % skins.length]);
+      heads.setColorAt(i, color);
+      armsL.setColorAt(i, color);
+      armsR.setColorAt(i, color);
+      color.set(f.side === "w" ? (i % 2 ? "#d9c7a4" : "#c3ad8c") : i % 2 ? "#8d7360" : "#6e5a4a");
+      seats.setColorAt(i, color);
+      dummy.position.set(f.x, f.y - 0.02, f.z);
+      dummy.rotation.set(0, f.rot, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      seats.setMatrixAt(i, dummy.matrix);
+    });
+    for (const mesh of [bodies, heads, armsL, armsR, seats]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+    return { fans, bodies, heads, armsL, armsR, seats, bodyGeo, headGeo, armGeo, seatGeo, tunic, skin, stone };
+  }, []);
+
+  const cheerRef = useRef(cheer);
+  cheerRef.current = cheer;
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const side = cheerRef.current;
+    const { fans, bodies, heads, armsL, armsR } = built;
+    for (let i = 0; i < fans.length; i++) {
+      const f = fans[i];
+      const on = side === f.side;
+      const hop = on ? Math.abs(Math.sin(t * 9 + i * 0.65)) * 0.36 : Math.sin(t * 1.3 + i) * 0.012;
+      const sway = on ? Math.sin(t * 12 + i) * 0.12 : 0;
+      dummy.position.set(f.x, f.y + hop, f.z);
+      dummy.rotation.set(0, f.rot + sway, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      bodies.setMatrixAt(i, dummy.matrix);
+      dummy.position.set(f.x, f.y + 0.78 + hop, f.z);
+      dummy.updateMatrix();
+      heads.setMatrixAt(i, dummy.matrix);
+      const pitch = on ? -2.55 + Math.sin(t * 15 + i) * 0.28 : 0.45;
+      for (const [mesh, hand] of [
+        [armsL, -1],
+        [armsR, 1],
+      ] as const) {
+        dummy.position.set(f.x, f.y + 0.68 + hop, f.z);
+        dummy.rotation.set(0, f.rot + sway, 0);
+        dummy.updateMatrix();
+        dummy.translateX(hand * 0.16);
+        dummy.rotateX(pitch);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+    }
+    bodies.instanceMatrix.needsUpdate = true;
+    heads.instanceMatrix.needsUpdate = true;
+    armsL.instanceMatrix.needsUpdate = true;
+    armsR.instanceMatrix.needsUpdate = true;
+  });
+
+  useEffect(
+    () => () => {
+      built.bodyGeo.dispose();
+      built.headGeo.dispose();
+      built.armGeo.dispose();
+      built.seatGeo.dispose();
+      built.tunic.dispose();
+      built.skin.dispose();
+      built.stone.dispose();
+    },
+    [built],
+  );
+
+  return (
+    <group>
+      <mesh position={[0, 1.35, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[18.7, 19.3, 2.7, 28, 1, true, -1.28, 2.56]} />
+        <meshStandardMaterial color="#d7c4a4" roughness={0.94} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 1.35, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[18.7, 19.3, 2.7, 28, 1, true, Math.PI - 1.28, 2.56]} />
+        <meshStandardMaterial color="#7d6554" roughness={0.94} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.22, 0]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
+        <torusGeometry args={[12.2, 0.28, 6, 40]} />
+        <meshStandardMaterial color="#cbb892" roughness={0.9} />
+      </mesh>
+      {[1.28, -1.28, Math.PI + 1.28, Math.PI - 1.28].map((a) => {
+        const x = Math.sin(a) * 18.5;
+        const z = Math.cos(a) * 18.5;
+        return (
+          <mesh key={`${a}`} position={[x, gladeHeight(x, z) + 1.7, z]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.32, 0.4, 3.4, 8]} />
+            <meshStandardMaterial color="#bba888" roughness={0.92} />
+          </mesh>
+        );
+      })}
+      <Banner position={[0, gladeHeight(0, 15.2) + 2.6, 15.2]} rot={0} color="#f3ead7" live={cheer === "w"} />
+      <Banner position={[3.2, gladeHeight(3.2, 15.6) + 2.35, 15.6]} rot={0.2} color="#e7d48a" live={cheer === "w"} />
+      <Banner position={[0, gladeHeight(0, -15.2) + 2.6, -15.2]} rot={Math.PI} color="#6e2430" live={cheer === "b"} />
+      <Banner position={[-3.2, gladeHeight(-3.2, -15.6) + 2.35, -15.6]} rot={Math.PI} color="#1b2436" live={cheer === "b"} />
+      <primitive object={built.seats} />
+      <primitive object={built.bodies} />
+      <primitive object={built.heads} />
+      <primitive object={built.armsL} />
+      <primitive object={built.armsR} />
+    </group>
+  );
+}
+
+function Banner({
+  position,
+  rot,
+  color,
+  live,
+}: {
+  position: [number, number, number];
+  rot: number;
+  color: string;
+  live: boolean;
+}) {
+  const cloth = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!cloth.current) return;
+    const amp = live ? 0.42 : 0.05;
+    cloth.current.rotation.y = rot + Math.sin(clock.elapsedTime * (live ? 9 : 1.4)) * amp;
+  });
+  return (
+    <group position={position}>
+      <mesh position={[0, -0.7, 0]} castShadow>
+        <cylinderGeometry args={[0.04, 0.05, 1.6, 6]} />
+        <meshStandardMaterial color="#6a5344" roughness={0.8} />
+      </mesh>
+      <mesh ref={cloth} position={[0.34, 0.05, 0]} rotation={[0, rot, 0]}>
+        <planeGeometry args={[0.7, 1.05]} />
+        <meshStandardMaterial color={color} side={THREE.DoubleSide} roughness={0.75} />
+      </mesh>
+    </group>
+  );
+}
+
+export function MeadowField({ cheer = null }: { cheer?: Side | null }) {
   const thick = useGLTF("/glade/clump1/grass_medium_01_1k.gltf");
   const tuft = useGLTF("/glade/clump2/grass_medium_02_1k.gltf");
   const blades = useGLTF("/glade/lawn/grass_bermuda_01_1k.gltf");
@@ -240,6 +439,7 @@ export function MeadowField() {
       {field.lawn.map((mesh, i) => (
         <primitive key={`l-${i}`} object={mesh} />
       ))}
+      <Arena cheer={cheer ?? null} />
     </group>
   );
 }

@@ -521,7 +521,7 @@ export const BOARD_CATALOG: BoardSkin[] = [
     ...BASE,
     id: "grassland",
     name: "Grassland",
-    blurb: "A scanned meadow. Real grass under a painted chess grid.",
+    blurb: "A scanned meadow in an ancient arena. The stands cheer when their side takes a piece.",
     cost: 0,
     coinCost: 100_000_000,
     tableKind: "felt",

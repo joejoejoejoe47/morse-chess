@@ -1330,7 +1330,9 @@ function Scene({
   const [captureSq, setCaptureSq] = useState<string | null>(null);
   const [duelAside, setDuelAside] = useState<Square | null>(null);
   const [fightLook, setFightLook] = useState<{ x: number; z: number } | null>(null);
+  const [cheer, setCheer] = useState<Color | null>(null);
   const fightTimer = useRef<number | null>(null);
+  const cheerTimer = useRef<number | null>(null);
   const meadow = skin.id === "grassland";
   const pitch = meadow ? GLADE_PITCH : 1;
 
@@ -1338,7 +1340,7 @@ function Scene({
     const before = prevPieces.current;
     prevPieces.current = pieces;
     if (!before) return;
-    if (!people || !lastMove) {
+    if (!lastMove) {
       setCaptureSq(null);
       return;
     }
@@ -1352,6 +1354,15 @@ function Scene({
       const beside = `${lastMove.to[0]}${lastMove.from[1]}` as Square;
       const pawn = before.find((p) => p.sq === beside && p.type === "p" && p.color !== mover.color);
       if (pawn && !pieces.some((p) => p.sq === beside)) victim = pawn;
+    }
+    if (meadow && victim && mover) {
+      setCheer(mover.color);
+      if (cheerTimer.current) window.clearTimeout(cheerTimer.current);
+      cheerTimer.current = window.setTimeout(() => setCheer(null), 2400);
+    }
+    if (!people) {
+      setCaptureSq(null);
+      return;
     }
     if (!victim) {
       setCaptureSq(null);
@@ -1382,7 +1393,7 @@ function Scene({
         delay: 0.72,
       },
     ]);
-  }, [pieces, people, lastMove, fen, fightZoom, pitch]);
+  }, [pieces, people, lastMove, fen, fightZoom, pitch, meadow]);
 
   const wood = useMemo(() => {
     if (skin.id === "marble") {
@@ -1461,7 +1472,7 @@ function Scene({
       ) : null}
       {meadow ? (
         <Suspense fallback={null}>
-          <MeadowField />
+          <MeadowField cheer={cheer} />
         </Suspense>
       ) : skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
