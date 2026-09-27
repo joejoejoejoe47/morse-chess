@@ -100,8 +100,13 @@ function createNeonSql(): Promise<Sql> {
       connectionTimeoutMillis: 10_000,
       ssl: { rejectUnauthorized: false },
     });
-    pool.on("error", (err) => {
-      console.error("[db] idle pg client error", err);
+    const note = (err: Error) => {
+      (globalThis as typeof globalThis & { __morseDbError?: string }).__morseDbError = err.message;
+      console.error("[db] pg client error", err);
+    };
+    pool.on("error", note);
+    pool.on("connect", (client) => {
+      client.on("error", note);
     });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);

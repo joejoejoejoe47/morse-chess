@@ -152,10 +152,13 @@ const database = databaseUrl
         connectionTimeoutMillis: 10_000,
         ssl: { rejectUnauthorized: false },
       });
-      // An idle Neon socket error with no listener kills the whole function,
-      // which is why sign-in and sign-up came back as an empty 500.
-      pool.on("error", (err) => {
-        console.error("[auth] idle pg client error", err);
+      const note = (err: Error) => {
+        (globalThis as typeof globalThis & { __morseDbError?: string }).__morseDbError = err.message;
+        console.error("[auth] pg client error", err);
+      };
+      pool.on("error", note);
+      pool.on("connect", (client) => {
+        client.on("error", note);
       });
       return pool;
     })()
