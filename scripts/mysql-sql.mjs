@@ -95,6 +95,10 @@ function translateConflict(sql) {
 function translateTypes(sql) {
   let text = sql;
   text = text.replace(/\btimestamptz\b/gi, "datetime(3)");
+  text = text.replace(
+    /\bdatetime\(3\)([^,\n]*?)\bdefault\s+(?:current_timestamp|now\(\))/gi,
+    "datetime(3)$1default current_timestamp(3)",
+  );
   text = text.replace(/\bjsonb\b/gi, "json");
   text = text.replace(/\bbigserial\b/gi, "bigint not null auto_increment");
   text = text.replace(/\bserial\b/gi, "int not null auto_increment");
@@ -110,9 +114,10 @@ function translateTypes(sql) {
   );
   text = text.replace(/\btext\b/gi, "varchar(255)");
   text = text.replace(
-    /("?)(body|payload|fen|image|password|owned_boards|accessToken|refreshToken|idToken|userAgent|value|scope)\1\s+varchar\(255\)/gi,
+    /("?)(body|payload|fen|image|password|accessToken|refreshToken|idToken|userAgent|value|scope)\1\s+varchar\(255\)/gi,
     "$1$2$1 mediumtext",
   );
+  text = text.replace(/("?)owned_boards\1\s+varchar\(255\)/gi, "$1owned_boards$1 varchar(1024)");
   return text;
 }
 

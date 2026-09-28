@@ -1,5 +1,8 @@
+import { loadEnvFile } from "../../scripts/load-env.mjs";
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
 import { isMysqlUrl, runMysqlStatement, splitSql } from "../../scripts/mysql-sql.mjs";
+
+loadEnvFile();
 
 /** Which database backend is active. */
 export type DbSource = "mysql" | "neon" | "pglite";
