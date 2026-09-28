@@ -10,7 +10,7 @@ import { boardById, boardCanPreview, boardPriceLabel, boardUnlocked, rememberEqu
 import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
-import { LoadingTitle } from "@/components/loading-title";
+import { EnterSplash } from "@/components/auth-screen";
 import { cn } from "@/lib/utils";
 
 const ChessBoard3D = lazy(() =>
@@ -203,11 +203,7 @@ export function BoardLook({
           {view === "2d" ? (
             <ChessBoard2D {...boardProps} />
           ) : (
-            <Suspense
-              fallback={
-                <LoadingTitle text="Setting the table…" />
-              }
-            >
+            <Suspense fallback={<EnterSplash />}>
               <ChessBoard3D
                 {...boardProps}
                 roomColor={backdropColor}

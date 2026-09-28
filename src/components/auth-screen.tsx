@@ -294,14 +294,5 @@ export function EnterSplash({ onDone }: { onDone?: () => void }) {
 }
 
 export function SplashSkeleton() {
-  return (
-    <main className="auth-wood relative flex min-h-dvh flex-col items-center justify-center px-5">
-      <MorseCrest className="size-16 text-2xl" />
-      <p className="mt-5 text-[13px] font-medium uppercase tracking-[0.42em] text-gold-line">
-        Morse
-      </p>
-      <h1 className="mt-3 font-display text-4xl text-ivory">Opening the club…</h1>
-      <p className="mt-3 text-base text-mist">White to move shortly.</p>
-    </main>
-  );
+  return <EnterSplash />;
 }
