@@ -1,7 +1,8 @@
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import { isMysqlUrl, runMysqlStatement, splitSql } from "../../scripts/mysql-sql.mjs";
 
 /** Which database backend is active. */
-export type DbSource = "neon" | "pglite";
+export type DbSource = "mysql" | "neon" | "pglite";
 
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
@@ -16,7 +17,7 @@ const databaseUrl =
  * the app has a working database even with nothing configured — the live preview
  * included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
  */
-export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
+export const dbSource: DbSource = !databaseUrl ? "pglite" : isMysqlUrl(databaseUrl) ? "mysql" : "neon";
 
 /**
  * Minimal shared SQL surface, satisfied by both Neon and PGLite. Both the
@@ -46,6 +47,7 @@ export interface Sql {
  */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
+  __mysqlSqlPromise__?: Promise<Sql>;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
 };
@@ -119,6 +121,54 @@ function createNeonSql(): Promise<Sql> {
   return globalRef.__pgSqlPromise__;
 }
 
+function createMysqlSql(): Promise<Sql> {
+  globalRef.__mysqlSqlPromise__ ??= (async () => {
+    const mysql = await import("mysql2/promise");
+    const pool = mysql.createPool({
+      uri: databaseUrl,
+      connectionLimit: 4,
+      waitForConnections: true,
+      charset: "utf8mb4",
+      timezone: "Z",
+    });
+    const note = (err: Error) => {
+      (globalThis as typeof globalThis & { __morseDbError?: string }).__morseDbError = err.message;
+      console.error("[db] mysql client error", err);
+    };
+    pool.on("connection", (connection) => {
+      connection.on("error", note);
+    });
+    const query = async <T>(text: string, params: unknown[] = []) => {
+      const rows = await runMysqlStatement(async (statement, values) => {
+        const [result] = await pool.query(statement, values);
+        return result;
+      }, text, params);
+      return rows as T[];
+    };
+    await pool.query(
+      "create table if not exists _migrations (name varchar(255) primary key, applied_at datetime(3) not null default current_timestamp(3))",
+    );
+    const [doneRows] = await pool.query("select name from _migrations");
+    const done = (doneRows as { name: string }[]).map((row) => row.name);
+    const migrations = import.meta.glob("/migrations/*.sql", {
+      query: "?raw",
+      import: "default",
+      eager: true,
+    }) as Record<string, string>;
+    for (const { name, path } of pendingMigrations(Object.keys(migrations), done)) {
+      for (const statement of splitSql(migrations[path])) {
+        await query(statement);
+      }
+      await pool.query("insert into _migrations (name) values (?)", [name]);
+    }
+    return toSql(query);
+  })().catch((err) => {
+    globalRef.__mysqlSqlPromise__ = undefined;
+    throw err;
+  });
+  return globalRef.__mysqlSqlPromise__;
+}
+
 async function createPgliteSql(): Promise<Sql> {
   // Embedded Postgres, imported on demand so it never loads on the Neon path.
   // One in-memory instance per process, shared across HMR module instances, so
@@ -190,7 +240,7 @@ async function createSql(): Promise<Sql> {
         "or a server route loader, never from client code.",
     );
   }
-  return dbSource === "neon" ? createNeonSql() : createPgliteSql();
+  return dbSource === "mysql" ? createMysqlSql() : dbSource === "neon" ? createNeonSql() : createPgliteSql();
 }
 
 /**
@@ -234,7 +284,7 @@ export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite
  * module kick it off immediately (see bottom of file).
  */
 export function ensureDbReady(): Promise<void> {
-  if (dbSource !== "pglite") return Promise.resolve();
+  if (dbSource === "neon") return Promise.resolve();
   return getSql().then(() => undefined);
 }
 
@@ -243,10 +293,10 @@ export function ensureDbReady(): Promise<void> {
 const globalBoot = globalThis as typeof globalThis & {
   __pgBootstrapPromise__?: Promise<void>;
 };
-if (typeof window === "undefined" && dbSource === "pglite") {
+if (typeof window === "undefined" && dbSource !== "neon") {
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
-    console.error("[db] PGLite bootstrap failed:", err);
+    console.error("[db] bootstrap failed:", err);
     throw err;
   });
 }

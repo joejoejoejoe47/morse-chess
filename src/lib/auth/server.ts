@@ -35,11 +35,13 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
+import mysql from "mysql2/promise";
 import { ensureDbReady, getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
 import { GATE_PROVIDER_ID, gateIdentitySessions } from "./gate-session.server";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
+import { isMysqlUrl } from "../../../scripts/mysql-sql.mjs";
 import {
   GROK_ISSUER_DEFAULT,
   PREVIEW_ALLOWED_HOSTS,
@@ -143,26 +145,34 @@ const grokUserInfoUrl = `${issuerBase}/api/auth/oauth2/userinfo`;
 // SAME DB as app data, including email/password users. Both use the Better Auth
 // schema from `migrations/auth/0001_auth.sql`, copied into `migrations/` when
 // the app turns sign-in on.
-const database = databaseUrl
-  ? (() => {
-      const pool = new Pool({
-        connectionString: databaseUrl,
-        max: 1,
-        idleTimeoutMillis: 20_000,
-        connectionTimeoutMillis: 10_000,
-        ssl: { rejectUnauthorized: false },
-      });
-      const note = (err: Error) => {
-        (globalThis as typeof globalThis & { __morseDbError?: string }).__morseDbError = err.message;
-        console.error("[auth] pg client error", err);
-      };
-      pool.on("error", note);
-      pool.on("connect", (client) => {
-        client.on("error", note);
-      });
-      return pool;
-    })()
-  : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
+const database = !databaseUrl
+  ? { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const }
+  : isMysqlUrl(databaseUrl)
+    ? mysql.createPool({
+        uri: databaseUrl,
+        connectionLimit: 4,
+        waitForConnections: true,
+        charset: "utf8mb4",
+        timezone: "Z",
+      })
+    : (() => {
+        const pool = new Pool({
+          connectionString: databaseUrl,
+          max: 1,
+          idleTimeoutMillis: 20_000,
+          connectionTimeoutMillis: 10_000,
+          ssl: { rejectUnauthorized: false },
+        });
+        const note = (err: Error) => {
+          (globalThis as typeof globalThis & { __morseDbError?: string }).__morseDbError = err.message;
+          console.error("[auth] pg client error", err);
+        };
+        pool.on("error", note);
+        pool.on("connect", (client) => {
+          client.on("error", note);
+        });
+        return pool;
+      })();
 
 /** Session token cookie name — also read by the live-preview popup completion page. */
 export const SESSION_TOKEN_COOKIE = "__Host-grok-auth.session_token";

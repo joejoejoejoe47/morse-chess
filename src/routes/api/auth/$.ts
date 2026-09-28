@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth } from "@/lib/auth/server";
+import { ensureDbReady } from "@/lib/db";
 
 async function handle(request: Request) {
   try {
+    await ensureDbReady();
     const response = await auth.handler(request);
     if (response.status < 500) return response;
     const text = await response.clone().text();

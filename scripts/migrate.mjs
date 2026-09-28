@@ -16,7 +16,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import pg from "pg";
+import mysql from "mysql2/promise";
 import { pendingMigrations } from "./migration-plan.mjs";
+import { isMysqlUrl, runMysqlStatement, splitSql } from "./mysql-sql.mjs";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -39,6 +41,41 @@ async function main() {
   // An app with no schema of its own must not pay for a database connection.
   if (pendingMigrations(entries, []).length === 0) {
     console.log("[migrate] no migrations — nothing to do.");
+    return;
+  }
+
+  if (isMysqlUrl(databaseUrl)) {
+    const pool = mysql.createPool({
+      uri: databaseUrl,
+      connectionLimit: 1,
+      charset: "utf8mb4",
+      timezone: "Z",
+    });
+    try {
+      const run = (statement, values = []) => pool.query(statement, values).then(([result]) => result);
+      await run(
+        "create table if not exists _migrations (name varchar(255) primary key, applied_at datetime(3) not null default current_timestamp(3))",
+      );
+      const applied = (await run("select name from _migrations")).map((row) => row.name);
+      let count = 0;
+      for (const { name } of pendingMigrations(entries, applied)) {
+        const text = await readFile(join(migrationsDir, name), "utf8");
+        try {
+          for (const statement of splitSql(text)) {
+            await runMysqlStatement(run, statement);
+          }
+          await run("insert into _migrations (name) values (?)", [name]);
+        } catch (err) {
+          console.error(`[migrate] error applying ${name}`);
+          throw err;
+        }
+        console.log(`[migrate] applied ${name}`);
+        count += 1;
+      }
+      console.log(count ? `[migrate] done — ${count} migration(s) applied.` : "[migrate] up to date.");
+    } finally {
+      await pool.end();
+    }
     return;
   }
 
