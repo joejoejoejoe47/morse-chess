@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { BoardGallery } from "@/components/board-gallery";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
@@ -11,6 +11,12 @@ export const Route = createFileRoute("/boards")({
 });
 
 function BoardsPage() {
+  const child = useRouterState({ select: (s) => s.location.pathname.startsWith("/boards/") });
+  if (child) return <Outlet />;
+  return <BoardsGallery />;
+}
+
+function BoardsGallery() {
   const door = useClubDoor();
   const user = door.status === "in" ? door.user : null;
   const [home, setHome] = useState<Awaited<ReturnType<typeof getHomeState>> | null>(null);

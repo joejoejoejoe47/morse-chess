@@ -7,7 +7,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { SpaceCrew } from "@/components/chess/space-crew";
 
 export type PeopleCast = "stone" | "pipe" | "ring" | "wars" | "mario" | "lotr";
-export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "attack" | "death"; fade: number };
+export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "attack" | "death" | "cheer" | "pickup"; fade: number };
 
 const PROP = /sword|shield|axe|knife|crossbow|throw|spell|wand|staff|mug|cape|helmet|hat|hood|cloak|badge/i;
 const BODY = /head|body|arm|leg|eyes|jaw|skull/i;
@@ -254,10 +254,11 @@ function WarUnit({
       const next = actions[clipName(clips, want)];
       prev?.fadeOut(0.1);
       if (next) {
-        const once = want === "attack" || want === "death";
+        const once = want === "attack" || want === "death" || want === "pickup";
         const duel = clash && want === "attack";
+        const cheering = want === "cheer";
         next.timeScale = duel ? 0.7 : 1;
-        next.setLoop(duel ? THREE.LoopRepeat : once ? THREE.LoopOnce : THREE.LoopRepeat, duel ? 2 : once ? 1 : Infinity);
+        next.setLoop(duel || cheering ? THREE.LoopRepeat : once ? THREE.LoopOnce : THREE.LoopRepeat, duel ? 2 : once ? 1 : Infinity);
         next.clampWhenFinished = once;
         next.reset();
         if (want === "idle") next.time = breath.current % next.getClip().duration;
@@ -343,6 +344,8 @@ function clipName(clips: Clips, act: Gait["act"]) {
   if (act === "walk") return clips.walk;
   if (act === "attack") return clips.attack;
   if (act === "death") return clips.death;
+  if (act === "cheer") return "Cheer";
+  if (act === "pickup") return "PickUp";
   return clips.idle;
 }
 
@@ -447,6 +450,7 @@ export function StonePerson({
   wing = "a",
   clip = null,
   gait,
+  flip,
 }: {
   type: PieceSymbol;
   white: boolean;
@@ -456,10 +460,11 @@ export function StonePerson({
   wing?: "a" | "b";
   clip?: THREE.Plane | null;
   gait: MutableRefObject<Gait>;
+  flip?: boolean;
 }) {
   if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} clip={clip} />;
   if (cast === "wars") {
-    return <SpaceCrew type={type} white={white} wing={wing} clip={clip} gait={gait} flip={type === "q"} />;
+    return <SpaceCrew type={type} white={white} wing={wing} clip={clip} gait={gait} flip={flip ?? type === "q"} />;
   }
   const themed = cast === "lotr";
   const look = themed ? CASTS[cast][type] : LOOK[type];
@@ -474,7 +479,7 @@ export function StonePerson({
       sword={sword}
       clash={clash}
       clip={clip}
-      flip={type === "q"}
+      flip={flip ?? type === "q"}
     />
   );
 }

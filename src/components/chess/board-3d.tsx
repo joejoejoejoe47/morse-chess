@@ -10,6 +10,7 @@ import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import type { RoomScene } from "@/lib/chess/look-prefs";
 import { HtmlPiece } from "@/components/chess/html-piece";
+import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 
 function hexRgb(hex: string) {
@@ -1384,7 +1385,15 @@ function Scene({
   const [captureSq, setCaptureSq] = useState<string | null>(null);
   const [duelAside, setDuelAside] = useState<Square | null>(null);
   const [fightLook, setFightLook] = useState<{ x: number; z: number } | null>(null);
-  const [cheer, setCheer] = useState<Color | null>(null);
+  const [cheer, setCheer] = useState<Color | "all" | null>(null);
+  const [rite, setRite] = useState<{
+    id: string;
+    color: Color;
+    type: PieceSymbol;
+    from: Square;
+    to: Square;
+  } | null>(null);
+  const [riteDone, setRiteDone] = useState<string | null>(null);
   const fightTimer = useRef<number | null>(null);
   const cheerTimer = useRef<number | null>(null);
   const meadow = skin.id === "grassland";
@@ -1403,11 +1412,39 @@ function Scene({
     seenCapture.current = key;
     const was = before.find((p) => p.sq === lastMove.to);
     const mover = pieces.find((p) => p.sq === lastMove.to);
+    const pawn = before.find((p) => p.sq === lastMove.from && p.type === "p" && p.color === mover?.color);
     let victim = was && mover && was.color !== mover.color ? was : undefined;
     if (!victim && mover?.type === "p" && lastMove.from[0] !== lastMove.to[0]) {
       const beside = `${lastMove.to[0]}${lastMove.from[1]}` as Square;
-      const pawn = before.find((p) => p.sq === beside && p.type === "p" && p.color !== mover.color);
-      if (pawn && !pieces.some((p) => p.sq === beside)) victim = pawn;
+      const taken = before.find((p) => p.sq === beside && p.type === "p" && p.color !== mover.color);
+      if (taken && !pieces.some((p) => p.sq === beside)) victim = taken;
+    }
+    if (meadow && people && mover && pawn && mover.type !== "p") {
+      setRite({
+        id: key,
+        color: mover.color,
+        type: mover.type,
+        from: lastMove.from as Square,
+        to: lastMove.to as Square,
+      });
+      setRiteDone(null);
+      setCaptureSq(null);
+      setDuelAside(null);
+      if (victim) {
+        const fallen = victim;
+        setBodies((list) => [
+          ...list,
+          {
+            id: `${fallen.sq}-${fallen.color}${fallen.type}-${key}`,
+            sq: fallen.sq,
+            aside: fallen.sq,
+            type: fallen.type,
+            color: fallen.color,
+            delay: 0.15,
+          },
+        ]);
+      }
+      return;
     }
     if (meadow && victim && mover) {
       setCheer(mover.color);
@@ -1567,11 +1604,12 @@ function Scene({
         pitch={pitch}
       />
       <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
-      {pieces.map((p) => (
+      {pieces.map((p) =>
+        rite && p.sq === rite.to && p.color === rite.color ? null : (
         <AnimatedPiece
           key={`${p.color}${p.type}${p.sq}`}
           square={p.sq}
-          spawnFrom={lastMove?.to === p.sq ? lastMove.from : p.sq}
+          spawnFrom={riteDone === `${p.color}${p.sq}` ? p.sq : lastMove?.to === p.sq ? lastMove.from : p.sq}
           type={p.type}
           color={p.color}
           selected={selected === p.sq}
@@ -1591,6 +1629,23 @@ function Scene({
           onClick={() => onSquare(p.sq)}
         />
       ))}
+      {rite && people ? (
+        <PromoMarch
+          color={rite.color}
+          type={rite.type}
+          from={rite.from}
+          to={rite.to}
+          cast={skin.anSet ?? "stone"}
+          you={you}
+          pitch={pitch}
+          onCheer={(on) => setCheer(on ? "all" : null)}
+          onDone={() => {
+            setRiteDone(`${rite.color}${rite.to}`);
+            setRite(null);
+            setCheer(null);
+          }}
+        />
+      ) : null}
       {people
         ? bodies.map((body) => {
             const corpse = (

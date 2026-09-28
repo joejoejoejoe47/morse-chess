@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
 
-type Gait = { phase: number; amp: number; act: "idle" | "walk" | "attack" | "death"; fade: number };
+type Gait = { phase: number; amp: number; act: "idle" | "walk" | "attack" | "death" | "cheer" | "pickup"; fade: number };
 
 type Weapon = "blue" | "red" | "gun" | "staff" | "rifle";
 type Head = "face" | "helm" | "hood" | "visor";

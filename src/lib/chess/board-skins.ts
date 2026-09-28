@@ -521,7 +521,7 @@ export const BOARD_CATALOG: BoardSkin[] = [
     ...BASE,
     id: "grassland",
     name: "Grassland",
-    blurb: "A meadow inside the Colosseum. Each stand cheers for its own side. Model by Poly by Google, CC-BY.",
+    blurb: "A meadow inside the Colosseum. White sits one side, black the other.",
     cost: 0,
     coinCost: 100_000_000,
     tableKind: "felt",

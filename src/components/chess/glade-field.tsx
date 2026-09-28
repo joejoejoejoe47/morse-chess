@@ -61,6 +61,33 @@ function paintGrid() {
   if (!ctx) return { tex: null as THREE.CanvasTexture | null, span };
   const px = (v: number) => ((v + span / 2) / span) * size;
   ctx.clearRect(0, 0, size, size);
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const x0 = (f - 4) * GLADE_PITCH;
+      const z0 = (3 - r) * GLADE_PITCH;
+      const light = (f + r) % 2 === 1;
+      const tile = (GLADE_PITCH / span) * size;
+      const inset = tile * 0.055;
+      const tone = hash(f * 9 + r * 3);
+      ctx.fillStyle = "rgba(42, 28, 16, 0.9)";
+      ctx.fillRect(px(x0), px(z0), tile, tile);
+      if (light) {
+        const g = 206 + tone * 28;
+        ctx.fillStyle = `rgba(${232 + tone * 14}, ${g | 0}, ${158 + tone * 20}, 0.94)`;
+      } else {
+        ctx.fillStyle = `rgba(${18 + tone * 16}, ${54 + tone * 18}, ${28 + tone * 10}, 0.93)`;
+      }
+      ctx.fillRect(px(x0) + inset, px(z0) + inset, tile - inset * 2, tile - inset * 2);
+      ctx.fillStyle = light ? "rgba(255, 244, 214, 0.28)" : "rgba(255, 236, 200, 0.08)";
+      ctx.fillRect(px(x0) + inset, px(z0) + inset, tile - inset * 2, tile * 0.08);
+    }
+  }
+  for (let i = 0; i < 900; i++) {
+    const x = hash(i + 2) * size;
+    const y = hash(i + 11) * size;
+    ctx.fillStyle = `rgba(30, 20, 10, ${0.05 + hash(i + 6) * 0.1})`;
+    ctx.fillRect(x, y, 2, 2);
+  }
   for (let i = 0; i < 9; i++) {
     const p = (i - 4) * GLADE_PITCH;
     const a = px(-4 * GLADE_PITCH);
@@ -119,6 +146,48 @@ const SKY_FRAG = `
 useGLTF.preload("/glade/clump1/grass_medium_01_1k.gltf");
 useGLTF.preload("/glade/clump2/grass_medium_02_1k.gltf");
 useGLTF.preload("/glade/lawn/grass_bermuda_01_1k.gltf");
+useGLTF.preload("/glade/trees.glb");
+
+function Grove() {
+  const gltf = useGLTF("/glade/trees.glb");
+  const trees = useMemo(() => {
+    const kinds = [1, 2, 3, 4, 5]
+      .map((n) => gltf.scene.getObjectByName(`NormalTree_${n}`))
+      .filter((node): node is THREE.Object3D => Boolean(node));
+    const made: THREE.Group[] = [];
+    for (let i = 0; i < 18; i++) {
+      const kind = kinds[i % kinds.length];
+      if (!kind) continue;
+      const a = hash(i * 1.7 + 4) * Math.PI * 2;
+      const rad = 36 + hash(i + 11) * 16;
+      const x = Math.cos(a) * rad;
+      const z = Math.sin(a) * rad;
+      const copy = kind.clone(true);
+      copy.position.set(0, 0, 0);
+      copy.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      });
+      const holder = new THREE.Group();
+      holder.position.set(x, gladeHeight(x, z), z);
+      holder.rotation.y = hash(i + 6) * Math.PI * 2;
+      holder.scale.setScalar(1.45 + hash(i + 2) * 0.85);
+      holder.add(copy);
+      made.push(holder);
+    }
+    return made;
+  }, [gltf]);
+
+  return (
+    <group>
+      {trees.map((tree, i) => (
+        <primitive key={i} object={tree} />
+      ))}
+    </group>
+  );
+}
 
 export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
   const thick = useGLTF("/glade/clump1/grass_medium_01_1k.gltf");
@@ -241,6 +310,7 @@ export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
       {field.lawn.map((mesh, i) => (
         <primitive key={`l-${i}`} object={mesh} />
       ))}
+      <Grove />
       <Arena cheer={cheer ?? null} />
     </group>
   );
