@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
 export type ArenaSide = "w" | "b";
 
-const COLOSSEUM_SCALE = 0.065;
-const TIERS = 11;
+const TIERS = 8;
 
 type Fan = { x: number; y: number; z: number; rot: number; side: ArenaSide; s: number };
 
@@ -105,116 +103,154 @@ function makeTravertine() {
   return { map, normalMap };
 }
 
-function seatTheCrowd(geo: THREE.BufferGeometry) {
-  const index = geo.getIndex();
-  const pos = geo.getAttribute("position");
-  const normal = geo.getAttribute("normal");
-  const uv = geo.getAttribute("uv");
-  if (!index || !pos || !uv) return geo;
-  const keep: number[] = [];
-  for (let i = 0; i < index.count; i += 3) {
-    const a = index.getX(i);
-    const b = index.getX(i + 1);
-    const c = index.getX(i + 2);
-    const ra = Math.hypot(pos.getX(a), pos.getZ(a));
-    const rb = Math.hypot(pos.getX(b), pos.getZ(b));
-    const rc = Math.hypot(pos.getX(c), pos.getZ(c));
-    const y = (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3;
-    if (Math.min(ra, rb, rc) < 190 && y < 48) continue;
-    keep.push(a, b, c);
-  }
-  geo.setIndex(keep);
-  const uvScale = 0.0065;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-    const nx = Math.abs(normal?.getX(i) ?? 0);
-    const ny = Math.abs(normal?.getY(i) ?? 1);
-    const nz = Math.abs(normal?.getZ(i) ?? 0);
-    let u: number;
-    let v: number;
-    if (ny >= nx && ny >= nz) {
-      u = x;
-      v = z;
-    } else if (nx >= nz) {
-      u = z;
-      v = y;
-    } else {
-      u = x;
-      v = y;
-    }
-    uv.setXY(i, u * uvScale, v * uvScale);
-  }
-  uv.needsUpdate = true;
+function stoneMaterial(stone: { map: THREE.Texture; normalMap: THREE.Texture } | null) {
+  return new THREE.MeshStandardMaterial({
+    map: stone?.map,
+    normalMap: stone?.normalMap,
+    color: "#f3e6cf",
+    roughness: 0.84,
+    metalness: 0.02,
+    normalScale: new THREE.Vector2(0.85, 0.85),
+    side: THREE.DoubleSide,
+  });
+}
+
+function archBay(height: number, arch: number) {
+  const shape = new THREE.Shape();
+  const w = 1.2;
+  shape.moveTo(-w, 0);
+  shape.lineTo(w, 0);
+  shape.lineTo(w, height);
+  shape.lineTo(-w, height);
+  shape.closePath();
+  const hole = new THREE.Path();
+  const base = 0.48;
+  hole.moveTo(-arch, base);
+  hole.lineTo(-arch, base + arch * 1.35);
+  hole.absarc(0, base + arch * 1.35, arch, Math.PI, 0, false);
+  hole.lineTo(arch, base);
+  hole.closePath();
+  shape.holes.push(hole);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.25, bevelEnabled: false, curveSegments: 8 });
+  geo.translate(0, 0, -0.62);
+  geo.computeVertexNormals();
   return geo;
 }
 
-function Coliseum() {
-  const gltf = useGLTF("/arena/coliseum.glb");
-  const stone = useMemo(() => makeTravertine(), []);
-  const model = useMemo(() => {
-    const root = gltf.scene.clone(true);
-    const material = new THREE.MeshStandardMaterial({
-      map: stone?.map,
-      normalMap: stone?.normalMap,
-      color: "#f3e6cf",
-      roughness: 0.84,
-      metalness: 0.02,
-      normalScale: new THREE.Vector2(0.85, 0.85),
-      side: THREE.DoubleSide,
-    });
-    root.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.geometry = seatTheCrowd(mesh.geometry.clone());
-      mesh.material = material;
-      mesh.castShadow = true;
+function pawnShape() {
+  const pts = [
+    [0, 0],
+    [0.28, 0],
+    [0.28, 0.05],
+    [0.18, 0.09],
+    [0.12, 0.28],
+    [0.16, 0.34],
+    [0.1, 0.4],
+    [0.16, 0.5],
+    [0.14, 0.58],
+    [0.06, 0.62],
+    [0, 0.63],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const geo = new THREE.LatheGeometry(pts, 12);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function Coliseum({ stone }: { stone: { map: THREE.Texture; normalMap: THREE.Texture } | null }) {
+  const built = useMemo(() => {
+    const material = stoneMaterial(stone);
+    const lower = archBay(5.5, 0.74);
+    const upper = archBay(4.4, 0.62);
+    const attic = new THREE.BoxGeometry(2.35, 1.15, 1.45);
+    const stepGeos: THREE.BufferGeometry[] = [];
+    const dummy = new THREE.Object3D();
+    const bays = 42;
+    const seat = (mesh: THREE.InstancedMesh, radius: number, y: number, count: number) => {
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
+        dummy.position.set(Math.sin(a) * radius, y, Math.cos(a) * radius * 1.16);
+        dummy.rotation.set(0, a, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    };
+    const lowerMesh = new THREE.InstancedMesh(lower, material, bays);
+    const upperMesh = new THREE.InstancedMesh(upper, material, bays);
+    const atticMesh = new THREE.InstancedMesh(attic, material, bays);
+    lowerMesh.castShadow = upperMesh.castShadow = atticMesh.castShadow = true;
+    lowerMesh.receiveShadow = upperMesh.receiveShadow = atticMesh.receiveShadow = true;
+    seat(lowerMesh, 38.5, 0, bays);
+    seat(upperMesh, 39.1, 5.45, bays);
+    seat(atticMesh, 39.4, 9.7, bays);
+    const steps: THREE.Mesh[] = [];
+    for (let tier = 0; tier < TIERS; tier++) {
+      const inner = 16.2 + tier * 2.35;
+      const geo = new THREE.RingGeometry(inner, inner + 2.45, 72);
+      geo.rotateX(-Math.PI / 2);
+      geo.scale(1, 1, 1.16);
+      stepGeos.push(geo);
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.position.y = 0.28 + tier * 0.78;
       mesh.receiveShadow = true;
-    });
-    root.userData.material = material;
-    return root;
-  }, [gltf, stone]);
+      mesh.castShadow = true;
+      steps.push(mesh);
+    }
+    const lip = new THREE.TorusGeometry(40.2, 0.55, 8, 72);
+    lip.scale(1, 1, 1.16);
+    lip.rotateX(Math.PI / 2);
+    const lipMesh = new THREE.Mesh(lip, material);
+    lipMesh.position.y = 10.45;
+    lipMesh.castShadow = true;
+    return { material, lower, upper, attic, lip, stepGeos, lowerMesh, upperMesh, atticMesh, lipMesh, steps };
+  }, [stone]);
 
   useEffect(
     () => () => {
-      model.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        if (mesh.isMesh) mesh.geometry.dispose();
-      });
-      const material = model.userData.material as THREE.Material | undefined;
-      material?.dispose();
-      stone?.map.dispose();
-      stone?.normalMap.dispose();
+      built.lower.dispose();
+      built.upper.dispose();
+      built.attic.dispose();
+      built.lip.dispose();
+      built.stepGeos.forEach((geo) => geo.dispose());
+      built.material.dispose();
     },
-    [model, stone],
+    [built],
   );
 
-  return <primitive object={model} scale={COLOSSEUM_SCALE} position={[0, 0.2, 0]} />;
+  return (
+    <group>
+      <primitive object={built.lowerMesh} />
+      <primitive object={built.upperMesh} />
+      <primitive object={built.atticMesh} />
+      <primitive object={built.lipMesh} />
+      {built.steps.map((step, i) => (
+        <primitive key={i} object={step} />
+      ))}
+    </group>
+  );
 }
-
-useGLTF.preload("/arena/coliseum.glb");
 
 function buildFans() {
   const fans: Fan[] = [];
   for (let tier = 0; tier < TIERS; tier++) {
-    const radius = 17.5 + tier * 1.9;
-    const y = 2.4 + tier * 1.45;
-    const steps = Math.max(36, Math.floor((2 * Math.PI * radius) / 1.15));
+    const radius = 17.3 + tier * 2.35;
+    const y = 0.42 + tier * 0.78;
+    const steps = Math.max(28, Math.floor((2 * Math.PI * radius) / 1.55));
     for (let i = 0; i < steps; i++) {
-      if ((i + tier) % 11 === 0) continue;
-      const a = (i / steps) * Math.PI * 2 + tier * 0.04;
+      if ((i + tier * 3) % 9 === 0) continue;
+      const a = (i / steps) * Math.PI * 2 + tier * 0.08;
       const x = Math.sin(a) * radius;
-      const z = Math.cos(a) * radius * 1.15;
+      const z = Math.cos(a) * radius * 1.16;
       const side: ArenaSide = z >= 0 ? "w" : "b";
       const pick = hash(i * 3.1 + tier * 9.7);
       fans.push({
         x,
         y,
         z,
-        rot: a + Math.PI + (pick - 0.5) * 0.35,
+        rot: Math.atan2(x, z),
         side,
-        s: 0.78 + pick * 0.28,
+        s: 0.72 + pick * 0.22,
       });
     }
   }
@@ -222,47 +258,20 @@ function buildFans() {
 }
 
 export function Arena({ cheer }: { cheer: ArenaSide | null }) {
+  const stone = useMemo(() => makeTravertine(), []);
   const built = useMemo(() => {
     const fans = buildFans();
-    const body = new THREE.PlaneGeometry(0.42, 0.72);
-    body.translate(0, 0.36, 0);
-    const canvas = document.createElement("canvas");
-    canvas.width = 32;
-    canvas.height = 48;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.moveTo(7, 47);
-      ctx.lineTo(25, 47);
-      ctx.lineTo(21, 18);
-      ctx.lineTo(11, 18);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(16, 12, 6.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    const person = new THREE.CanvasTexture(canvas);
-    person.colorSpace = THREE.SRGBColorSpace;
-    const mat = new THREE.MeshStandardMaterial({
-      map: person,
-      color: "#ffffff",
-      roughness: 1,
-      metalness: 0,
-      transparent: true,
-      alphaTest: 0.45,
-      side: THREE.DoubleSide,
-    });
+    const body = pawnShape();
+    const mat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.42, metalness: 0.04 });
     const crowd = new THREE.InstancedMesh(body, mat, fans.length);
+    crowd.castShadow = true;
+    crowd.receiveShadow = true;
     crowd.frustumCulled = false;
     const color = new THREE.Color();
-    const light = ["#f7f4ee", "#f3efe6", "#e7d7a4", "#dfe7f2", "#f6f1e4", "#c9a36a"];
-    const dark = ["#7c1f2a", "#1c2438", "#2a211c", "#8d3b2c", "#142033", "#4a3030"];
-    const mix = ["#e23b32", "#2d62a8", "#f2c14e", "#67a15a", "#1b1b1b", "#e8eef6", "#c4572a", "#f4f1ea"];
     const dummy = new THREE.Object3D();
     fans.forEach((f, i) => {
-      const palette = f.side === "w" ? (i % 5 > 1 ? light : mix) : i % 5 > 1 ? dark : mix;
-      color.set(palette[i % palette.length]);
+      const tone = 0.86 + hash(i + 4) * 0.14;
+      color.set(f.side === "w" ? "#f6f1e6" : "#241c18").multiplyScalar(tone);
       crowd.setColorAt(i, color);
       dummy.position.set(f.x, f.y, f.z);
       dummy.rotation.set(0, f.rot, 0);
@@ -272,7 +281,7 @@ export function Arena({ cheer }: { cheer: ArenaSide | null }) {
     });
     crowd.instanceMatrix.needsUpdate = true;
     if (crowd.instanceColor) crowd.instanceColor.needsUpdate = true;
-    return { fans, crowd, body, mat, person };
+    return { fans, crowd, body, mat };
   }, []);
 
   const cheerRef = useRef(cheer);
@@ -286,10 +295,10 @@ export function Arena({ cheer }: { cheer: ArenaSide | null }) {
     for (let i = 0; i < fans.length; i++) {
       const f = fans[i];
       const on = side === f.side;
-      const hop = on ? Math.abs(Math.sin(t * 8 + i * 0.37)) * 0.28 : Math.sin(t * 1.2 + i) * 0.01;
+      const hop = on ? Math.abs(Math.sin(t * 8 + i * 0.37)) * 0.22 : Math.sin(t * 0.8 + i) * 0.012;
       dummy.position.set(f.x, f.y + hop, f.z);
-      dummy.rotation.set(0, f.rot + (on ? Math.sin(t * 11 + i) * 0.18 : 0), 0);
-      dummy.scale.setScalar(f.s * (on ? 1.04 : 1));
+      dummy.rotation.set(on ? Math.sin(t * 9 + i) * 0.08 : 0, f.rot, 0);
+      dummy.scale.setScalar(f.s);
       dummy.updateMatrix();
       crowd.setMatrixAt(i, dummy.matrix);
     }
@@ -300,14 +309,15 @@ export function Arena({ cheer }: { cheer: ArenaSide | null }) {
     () => () => {
       built.body.dispose();
       built.mat.dispose();
-      built.person.dispose();
+      stone?.map.dispose();
+      stone?.normalMap.dispose();
     },
-    [built],
+    [built, stone],
   );
 
   return (
     <group>
-      <Coliseum />
+      <Coliseum stone={stone} />
       <primitive object={built.crowd} />
     </group>
   );

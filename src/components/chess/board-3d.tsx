@@ -1236,6 +1236,60 @@ function RoomSky({ color, image }: { color: string; image: string | null }) {
   return <color attach="background" args={[color]} />;
 }
 
+function MeadowDay() {
+  const sun = useRef<THREE.DirectionalLight>(null);
+  const fill = useRef<THREE.DirectionalLight>(null);
+  const hemi = useRef<THREE.HemisphereLight>(null);
+  const dayC = useMemo(() => new THREE.Color("#8eb6dc"), []);
+  const nightC = useMemo(() => new THREE.Color("#12182c"), []);
+  const dawnC = useMemo(() => new THREE.Color("#e39258"), []);
+  const sky = useMemo(() => new THREE.Color("#9eb8cc"), []);
+  useFrame(({ clock, scene }) => {
+    const ang = (clock.elapsedTime / 75) * Math.PI * 2 - Math.PI / 2;
+    const elev = Math.sin(ang);
+    const day = THREE.MathUtils.smoothstep(elev, -0.08, 0.42);
+    const glow = Math.exp(-((elev - 0.05) ** 2) * 22);
+    sky.copy(nightC).lerp(dayC, day);
+    sky.lerp(dawnC, glow * 0.85);
+    if (scene.background instanceof THREE.Color) scene.background.copy(sky);
+    if (scene.fog instanceof THREE.Fog) {
+      scene.fog.color.copy(sky);
+      scene.fog.near = 55 + day * 50;
+      scene.fog.far = 150 + day * 90;
+    }
+    if (sun.current) {
+      sun.current.position.set(Math.cos(ang) * 78, 8 + Math.max(elev, -0.2) * 62, Math.sin(ang) * 34);
+      sun.current.intensity = 0.05 + day * 2.15;
+      sun.current.color.set(glow > 0.25 ? "#ffb06a" : "#fff3d4");
+    }
+    if (fill.current) fill.current.intensity = 0.06 + (1 - day) * 0.28;
+    if (hemi.current) hemi.current.intensity = 0.12 + day * 0.42;
+  });
+  return (
+    <>
+      <hemisphereLight ref={hemi} args={["#c5def7", "#3d6a32", 0.4]} />
+      <ambientLight intensity={0.1} />
+      <directionalLight
+        ref={sun}
+        position={[28, 22, 10]}
+        intensity={2.1}
+        color="#fff1d0"
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-bias={-0.0004}
+        shadow-camera-near={1}
+        shadow-camera-far={180}
+        shadow-camera-left={-70}
+        shadow-camera-right={70}
+        shadow-camera-top={70}
+        shadow-camera-bottom={-70}
+      />
+      <directionalLight ref={fill} position={[-18, 12, -10]} intensity={0.16} color="#9eb6ff" />
+    </>
+  );
+}
+
 function Scene({
   fen,
   you,
@@ -1449,24 +1503,29 @@ function Scene({
           <ModelSky url={modelUrl} />
         </Suspense>
       ) : null}
-      <hemisphereLight args={[hemiSky, hemiGround, meadow ? 0.5 : lightRoom ? 0.95 : 0.7]} />
-      <ambientLight intensity={meadow ? 0.16 : lightRoom ? 0.58 : 0.42} />
-      <directionalLight
-        position={sun}
-        intensity={sunPower}
-        color={meadow ? "#fff1d0" : "#ffffff"}
-        castShadow
-        shadow-mapSize-width={meadow ? 2048 : 1024}
-        shadow-mapSize-height={meadow ? 2048 : 1024}
-        shadow-bias={meadow ? -0.0004 : 0}
-        shadow-camera-near={1}
-        shadow-camera-far={meadow ? 180 : 40}
-        shadow-camera-left={-shadowSpan}
-        shadow-camera-right={shadowSpan}
-        shadow-camera-top={shadowSpan}
-        shadow-camera-bottom={-shadowSpan}
-      />
-      <directionalLight position={meadow ? [-14, 9, -8] : [-6, 8, -8]} intensity={meadow ? 0.22 : lightRoom ? 0.45 : 0.7} color={meadow ? "#9eb6d6" : skin.fillLight} />
+      {meadow ? <MeadowDay /> : null}
+      {meadow ? null : (
+        <>
+          <hemisphereLight args={[hemiSky, hemiGround, lightRoom ? 0.95 : 0.7]} />
+          <ambientLight intensity={lightRoom ? 0.58 : 0.42} />
+          <directionalLight
+            position={sun}
+            intensity={sunPower}
+            color="#ffffff"
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            shadow-bias={0}
+            shadow-camera-near={1}
+            shadow-camera-far={40}
+            shadow-camera-left={-shadowSpan}
+            shadow-camera-right={shadowSpan}
+            shadow-camera-top={shadowSpan}
+            shadow-camera-bottom={-shadowSpan}
+          />
+          <directionalLight position={[-6, 8, -8]} intensity={lightRoom ? 0.45 : 0.7} color={skin.fillLight} />
+        </>
+      )}
       {skin.tableKind === "legend" ? (
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
