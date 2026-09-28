@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
 export type ArenaSide = "w" | "b";
 
-const TIERS = 8;
+const COLOSSEUM_SCALE = 8.4;
 
 type Fan = { x: number; y: number; z: number; rot: number; side: ArenaSide; s: number };
 
@@ -115,26 +115,96 @@ function stoneMaterial(stone: { map: THREE.Texture; normalMap: THREE.Texture } |
   });
 }
 
-function archBay(height: number, arch: number) {
-  const shape = new THREE.Shape();
-  const w = 1.2;
-  shape.moveTo(-w, 0);
-  shape.lineTo(w, 0);
-  shape.lineTo(w, height);
-  shape.lineTo(-w, height);
-  shape.closePath();
-  const hole = new THREE.Path();
-  const base = 0.48;
-  hole.moveTo(-arch, base);
-  hole.lineTo(-arch, base + arch * 1.35);
-  hole.absarc(0, base + arch * 1.35, arch, Math.PI, 0, false);
-  hole.lineTo(arch, base);
-  hole.closePath();
-  shape.holes.push(hole);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.25, bevelEnabled: false, curveSegments: 8 });
-  geo.translate(0, 0, -0.62);
-  geo.computeVertexNormals();
+function paintStone(geo: THREE.BufferGeometry) {
+  const pos = geo.getAttribute("position");
+  const normal = geo.getAttribute("normal");
+  if (!geo.getAttribute("uv")) geo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(pos.count * 2), 2));
+  const uv = geo.getAttribute("uv");
+  const uvScale = 4.2;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const nx = Math.abs(normal?.getX(i) ?? 0);
+    const ny = Math.abs(normal?.getY(i) ?? 1);
+    const nz = Math.abs(normal?.getZ(i) ?? 0);
+    const u = ny >= nx && ny >= nz ? x : nx >= nz ? z : x;
+    const v = ny >= nx && ny >= nz ? z : y;
+    uv.setXY(i, u * uvScale, v * uvScale);
+  }
+  uv.needsUpdate = true;
   return geo;
+}
+
+function Coliseum({ stone }: { stone: { map: THREE.Texture; normalMap: THREE.Texture } | null }) {
+  const gltf = useGLTF("/arena/coliseum.glb");
+  const model = useMemo(() => {
+    const root = gltf.scene.clone(true);
+    const material = stoneMaterial(stone);
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry = paintStone(mesh.geometry.clone());
+      mesh.material = material;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    });
+    root.userData.material = material;
+    return root;
+  }, [gltf, stone]);
+
+  useEffect(
+    () => () => {
+      model.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) mesh.geometry.dispose();
+      });
+      const material = model.userData.material as THREE.Material | undefined;
+      material?.dispose();
+    },
+    [model],
+  );
+
+  return <primitive object={model} scale={COLOSSEUM_SCALE} />;
+}
+
+useGLTF.preload("/arena/coliseum.glb");
+
+function buildFans(geo: THREE.BufferGeometry | null) {
+  const fans: Fan[] = [];
+  if (!geo) return fans;
+  const pos = geo.getAttribute("position");
+  const nor = geo.getAttribute("normal");
+  if (!pos || !nor) return fans;
+  const bins = new Map<string, { x: number; y: number; z: number; ny: number }>();
+  for (let i = 0; i < pos.count; i += 2) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const ny = nor.getY(i);
+    const r = Math.hypot(x, z);
+    if (ny < 0.62 || r < 1.55 || r > 3.35 || y < 0.1) continue;
+    const key = `${Math.round(Math.atan2(x, z) * 16)}:${Math.round(y * 16)}`;
+    const prev = bins.get(key);
+    if (!prev || ny > prev.ny) bins.set(key, { x, y, z, ny });
+  }
+  let n = 0;
+  for (const seat of bins.values()) {
+    const x = seat.x * COLOSSEUM_SCALE;
+    const y = seat.y * COLOSSEUM_SCALE + 0.04;
+    const z = seat.z * COLOSSEUM_SCALE;
+    const pick = hash(n * 3.1 + seat.y * 9.7);
+    fans.push({
+      x,
+      y,
+      z,
+      rot: Math.atan2(x, z),
+      side: z >= 0 ? "w" : "b",
+      s: 0.62 + pick * 0.2,
+    });
+    n += 1;
+  }
+  return fans;
 }
 
 function pawnShape() {
@@ -156,111 +226,16 @@ function pawnShape() {
   return geo;
 }
 
-function Coliseum({ stone }: { stone: { map: THREE.Texture; normalMap: THREE.Texture } | null }) {
-  const built = useMemo(() => {
-    const material = stoneMaterial(stone);
-    const lower = archBay(5.5, 0.74);
-    const upper = archBay(4.4, 0.62);
-    const attic = new THREE.BoxGeometry(2.35, 1.15, 1.45);
-    const stepGeos: THREE.BufferGeometry[] = [];
-    const dummy = new THREE.Object3D();
-    const bays = 42;
-    const seat = (mesh: THREE.InstancedMesh, radius: number, y: number, count: number) => {
-      for (let i = 0; i < count; i++) {
-        const a = (i / count) * Math.PI * 2;
-        dummy.position.set(Math.sin(a) * radius, y, Math.cos(a) * radius * 1.16);
-        dummy.rotation.set(0, a, 0);
-        dummy.scale.set(1, 1, 1);
-        dummy.updateMatrix();
-        mesh.setMatrixAt(i, dummy.matrix);
-      }
-      mesh.instanceMatrix.needsUpdate = true;
-    };
-    const lowerMesh = new THREE.InstancedMesh(lower, material, bays);
-    const upperMesh = new THREE.InstancedMesh(upper, material, bays);
-    const atticMesh = new THREE.InstancedMesh(attic, material, bays);
-    lowerMesh.castShadow = upperMesh.castShadow = atticMesh.castShadow = true;
-    lowerMesh.receiveShadow = upperMesh.receiveShadow = atticMesh.receiveShadow = true;
-    seat(lowerMesh, 38.5, 0, bays);
-    seat(upperMesh, 39.1, 5.45, bays);
-    seat(atticMesh, 39.4, 9.7, bays);
-    const steps: THREE.Mesh[] = [];
-    for (let tier = 0; tier < TIERS; tier++) {
-      const inner = 16.2 + tier * 2.35;
-      const geo = new THREE.RingGeometry(inner, inner + 2.45, 72);
-      geo.rotateX(-Math.PI / 2);
-      geo.scale(1, 1, 1.16);
-      stepGeos.push(geo);
-      const mesh = new THREE.Mesh(geo, material);
-      mesh.position.y = 0.28 + tier * 0.78;
-      mesh.receiveShadow = true;
-      mesh.castShadow = true;
-      steps.push(mesh);
-    }
-    const lip = new THREE.TorusGeometry(40.2, 0.55, 8, 72);
-    lip.scale(1, 1, 1.16);
-    lip.rotateX(Math.PI / 2);
-    const lipMesh = new THREE.Mesh(lip, material);
-    lipMesh.position.y = 10.45;
-    lipMesh.castShadow = true;
-    return { material, lower, upper, attic, lip, stepGeos, lowerMesh, upperMesh, atticMesh, lipMesh, steps };
-  }, [stone]);
-
-  useEffect(
-    () => () => {
-      built.lower.dispose();
-      built.upper.dispose();
-      built.attic.dispose();
-      built.lip.dispose();
-      built.stepGeos.forEach((geo) => geo.dispose());
-      built.material.dispose();
-    },
-    [built],
-  );
-
-  return (
-    <group>
-      <primitive object={built.lowerMesh} />
-      <primitive object={built.upperMesh} />
-      <primitive object={built.atticMesh} />
-      <primitive object={built.lipMesh} />
-      {built.steps.map((step, i) => (
-        <primitive key={i} object={step} />
-      ))}
-    </group>
-  );
-}
-
-function buildFans() {
-  const fans: Fan[] = [];
-  for (let tier = 0; tier < TIERS; tier++) {
-    const radius = 17.3 + tier * 2.35;
-    const y = 0.42 + tier * 0.78;
-    const steps = Math.max(28, Math.floor((2 * Math.PI * radius) / 1.55));
-    for (let i = 0; i < steps; i++) {
-      if ((i + tier * 3) % 9 === 0) continue;
-      const a = (i / steps) * Math.PI * 2 + tier * 0.08;
-      const x = Math.sin(a) * radius;
-      const z = Math.cos(a) * radius * 1.16;
-      const side: ArenaSide = z >= 0 ? "w" : "b";
-      const pick = hash(i * 3.1 + tier * 9.7);
-      fans.push({
-        x,
-        y,
-        z,
-        rot: Math.atan2(x, z),
-        side,
-        s: 0.72 + pick * 0.22,
-      });
-    }
-  }
-  return fans;
-}
-
 export function Arena({ cheer }: { cheer: ArenaSide | null }) {
   const stone = useMemo(() => makeTravertine(), []);
+  const gltf = useGLTF("/arena/coliseum.glb");
   const built = useMemo(() => {
-    const fans = buildFans();
+    let geo: THREE.BufferGeometry | null = null;
+    gltf.scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh && !geo) geo = mesh.geometry;
+    });
+    const fans = buildFans(geo);
     const body = pawnShape();
     const mat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.42, metalness: 0.04 });
     const crowd = new THREE.InstancedMesh(body, mat, fans.length);
@@ -282,7 +257,7 @@ export function Arena({ cheer }: { cheer: ArenaSide | null }) {
     crowd.instanceMatrix.needsUpdate = true;
     if (crowd.instanceColor) crowd.instanceColor.needsUpdate = true;
     return { fans, crowd, body, mat };
-  }, []);
+  }, [gltf]);
 
   const cheerRef = useRef(cheer);
   cheerRef.current = cheer;
