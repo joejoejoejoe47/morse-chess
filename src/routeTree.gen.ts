@@ -16,6 +16,7 @@ import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as ChessRouteImport } from './routes/chess'
 import { Route as ClubRouteImport } from './routes/club'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ApiClubSignInRouteImport } from './routes/api/club-sign-in'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiRtcRouteImport } from './routes/api/rtc'
 import { Route as BoardsBoardIdRouteImport } from './routes/boards.$boardId'
@@ -57,6 +58,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiClubSignInRoute = ApiClubSignInRouteImport.update({
+  id: '/api/club-sign-in',
+  path: '/api/club-sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
   '/login': typeof LoginRoute
+  '/api/club-sign-in': typeof ApiClubSignInRoute
   '/api/health': typeof ApiHealthRoute
   '/api/rtc': typeof ApiRtcRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
   '/login': typeof LoginRoute
+  '/api/club-sign-in': typeof ApiClubSignInRoute
   '/api/health': typeof ApiHealthRoute
   '/api/rtc': typeof ApiRtcRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
   '/login': typeof LoginRoute
+  '/api/club-sign-in': typeof ApiClubSignInRoute
   '/api/health': typeof ApiHealthRoute
   '/api/rtc': typeof ApiRtcRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/chess'
     | '/club'
     | '/login'
+    | '/api/club-sign-in'
     | '/api/health'
     | '/api/rtc'
     | '/boards/$boardId'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/chess'
     | '/club'
     | '/login'
+    | '/api/club-sign-in'
     | '/api/health'
     | '/api/rtc'
     | '/boards/$boardId'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/chess'
     | '/club'
     | '/login'
+    | '/api/club-sign-in'
     | '/api/health'
     | '/api/rtc'
     | '/boards/$boardId'
@@ -179,6 +191,7 @@ export interface RootRouteChildren {
   ChessRoute: typeof ChessRoute
   ClubRoute: typeof ClubRoute
   LoginRoute: typeof LoginRoute
+  ApiClubSignInRoute: typeof ApiClubSignInRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiRtcRoute: typeof ApiRtcRoute
   PlayGameIdRoute: typeof PlayGameIdRoute
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/club-sign-in': {
+      id: '/api/club-sign-in'
+      path: '/api/club-sign-in'
+      fullPath: '/api/club-sign-in'
+      preLoaderRoute: typeof ApiClubSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -293,6 +313,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChessRoute: ChessRoute,
   ClubRoute: ClubRoute,
   LoginRoute: LoginRoute,
+  ApiClubSignInRoute: ApiClubSignInRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiRtcRoute: ApiRtcRoute,
   PlayGameIdRoute: PlayGameIdRoute,

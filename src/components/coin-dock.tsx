@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import { getPurse } from "@/lib/server/mores";
 
 export function CoinDock() {
+  const path = useRouterState({ select: (state) => state.location.pathname });
   const [coins, setCoins] = useState<number | null>(null);
   const [fly, setFly] = useState(false);
 
@@ -33,7 +35,7 @@ export function CoinDock() {
     };
   }, []);
 
-  if (coins == null) return null;
+  if (coins == null || path.startsWith("/club")) return null;
 
   return (
     <>

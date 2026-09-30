@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { GROK_PROVIDERS, authClient, signIn, clearPreviewBearer } from "@/lib/auth/client";
 import { markClubSession, markOauthPending } from "@/lib/auth/club-session";
 import { claimUsername, usernameAvailable } from "@/lib/server/mores";
-import { USERNAME_RE, usernameToEmail } from "@/lib/mores-constants";
+import { USERNAME_RE } from "@/lib/mores-constants";
 import { ThemeToggle } from "@/components/theme";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,27 +75,15 @@ export function AuthScreen() {
         await authClient.getSession();
         await claimUsername({ data: { username: name } });
       } else {
-        const guesses = [
-          mail,
-          name.includes("@") ? name.toLowerCase() : "",
-          name && !name.includes("@") ? usernameToEmail(name) : "",
-        ].filter((v, i, a) => v && a.indexOf(v) === i);
-        let last = "Invalid email or password.";
-        let ok = false;
-        for (const addr of guesses) {
-          const { error: signErr } = await authClient.signIn.email({ email: addr, password });
-          if (!signErr) {
-            ok = true;
-            break;
-          }
-          last = signErr.message || last;
-        }
-        if (!ok) {
-          setError(
-            /invalid email or password/i.test(last)
-              ? "No seat with that email and password. Use Create account first, then sign in with the same email."
-              : last,
-          );
+        const res = await fetch("/api/club-sign-in", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ username: name, email: mail, password }),
+        });
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+        if (!res.ok || !data?.ok) {
+          setError(data?.error || "No seat with that name and password. Use the email you created the account with.");
           return;
         }
         await authClient.getSession();
@@ -202,11 +190,6 @@ export function AuthScreen() {
           {error ? <p className="min-h-5 text-[15px] text-danger">{error}</p> : <p className="min-h-5" />}
           <Button type="submit" variant="solid" size="lg" className="w-full rounded-xl" disabled={pending}>
             {pending ? "Entering…" : "Enter the club"}
-          </Button>
-          <Button asChild type="button" variant="secondary" size="lg" className="w-full rounded-xl">
-            <Link to="/boards/$boardId" params={{ boardId: "grassland" }}>
-              See the Colosseum
-            </Link>
           </Button>
         </form>
         {GROK_PROVIDERS.length > 0 ? (

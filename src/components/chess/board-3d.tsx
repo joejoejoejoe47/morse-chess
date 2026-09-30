@@ -9,6 +9,7 @@ import { parseLoadout } from "@/lib/avatar/catalog";
 import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
 import { arenaNight } from "@/components/chess/arena-bowl";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
+import { keepWebGL } from "@/lib/gl-quiet";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
@@ -2027,6 +2028,7 @@ export function ChessBoard3D({
         }}
         onCreated={({ camera, gl }) => {
           camera.lookAt(0, 0.2, 0);
+          keepWebGL(gl);
           gl.shadowMap.enabled = true;
           gl.shadowMap.type = THREE.PCFShadowMap;
           gl.localClippingEnabled = true;

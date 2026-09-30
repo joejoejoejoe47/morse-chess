@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Square } from "chess.js";
+import { Clock, LogOut, Send } from "lucide-react";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { SeatCircle } from "@/components/club/seat-circle";
@@ -9,7 +10,7 @@ import { MorseCrest } from "@/components/club-brand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { letterOf } from "@/lib/avatar/catalog";
+import { attackById, characterById, letterOf, parseLoadout } from "@/lib/avatar/catalog";
 import { startCallBell } from "@/lib/avatar/bell-tone";
 import { BOARD_CATALOG, boardById, boardUnlocked } from "@/lib/chess/board-skins";
 import { useClubDoor } from "@/lib/auth/use-club-door";
@@ -25,6 +26,7 @@ import {
   loadChessClub,
   placeClubCall,
   pollClubCalls,
+  respondJoin,
   seatBracket,
   sendClubMail,
   setClubBoard,
@@ -41,6 +43,7 @@ import { cn } from "@/lib/utils";
 const ChessBoard3D = lazy(() => import("@/components/chess/board-3d").then((mod) => ({ default: mod.ChessBoard3D })));
 
 const CLUB_KEY = "morse-open-club";
+const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 export const Route = createFileRoute("/club")({ ssr: false, component: ClubDoor });
 
@@ -227,7 +230,15 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
   const [draft, setDraft] = useState("");
   const [foe, setFoe] = useState("");
   const [showFoe, setShowFoe] = useState(false);
-  const [chart, setChart] = useState(false);
+  const [chart, setChart] = useState(true);
+  const [view, setView] = useState<"2d" | "3d" | "an">(() => {
+    try {
+      const saved = localStorage.getItem("morse-board-view");
+      return saved === "3d" || saved === "an" ? saved : "2d";
+    } catch {
+      return "2d";
+    }
+  });
   const [error, setError] = useState<string | null>(null);
   const [bracket, setBracket] = useState<Awaited<ReturnType<typeof getBracket>> | null>(null);
   const [calls, setCalls] = useState<{ id: string; fromName: string; at: number; toId: string }[]>([]);
@@ -272,191 +283,220 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
   }
 
   const event = pack.event;
-  const showTable = event && (event.phase === "live" || event.phase === "series" || event.phase === "crowned");
+  const showTable = Boolean(event && (event.phase === "live" || event.phase === "series" || event.phase === "crowned"));
+  const host = pack.members.find((seat) => seat.host);
+  const focus = peer === "EVERY" ? null : (letters.find((seat) => seat.userId === peer) ?? null);
+  const cardLook = readLook(focus?.look || pack.look);
+  const cardScore = focus?.score ?? pack.score;
+  const level = Math.max(1, Math.round((cardScore || 1) / 49));
+  const portrait = characterById(cardLook.anId).portrait;
+  const atk = attackById(cardLook.attackId).name;
+  const standings = [...pack.members].sort((a, b) => b.score - a.score || a.username.localeCompare(b.username));
+  const skin = boardById(showTable && event ? event.boardId : club.boardId);
+  const owned = BOARD_CATALOG.filter((board) => boardUnlocked(pack.score, board, pack.username, pack.ownedBoards));
+
+  function chooseView(next: "2d" | "3d" | "an") {
+    setView(next);
+    try {
+      localStorage.setItem("morse-board-view", next);
+    } catch {
+      /* keep the choice for this visit */
+    }
+    void setPieceStyle({ data: { style: next } }).catch(() => undefined);
+  }
+
+  function guardAll(run: () => void) {
+    if (!allIn) {
+      setError("Both buttons apply only when every member is online and checked.");
+      return;
+    }
+    setError(null);
+    run();
+  }
 
   return (
-    <main className="relative min-h-dvh bg-ink text-ivory">
-      <div className="check-wash pointer-events-none absolute inset-0" />
-      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-gold-line">{club.youHost ? "Host" : "Member"}</p>
-          <h1 className="font-display text-3xl">{club.name}</h1>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="rounded-full" onClick={() => setChart((v) => !v)}>
-            Tournament countdown
-          </Button>
-          <Button variant="ghost" onClick={onLeave}>
-            Leave the room
-          </Button>
-          <Link to="/" className="grid min-h-11 place-items-center px-3 text-sm text-mist">
-            Lounge
-          </Link>
-        </div>
-      </header>
-      {error ? <p className="relative px-4 text-sm text-danger">{error}</p> : null}
-      {chart ? (
-        <Bracket
-          clubId={club.id}
-          onClose={() => setChart(false)}
-          bracket={bracket}
-          setBracket={setBracket}
-          canCrown={Boolean(event && event.phase === "crowned")}
-        />
-      ) : null}
-      <div className="relative grid min-h-[calc(100dvh-5.5rem)] gap-3 px-3 pb-4 lg:grid-cols-[320px_minmax(0,1fr)_280px]">
-        <aside className="felt-inset flex min-h-80 overflow-hidden rounded-2xl border border-line">
-          <div className="flex max-h-[78vh] flex-col gap-2 overflow-y-auto border-r border-line p-2">
-            <Letter on={peer === "EVERY"} label="EVERY" onClick={() => setPeer("EVERY")} />
-            {letters.map((seat) => (
-              <Letter
-                key={seat.userId}
-                on={peer === seat.userId}
-                label={letterOf(seat.username)}
-                title={seat.username}
-                onClick={() => setPeer(seat.userId)}
-              />
-            ))}
+    <main className="club-room min-h-dvh text-[#f4efe6]">
+      <style>{`
+        .club-room { background: #0c0b09; }
+        .club-shell { display: flex; flex-direction: column; gap: 12px; min-height: 100dvh; padding: 12px 14px 16px; }
+        .club-card { border: 1px solid #332e26; background: #14110e; border-radius: 16px; }
+        @media (min-width: 1100px) {
+          .club-shell {
+            display: grid;
+            height: 100dvh;
+            min-height: 0;
+            overflow: hidden;
+            grid-template-columns: 292px minmax(0, 1fr) 286px;
+            grid-template-rows: auto auto minmax(0, 1fr);
+            grid-template-areas:
+              "head head head"
+              "chart chart rail"
+              "card stage rail";
+          }
+          .club-shell.chart-off {
+            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-areas:
+              "head head head"
+              "card stage rail";
+          }
+          .club-head { grid-area: head; }
+          .club-chart { grid-area: chart; min-height: 0; }
+          .club-rail, .club-card-player, .club-stage { min-height: 0; overflow: hidden; }
+          .club-rail { grid-area: rail; }
+          .club-card-player { grid-area: card; }
+          .club-stage { grid-area: stage; }
+        }
+      `}</style>
+      <div className={cn("club-shell", !chart && "chart-off")}>
+        <header className="club-head flex flex-wrap items-center justify-between gap-3 px-1 py-1">
+          <div className="flex items-center gap-3">
+            <MorseCrest className="size-10 text-[1.05rem]" />
+            <span className="font-display text-[1.85rem] leading-none tracking-tight text-[#f7f1e6]">Morse Chess</span>
           </div>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-mist">
-                {peer === "EVERY" ? "Everyone" : letters.find((seat) => seat.userId === peer)?.username}
-              </p>
-              {thread.map((msg) => (
-                <Mail key={msg.id} msg={msg} mine={msg.fromId === userId} />
-              ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm",
+                chart ? "border-[#8a7048] bg-[#241c14] text-[#f6efe2]" : "border-[#3d3428] bg-[#17140f] text-[#e7dece]",
+              )}
+              onClick={() => setChart((open) => !open)}
+            >
+              <Clock className="size-4" />
+              Tournament countdown
+            </button>
+            <button type="button" className="inline-flex items-center gap-2 px-2 py-2 text-sm text-[#ddd4c4]" onClick={onLeave}>
+              <LogOut className="size-4" />
+              Leave the room
+            </button>
+            <Link to="/" className="inline-flex items-center gap-2 px-2 py-2 text-sm text-[#ddd4c4]">
+              Lounge
+            </Link>
+          </div>
+          {error ? <p className="basis-full text-sm text-danger">{error}</p> : null}
+        </header>
+
+        {chart ? (
+          <section className="club-chart club-card min-w-0 overflow-hidden px-4 py-3">
+            <h2 className="font-display text-[1.45rem] leading-none text-[#f4ecdf]">Tournament Countdown</h2>
+            <div className="mt-3 overflow-x-auto pb-1">
+              <Bracket clubId={club.id} bracket={bracket} setBracket={setBracket} canCrown={Boolean(event && event.phase === "crowned")} />
             </div>
-            <form className="border-t border-line p-2" onSubmit={mail}>
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={peer === "EVERY" ? "Tell the whole club…" : "Private note…"}
-                className="w-full rounded-lg border border-line bg-ink px-3 py-3 text-sm outline-none"
-              />
-            </form>
-            {peer !== "EVERY" ? (
-              <button
-                type="button"
-                className="m-2 min-h-11 rounded-full bg-forest text-sm"
-                onClick={() => void placeClubCall({ data: { clubId: club.id, toId: peer } })}
-              >
-                Call
+          </section>
+        ) : null}
+
+        <aside className="club-rail club-card flex h-full min-h-0 flex-col overflow-y-auto p-3">
+          <h2 className="font-display text-[1.65rem] leading-none">Online</h2>
+          {host ? (
+            <div className="mt-3 flex items-center gap-2">
+              <span className={cn("size-2 shrink-0 rounded-full", host.online ? "bg-[#3ddc84]" : "bg-[#5c564c]")} />
+              <button type="button" className="min-w-0 flex-1 truncate text-left text-sm" onClick={() => setPeer(host.userId)}>
+                {host.username}-host
               </button>
-            ) : null}
-          </div>
-        </aside>
-        <section className="relative min-h-[70vh] overflow-hidden rounded-2xl border border-line bg-[#12100e]">
-          {showTable && event ? (
-            <ClubTable userId={userId} event={event} members={pack.members} />
-          ) : (
-            <>
-              <div className="absolute inset-6">
-                <ChessBoard2D
-                  fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-                  you="w"
-                  lastMove={null}
-                  myTurn={false}
-                  disabled
-                  onMove={() => undefined}
-                  skin={boardById(club.boardId)}
-                />
-              </div>
-              <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-end justify-between gap-2">
-                <p className="rounded-full bg-ink/80 px-3 py-2 text-xs text-mist">Club board · {boardById(club.boardId).name}</p>
-                {club.youHost ? (
-                  <label className="text-xs text-mist">
-                    Host board
-                    <select
-                      className="ml-2 rounded-full border border-line bg-ink px-3 py-2 text-ivory"
-                      value={club.boardId}
-                      onChange={(e) => void setClubBoard({ data: { clubId: club.id, boardId: e.target.value } })}
-                    >
-                      {BOARD_CATALOG.filter((board) =>
-                        boardUnlocked(pack.score, board, pack.username, pack.ownedBoards),
-                      ).map((board) => (
-                        <option key={board.id} value={board.id}>
-                          {board.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-              </div>
-            </>
-          )}
-        </section>
-        <aside className="felt-inset rounded-2xl border border-line p-3">
-          <h2 className="font-display text-2xl">Online</h2>
-          <ul className="mt-3 space-y-2">
-            {pack.members.map((seat) => (
-              <li key={seat.userId} className="flex items-center justify-between gap-2 text-sm">
-                <span className={seat.online ? "text-ivory" : "text-mist"}>
-                  {seat.username}
-                  {seat.host ? " · host" : ""}
-                </span>
-                <button
-                  type="button"
-                  disabled={seat.userId !== userId}
-                  aria-pressed={seat.ready}
-                  className={cn(
-                    "grid size-9 place-items-center rounded-md border",
-                    seat.ready ? "border-gold-line bg-forest text-ivory" : "border-line text-mist",
-                  )}
-                  onClick={() => void setClubReady({ data: { clubId: club.id, ready: !me?.ready } })}
-                >
-                  {seat.ready ? "✓" : ""}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-1">
-            <Button
-              variant="solid"
-              disabled={!allIn}
-              className="min-h-12 whitespace-normal text-center leading-tight"
-              onClick={() => {
-                setError(null);
+              <ReadyMark
+                on={host.ready}
+                disabled={host.userId !== userId}
+                onClick={() => void setClubReady({ data: { clubId: club.id, ready: !me?.ready } })}
+              />
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="mt-3 w-full rounded-lg bg-[#6d4c32] px-3 py-2 text-sm text-[#f8f1e6] hover:bg-[#7d5940]"
+            onClick={() =>
+              guardAll(() => {
                 void startOwnTournament({ data: { clubId: club.id } }).catch((err) =>
                   setError(err instanceof Error ? err.message : "The tournament did not start."),
                 );
+              })
+            }
+          >
+            Challenge this host
+          </button>
+          <button
+            type="button"
+            className="mt-2 w-full rounded-lg bg-[#6a4a32] px-3 py-2 text-sm text-[#f8f1e6] hover:bg-[#7a563c]"
+            onClick={() => guardAll(() => setShowFoe((open) => !open))}
+          >
+            Battle an enemy chess club
+          </button>
+          {showFoe && allIn ? (
+            <form
+              className="mt-2 grid gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setError(null);
+                void startEnemyBattle({ data: { clubId: club.id, foeName: foe } }).catch((err) =>
+                  setError(err instanceof Error ? err.message : "The enemy did not answer."),
+                );
               }}
             >
-              Play your own team in a tournament
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={!allIn}
-              className="min-h-12 whitespace-normal text-center leading-tight"
-              onClick={() => setShowFoe((v) => !v)}
-            >
-              Battle an enemy chess club
-            </Button>
-            {showFoe ? (
-              <form
-                className="grid gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  setError(null);
-                  void startEnemyBattle({ data: { clubId: club.id, foeName: foe } }).catch((err) =>
-                    setError(err instanceof Error ? err.message : "The enemy did not answer."),
-                  );
-                }}
-              >
-                <Input value={foe} onChange={(e) => setFoe(e.target.value)} placeholder="Enemy club name" />
-                <Button type="submit" variant="solid">
-                  Send the challenge
-                </Button>
-              </form>
-            ) : null}
-            {!allIn ? (
-              <p className="text-xs text-mist">Both buttons open when every member is online and checked.</p>
-            ) : null}
+              <Input value={foe} onChange={(e) => setFoe(e.target.value)} placeholder="Enemy club name" />
+              <button type="submit" className="rounded-lg bg-[#3c3228] px-3 py-2 text-sm text-[#f4ecdf]">
+                Send the challenge
+              </button>
+            </form>
+          ) : null}
+          <p className="mt-2 text-center text-[11px] leading-snug text-[#9a9082]">
+            Both buttons apply only when every member is online and checked.
+          </p>
+          <button
+            type="button"
+            className="mt-2 w-full py-1 text-center text-sm text-[#d9d0c2]"
+            onClick={() => setPeer((current) => (host && current === host.userId ? "EVERY" : host?.userId || "EVERY"))}
+          >
+            View Details
+          </button>
+          <ul className="mt-2 max-h-44 space-y-1 overflow-y-auto border-t border-[#2c2822] pt-2">
+            {pack.members.map((seat) => (
+              <li key={seat.userId} className={cn("flex items-center gap-2 rounded-lg px-1 py-1", peer === seat.userId && "bg-[#221c16]")}>
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm" onClick={() => setPeer(seat.userId)}>
+                  <Face look={seat.look} letter={letterOf(seat.username)} />
+                  <span className="truncate">
+                    {seat.username}
+                    {seat.host ? "-host" : ""}
+                  </span>
+                </button>
+                {seat.userId === userId ? (
+                  <ReadyMark on={seat.ready} onClick={() => void setClubReady({ data: { clubId: club.id, ready: !me?.ready } })} />
+                ) : (
+                  <span className={cn("size-2 shrink-0 rounded-full", seat.online ? "bg-[#3ddc84]" : "bg-[#5c564c]")} />
+                )}
+              </li>
+            ))}
+          </ul>
+          {pack.requests.length ? (
+            <div className="mt-2 space-y-1 border-t border-[#2c2822] pt-2">
+              {pack.requests.map((req) => (
+                <div key={req.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate">{req.username}</span>
+                  <span className="flex gap-1">
+                    <button type="button" className="rounded-full bg-[#6d4c32] px-2 py-1" onClick={() => void respondJoin({ data: { id: req.id, welcome: true } })}>
+                      Welcome
+                    </button>
+                    <button type="button" className="rounded-full border border-[#3d3428] px-2 py-1" onClick={() => void respondJoin({ data: { id: req.id, welcome: false } })}>
+                      Decline
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="mt-3 rounded-xl border border-[#332e26] bg-[#100e0c] p-3">
+            <p className="text-center font-display text-sm tracking-[0.28em] text-[#cfc4b2]">CHESS CLUB</p>
+            <p className="mt-3 text-sm text-[#e7dece]">• Standings</p>
+            <ol className="mt-2 space-y-1 text-sm">
+              {standings.map((seat, index) => (
+                <li key={seat.userId} className="flex items-baseline justify-between gap-3">
+                  <span className="truncate text-[#d9d0c2]">{index + 1}. {seat.username}</span>
+                  <span className="tabular-nums text-[#f4efe6]">{seat.score}</span>
+                </li>
+              ))}
+            </ol>
           </div>
           {calls[0] ? (
-            <div className="mt-4 rounded-xl border border-gold-line p-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-gold-line">Call</p>
-              <p className="mt-1 text-sm">{calls[0].fromName} is ringing. The bell cannot be turned off.</p>
+            <div className="mt-3 rounded-xl border border-[#6d5a32] p-2">
+              <p className="text-xs text-[#e6d3a4]">{calls[0].fromName} is ringing.</p>
               <SeatCircle
                 room={`call${calls[0].id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 56)}`}
                 selfId={userId}
@@ -468,39 +508,109 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
             </div>
           ) : null}
         </aside>
+
+        <aside className="club-card-player club-card flex h-full min-h-0 flex-col overflow-hidden p-4">
+          <div className="flex items-center gap-2">
+            <MorseCrest className="size-8 text-sm" />
+            <p className="truncate text-sm tracking-wide">{focus ? focus.username : "EVERYONE"}</p>
+          </div>
+          <div className="mx-auto mt-3 grid size-24 shrink-0 place-items-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_40%_30%,#4a3828,#1a140f)]">
+            {focus && portrait ? <img src={portrait} alt="" className="size-full object-cover" /> : <PersonMark />}
+          </div>
+          <p className="mt-3 text-center text-xs text-[#b7ad9e]">Level {level}</p>
+          <p className="mt-2 text-center">
+            <span className="rounded-full bg-[#3a2e1a] px-3 py-1 text-sm text-[#e6c56a]">ELO {cardScore}</span>
+          </p>
+          <dl className="mt-3 shrink-0 space-y-1.5 text-sm">
+            {!focus ? <Stat label="Gold" value={pack.coins.toLocaleString()} mark="coin" /> : null}
+            <Stat label="ATK" value={atk} mark="atk" />
+            <Stat label="ELO" value={String(cardScore)} mark="elo" />
+          </dl>
+          <h3 className="mt-3 shrink-0 font-display text-[1.35rem]">{focus ? "Private" : "Global Chat"}</h3>
+          <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto">
+            {thread.map((msg) => (
+              <Mail key={msg.id} msg={msg} mine={msg.fromId === userId} />
+            ))}
+          </div>
+          <form className="mt-3 flex shrink-0 items-center gap-2" onSubmit={mail}>
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder={focus ? "Private note…" : "Tell the whole club…"}
+              className="min-w-0 flex-1 rounded-full border border-[#3a3228] bg-[#0e0c0a] px-3 py-2 text-sm outline-none"
+            />
+            <button type="submit" className="inline-flex items-center gap-1 rounded-full bg-[#6d4c32] px-3 py-2 text-sm text-[#f8f1e6]">
+              <Send className="size-3.5" />
+              Send
+            </button>
+          </form>
+          {focus ? (
+            <button type="button" className="mt-2 text-left text-xs text-[#cbb892]" onClick={() => void placeClubCall({ data: { clubId: club.id, toId: focus.userId } })}>
+              Call {focus.username}
+            </button>
+          ) : null}
+        </aside>
+
+        <section className="club-stage auth-wood relative h-full min-h-[420px] overflow-hidden rounded-2xl border border-[#332e26]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_46%,rgba(255,186,96,0.28),transparent_58%)]" />
+          <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 rounded-full border border-[#4a4034] bg-black/50 p-1 backdrop-blur-sm">
+            {(["2d", "3d", "an"] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={cn(
+                  "min-h-8 rounded-full px-3 text-[11px] uppercase tracking-[0.14em]",
+                  view === id ? "bg-[#f4efe6] text-[#1a140f]" : "text-[#cfc4b2]",
+                )}
+                onClick={() => chooseView(id)}
+              >
+                {id}
+              </button>
+            ))}
+          </div>
+          {showTable && event ? (
+            <ClubTable userId={userId} event={event} members={pack.members} view={view} />
+          ) : (
+            <div className="absolute inset-x-6 bottom-8 top-14 [container-type:size]">
+              <div className="mx-auto aspect-square h-[min(100cqh,100cqw)] w-[min(100cqh,100cqw)]">
+                <StageBoard
+                  view={view}
+                  fen={START_FEN}
+                  you="w"
+                  lastMove={null}
+                  myTurn={false}
+                  disabled
+                  skin={skin}
+                  kings={{ w: pack.look, b: "" }}
+                  onMove={() => undefined}
+                />
+              </div>
+            </div>
+          )}
+          <label className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs text-[#f4efe6] backdrop-blur-sm">
+            <span className="size-2 rounded-full bg-[#8d4b28]" />
+            {skin.name}
+            {skin.name === "COLUSSEUM" ? "" : " Board"}
+            {club.youHost && !showTable ? (
+              <select
+                aria-label="Host board"
+                className="absolute inset-0 cursor-pointer opacity-0"
+                value={club.boardId}
+                onChange={(e) => void setClubBoard({ data: { clubId: club.id, boardId: e.target.value } })}
+              >
+                {owned.map((board) => (
+                  <option key={board.id} value={board.id}>
+                    {board.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </label>
+        </section>
       </div>
     </main>
   );
 }
-
-function Letter({
-  label,
-  on,
-  onClick,
-  title,
-}: {
-  label: string;
-  on: boolean;
-  onClick: () => void;
-  title?: string;
-}) {
-  const every = label === "EVERY";
-  return (
-    <button
-      type="button"
-      title={title || label}
-      onClick={onClick}
-      className={cn(
-        "grid size-12 shrink-0 place-items-center rounded-full border font-display leading-none",
-        every ? "text-[9px] tracking-tight" : "text-sm",
-        on ? "border-gold-line bg-ivory text-ink" : "border-line text-cream",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
 function Mail({ msg, mine }: { msg: ClubMessage; mine: boolean }) {
   return (
     <div className={cn("rounded-lg px-2 py-1.5", mine ? "bg-forest/40" : "bg-ink/50")}>
@@ -510,16 +620,18 @@ function Mail({ msg, mine }: { msg: ClubMessage; mine: boolean }) {
   );
 }
 
-function ClubTable({ userId, event, members }: { userId: string; event: ClubEvent; members: ClubSeat[] }) {
+function ClubTable({
+  userId,
+  event,
+  members,
+  view,
+}: {
+  userId: string;
+  event: ClubEvent;
+  members: ClubSeat[];
+  view: "2d" | "3d" | "an";
+}) {
   const [games, setGames] = useState<Watch[]>([]);
-  const [view, setView] = useState<"2d" | "3d" | "an">(() => {
-    try {
-      const saved = localStorage.getItem("morse-board-view");
-      return saved === "2d" || saved === "an" ? saved : "3d";
-    } catch {
-      return "3d";
-    }
-  });
   const [left, setLeft] = useState(0);
   const lookOf = (id: string) => members.find((seat) => seat.userId === id)?.look || "";
   const nameOf = (id: string | null) =>
@@ -568,25 +680,13 @@ function ClubTable({ userId, event, members }: { userId: string; event: ClubEven
   const clock = `${String(Math.floor(left / 60000)).padStart(2, "0")}:${String(Math.floor((left % 60000) / 1000)).padStart(2, "0")}`;
 
   return (
-    <div className="relative h-full min-h-[70vh]">
-      <div className="absolute inset-x-0 top-2 z-20 flex justify-center gap-2">
-        {(["2d", "3d", "an"] as const).map((id) => (
-          <button
-            key={id}
-            type="button"
-            className={cn("min-h-10 rounded-full px-3 text-xs uppercase", view === id ? "bg-ivory text-ink" : "bg-ink/70 text-mist")}
-            onClick={() => {
-              setView(id);
-              localStorage.setItem("morse-board-view", id);
-              void setPieceStyle({ data: { style: id } }).catch(() => undefined);
-            }}
-          >
-            {id}
-          </button>
-        ))}
-        <span className="rounded-full bg-ink/80 px-3 py-2 font-display text-xl tabular-nums">{clock}</span>
+    <div className="relative h-full min-h-[420px]">
+      <div className="absolute right-3 top-3 z-20">
+        <span className="rounded-full border border-[#4a4034] bg-black/55 px-3 py-1 font-display text-lg tabular-nums text-[#f4efe6]">
+          {clock}
+        </span>
       </div>
-      <div className={cn("absolute inset-0 grid gap-2 p-16", games.length > 1 && "md:grid-cols-2")}>
+      <div className={cn("absolute inset-0 grid place-items-center gap-2 px-4 pb-12 pt-14", games.length > 1 && "md:grid-cols-2")}>
         {(games.length ? games : [null]).map((game, index) => (
           <WatchBoard
             key={game?.id || index}
@@ -656,79 +756,218 @@ function WatchBoard({
   );
 }
 
+function readLook(raw?: string | null) {
+  if (!raw) return parseLoadout({});
+  try {
+    return parseLoadout(JSON.parse(raw));
+  } catch {
+    return parseLoadout({});
+  }
+}
+
+function Face({ look, letter }: { look: string; letter: string }) {
+  const portrait = characterById(readLook(look).anId).portrait;
+  return portrait ? (
+    <img src={portrait} alt="" className="size-8 rounded-full object-cover" />
+  ) : (
+    <span className="grid size-8 place-items-center rounded-full bg-[#2a221a] text-[11px] text-[#e7dece]">{letter}</span>
+  );
+}
+
+function PersonMark() {
+  return (
+    <svg viewBox="0 0 64 64" className="size-16 text-[#cbb79a]" aria-hidden>
+      <circle cx="32" cy="24" r="10" fill="currentColor" />
+      <path d="M12 54c2-12 10-18 20-18s18 6 20 18" fill="currentColor" />
+    </svg>
+  );
+}
+
+function Stat({ label, value, mark }: { label: string; value: string; mark: "coin" | "atk" | "elo" }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="inline-flex items-center gap-2 text-[#cfc4b2]">
+        <span className="grid size-5 place-items-center rounded-full bg-[#2a241c] text-[10px] text-[#e6c56a]">
+          {mark === "coin" ? "●" : mark === "atk" ? "†" : "♔"}
+        </span>
+        {label}
+      </span>
+      <span className="tabular-nums text-[#f4efe6]">{value}</span>
+    </div>
+  );
+}
+
+function ReadyMark({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-pressed={on}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        "grid size-6 shrink-0 place-items-center rounded-md border text-xs",
+        on ? "border-[#c6a15a] bg-[#3a2e1a] text-[#e6c56a]" : "border-[#4a4034] text-transparent",
+        disabled && "opacity-70",
+      )}
+    >
+      ✓
+    </button>
+  );
+}
+
+function StageBoard({
+  view,
+  fen,
+  you,
+  lastMove,
+  myTurn,
+  disabled,
+  skin,
+  onMove,
+  kings,
+}: {
+  view: "2d" | "3d" | "an";
+  fen: string;
+  you: Side;
+  lastMove: { from: string; to: string } | null;
+  myTurn: boolean;
+  disabled?: boolean;
+  skin: ReturnType<typeof boardById>;
+  onMove: (from: Square, to: Square) => void;
+  kings?: { w?: string; b?: string };
+}) {
+  const props = { fen, you, lastMove, myTurn, disabled, skin, onMove };
+  if (view === "2d") {
+    return (
+      <div className="h-full w-full drop-shadow-[0_0_46px_rgba(255,176,70,0.35)]">
+        <ChessBoard2D {...props} />
+      </div>
+    );
+  }
+  return (
+    <div className="h-[min(58vh,520px)] w-[min(100%,520px)] overflow-hidden rounded-xl shadow-[0_0_70px_rgba(255,176,70,0.28)]">
+      <Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#b7ad9e]">Setting the board…</div>}>
+        <ChessBoard3D {...props} people={view === "an"} kings={kings} showTip={false} />
+      </Suspense>
+    </div>
+  );
+}
+
+type BracketPack = Awaited<ReturnType<typeof getBracket>>;
+
 function Bracket({
   clubId,
-  onClose,
   bracket,
   setBracket,
   canCrown,
 }: {
   clubId: string;
-  onClose: () => void;
-  bracket: Awaited<ReturnType<typeof getBracket>> | null;
-  setBracket: (value: Awaited<ReturnType<typeof getBracket>>) => void;
+  bracket: BracketPack | null;
+  setBracket: (value: BracketPack) => void;
   canCrown: boolean;
 }) {
   useEffect(() => {
     void getBracket().then(setBracket);
   }, [setBracket]);
-  const rounds = bracket?.rounds ?? [];
+
+  const blank = (count: number) => Array.from({ length: count }, () => ({ clubId: null as string | null, name: null as string | null }));
+  const rounds = bracket?.rounds?.length ? bracket.rounds : [blank(8), blank(4), blank(2), blank(1)];
+  const slotAt = (round: number, index: number) => rounds[round]?.[index] ?? { clubId: null, name: null };
+
+  function onSeat(round: number, index: number) {
+    const slot = slotAt(round, index);
+    if (slot.clubId) {
+      if (canCrown && round < rounds.length - 1) {
+        void crownBracket({ data: { clubId, round, slot: index } }).then(setBracket);
+      }
+      return;
+    }
+    void seatBracket({ data: { clubId, round, slot: index } }).then(setBracket);
+  }
+
+  const outerRows = [1, 2, 5, 6];
+
   return (
-    <section className="relative z-20 mx-3 mb-3 rounded-2xl border border-line bg-panel p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-2xl">Tournament countdown</h2>
-        <button type="button" className="text-sm text-mist" onClick={onClose}>
-          Close
-        </button>
+    <div>
+      <div className="mb-1 grid min-w-[860px] grid-cols-[1.15fr_20px_1fr_20px_1fr_22px_1.2fr_22px_1fr_20px_1fr_20px_1.15fr] text-center text-[11px] text-[#b7ad9e]">
+        <span>Round 1</span><span /><span>Round 2</span><span /><span>Round 3</span><span /><span>Championship</span><span /><span>Round 3</span><span /><span>Round 2</span><span /><span>Round 1</span>
       </div>
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-        {rounds.map((round, roundIndex) => {
-          const pairs: { slot: (typeof round)[number]; index: number }[][] = [];
-          for (let i = 0; i < round.length; i += 2) {
-            const pair = [{ slot: round[i], index: i }];
-            if (round[i + 1]) pair.push({ slot: round[i + 1], index: i + 1 });
-            pairs.push(pair);
-          }
-          return (
-            <div key={roundIndex} className="flex min-w-40 flex-col justify-around gap-4">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-mist">
-                {roundIndex === rounds.length - 1 ? "Champion" : `Round ${roundIndex + 1}`}
-              </p>
-              {pairs.map((pair) => (
-                <div key={pair[0].index} className="flex items-center">
-                  <div className="grid flex-1 gap-2">
-                    {pair.map(({ slot, index }) => (
-                      <button
-                        key={`${roundIndex}-${index}`}
-                        type="button"
-                        className="min-h-14 rounded-xl border border-line px-3 py-2 text-left"
-                        onClick={() => {
-                          if (slot.clubId) {
-                            if (canCrown && roundIndex < rounds.length - 1) {
-                              void crownBracket({ data: { clubId, round: roundIndex, slot: index } }).then(setBracket);
-                            }
-                            return;
-                          }
-                          void seatBracket({ data: { clubId, round: roundIndex, slot: index } }).then(setBracket);
-                        }}
-                      >
-                        <span className="block text-[10px] uppercase tracking-[0.14em] text-mist">
-                          {roundIndex === rounds.length - 1 ? "Winner" : `Seat ${index + 1}`}
-                        </span>
-                        <span className="font-display text-lg text-ivory">{slot.name || "Empty seat"}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {roundIndex < rounds.length - 1 ? <div className="ml-2 h-px w-4 bg-gold-line/80" /> : null}
-                </div>
-              ))}
-            </div>
-          );
-        })}
+      <div className="grid h-[300px] min-w-[860px] grid-cols-[1.15fr_20px_1fr_20px_1fr_22px_1.2fr_22px_1fr_20px_1fr_20px_1.15fr] grid-rows-8">
+        {outerRows.map((row, index) => (
+          <BracketSeat key={`l1-${index}`} col={1} row={row} round={0} index={index} name={slotAt(0, index).name} onSeat={onSeat} />
+        ))}
+        <BracketElbow col={2} row="1 / 3" side="left" />
+        <BracketElbow col={2} row="5 / 7" side="left" />
+        <BracketSeat col={3} row="1 / 3" round={1} index={0} name={slotAt(1, 0).name} onSeat={onSeat} />
+        <BracketSeat col={3} row="5 / 7" round={1} index={1} name={slotAt(1, 1).name} onSeat={onSeat} />
+        <BracketElbow col={4} row="1 / 7" side="left" />
+        <BracketSeat col={5} row="1 / 7" round={2} index={0} name={slotAt(2, 0).name} onSeat={onSeat} />
+        <BracketStem col={6} row="1 / 9" />
+        <BracketSeat col={7} row="3 / 7" round={3} index={0} name={slotAt(3, 0).name} onSeat={onSeat} final />
+        <BracketStem col={8} row="1 / 9" />
+        <BracketSeat col={9} row="1 / 7" round={2} index={1} name={slotAt(2, 1).name} onSeat={onSeat} />
+        <BracketElbow col={10} row="1 / 7" side="right" />
+        <BracketSeat col={11} row="1 / 3" round={1} index={2} name={slotAt(1, 2).name} onSeat={onSeat} />
+        <BracketSeat col={11} row="5 / 7" round={1} index={3} name={slotAt(1, 3).name} onSeat={onSeat} />
+        <BracketElbow col={12} row="1 / 3" side="right" />
+        <BracketElbow col={12} row="5 / 7" side="right" />
+        {outerRows.map((row, index) => (
+          <BracketSeat key={`r1-${index}`} col={13} row={row} round={0} index={index + 4} name={slotAt(0, index + 4).name} onSeat={onSeat} />
+        ))}
       </div>
-      <p className="mt-3 text-xs text-mist">
-        The host seats this club. A winner moves into the slot that connects the pair. The same club can sit both sides only when that chart match still needs them.
-      </p>
-    </section>
+    </div>
+  );
+}
+
+function BracketSeat({
+  col,
+  row,
+  round,
+  index,
+  name,
+  onSeat,
+  final,
+}: {
+  col: number;
+  row: number | string;
+  round: number;
+  index: number;
+  name: string | null;
+  onSeat: (round: number, index: number) => void;
+  final?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      style={{ gridColumn: col, gridRow: row }}
+      className="mx-0.5 h-8 self-center overflow-hidden rounded-md border border-[#3c352c] bg-[#16140f] px-2 text-left leading-tight"
+      onClick={() => onSeat(round, index)}
+    >
+      <span className="block text-[8px] uppercase tracking-[0.14em] text-[#8d8478]">{final ? "Final" : `Seat ${index + 1}`}</span>
+      <span className="block truncate text-[12px] leading-tight text-[#efe6d6]">{name || "Empty seat"}</span>
+    </button>
+  );
+}
+
+function BracketElbow({ col, row, side }: { col: number; row: string; side: "left" | "right" }) {
+  const edge = side === "left" ? "right-0" : "left-0";
+  return (
+    <div className="relative" style={{ gridColumn: col, gridRow: row }}>
+      <span className={cn("absolute top-[25%] bottom-[25%] w-px bg-[#6b6256]", edge)} />
+      <span className="absolute top-[25%] h-px w-full bg-[#6b6256]" />
+      <span className="absolute bottom-[25%] h-px w-full bg-[#6b6256]" />
+      <span className={cn("absolute top-1/2 h-px w-1/2 bg-[#6b6256]", edge)} />
+    </div>
+  );
+}
+
+function BracketStem({ col, row }: { col: number; row: string }) {
+  return (
+    <div className="relative" style={{ gridColumn: col, gridRow: row }}>
+      <span className="absolute top-1/2 h-px w-full bg-[#6b6256]" />
+    </div>
   );
 }

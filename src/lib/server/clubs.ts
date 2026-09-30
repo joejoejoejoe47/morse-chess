@@ -245,8 +245,16 @@ async function saveEvent(sql: Sql, event: ClubEvent) {
 }
 
 async function profileBits(sql: Sql, userId: string) {
-  const rows = await sql<{ username: string; score: number | string; owned_boards: string | null; club_locked: boolean | string }>`
-    select username, score, owned_boards, club_locked from profiles where user_id = ${userId} limit 1
+  const rows = await sql<{
+    username: string;
+    score: number | string;
+    owned_boards: string | null;
+    club_locked: boolean | string;
+    coins: number | string;
+    avatar_json: string | null;
+  }>`
+    select username, score, owned_boards, club_locked, coins, avatar_json
+    from profiles where user_id = ${userId} limit 1
   `;
   return rows[0] ?? null;
 }
@@ -471,6 +479,8 @@ async function pack(sql: Sql, userId: string, clubId: string | null) {
       locked: asBool(me?.club_locked),
       ownedBoards: String(me?.owned_boards ?? "").split(",").filter(Boolean),
       score: Number(me?.score) || 0,
+      coins: Number(me?.coins) || 0,
+      look: me?.avatar_json || "",
       username: me?.username ?? "",
     };
   }
@@ -529,6 +539,8 @@ async function pack(sql: Sql, userId: string, clubId: string | null) {
     locked: asBool(me?.club_locked),
     ownedBoards: String(me?.owned_boards ?? "").split(",").filter(Boolean),
     score: Number(me?.score) || 0,
+    coins: Number(me?.coins) || 0,
+    look: me?.avatar_json || "",
     username: me?.username ?? "",
   };
 }

@@ -6,6 +6,7 @@ import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { Figurine } from "@/components/avatar/figurine";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { useClubDoor } from "@/lib/auth/use-club-door";
+import { keepWebGL } from "@/lib/gl-quiet";
 import {
   ATTACKS,
   CHARACTERS,
@@ -126,7 +127,11 @@ function AvatarStudio() {
             </div>
           </div>
         ) : (
-          <Canvas camera={{ position: [1.8, 1.35, 2.25], fov: 32 }} shadows>
+          <Canvas
+            camera={{ position: [1.8, 1.35, 2.25], fov: 32 }}
+            shadows
+            onCreated={({ gl }) => keepWebGL(gl)}
+          >
             <color attach="background" args={["#0c0d0b"]} />
             <hemisphereLight args={["#f4efe4", "#1a140e", 0.85]} />
             <ambientLight intensity={0.45} />
