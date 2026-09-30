@@ -29,6 +29,8 @@ import { equippedSkin } from "@/lib/chess/board-skins";
 import { roomBackdrop, saveLookPrefs, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { LoadingTitle } from "@/components/loading-title";
+import { NamePlate } from "@/components/avatar/name-plate";
+import { setPieceStyle } from "@/lib/server/avatar";
 import { cn } from "@/lib/utils";
 
 const ChessBoard3D = lazy(() =>
@@ -312,7 +314,7 @@ export function GameView({ gameId }: { gameId: string }) {
     setGame(snap);
     setError(null);
     setClocks({ w: snap.whiteClockMs ?? 60_000, b: snap.blackClockMs ?? 60_000 });
-    if (snap.coinAward >= 5) {
+    if (snap.coinAward > 0) {
       const key = `morse-coin-${snap.id}`;
       let fresh = true;
       try {
@@ -400,6 +402,7 @@ export function GameView({ gameId }: { gameId: string }) {
     } catch {
       /* ignore */
     }
+    void setPieceStyle({ data: { style: next } }).catch(() => undefined);
   }
 
   async function submitMove(from: Square, to: Square, promotion?: "q" | "r" | "b" | "n") {
@@ -669,6 +672,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 people={view === "an"}
                 showTip={prefs.pieceTip}
                 fightZoom={view === "an" && prefs.fightZoom}
+                kings={{ w: game.whiteLook, b: game.blackLook }}
               />
             </Suspense>
           )}
@@ -695,6 +699,7 @@ export function GameView({ gameId }: { gameId: string }) {
             <HudChip
               label="Opponent"
               name={opp.username}
+              look={game.you === "w" ? game.blackLook : game.whiteLook}
               clock={game.mode === "timed" ? oppClock : null}
               hot={!myTurn && !over}
             />
@@ -702,6 +707,7 @@ export function GameView({ gameId }: { gameId: string }) {
           <HudChip
             label="You"
             name={myName}
+            look={game.you === "w" ? game.whiteLook : game.blackLook}
             clock={game.mode === "timed" ? myClock : null}
             hot={myTurn && !over}
             align="right"
@@ -863,30 +869,26 @@ export function GameView({ gameId }: { gameId: string }) {
 function HudChip({
   label,
   name,
+  look,
   clock,
   hot,
   align,
 }: {
   label: string;
   name: string;
+  look?: string;
   clock: number | null;
   hot: boolean;
   align?: "right";
 }) {
   return (
-    <div
-      className={cn(
-        "rounded-xl border border-line bg-ink/75 px-4 py-2.5 backdrop-blur-sm",
-        align === "right" && "text-right",
-      )}
-    >
-      <p className="text-xs uppercase tracking-[0.16em] text-mist">{label}</p>
-      <p className="font-display text-2xl leading-tight text-ivory">{name}</p>
-      {clock !== null ? (
-        <p className={cn("font-display text-3xl tabular-nums", hot ? "text-cream" : "text-mist")}>
-          {formatClock(clock)}
-        </p>
-      ) : null}
-    </div>
+    <NamePlate
+      label={label}
+      name={name}
+      look={look}
+      align={align === "right" ? "right" : "left"}
+      hot={hot}
+      clock={clock !== null ? formatClock(clock) : null}
+    />
   );
 }

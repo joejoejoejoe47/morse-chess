@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SplashSkeleton } from "@/components/auth-screen";
+import { JoinSlips } from "@/components/club/join-slips";
 
 type Flow =
   | { kind: "idle" }
@@ -210,6 +211,7 @@ export function ClubHome() {
           username={home.profile.username}
           score={home.profile.score}
           extra={
+            <>
             <Link
               to="/boards"
               className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-line/55 bg-walnut px-5 text-[15px] font-medium text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] hover:border-gold-line hover:text-ivory"
@@ -217,6 +219,13 @@ export function ClubHome() {
               <PieceMark kind="k" className="size-4 text-cream" />
               Board
             </Link>
+            <Link
+              to="/avatar"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-line/55 bg-walnut px-5 text-[15px] font-medium text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] hover:border-gold-line hover:text-ivory"
+            >
+              AV
+            </Link>
+            </>
           }
         />
       </header>
@@ -265,6 +274,12 @@ export function ClubHome() {
           </p>
         </button>
       </section>
+      <Link
+        to="/club"
+        className="relative mt-4 flex min-h-14 w-full items-center justify-center rounded-xl border border-gold-line/55 bg-walnut/90 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
+      >
+        CHESS CLUB
+      </Link>
       <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-2">
         <button
           type="button"
@@ -291,6 +306,7 @@ export function ClubHome() {
             <h2 className="font-display text-2xl">Challenges</h2>
           </div>
           <p className="mt-1 text-sm text-mist">Slips land here the moment someone names you.</p>
+          <JoinSlips />
           <div className="mt-5 space-y-3">
             {home.inbox.length === 0 ? (
               <p className="text-sm text-mist">No one is waiting on you right now.</p>

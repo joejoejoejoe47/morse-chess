@@ -12,6 +12,7 @@ export type WatchRow = {
 
 export type BellSettings = {
   unmuted: boolean;
+  clubUnmuted: boolean;
   defaultSongId: string | null;
   defaultSongName: string | null;
   watches: WatchRow[];
@@ -28,6 +29,7 @@ const emptyWatch = (id?: string): WatchRow => ({
 export function defaultBellSettings(): BellSettings {
   return {
     unmuted: false,
+    clubUnmuted: false,
     defaultSongId: null,
     defaultSongName: null,
     watches: [emptyWatch("row-1")],
@@ -64,6 +66,7 @@ export function loadBellSettings(accountId: string | null | undefined): BellSett
       : [];
     return {
       unmuted: parsed.unmuted === true,
+      clubUnmuted: parsed.clubUnmuted === true,
       defaultSongId: parsed.defaultSongId ? String(parsed.defaultSongId) : null,
       defaultSongName: parsed.defaultSongName ? String(parsed.defaultSongName) : null,
       watches: watches.length ? watches : [emptyWatch("row-1")],
@@ -77,6 +80,13 @@ export function saveBellSettings(accountId: string, next: BellSettings) {
   if (!accountId || !canStore()) return;
   localStorage.setItem(settingsKey(accountId), JSON.stringify(next));
   window.dispatchEvent(new Event(BELL_CHANGED));
+}
+
+export function toggleClubBell(accountId: string) {
+  const current = loadBellSettings(accountId);
+  const next = { ...current, clubUnmuted: !current.clubUnmuted };
+  saveBellSettings(accountId, next);
+  return next;
 }
 
 export function toggleBellMute(accountId: string) {

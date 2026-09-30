@@ -30,6 +30,7 @@ type ProfileRow = {
   coins?: number | string | null;
   bot_streak?: number | string | null;
   owned_boards?: string | null;
+  avatar_json?: string | null;
 };
 
 type GameRow = {
@@ -86,6 +87,8 @@ export type GameSnapshot = {
   coins: number;
   coinAward: number;
   ownedBoards: string[];
+  whiteLook: string;
+  blackLook: string;
 };
 
 export type ChallengeCard = {
@@ -191,11 +194,19 @@ function ownedList(raw: unknown) {
     .filter(Boolean);
 }
 
+async function ensureAvatarColumns(sql: Sql) {
+  await sql.query("alter table profiles add column if not exists avatar_json text not null default ''");
+  await sql.query("alter table profiles add column if not exists piece_style text not null default '3d'");
+  await sql.query("alter table profiles add column if not exists owned_gear text not null default ''");
+  await sql.query("alter table profiles add column if not exists club_locked boolean not null default false");
+}
+
 async function profileById(sql: Sql, userId: string) {
   await ensureBoardColumn(sql);
   await ensurePurse(sql);
+  await ensureAvatarColumns(sql);
   const rows = await sql<ProfileRow>`
-    select user_id, username, username_lc, score, equipped_board, coins, bot_streak, owned_boards from profiles where user_id = ${userId} limit 1
+    select user_id, username, username_lc, score, equipped_board, coins, bot_streak, owned_boards, avatar_json from profiles where user_id = ${userId} limit 1
   `;
   const row = rows[0];
   if (!row) return null;
@@ -222,7 +233,7 @@ async function ensureClockColumns(sql: Sql) {
   );
 }
 
-async function insertGame(sql: Sql, a: string, b: string, mode: GameMode, pull = false) {
+async function insertGame(sql: Sql, a: string, b: string, mode: GameMode, pull = false, clockMs = TURN_MS) {
   const id = newId();
   const aWhite = Math.random() < 0.5;
   const white = aWhite ? a : b;
@@ -234,7 +245,7 @@ async function insertGame(sql: Sql, a: string, b: string, mode: GameMode, pull =
       white_clock_ms, black_clock_ms, pull
     ) values (
       ${id}, ${white}, ${black}, ${mode}, ${chess.fen()}, 'active', 'w', ${new Date().toISOString()},
-      ${TURN_MS}, ${TURN_MS}, ${pull}
+      ${clockMs}, ${clockMs}, ${pull}
     )
   `;
   try {
@@ -347,6 +358,7 @@ async function finishGame(
   game.status = status;
   game.winner_user_id = winnerUserId;
   await noteBotStreak(sql, game, status, winnerUserId);
+  await awardStyleCoin(sql, game, winnerUserId);
 }
 
 async function noteBotStreak(sql: Sql, game: GameRow, status: GameStatus, winnerUserId: string | null) {
@@ -383,6 +395,20 @@ async function noteBotStreak(sql: Sql, game: GameRow, status: GameStatus, winner
     await sql`update games set coin_award = ${award} where id = ${game.id}`;
     game.coin_award = award;
   }
+}
+
+async function awardStyleCoin(sql: Sql, game: GameRow, winnerUserId: string | null) {
+  if (!winnerUserId || isBotUserId(winnerUserId)) return;
+  await ensureAvatarColumns(sql);
+  const rows = await sql<{ piece_style: string | null; coins: number | string }>`
+    select piece_style, coins from profiles where user_id = ${winnerUserId} limit 1
+  `;
+  if ((rows[0]?.piece_style || "3d") !== "3d") return;
+  const coins = toInt(rows[0]?.coins, 0) + 1;
+  await sql`update profiles set coins = ${coins} where user_id = ${winnerUserId}`;
+  const next = toInt(game.coin_award, 0) + 1;
+  await sql`update games set coin_award = ${next} where id = ${game.id}`;
+  game.coin_award = next;
 }
 
 const PST: Record<string, number[]> = {
@@ -733,6 +759,8 @@ async function snapshotFor(sql: Sql, game: GameRow, userId: string, playBot = fa
     coins: me?.coins ?? 0,
     coinAward: fresh.winner_user_id === userId ? toInt(fresh.coin_award, 0) : 0,
     ownedBoards: ownedList(me?.owned_boards),
+    whiteLook: white?.avatar_json || "",
+    blackLook: black?.avatar_json || "",
   };
 }
 

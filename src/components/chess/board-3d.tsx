@@ -4,6 +4,8 @@ import { Html, OrbitControls } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
+import { Figurine, StauntonKnight } from "@/components/avatar/figurine";
+import { parseLoadout } from "@/lib/avatar/catalog";
 import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
@@ -446,6 +448,7 @@ function AnimatedPiece({
   clash,
   duelAt,
   pitch = 1,
+  look,
 }: {
   square: string;
   spawnFrom: string;
@@ -466,6 +469,7 @@ function AnimatedPiece({
   clash: boolean;
   duelAt: string | null;
   pitch?: number;
+  look?: string;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom, pitch);
@@ -476,6 +480,14 @@ function AnimatedPiece({
   const attackUntil = useRef(0);
   const trip = useRef<{ from: THREE.Vector3; to: THREE.Vector3; t: number } | null>(null);
   const [tip, setTip] = useState(false);
+  const gear = useMemo(() => {
+    if (!look) return null;
+    try {
+      return parseLoadout(JSON.parse(look));
+    } catch {
+      return null;
+    }
+  }, [look]);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
@@ -554,6 +566,17 @@ function AnimatedPiece({
         </Html>
       ) : null}
       {people ? (
+        gear && type === "k" ? (
+          <group scale={0.62}>
+            <Figurine
+              characterId={gear.anId}
+              crownId={gear.crownId}
+              team={color}
+              attackId={gear.attackId}
+              striking={slay}
+            />
+          </group>
+        ) : (
         <StonePerson
           type={type}
           white={color === "w"}
@@ -563,6 +586,23 @@ function AnimatedPiece({
           wing={square[0] < "e" ? "a" : "b"}
           gait={gait}
         />
+        )
+      ) : type === "n" ? (
+        <group scale={skin.pieceScale || 1}>
+          <StauntonKnight white={color === "w"} />
+        </group>
+      ) : type === "k" && gear ? (
+        <group scale={0.58}>
+          <Figurine
+            characterId={gear.kingId}
+            mountId={gear.mountId}
+            swordId={gear.swordId}
+            crownId={gear.crownId}
+            team={color}
+            attackId={gear.attackId}
+            striking={slay}
+          />
+        </group>
       ) : (
         <PieceMesh
           type={type}
@@ -1312,6 +1352,7 @@ function Scene({
   people,
   showTip,
   fightZoom,
+  kings,
 }: {
   fen: string;
   you: Side;
@@ -1333,6 +1374,7 @@ function Scene({
   people: boolean;
   showTip: boolean;
   fightZoom: boolean;
+  kings?: { w?: string; b?: string };
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -1626,6 +1668,7 @@ function Scene({
           clash={fightZoom}
           pitch={pitch}
           duelAt={captureSq === p.sq ? duelAside : null}
+          look={kings?.[p.color]}
           onClick={() => onSquare(p.sq)}
         />
       ))}
@@ -1884,6 +1927,7 @@ export function ChessBoard3D({
   people = false,
   showTip = true,
   fightZoom = false,
+  kings,
 }: {
   fen: string;
   you: Side;
@@ -1903,6 +1947,7 @@ export function ChessBoard3D({
   people?: boolean;
   showTip?: boolean;
   fightZoom?: boolean;
+  kings?: { w?: string; b?: string };
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -2002,6 +2047,7 @@ export function ChessBoard3D({
           people={people}
           showTip={showTip}
           fightZoom={fightZoom}
+          kings={kings}
         />
       </Canvas>
     </div>

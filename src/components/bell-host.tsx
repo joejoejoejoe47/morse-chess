@@ -10,6 +10,8 @@ import {
   loadBellSettings,
   stopBellSound,
 } from "@/lib/bell";
+import { listJoinRequests } from "@/lib/server/clubs";
+import { tapPermissionBell } from "@/lib/avatar/bell-tone";
 
 export function BellHost() {
   const { user, isPending } = useCurrentUserState();
@@ -45,6 +47,18 @@ export function BellHost() {
           }
         }
         saveSeenIds(accountId, seen);
+        if (settings.clubUnmuted) {
+          const asks = await listJoinRequests();
+          if (!live) return;
+          for (const ask of asks) {
+            const key = `club-${ask.id}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            tapPermissionBell();
+            toast(`${ask.username} wants to join ${ask.clubName}.`, { description: "Chess club permission" });
+          }
+          saveSeenIds(accountId, seen);
+        }
       } catch {
         /* signed out or network */
       }

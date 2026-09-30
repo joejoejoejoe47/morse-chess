@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, BellOff, Volume2, VolumeX } from "lucide-react";
-import { loadBellSettings, subscribeBellSettings, toggleBellMute } from "@/lib/bell";
+import { Bell, BellOff, Shield, Volume2, VolumeX } from "lucide-react";
+import { loadBellSettings, subscribeBellSettings, toggleBellMute, toggleClubBell } from "@/lib/bell";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { cn } from "@/lib/utils";
 
@@ -67,6 +67,35 @@ export function BellControls({ className }: { className?: string }) {
     <div className={cn("flex items-center gap-1.5", className)}>
       <BellButton />
       <BellMuteButton />
+      <ClubBellButton />
     </div>
+  );
+}
+
+function ClubBellButton({ className }: { className?: string }) {
+  const { user } = useCurrentUserState();
+  const accountId = user?.id ?? null;
+  const [on, setOn] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setOn(loadBellSettings(accountId).clubUnmuted);
+    sync();
+    return subscribeBellSettings(sync);
+  }, [accountId]);
+
+  return (
+    <button
+      type="button"
+      disabled={!accountId}
+      aria-label={on ? "Club permission bell on" : "Club permission bell off"}
+      title={on ? "Club joins will ring" : "Club joins are quiet"}
+      className={cn(circle, on && "border-gold-line text-ivory", className)}
+      onClick={() => {
+        if (!accountId) return;
+        setOn(toggleClubBell(accountId).clubUnmuted);
+      }}
+    >
+      {on ? <Shield className="size-4" /> : <BellOff className="size-4 opacity-70" />}
+    </button>
   );
 }
