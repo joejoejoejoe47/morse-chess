@@ -214,7 +214,7 @@ export function ClubHome() {
             <>
             <Link
               to="/boards"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-line/55 bg-walnut px-5 text-[15px] font-medium text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] hover:border-gold-line hover:text-ivory"
+              className="felt-inset inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-5 text-[15px] font-medium text-ivory hover:border-line-strong"
             >
               <PieceMark kind="k" className="size-4 text-cream" />
               Board

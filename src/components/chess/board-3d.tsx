@@ -7,10 +7,11 @@ import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components
 import { Figurine, StauntonKnight } from "@/components/avatar/figurine";
 import { parseLoadout } from "@/lib/avatar/catalog";
 import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
+import { arenaNight } from "@/components/chess/arena-bowl";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
-import type { RoomScene } from "@/lib/chess/look-prefs";
+import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
 import { HtmlPiece } from "@/components/chess/html-piece";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
@@ -570,6 +571,7 @@ function AnimatedPiece({
           <group scale={0.62}>
             <Figurine
               characterId={gear.anId}
+              swordId={gear.swordId}
               crownId={gear.crownId}
               team={color}
               attackId={gear.attackId}
@@ -1281,14 +1283,18 @@ function MeadowDay() {
   const sun = useRef<THREE.DirectionalLight>(null);
   const fill = useRef<THREE.DirectionalLight>(null);
   const hemi = useRef<THREE.HemisphereLight>(null);
+  const prefs = useLookPrefs();
   const dayC = useMemo(() => new THREE.Color("#8eb6dc"), []);
   const nightC = useMemo(() => new THREE.Color("#12182c"), []);
   const dawnC = useMemo(() => new THREE.Color("#e39258"), []);
   const sky = useMemo(() => new THREE.Color("#9eb8cc"), []);
   useFrame(({ clock, scene }) => {
-    const ang = (clock.elapsedTime / 75) * Math.PI * 2 - Math.PI / 2;
+    const ang = prefs.dayRun
+      ? (clock.elapsedTime / 75) * Math.PI * 2 - Math.PI / 2
+      : prefs.dayHold * Math.PI * 2 - Math.PI / 2;
     const elev = Math.sin(ang);
     const day = THREE.MathUtils.smoothstep(elev, -0.08, 0.42);
+    arenaNight.value = 1 - day;
     const glow = Math.exp(-((elev - 0.05) ** 2) * 22);
     sky.copy(nightC).lerp(dayC, day);
     sky.lerp(dawnC, glow * 0.85);

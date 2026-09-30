@@ -689,6 +689,7 @@ export function GameView({ gameId }: { gameId: string }) {
               enterLabel="Enter"
               allowBackground={false}
               showClubLight={false}
+              showDayClock={skin.id === "grassland"}
               onEnter={() => setTuning(false)}
               onClose={() => setTuning(false)}
             />

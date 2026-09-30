@@ -11,6 +11,8 @@ export type LookPrefs = {
   modelRev: number;
   pieceTip: boolean;
   fightZoom: boolean;
+  dayRun: boolean;
+  dayHold: number;
 };
 
 const KEY = "morse-look-prefs";
@@ -26,6 +28,8 @@ export const DEFAULT_LOOK: LookPrefs = {
   modelRev: 0,
   pieceTip: true,
   fightZoom: false,
+  dayRun: true,
+  dayHold: 0.62,
 };
 
 export const ROOM_SWATCHES = [
@@ -75,6 +79,8 @@ function parsePrefs(raw: string | null): LookPrefs {
       modelRev: typeof parsed.modelRev === "number" && Number.isFinite(parsed.modelRev) ? parsed.modelRev : 0,
       pieceTip: parsed.pieceTip !== false,
       fightZoom: parsed.fightZoom === true,
+      dayRun: parsed.dayRun !== false,
+      dayHold: typeof parsed.dayHold === "number" && Number.isFinite(parsed.dayHold) ? Math.min(1, Math.max(0, parsed.dayHold)) : 0.62,
     };
   } catch {
     return DEFAULT_LOOK;

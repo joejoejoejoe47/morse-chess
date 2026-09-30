@@ -135,6 +135,10 @@ function asTime(v: unknown): number {
 }
 
 function toInt(v: unknown, fallback: number) {
+  if (typeof v === "bigint") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   return Number.isFinite(n) ? n : fallback;
 }
@@ -183,7 +187,7 @@ async function ensurePurse(sql: Sql) {
   await sql.query("alter table profiles add column if not exists owned_boards text not null default ''");
   await sql.query("alter table profiles add column if not exists coins_ready boolean not null default false");
   await sql.query(
-    "update profiles set coins = 1000, coins_ready = true where username_lc = 'mastergus' and coins_ready = false",
+    "update profiles set coins = greatest(coins, 1000), coins_ready = true where username_lc = 'mastergus' and coins_ready = false",
   );
 }
 
@@ -1406,9 +1410,12 @@ export const buyBoard = createServerFn({ method: "POST" })
     const price = board.coinCost ?? 0;
     if (price <= 0) return { ok: false as const, error: "That board is not sold for coins." };
     const owned = ownedList(me.owned_boards);
-    if (owned.includes(board.id)) return { ok: true as const, coins: me.coins ?? 0, owned };
-    if ((me.coins ?? 0) < price) return { ok: false as const, error: "You need more coins." };
-    const coins = (me.coins ?? 0) - price;
+    const purse = toInt(me.coins, 0);
+    if (owned.includes(board.id)) return { ok: true as const, coins: purse, owned };
+    if (purse < price) {
+      return { ok: false as const, error: `You need ${price.toLocaleString()} coins. You have ${purse.toLocaleString()}.` };
+    }
+    const coins = purse - price;
     const next = [...owned, board.id];
     await sql`
       update profiles set coins = ${coins}, owned_boards = ${next.join(",")}

@@ -20,6 +20,10 @@ function BoardLookPage() {
   const [equipped, setEquipped] = useState(DEFAULT_BOARD_ID);
   const [username, setUsername] = useState("");
 
+  const [coins, setCoins] = useState(0);
+  const [coinsReady, setCoinsReady] = useState(false);
+  const [owned, setOwned] = useState<string[]>([]);
+
   useEffect(() => {
     if (!user) return;
     let live = true;
@@ -29,6 +33,9 @@ function BoardLookPage() {
         setScore(next.profile.score);
         setEquipped(next.profile.equippedBoard);
         setUsername(next.profile.username);
+        setCoins(next.profile.coins);
+        setOwned(next.profile.ownedBoards);
+        setCoinsReady(true);
       })
       .catch(() => undefined);
     return () => {
@@ -44,7 +51,14 @@ function BoardLookPage() {
       score={score}
       username={username}
       equippedBoard={equipped}
+      coins={coins}
+      coinsReady={coinsReady}
+      ownedBoards={owned}
       onEquipped={setEquipped}
+      onPurse={(next) => {
+        setCoins(next.coins);
+        setOwned(next.owned);
+      }}
     />
   );
 }

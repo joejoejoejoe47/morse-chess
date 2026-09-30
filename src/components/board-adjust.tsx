@@ -44,6 +44,7 @@ export function BoardAdjustPanel({
   onClose,
   allowBackground = true,
   showClubLight = true,
+  showDayClock = false,
   buttonClass,
 }: {
   title?: string;
@@ -52,6 +53,7 @@ export function BoardAdjustPanel({
   onClose?: () => void;
   allowBackground?: boolean;
   showClubLight?: boolean;
+  showDayClock?: boolean;
   buttonClass?: string;
 }) {
   const prefs = useLookPrefs();
@@ -288,6 +290,42 @@ export function BoardAdjustPanel({
             <div className="mt-2">
               <ThemeToggle className={cn("rounded-full", buttonClass)} />
             </div>
+          </div>
+        ) : null}
+
+        {showDayClock ? (
+          <div>
+            <p className="text-[13px] uppercase tracking-[0.14em] text-mist">Time of day</p>
+            <p className="mt-1 text-[13px] text-mist">Let the sun keep moving, or hold it where you want.</p>
+            <div className="mt-2 flex overflow-hidden rounded-full border border-line bg-panel">
+              <button
+                type="button"
+                className={cn("min-h-11 flex-1 px-3 text-sm", prefs.dayRun ? "bg-ivory text-ink" : "text-mist")}
+                onClick={() => saveLookPrefs({ dayRun: true })}
+              >
+                Keep going
+              </button>
+              <button
+                type="button"
+                className={cn("min-h-11 flex-1 px-3 text-sm", !prefs.dayRun ? "bg-ivory text-ink" : "text-mist")}
+                onClick={() => saveLookPrefs({ dayRun: false })}
+              >
+                Hold
+              </button>
+            </div>
+            {!prefs.dayRun ? (
+              <label className="mt-3 block text-[13px] text-mist">
+                Night to day
+                <input
+                  type="range"
+                  min={0}
+                  max={1000}
+                  value={Math.round(prefs.dayHold * 1000)}
+                  className="mt-2 w-full"
+                  onChange={(e) => saveLookPrefs({ dayRun: false, dayHold: Number(e.target.value) / 1000 })}
+                />
+              </label>
+            ) : null}
           </div>
         ) : null}
       </div>

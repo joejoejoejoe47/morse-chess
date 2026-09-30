@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
 import { useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
-import { Arena, type ArenaSide } from "@/components/chess/arena-bowl";
+import { Arena, arenaNight, type ArenaSide } from "@/components/chess/arena-bowl";
 
 export const GLADE_PITCH = 2;
 
@@ -23,86 +24,38 @@ function hash(n: number) {
   return x - Math.floor(x);
 }
 
-function scatter(root: THREE.Object3D, count: number, place: (i: number, dummy: THREE.Object3D) => void) {
-  root.updateMatrixWorld(true);
-  const made: THREE.InstancedMesh[] = [];
-  root.traverse((obj) => {
-    const mesh = obj as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const geo = mesh.geometry.clone();
-    geo.applyMatrix4(mesh.matrixWorld);
-    const inst = new THREE.InstancedMesh(geo, mesh.material, count);
-    inst.castShadow = true;
-    inst.receiveShadow = true;
-    inst.frustumCulled = false;
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < count; i++) {
-      dummy.position.set(0, 0, 0);
-      dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(1, 1, 1);
-      dummy.quaternion.identity();
-      place(i, dummy);
-      dummy.updateMatrix();
-      inst.setMatrixAt(i, dummy.matrix);
-    }
-    inst.instanceMatrix.needsUpdate = true;
-    made.push(inst);
-  });
-  return made;
-}
-
 function paintGrid() {
   const size = 1024;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  const span = 8 * GLADE_PITCH + 0.5;
+  const span = 8 * GLADE_PITCH + 0.35;
   if (!ctx) return { tex: null as THREE.CanvasTexture | null, span };
   const px = (v: number) => ((v + span / 2) / span) * size;
   ctx.clearRect(0, 0, size, size);
-  for (let r = 0; r < 8; r++) {
-    for (let f = 0; f < 8; f++) {
-      const x0 = (f - 4) * GLADE_PITCH;
-      const z0 = (3 - r) * GLADE_PITCH;
-      const light = (f + r) % 2 === 1;
-      const tile = (GLADE_PITCH / span) * size;
-      const inset = tile * 0.055;
-      const tone = hash(f * 9 + r * 3);
-      ctx.fillStyle = "rgba(42, 28, 16, 0.9)";
-      ctx.fillRect(px(x0), px(z0), tile, tile);
-      if (light) {
-        const g = 206 + tone * 28;
-        ctx.fillStyle = `rgba(${232 + tone * 14}, ${g | 0}, ${158 + tone * 20}, 0.94)`;
-      } else {
-        ctx.fillStyle = `rgba(${18 + tone * 16}, ${54 + tone * 18}, ${28 + tone * 10}, 0.93)`;
-      }
-      ctx.fillRect(px(x0) + inset, px(z0) + inset, tile - inset * 2, tile - inset * 2);
-      ctx.fillStyle = light ? "rgba(255, 244, 214, 0.28)" : "rgba(255, 236, 200, 0.08)";
-      ctx.fillRect(px(x0) + inset, px(z0) + inset, tile - inset * 2, tile * 0.08);
-    }
-  }
-  for (let i = 0; i < 900; i++) {
-    const x = hash(i + 2) * size;
-    const y = hash(i + 11) * size;
-    ctx.fillStyle = `rgba(30, 20, 10, ${0.05 + hash(i + 6) * 0.1})`;
-    ctx.fillRect(x, y, 2, 2);
-  }
+  ctx.fillStyle = "#c2a36a";
+  ctx.fillRect(0, 0, size, size);
+  const dust = ctx.createRadialGradient(size / 2, size / 2, size * 0.1, size / 2, size / 2, size * 0.55);
+  dust.addColorStop(0, "rgba(236, 214, 168, 0.35)");
+  dust.addColorStop(1, "rgba(120, 86, 48, 0.28)");
+  ctx.fillStyle = dust;
+  ctx.fillRect(0, 0, size, size);
   for (let i = 0; i < 9; i++) {
     const p = (i - 4) * GLADE_PITCH;
     const a = px(-4 * GLADE_PITCH);
     const b = px(4 * GLADE_PITCH);
     const c = px(p);
-    ctx.strokeStyle = "rgba(24, 32, 18, 0.55)";
-    ctx.lineWidth = 16;
+    ctx.strokeStyle = "rgba(42, 28, 16, 0.85)";
+    ctx.lineWidth = 10;
     ctx.beginPath();
     ctx.moveTo(a, c);
     ctx.lineTo(b, c);
     ctx.moveTo(c, a);
     ctx.lineTo(c, b);
     ctx.stroke();
-    ctx.strokeStyle = "rgba(250, 246, 232, 0.94)";
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(255, 244, 220, 0.92)";
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(a, c);
     ctx.lineTo(b, c);
@@ -124,6 +77,7 @@ const SKY_VERT = `
 `;
 
 const SKY_FRAG = `
+  uniform float uDay;
   varying vec3 vDir;
   float hsh(vec2 p){return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);}
   float nse(vec2 p){
@@ -133,19 +87,20 @@ const SKY_FRAG = `
   void main() {
     vec3 dir = normalize(vDir);
     float h = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 col = mix(vec3(0.72, 0.84, 0.95), vec3(0.28, 0.58, 0.9), smoothstep(0.0, 0.4, h));
-    col = mix(col, vec3(0.08, 0.34, 0.78), smoothstep(0.28, 0.85, h));
+    vec3 dayCol = mix(vec3(0.72, 0.84, 0.95), vec3(0.28, 0.58, 0.9), smoothstep(0.0, 0.4, h));
+    dayCol = mix(dayCol, vec3(0.08, 0.34, 0.78), smoothstep(0.28, 0.85, h));
     float cloud = smoothstep(0.55, 0.75, nse(dir.xz / max(dir.y + 0.25, 0.15) * 1.8));
-    col = mix(col, vec3(0.97, 0.98, 0.99), cloud * smoothstep(0.02, 0.2, dir.y));
+    dayCol = mix(dayCol, vec3(0.97, 0.98, 0.99), cloud * smoothstep(0.02, 0.2, dir.y));
     float sun = pow(max(dot(dir, normalize(vec3(0.72, 0.46, 0.28))), 0.0), 40.0);
-    col += vec3(1.0, 0.86, 0.55) * sun;
+    dayCol += vec3(1.0, 0.86, 0.55) * sun;
+    vec3 nightCol = mix(vec3(0.05, 0.04, 0.08), vec3(0.015, 0.02, 0.06), h);
+    float stars = step(0.992, hsh(floor(dir.xz * 380.0)));
+    nightCol += vec3(0.9, 0.92, 1.0) * stars * smoothstep(0.05, 0.35, dir.y);
+    vec3 col = mix(nightCol, dayCol, clamp(uDay, 0.0, 1.0));
     gl_FragColor = vec4(col, 1.0);
   }
 `;
 
-useGLTF.preload("/glade/clump1/grass_medium_01_1k.gltf");
-useGLTF.preload("/glade/clump2/grass_medium_02_1k.gltf");
-useGLTF.preload("/glade/lawn/grass_bermuda_01_1k.gltf");
 useGLTF.preload("/glade/trees.glb");
 
 function Grove() {
@@ -190,9 +145,6 @@ function Grove() {
 }
 
 export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
-  const thick = useGLTF("/glade/clump1/grass_medium_01_1k.gltf");
-  const tuft = useGLTF("/glade/clump2/grass_medium_02_1k.gltf");
-  const blades = useGLTF("/glade/lawn/grass_bermuda_01_1k.gltf");
   const maps = useTexture({
     map: "/glade/ground/diff.jpg",
     normalMap: "/glade/ground/nor.jpg",
@@ -211,10 +163,15 @@ export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
     maps.normalMap.colorSpace = THREE.LinearSRGBColorSpace;
     maps.roughnessMap.colorSpace = THREE.LinearSRGBColorSpace;
 
-    const ground = new THREE.PlaneGeometry(150, 150, 96, 96);
+    const ground = new THREE.PlaneGeometry(150, 150, 48, 48);
     ground.rotateX(-Math.PI / 2);
     const pos = ground.attributes.position;
-    for (let i = 0; i < pos.count; i++) pos.setY(i, gladeHeight(pos.getX(i), pos.getZ(i)));
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const hole = Math.max(Math.abs(x), Math.abs(z)) < 13 ? 1 : 0;
+      pos.setY(i, gladeHeight(x, z) * (1 - hole));
+    }
     ground.computeVertexNormals();
 
     const groundMat = new THREE.MeshStandardMaterial({
@@ -227,49 +184,18 @@ export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
     groundMat.normalScale.set(1.45, 1.45);
 
     const painted = paintGrid();
-    const court = new THREE.PlaneGeometry(painted.span, painted.span, 40, 40);
+    const court = new THREE.PlaneGeometry(painted.span, painted.span);
     court.rotateX(-Math.PI / 2);
-    const cpos = court.attributes.position;
-    for (let i = 0; i < cpos.count; i++) cpos.setY(i, gladeHeight(cpos.getX(i), cpos.getZ(i)) + 0.035);
-    court.computeVertexNormals();
     const courtMat = new THREE.MeshStandardMaterial({
       map: painted.tex ?? undefined,
-      transparent: true,
-      depthWrite: false,
-      roughness: 1,
-      metalness: 0,
+      roughness: 0.92,
+      metalness: 0.02,
       polygonOffset: true,
       polygonOffsetFactor: -2,
     });
 
-    const board = 4 * GLADE_PITCH;
-    const outside = (i: number, salt: number, min: number, span: number, sc: number) => {
-      return (dummy: THREE.Object3D) => {
-        const a = hash(i * 1.17 + salt) * Math.PI * 2;
-        const rad = min + hash(i + salt) * span;
-        let x = Math.cos(a) * rad;
-        let z = Math.sin(a) * rad;
-        if (Math.abs(x) < board && Math.abs(z) < board) {
-          if (Math.abs(x) > Math.abs(z)) x = Math.sign(x || 1) * (board + 0.6 + hash(i + 8) * 2);
-          else z = Math.sign(z || 1) * (board + 0.6 + hash(i + 8) * 2);
-        }
-        dummy.position.set(x, gladeHeight(x, z), z);
-        dummy.rotation.y = hash(i + salt + 3) * Math.PI * 2;
-        const s = sc * (0.85 + hash(i + salt + 5) * 0.5);
-        dummy.scale.setScalar(s);
-      };
-    };
-    const clumps = scatter(thick.scene, 10, (i, dummy) => outside(i, 20, 36, 10, 3.4)(dummy));
-    const tufts = scatter(tuft.scene, 16, (i, dummy) => outside(i, 60, 34, 12, 3.2)(dummy));
-    const lawn = scatter(blades.scene, 48, (i, dummy) => {
-      const x = (hash(i + 1) - 0.5) * 15.2;
-      const z = (hash(i + 3) - 0.5) * 15.2;
-      dummy.position.set(x, gladeHeight(x, z), z);
-      dummy.rotation.y = hash(i + 6) * Math.PI * 2;
-      dummy.scale.setScalar(2.1 + hash(i + 7) * 0.6);
-    });
-
     const skyMat = new THREE.ShaderMaterial({
+      uniforms: { uDay: { value: 1 } },
       vertexShader: SKY_VERT,
       fragmentShader: SKY_FRAG,
       side: THREE.BackSide,
@@ -277,8 +203,8 @@ export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
       fog: false,
     });
 
-    return { ground, groundMat, court, courtMat, paint: painted.tex, clumps, tufts, lawn, skyMat };
-  }, [blades.scene, maps.map, maps.normalMap, maps.roughnessMap, thick.scene, tuft.scene]);
+    return { ground, groundMat, court, courtMat, paint: painted.tex, skyMat };
+  }, [maps.map, maps.normalMap, maps.roughnessMap]);
 
   useEffect(
     () => () => {
@@ -288,10 +214,14 @@ export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
       field.courtMat.dispose();
       field.paint?.dispose();
       field.skyMat.dispose();
-      for (const mesh of [...field.clumps, ...field.tufts, ...field.lawn]) mesh.geometry.dispose();
     },
     [field],
   );
+
+  useFrame(() => {
+    const mat = field.skyMat;
+    if (mat.uniforms.uDay) mat.uniforms.uDay.value = 1 - arenaNight.value;
+  });
 
   return (
     <group>
@@ -300,16 +230,7 @@ export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
         <primitive object={field.skyMat} attach="material" />
       </mesh>
       <mesh geometry={field.ground} material={field.groundMat} receiveShadow />
-      <mesh geometry={field.court} material={field.courtMat} receiveShadow />
-      {field.clumps.map((mesh, i) => (
-        <primitive key={`c-${i}`} object={mesh} />
-      ))}
-      {field.tufts.map((mesh, i) => (
-        <primitive key={`t-${i}`} object={mesh} />
-      ))}
-      {field.lawn.map((mesh, i) => (
-        <primitive key={`l-${i}`} object={mesh} />
-      ))}
+      <mesh geometry={field.court} material={field.courtMat} position={[0, 0.045, 0]} receiveShadow />
       <Grove />
       <Arena cheer={cheer ?? null} />
     </group>

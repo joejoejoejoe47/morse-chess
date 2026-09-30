@@ -6,6 +6,9 @@ import * as THREE from "three";
 
 export type ArenaSide = "w" | "b" | "all";
 
+/** 0 in full day, 1 at night. MeadowDay writes this; lanterns read it. */
+export const arenaNight = { value: 0 };
+
 const COLOSSEUM_SCALE = 15;
 const COLOSSEUM_LIFT = 0.31 * COLOSSEUM_SCALE;
 const WHITE_PAWN = "/units/rogue.glb";
@@ -125,7 +128,7 @@ export function promotionDoor(fileX: number, sign: number) {
   };
 }
 
-function ArchDoor({ x, z }: { x: number; z: number }) {
+function ArchDoor({ x, z, compact = false }: { x: number; z: number; compact?: boolean }) {
   const yaw = Math.atan2(-x, -z);
   const stone = useMemo(
     () =>
@@ -149,7 +152,7 @@ function ArchDoor({ x, z }: { x: number; z: number }) {
     [stone],
   );
   return (
-    <group position={[x, 0, z]} rotation={[0, yaw, 0]}>
+    <group position={[x, 0, z]} rotation={[0, yaw, 0]} scale={compact ? 0.82 : 1}>
       {[-1, 1].map((side) => (
         <mesh key={side} position={[side * (rad + pierW / 2), pierH / 2, 0]} material={stone} castShadow receiveShadow>
           <boxGeometry args={[pierW, pierH, depth]} />
@@ -168,8 +171,8 @@ function ArchDoor({ x, z }: { x: number; z: number }) {
       <mesh position={[0, 0.08, 0.16]} receiveShadow material={stone}>
         <boxGeometry args={[gap + pierW * 2, 0.16, depth + 0.2]} />
       </mesh>
-      <mesh position={[0, pierH * 0.46, -0.22]}>
-        <planeGeometry args={[gap * 0.92, pierH * 0.92]} />
+      <mesh position={[0, pierH * 0.36, -1.05]}>
+        <planeGeometry args={[gap * 0.52, pierH * 0.55]} />
         <meshBasicMaterial color="#140e0a" side={THREE.DoubleSide} />
       </mesh>
     </group>
@@ -202,23 +205,23 @@ useGLTF.preload(BLACK_PAWN);
 function buildFans() {
   const fans: Fan[] = [];
   const rings = [
-    { r: 16.2, y: 3.45 },
-    { r: 19.4, y: 5.05 },
+    { r: 13.4, y: 2.05, count: 22 },
+    { r: 16.1, y: 3.55, count: 26 },
+    { r: 18.8, y: 5.15, count: 30 },
   ];
   rings.forEach((ring, band) => {
-    const count = 16;
-    for (let i = 0; i < count; i++) {
-      const a = (i / count) * Math.PI * 2 + band * 0.2;
+    for (let i = 0; i < ring.count; i++) {
+      const a = (i / ring.count) * Math.PI * 2 + band * 0.17;
       const x = Math.sin(a) * ring.r;
       const z = Math.cos(a) * ring.r;
-      const n = band * count + i;
+      const n = band * 40 + i;
       fans.push({
         x,
         y: ring.y,
         z,
-        rot: Math.atan2(-x, -z) + (hash(n + 4) - 0.5) * 0.25,
+        rot: Math.atan2(-x, -z) + (hash(n + 4) - 0.5) * 0.2,
         side: z >= 0 ? "w" : "b",
-        s: 1.55 + hash(n + 2) * 0.28,
+        s: 0.42 + hash(n + 2) * 0.08,
       });
     }
   });
@@ -292,8 +295,40 @@ function SeatedPawn({
   );
 }
 
+function NightLantern({ x, z }: { x: number; z: number }) {
+  const light = useRef<THREE.PointLight>(null);
+  const glow = useRef<THREE.MeshStandardMaterial>(null);
+  const yaw = Math.atan2(-x, -z);
+  useFrame(() => {
+    const night = arenaNight.value;
+    if (light.current) light.current.intensity = night * 8;
+    if (glow.current) glow.current.emissiveIntensity = 0.2 + night * 3.4;
+  });
+  return (
+    <group position={[x, 2.55, z]} rotation={[0, yaw, 0]}>
+      <mesh position={[0, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.05, 0.07, 0.85, 6]} />
+        <meshStandardMaterial color="#2a2118" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 0.52, 0]}>
+        <boxGeometry args={[0.26, 0.32, 0.26]} />
+        <meshStandardMaterial ref={glow} color="#ffc27a" emissive="#ff8a1a" emissiveIntensity={0.4} roughness={0.35} />
+      </mesh>
+      <pointLight ref={light} position={[0, 0.55, 0.15]} color="#ffb15a" distance={22} decay={2} intensity={0} />
+    </group>
+  );
+}
+
 export function Arena({ cheer }: { cheer: ArenaSide | null }) {
   const fans = useMemo(() => buildFans(), []);
+  const lanterns = useMemo(() => {
+    const spots: { x: number; z: number }[] = [];
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + 0.2;
+      spots.push({ x: Math.sin(a) * 10.6, z: Math.cos(a) * 10.6 });
+    }
+    return spots;
+  }, []);
 
   return (
     <group>
@@ -301,10 +336,13 @@ export function Arena({ cheer }: { cheer: ArenaSide | null }) {
       {ARCH_FILES.flatMap((x) => {
         const z = Math.sqrt(Math.max(1, ARCH_R * ARCH_R - x * x));
         return [
-          <ArchDoor key={`n-${x}`} x={x} z={-z} />,
+          <ArchDoor key={`n-${x}`} x={x} z={-(z + 0.85)} compact />,
           <ArchDoor key={`s-${x}`} x={x} z={z} />,
         ];
       })}
+      {lanterns.map((spot) => (
+        <NightLantern key={`${spot.x.toFixed(2)}-${spot.z.toFixed(2)}`} x={spot.x} z={spot.z} />
+      ))}
       {fans.map((fan, i) => (
         <SeatedPawn
           key={i}

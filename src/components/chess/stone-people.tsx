@@ -247,14 +247,26 @@ function WarUnit({
   }, [actions, mixer]);
 
   useFrame(({ clock }, raw) => {
-    mixer.update(Math.min(raw, 0.05));
     const want = gait.current.act;
+    const dt = Math.min(raw, 0.05);
+    if (want === "death") {
+      if (mode.current !== "death") mode.current = "death";
+      fall.current = Math.min(1, fall.current + dt / 0.55);
+      const k = fall.current * fall.current;
+      if (ref.current) {
+        ref.current.rotation.x = -k * (Math.PI / 2);
+        ref.current.position.y = 0.02 + k * 0.04;
+        ref.current.position.z = 0;
+      }
+      return;
+    }
+    mixer.update(dt);
     if (want !== mode.current) {
       const prev = actions[clipName(clips, mode.current)];
       const next = actions[clipName(clips, want)];
       prev?.fadeOut(0.1);
       if (next) {
-        const once = want === "attack" || want === "death" || want === "pickup";
+        const once = want === "attack" || want === "pickup";
         const duel = clash && want === "attack";
         const cheering = want === "cheer";
         next.timeScale = duel ? 0.7 : 1;
@@ -282,35 +294,7 @@ function WarUnit({
     }
     if (gait.current.fade < 0.99) paint(clone, gait.current.fade);
     if (!ref.current) return;
-    const dt = Math.min(raw, 0.05);
-    if (want === "death") {
-      air.current = 0;
-      fall.current = Math.min(1.4, fall.current + dt / 0.75);
-      ref.current.rotation.x = 0;
-      ref.current.position.y = 0;
-      ref.current.position.z = 0;
-      if (!laid.current && fall.current >= 0.82) {
-        const lie = actions.Lie_Pose ?? actions.Lie_Idle;
-        if (lie) {
-          actions[clipName(clips, "death")]?.fadeOut(0.28);
-          lie.reset();
-          lie.timeScale = 1;
-          lie.paused = false;
-          lie.setLoop(THREE.LoopOnce, 1);
-          lie.clampWhenFinished = true;
-          lie.fadeIn(0.28).play();
-          laid.current = true;
-        }
-      }
-      if (laid.current && fall.current >= 1.2) {
-        const lie = actions.Lie_Pose ?? actions.Lie_Idle;
-        if (lie) {
-          lie.paused = true;
-          lie.timeScale = 0;
-        }
-        mixer.timeScale = 0;
-      }
-    } else if (flip && want === "attack") {
+    if (flip && want === "attack") {
       mixer.timeScale = 1;
       laid.current = false;
       fall.current = 0;
@@ -503,27 +487,13 @@ export function WarCorpse({
   delay: number;
   onDone: () => void;
 }) {
-  const gait = useRef<Gait>({ phase: 0, amp: 0, act: clash ? "attack" : "idle", fade: 1 });
+  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
   const born = useRef<number | null>(null);
-  const done = useRef(false);
-  const [show, setShow] = useState(true);
 
   useFrame(({ clock }) => {
     if (born.current == null) born.current = clock.elapsedTime;
-    const age = clock.elapsedTime - born.current;
-    if (age > delay) gait.current.act = "death";
-    const fadeAt = delay + 1.05;
-    if (age > fadeAt) {
-      const u = Math.min(1, (age - fadeAt) / 4.2);
-      gait.current.fade = 1 - u;
-      if (u >= 1 && !done.current) {
-        done.current = true;
-        setShow(false);
-        onDone();
-      }
-    }
+    if (clock.elapsedTime - born.current > delay) gait.current.act = "death";
   });
 
-  if (!show) return null;
   return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} wing={wing} gait={gait} />;
 }

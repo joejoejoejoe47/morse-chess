@@ -25,6 +25,7 @@ export function BoardLook({
   username,
   equippedBoard,
   coins = 0,
+  coinsReady = false,
   ownedBoards = [],
   startTuning = false,
   onBack,
@@ -36,6 +37,7 @@ export function BoardLook({
   username?: string;
   equippedBoard: string;
   coins?: number;
+  coinsReady?: boolean;
   ownedBoards?: string[];
   startTuning?: boolean;
   onBack?: () => void;
@@ -220,6 +222,7 @@ export function BoardLook({
             <BoardAdjustPanel
               title={`Use ${board.name}`}
               enterLabel={busy ? "Saving…" : "Enter for your games"}
+              showDayClock={board.id === "grassland" && open}
               onEnter={() => void sitHere()}
               onClose={() => setTuning(false)}
             />
@@ -237,8 +240,12 @@ export function BoardLook({
                   {equipped ? "Use · adjust" : "Use this board"}
                 </Button>
               ) : (board.coinCost ?? 0) > 0 ? (
-                <Button variant="solid" disabled={busy} onClick={() => void purchase()}>
-                  {busy ? "Buying…" : `Buy · ${boardPriceLabel(board)}${coins < (board.coinCost ?? 0) ? ` · you have ${coins}` : ""}`}
+                <Button variant="solid" disabled={busy || !coinsReady} onClick={() => void purchase()}>
+                  {busy
+                    ? "Buying…"
+                    : !coinsReady
+                      ? "Checking your coins…"
+                      : `Buy · ${(board.coinCost ?? 0).toLocaleString()} coins${coins < (board.coinCost ?? 0) ? ` · you have ${coins.toLocaleString()}` : ""}`}
                 </Button>
               ) : (
                 <Button variant="outline" disabled>

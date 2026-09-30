@@ -102,11 +102,11 @@ export const CHARACTERS: CharacterItem[] = [
 ];
 
 export const SWORDS: GearItem[] = [
-  { id: "none", name: "Bare hand", price: 0, portrait: "", blurb: "No blade." },
-  { id: "long", name: "Longsword", price: 3, portrait: "/avatars/swords/long.jpg", blurb: "Straight and bright." },
-  { id: "cutlass", name: "Cutlass", price: 3, portrait: "/avatars/swords/cutlass.jpg", blurb: "A sailor's curve." },
-  { id: "axe", name: "Battle axe", price: 4, portrait: "/avatars/swords/axe.jpg", blurb: "Heavy on the square." },
-  { id: "rapier", name: "Rapier", price: 4, portrait: "/avatars/swords/rapier.jpg", blurb: "A thin silver line." },
+  { id: "none", name: "Bare hands", price: 0, portrait: "", blurb: "Nothing in either hand." },
+  { id: "sword", name: "One sword", price: 3, portrait: "", blurb: "A single blade in the right hand." },
+  { id: "dual", name: "Two swords", price: 4, portrait: "", blurb: "One sword in each hand." },
+  { id: "shield", name: "Sword and shield", price: 4, portrait: "", blurb: "Blade in the right, shield in the left." },
+  { id: "staff", name: "Sword and staff", price: 5, portrait: "", blurb: "Blade in the right, staff in the left." },
 ];
 
 export type CrownItem = GearItem & { gold: string; dark: string };
@@ -238,12 +238,13 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
   const team: TeamView = src.team === "b" ? "b" : "w";
   const pick = (id: unknown, fallback: string, rows: { id: string }[]) =>
     typeof id === "string" && rows.some((row) => row.id === id) ? id : fallback;
+  const swordRaw = src.swordId === "long" || src.swordId === "cutlass" || src.swordId === "axe" || src.swordId === "rapier" ? "sword" : src.swordId;
   return {
     style,
     team,
     anId: pick(src.anId, "royal", CHARACTERS),
     kingId: pick(src.kingId, "royal", CHARACTERS),
-    swordId: pick(src.swordId, "none", SWORDS),
+    swordId: pick(swordRaw, "none", SWORDS),
     crownId: pick(src.crownId, "circlet", CROWNS),
     mountId: pick(src.mountId, "none", MOUNTS),
     frameId: pick(src.frameId, "plain", FRAMES),

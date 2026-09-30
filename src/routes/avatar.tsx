@@ -1,9 +1,10 @@
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Canvas } from "@react-three/fiber";
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { Figurine } from "@/components/avatar/figurine";
+import { NamePlate } from "@/components/avatar/name-plate";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import {
   ATTACKS,
@@ -13,6 +14,7 @@ import {
   FRAMES,
   MOUNTS,
   SWORDS,
+  characterById,
   crownArt,
   type AvatarLoadout,
   type GearItem,
@@ -34,6 +36,7 @@ function AvatarStudio() {
   const [loadout, setLoadout] = useState<AvatarLoadout>(DEFAULT_LOADOUT);
   const [owned, setOwned] = useState<string[]>(["royal", "none", "circlet", "plain", "march"]);
   const [coins, setCoins] = useState(0);
+  const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [strike, setStrike] = useState(false);
@@ -46,6 +49,7 @@ function AvatarStudio() {
         setLoadout(row.loadout);
         setOwned(row.owned);
         setCoins(row.coins);
+        setUsername(row.username || "");
         setReady(true);
       })
       .catch((err) => {
@@ -86,204 +90,310 @@ function AvatarStudio() {
     }
   }
 
+  const [tab, setTab] = useState<"kings" | "swords" | "animals" | "crowns" | "frames" | "attacks">("kings");
   const characterId = loadout.style === "an" ? loadout.anId : loadout.kingId;
   const viewLabel = loadout.team === "w" ? "View black" : "View white";
+  const tabs =
+    loadout.style === "2d"
+      ? ([["crowns", "Crowns"]] as const)
+      : loadout.style === "an"
+        ? ([
+            ["swords", "Swords"],
+            ["kings", "Kings"],
+            ["crowns", "Crowns"],
+            ["frames", "Frames"],
+            ["attacks", "Attacks"],
+          ] as const)
+        : ([
+            ["swords", "Swords"],
+            ["kings", "Kings"],
+            ["animals", "Animals"],
+            ["crowns", "Crowns"],
+            ["frames", "Frames"],
+            ["attacks", "Attacks"],
+          ] as const);
+  const shown = tabs.some(([id]) => id === tab) ? tab : tabs[0][0];
 
   return (
-    <main className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-3 py-3 sm:px-6">
-      <div className="check-wash pointer-events-none absolute inset-0" />
-      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3">
-        <Link to="/" className="text-sm text-mist hover:text-ivory">
-          ← Lounge
+    <main className="relative h-dvh overflow-hidden bg-[#0c0d0b] text-ivory">
+      <div className="absolute inset-0">
+        {loadout.style === "2d" ? (
+          <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_center,#2a241c_0%,#0c0d0b_68%)]">
+            <div className="relative grid size-[min(68vh,26rem)] place-items-center border border-line bg-[#e7d7b4] shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+              <div className="absolute inset-3 border border-[#2a2118]/30" />
+              <span className="relative font-display text-[11rem] leading-none text-[#1c140e]">♔</span>
+              <CrownFlat id={loadout.crownId} dark={loadout.team === "b"} />
+            </div>
+          </div>
+        ) : (
+          <Canvas camera={{ position: [1.8, 1.35, 2.25], fov: 32 }} shadows>
+            <color attach="background" args={["#0c0d0b"]} />
+            <hemisphereLight args={["#f4efe4", "#1a140e", 0.85]} />
+            <ambientLight intensity={0.45} />
+            <directionalLight position={[4, 7, 3]} intensity={1.8} castShadow />
+            <Suspense fallback={null}>
+              <group position={[0, 0, 0]}>
+                <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
+                  <boxGeometry args={[2.4, 2.4, 0.12]} />
+                  <meshStandardMaterial color={loadout.team === "w" ? "#f3e6c8" : "#241c16"} />
+                </mesh>
+                <mesh position={[0, 0.08, 0]}>
+                  <boxGeometry args={[2.55, 0.06, 2.55]} />
+                  <meshStandardMaterial color="#3a2a1c" />
+                </mesh>
+                <group position={[0, 0.16, 0]}>
+                  <Figurine
+                    key={`${characterId}-${loadout.mountId}-${loadout.swordId}-${loadout.crownId}-${loadout.team}`}
+                    characterId={characterId}
+                    mountId={loadout.style === "3d" ? loadout.mountId : "none"}
+                    swordId={loadout.swordId}
+                    crownId={loadout.crownId}
+                    team={loadout.team}
+                    attackId={loadout.attackId}
+                    striking={strike}
+                  />
+                </group>
+              </group>
+              <ContactShadows opacity={0.4} scale={6} blur={2.2} far={3} />
+            </Suspense>
+            <OrbitControls
+              enablePan={false}
+              target={[0, 0.85, 0]}
+              minDistance={1.8}
+              maxDistance={5.5}
+              maxPolarAngle={Math.PI / 2.05}
+            />
+          </Canvas>
+        )}
+      </div>
+
+      <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 px-4 py-3">
+        <Link
+          to="/"
+          className="pointer-events-auto rounded-full border border-line bg-ink/80 px-3 py-2 text-sm text-ivory backdrop-blur-md hover:border-line-strong"
+        >
+          Lounge
         </Link>
-        <div className="flex items-center gap-2">
-          <img src="/morse-coin.png" alt="" className="size-8" />
-          <span className="font-display text-2xl text-[#f6e7b2]">{coins}</span>
+        <div className="pointer-events-auto flex rounded-full border border-line bg-ink/80 p-1 backdrop-blur-md">
+          {(["2d", "3d", "an"] as PieceStyle[]).map((style) => (
+            <button
+              key={style}
+              type="button"
+              className={cn(
+                "min-h-10 rounded-full px-4 text-sm uppercase tracking-[0.14em]",
+                loadout.style === style ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
+              onClick={() => void commit({ ...loadout, style })}
+            >
+              {style}
+            </button>
+          ))}
+        </div>
+        <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-ink/80 px-3 py-1.5 backdrop-blur-md">
+          <img src="/morse-coin.png" alt="" className="size-5" />
+          <span className="font-display text-lg tabular-nums text-ivory">{coins.toLocaleString()}</span>
         </div>
       </header>
-      <div className="relative z-10 mt-3 grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="relative min-h-[70vh] overflow-hidden rounded-2xl border border-line bg-[#14110e]">
-          <div className="absolute left-4 top-4 z-10">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-gold-line">The square</p>
-            <h1 className="font-display text-3xl text-ivory">Your king</h1>
-          </div>
-          <div className="absolute right-4 top-4 z-10 flex gap-2">
-            {(["2d", "3d", "an"] as PieceStyle[]).map((style) => (
-              <button
-                key={style}
-                type="button"
-                className={cn(
-                  "min-h-11 rounded-full px-4 text-sm font-medium uppercase",
-                  loadout.style === style ? "bg-ivory text-ink" : "border border-line text-mist",
-                )}
-                onClick={() => void commit({ ...loadout, style })}
-              >
-                {style}
-              </button>
-            ))}
-          </div>
-          {loadout.style === "2d" ? (
-            <div className="grid h-full min-h-[70vh] place-items-center">
-              <div className="grid size-64 place-items-center rounded-xl border-8 border-[#3a2a1c] bg-[#f3e6c8] shadow-2xl">
-                <span className="font-display text-[9rem] leading-none text-[#1c140e]">♔</span>
-              </div>
-            </div>
-          ) : (
-            <Canvas camera={{ position: [1.55, 1.25, 2.05], fov: 34 }} shadows>
-              <color attach="background" args={["#14110e"]} />
-              <hemisphereLight args={["#fff6e4", "#3a2a1c", 0.85]} />
-              <ambientLight intensity={0.7} />
-              <directionalLight position={[3, 6, 2]} intensity={2.2} castShadow />
-              <Suspense fallback={null}>
-                <group position={[0, 0.02, 0]}>
-                  <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-                    <boxGeometry args={[2.2, 2.2, 0.18]} />
-                    <meshStandardMaterial color={loadout.team === "w" ? "#f7ecd2" : "#3a2e28"} roughness={0.8} />
-                  </mesh>
-                  <mesh position={[0, 0.1, 0]}>
-                    <boxGeometry args={[2.35, 0.08, 2.35]} />
-                    <meshStandardMaterial color="#3a2a1c" />
-                  </mesh>
-                  <group position={[0, 0.16, 0]}>
-                    <Figurine
-                      characterId={characterId}
-                      mountId={loadout.style === "3d" ? loadout.mountId : "none"}
-                      swordId={loadout.style === "3d" ? loadout.swordId : "none"}
-                      crownId={loadout.crownId}
-                      team={loadout.team}
-                      attackId={loadout.attackId}
-                      striking={strike}
-                    />
-                  </group>
-                </group>
-                <ContactShadows opacity={0.45} scale={6} blur={2.2} far={3} />
-              </Suspense>
-              <OrbitControls enablePan={false} minDistance={2.4} maxDistance={6} maxPolarAngle={Math.PI / 2.05} />
-            </Canvas>
-          )}
-          <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2">
-            <button
-              type="button"
-              className="min-h-11 rounded-full border border-gold-line bg-walnut px-5 text-sm text-ivory"
-              onClick={() => void commit({ ...loadout, team: loadout.team === "w" ? "b" : "w" })}
-            >
-              {viewLabel}
-            </button>
-            <button
-              type="button"
-              className="min-h-11 rounded-full bg-ivory px-5 text-sm text-ink"
-              onClick={() => {
-                setStrike(true);
-                window.setTimeout(() => setStrike(false), 1600);
-              }}
-            >
-              Try attack
-            </button>
-          </div>
-          {!ready ? <p className="absolute bottom-4 left-4 text-xs text-mist">Opening the cabinet…</p> : null}
-        </section>
-        <aside className="felt-inset max-h-[78vh] space-y-5 overflow-y-auto rounded-2xl border border-line p-3">
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
-          <Rail
-            title={loadout.style === "an" ? "AN characters" : "Kings"}
-            hint="The picture is the king. Tap the portrait."
-          >
-            {CHARACTERS.map((item) => (
-              <Portrait
-                key={item.id}
-                item={item}
-                picked={(loadout.style === "an" ? loadout.anId : loadout.kingId) === item.id}
-                owned={owned.includes(item.id) || item.price === 0}
-                onPick={() => void equip(loadout.style === "an" ? "anId" : "kingId", item.id, item.price)}
-              />
-            ))}
-          </Rail>
-          <Rail title="Swords">
-            {SWORDS.map((item) => (
-              <Portrait
-                key={item.id}
-                item={item}
-                picked={loadout.swordId === item.id}
-                owned={owned.includes(item.id) || item.price === 0}
-                onPick={() => void equip("swordId", item.id, item.price)}
-              />
-            ))}
-          </Rail>
-          <Rail title={loadout.team === "b" ? "Dark crowns" : "Gold crowns"}>
-            {CROWNS.map((item) => (
-              <Portrait
-                key={item.id}
-                item={{ ...item, portrait: crownArt(item.id, loadout.team) }}
-                picked={loadout.crownId === item.id}
-                owned={owned.includes(item.id) || item.price === 0}
-                onPick={() => void equip("crownId", item.id, item.price)}
-              />
-            ))}
-          </Rail>
-          <Rail title="Mounts">
-            {MOUNTS.map((item) => (
-              <Portrait
-                key={item.id}
-                item={item}
-                picked={loadout.mountId === item.id}
-                owned={owned.includes(item.id) || item.price === 0}
-                onPick={() => void equip("mountId", item.id, item.price)}
-              />
-            ))}
-          </Rail>
-          <Rail title="Name frames" hint="The other player sees this around your name.">
-            {FRAMES.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => void equip("frameId", item.id, item.price)}
-                className={cn(
-                  "w-full rounded-xl border p-2 text-left",
-                  loadout.frameId === item.id ? "border-gold-line" : "border-line",
-                )}
-              >
-                <span className={cn("inline-flex rounded-lg px-3 py-1 font-display text-lg text-ivory", frameChip(item.id))}>
-                  Your name
-                </span>
-                <span className="mt-1 block text-xs text-mist">
-                  {item.name}
-                  {item.price ? ` · ${item.price} coins` : " · Yours"}
-                </span>
-              </button>
-            ))}
-          </Rail>
-          <Rail title="King attacks" hint="The one you start with is free.">
-            {ATTACKS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => void equip("attackId", item.id, item.price)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl border p-2 text-left",
-                  loadout.attackId === item.id ? "border-gold-line" : "border-line",
-                )}
-              >
-                <AttackMark id={item.id} />
-                <span>
-                  <span className="block text-sm text-ivory">{item.name}</span>
-                  <span className="text-xs text-mist">{item.price ? `${item.price} coins · ${item.blurb}` : item.blurb}</span>
-                </span>
-              </button>
-            ))}
-          </Rail>
-        </aside>
+
+      <div className="pointer-events-none absolute bottom-24 left-4 z-20 sm:bottom-16">
+        <NamePlate name={username || "You"} look={JSON.stringify(loadout)} />
       </div>
+
+      {loadout.style !== "2d" ? (
+        <p className="pointer-events-none absolute left-4 top-16 z-20 font-display text-3xl text-ivory">
+          {characterById(characterId).name}
+        </p>
+      ) : null}
+
+      <div className="pointer-events-none absolute bottom-[calc(44dvh+4.5rem)] left-1/2 z-20 flex -translate-x-1/2 gap-2 sm:bottom-5 sm:left-[38%] sm:translate-x-0">
+        <button
+          type="button"
+          className="pointer-events-auto min-h-11 rounded-full border border-line bg-ink/85 px-4 text-sm text-ivory backdrop-blur-md hover:border-line-strong"
+          onClick={() => void commit({ ...loadout, team: loadout.team === "w" ? "b" : "w" })}
+        >
+          {viewLabel}
+        </button>
+        {loadout.style !== "2d" ? (
+          <button
+            type="button"
+            className="pointer-events-auto min-h-11 rounded-full border border-ivory bg-ivory px-4 text-sm text-ink"
+            onClick={() => {
+              setStrike(true);
+              window.setTimeout(() => setStrike(false), 1600);
+            }}
+          >
+            Try attack
+          </button>
+        ) : null}
+      </div>
+
+      <aside className="absolute inset-x-3 bottom-3 z-20 flex max-h-[40dvh] flex-col overflow-hidden rounded-2xl border border-line bg-[#10110f]/92 backdrop-blur-md sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-20 sm:max-h-none sm:w-[320px]">
+        <div className="flex gap-1 overflow-x-auto border-b border-line px-2">
+          {tabs.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={cn(
+                "min-h-11 shrink-0 border-b-2 px-3 text-sm",
+                shown === id ? "border-ivory text-ivory" : "border-transparent text-mist hover:text-ivory",
+              )}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          {shown === "kings"
+            ? CHARACTERS.map((item) => (
+                <Portrait
+                  key={item.id}
+                  item={item}
+                  picked={characterId === item.id}
+                  owned={owned.includes(item.id) || item.price === 0}
+                  onPick={() => void equip(loadout.style === "an" ? "anId" : "kingId", item.id, item.price)}
+                />
+              ))
+            : null}
+          {shown === "swords"
+            ? SWORDS.map((item) => (
+                <Portrait
+                  key={item.id}
+                  item={item}
+                  picked={loadout.swordId === item.id}
+                  owned={owned.includes(item.id) || item.price === 0}
+                  onPick={() => void equip("swordId", item.id, item.price)}
+                />
+              ))
+            : null}
+          {shown === "animals"
+            ? MOUNTS.map((item) => (
+                <Portrait
+                  key={item.id}
+                  item={item}
+                  picked={loadout.mountId === item.id}
+                  owned={owned.includes(item.id) || item.price === 0}
+                  onPick={() => void equip("mountId", item.id, item.price)}
+                />
+              ))
+            : null}
+          {shown === "crowns"
+            ? CROWNS.map((item) => (
+                <Portrait
+                  key={item.id}
+                  item={{ ...item, portrait: crownArt(item.id, loadout.team) }}
+                  picked={loadout.crownId === item.id}
+                  owned={owned.includes(item.id) || item.price === 0}
+                  onPick={() => void equip("crownId", item.id, item.price)}
+                />
+              ))
+            : null}
+          {shown === "frames"
+            ? FRAMES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => void equip("frameId", item.id, item.price)}
+                  className={cn(
+                    "w-full rounded-xl border p-2 text-left",
+                    loadout.frameId === item.id ? "border-ivory" : "border-line",
+                  )}
+                >
+                  <span className={cn("inline-flex rounded-lg px-3 py-1 font-display text-lg text-ivory", frameChip(item.id))}>
+                    {username || "You"}
+                  </span>
+                  <span className="mt-1 block text-xs text-mist">
+                    {item.name}
+                    {item.price ? ` · ${item.price} coins` : " · Yours"}
+                  </span>
+                </button>
+              ))
+            : null}
+          {shown === "attacks"
+            ? ATTACKS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => void equip("attackId", item.id, item.price)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl border p-2 text-left",
+                    loadout.attackId === item.id ? "border-ivory" : "border-line",
+                  )}
+                >
+                  <AttackMark id={item.id} />
+                  <span>
+                    <span className="block text-sm text-ivory">{item.name}</span>
+                    <span className="text-xs text-mist">{item.price ? `${item.price} coins · ${item.blurb}` : item.blurb}</span>
+                  </span>
+                </button>
+              ))
+            : null}
+        </div>
+      </aside>
     </main>
   );
 }
-
-function Rail({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+function CrownFlat({ id, dark }: { id: string; dark: boolean }) {
+  const metal = dark ? "#2a241c" : "#e4c56a";
+  const edge = dark ? "#0c0a08" : "#7a5620";
+  const leaf = dark ? "#3e4a36" : "#8fa56a";
+  const crown =
+    id === "sun"
+      ? "M6 58 L14 28 L24 46 L34 18 L44 46 L50 8 L56 46 L66 18 L76 46 L86 28 L94 58 Z"
+      : id === "arched"
+        ? "M10 58 L22 30 Q50 4 78 30 L90 58 Z"
+        : id === "laurel"
+          ? ""
+          : "M8 58 L20 26 L34 44 L50 12 L66 44 L80 26 L92 58 Z";
   return (
-    <section>
-      <h2 className="font-display text-xl text-ivory">{title}</h2>
-      {hint ? <p className="mb-2 text-xs text-mist">{hint}</p> : <div className="mb-2" />}
-      <div className="grid gap-2">{children}</div>
-    </section>
+    <svg
+      viewBox="0 0 100 70"
+      className="pointer-events-none absolute left-1/2 top-[27%] w-[34%] -translate-x-1/2"
+      aria-hidden
+    >
+      {id === "laurel" ? (
+        <g fill={leaf} stroke={edge} strokeWidth="1.2">
+          {[-1, 1].map((side) => (
+            <g key={side} transform={`translate(50 48) scale(${side} 1)`}>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <ellipse
+                  key={i}
+                  cx={8 + i * 6}
+                  cy={-4 + i * 2}
+                  rx="6"
+                  ry="3.2"
+                  transform={`rotate(${-36 + i * 14} ${8 + i * 6} ${-4 + i * 2})`}
+                />
+              ))}
+            </g>
+          ))}
+        </g>
+      ) : (
+        <path d={crown} fill={metal} stroke={edge} strokeWidth="2" strokeLinejoin="round" />
+      )}
+      <rect x="8" y="54" width="84" height="8" rx="1.5" fill={metal} stroke={edge} strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function GearMark({ id }: { id: string }) {
+  const path =
+    id === "dual"
+      ? "M8 19 L12 4 M16 19 L12 4 M7 8h10"
+      : id === "shield"
+        ? "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"
+        : id === "staff"
+          ? "M12 21V4 M12 6l3 2 M12 6l-3 2"
+          : id === "none"
+            ? "M8 16c2-4 6-4 8 0"
+            : "M12 20V5 M8 9h8";
+  return (
+    <span className="grid size-20 shrink-0 place-items-center rounded-lg border border-line bg-[#1a1916]">
+      <svg viewBox="0 0 24 24" className="size-10 text-ivory" aria-hidden>
+        <path d={path} fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
   );
 }
 
@@ -304,18 +414,16 @@ function Portrait({
       onClick={onPick}
       className={cn(
         "flex items-center gap-3 rounded-xl border bg-ink/40 p-1.5 text-left",
-        picked ? "border-gold-line" : "border-line hover:border-line-strong",
+        picked ? "border-ivory bg-white/[0.04]" : "border-line hover:border-line-strong",
       )}
     >
       {item.portrait ? (
-        <img src={item.portrait} alt="" className="size-16 shrink-0 rounded-lg object-cover" />
+        <img src={item.portrait} alt="" className="size-20 shrink-0 rounded-lg object-cover" />
       ) : (
-        <span className="grid size-16 shrink-0 place-items-center rounded-lg bg-walnut font-display text-lg text-cream">
-          {item.name.slice(0, 1)}
-        </span>
+        <GearMark id={item.id} />
       )}
       <span className="min-w-0">
-        <span className="block truncate text-sm text-ivory">{item.name}</span>
+        <span className="block truncate font-display text-xl text-ivory">{item.name}</span>
         <span className="block text-xs text-mist">{owned ? "Owned" : `${item.price} Morse coins`}</span>
       </span>
     </button>

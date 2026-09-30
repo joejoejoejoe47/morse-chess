@@ -44,6 +44,7 @@ export function BoardGallery({
         username={username}
         equippedBoard={equipped}
         coins={purse.coins}
+        coinsReady
         ownedBoards={purse.owned}
         startTuning={tune}
         onBack={() => {

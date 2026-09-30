@@ -520,8 +520,8 @@ export const BOARD_CATALOG: BoardSkin[] = [
   {
     ...BASE,
     id: "grassland",
-    name: "Grassland",
-    blurb: "A meadow inside the Colosseum. White sits one side, black the other.",
+    name: "COLUSSEUM",
+    blurb: "The colosseum floor. White sits one side, black the other.",
     cost: 0,
     coinCost: 100_000_000,
     tableKind: "felt",

@@ -45,8 +45,14 @@ function clampLoadout(loadout: AvatarLoadout, owned: Set<string>): AvatarLoadout
 
 async function readRow(sql: Sql, userId: string) {
   await ensureAvatar(sql);
-  const rows = await sql<{ avatar_json: string | null; piece_style: string | null; owned_gear: string | null; coins: number | string }>`
-    select avatar_json, piece_style, owned_gear, coins from profiles where user_id = ${userId} limit 1
+  const rows = await sql<{
+    avatar_json: string | null;
+    piece_style: string | null;
+    owned_gear: string | null;
+    coins: number | string;
+    username: string;
+  }>`
+    select avatar_json, piece_style, owned_gear, coins, username from profiles where user_id = ${userId} limit 1
   `;
   const row = rows[0];
   if (!row) return null;
@@ -60,6 +66,7 @@ async function readRow(sql: Sql, userId: string) {
   const style: PieceStyle = row.piece_style === "2d" || row.piece_style === "an" || row.piece_style === "3d" ? row.piece_style : "3d";
   return {
     coins: Number(row.coins) || 0,
+    username: row.username,
     owned: [...owned],
     loadout: { ...clampLoadout(parsed, owned), style },
   };
