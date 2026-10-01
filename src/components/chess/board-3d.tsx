@@ -303,8 +303,8 @@ function makeStauntonGeometries() {
   return { pawn, rook, bishop, queen, king, knightBase, knightHead: makeKnightHead() };
 }
 
-function makeGeometries(fine: boolean) {
-  return fine ? makeStauntonGeometries() : makeClubGeometries();
+function makeGeometries(_fine: boolean) {
+  return makeStauntonGeometries();
 }
 
 function PieceMesh({
@@ -338,7 +338,14 @@ function PieceMesh({
         ) : null}
         <mesh geometry={geometries.knightBase} material={mat} castShadow />
         {geometries.knightHead ? (
-          <mesh geometry={geometries.knightHead} position={[0, 0.28, 0]} material={mat} castShadow />
+          <>
+            {outlineOn ? (
+              <mesh geometry={geometries.knightHead} position={[0, 0.28, 0]} scale={[1.12, 1.08, 1.12]}>
+                <meshBasicMaterial color={outline} side={THREE.BackSide} />
+              </mesh>
+            ) : null}
+            <mesh geometry={geometries.knightHead} position={[0, 0.28, 0]} material={mat} castShadow />
+          </>
         ) : (
           <group rotation={[0, Math.PI, 0]}>
             <mesh position={[0, 0.42, 0.02]} rotation={[0.15, 0, 0]} castShadow>

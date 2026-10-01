@@ -36,7 +36,7 @@ function clampLoadout(loadout: AvatarLoadout, owned: Set<string>): AvatarLoadout
     anId: keep(loadout.anId, "piece"),
     kingId: keep(loadout.kingId, "piece"),
     swordId: keep(loadout.swordId, "none"),
-    crownId: keep(loadout.crownId, "circlet"),
+    crownId: keep(loadout.crownId, "poly-band"),
     mountId: keep(loadout.mountId, "none"),
     frameId: keep(loadout.frameId, "plain"),
     attackId: keep(loadout.attackId, "march"),

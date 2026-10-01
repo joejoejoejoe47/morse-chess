@@ -113,71 +113,33 @@ export const CHARACTERS: CharacterItem[] = [
 ];
 
 export const SWORDS: GearItem[] = [
-  { id: "none", name: "Bare hands", price: 0, portrait: "", blurb: "Nothing in either hand." },
-  { id: "sword", name: "One sword", price: 3, portrait: "", blurb: "A single blade in the right hand." },
-  { id: "dual", name: "Two swords", price: 4, portrait: "", blurb: "One sword in each hand." },
-  { id: "shield", name: "Sword and shield", price: 4, portrait: "", blurb: "Blade in the right, shield in the left." },
-  { id: "staff", name: "Sword and staff", price: 5, portrait: "", blurb: "Blade in the right, staff in the left." },
+  { id: "none", name: "Bare hands", price: 0, portrait: "", blurb: "Nothing in the hand." },
+  { id: "devil", name: "Devil sword", price: 4, portrait: "", blurb: "One sword, held in the right hand." },
+  { id: "talwar", name: "Talwar", price: 4, portrait: "", blurb: "One curved sword, held in the right hand." },
 ];
 
 export type CrownItem = GearItem & { gold: string; dark: string; model?: string };
 
 export const CROWNS: CrownItem[] = [
   {
-    id: "circlet",
-    name: "Circlet",
+    id: "poly-band",
+    name: "Band crown",
     price: 0,
-    portrait: "/avatars/crowns/gold-circlet.jpg",
-    blurb: "The crown you start with.",
-    gold: "/avatars/crowns/gold-circlet.jpg",
-    dark: "/avatars/crowns/dark-circlet.jpg",
-  },
-  {
-    id: "arched",
-    name: "Arched",
-    price: 5,
-    portrait: "/avatars/crowns/gold-arched.jpg",
-    blurb: "Gold arches. Iron spikes for black.",
-    gold: "/avatars/crowns/gold-arched.jpg",
-    dark: "/avatars/crowns/dark-spiked.jpg",
-  },
-  {
-    id: "sun",
-    name: "Sunburst",
-    price: 6,
-    portrait: "/avatars/crowns/gold-sun.jpg",
-    blurb: "Bright rays. Horns when the side is black.",
-    gold: "/avatars/crowns/gold-sun.jpg",
-    dark: "/avatars/crowns/dark-horn.jpg",
-  },
-  {
-    id: "laurel",
-    name: "Laurel",
-    price: 4,
-    portrait: "/avatars/crowns/gold-laurel.jpg",
-    blurb: "Gold leaves. Black thorns for the dark side.",
-    gold: "/avatars/crowns/gold-laurel.jpg",
-    dark: "/avatars/crowns/dark-thorn.jpg",
+    portrait: "",
+    blurb: "A low gold band that sits on the head.",
+    gold: "",
+    dark: "",
+    model: "/avatars/crowns/poly-band.glb",
   },
   {
     id: "poly-arch",
     name: "Arch crown",
     price: 8,
     portrait: "",
-    blurb: "A real gold crown, arches and all.",
+    blurb: "A gold crown with arches, sized for the head.",
     gold: "",
     dark: "",
     model: "/avatars/crowns/poly-arch.glb",
-  },
-  {
-    id: "poly-band",
-    name: "Band crown",
-    price: 7,
-    portrait: "",
-    blurb: "A low gold band set with points.",
-    gold: "",
-    dark: "",
-    model: "/avatars/crowns/poly-band.glb",
   },
 ];
 
@@ -224,7 +186,7 @@ export const ATTACKS: GearItem[] = [
   { id: "bow", name: "Bow", price: 3, portrait: "", blurb: "A low courtesy, then the take." },
 ];
 
-export const STARTER_IDS = ["piece", "none", "circlet", "plain", "march"];
+export const STARTER_IDS = ["piece", "none", "poly-band", "plain", "march"];
 
 export const DEFAULT_LOADOUT: AvatarLoadout = {
   style: "3d",
@@ -232,7 +194,7 @@ export const DEFAULT_LOADOUT: AvatarLoadout = {
   anId: "piece",
   kingId: "piece",
   swordId: "none",
-  crownId: "circlet",
+  crownId: "poly-band",
   mountId: "none",
   frameId: "plain",
   attackId: "march",
@@ -270,14 +232,17 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
   const team: TeamView = src.team === "b" ? "b" : "w";
   const pick = (id: unknown, fallback: string, rows: { id: string }[]) =>
     typeof id === "string" && rows.some((row) => row.id === id) ? id : fallback;
-  const swordRaw = src.swordId === "long" || src.swordId === "cutlass" || src.swordId === "axe" || src.swordId === "rapier" ? "sword" : src.swordId;
+  const oldSword = ["sword", "dual", "shield", "staff", "long", "cutlass", "axe", "rapier"];
+  const swordRaw = oldSword.includes(String(src.swordId)) ? "devil" : src.swordId;
+  const oldCrown = ["circlet", "arched", "sun", "laurel"];
+  const crownRaw = oldCrown.includes(String(src.crownId)) ? "poly-band" : src.crownId;
   return {
     style,
     team,
     anId: pick(src.anId, "piece", CHARACTERS),
     kingId: pick(src.kingId, "piece", CHARACTERS),
     swordId: pick(swordRaw, "none", SWORDS),
-    crownId: pick(src.crownId, "circlet", CROWNS),
+    crownId: pick(crownRaw, "poly-band", CROWNS),
     mountId: pick(src.mountId, "none", MOUNTS),
     frameId: pick(src.frameId, "plain", FRAMES),
     attackId: pick(src.attackId, "march", ATTACKS),

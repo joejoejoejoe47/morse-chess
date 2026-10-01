@@ -112,10 +112,36 @@ function fitCrown(source: THREE.Object3D) {
   });
   const box = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
-  const span = Math.max(size.x, size.y, size.z, 0.001);
-  obj.scale.setScalar(0.28 / span);
-  obj.position.y = -box.min.y * (0.28 / span);
+  const span = Math.max(size.x, size.z, 0.001);
+  const fit = 0.18 / span;
+  obj.scale.setScalar(fit);
+  obj.position.y = -box.min.y * fit;
   return obj;
+}
+
+function fitHandSword(source: THREE.Object3D) {
+  const obj = source.clone(true);
+  obj.name = "kit-sword-r";
+  obj.userData.kit = true;
+  obj.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (mesh.isMesh) {
+      mesh.castShadow = true;
+      mesh.frustumCulled = false;
+    }
+  });
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const fit = 0.55 / Math.max(size.y, size.x, size.z, 0.001);
+  obj.scale.setScalar(fit);
+  obj.position.set(0, 0.05, 0.02);
+  obj.rotation.set(-0.4, 0, 0.2);
+  return obj;
+}
+
+function swordFile(id: string) {
+  if (id === "talwar") return "/avatars/swords/talwar.glb";
+  return "/avatars/swords/devil.glb";
 }
 
 function findSlot(root: THREE.Object3D, side: "r" | "l" | "head") {
@@ -174,7 +200,7 @@ function GlbBody({
   height,
   dark,
   kit = "none",
-  crownId = "circlet",
+  crownId = "poly-band",
   team = "w",
   sit = false,
   wearCrown = true,
@@ -193,6 +219,7 @@ function GlbBody({
   const gltf = useGLTF(url);
   const crownSpec = crownById(crownId);
   const crownFile = useGLTF(crownSpec.model || "/avatars/crowns/poly-band.glb");
+  const bladeFile = useGLTF(swordFile(kit));
   const scene = useMemo(() => prep(gltf.scene, height, dark), [gltf.scene, height, dark]);
   const { actions } = useAnimations(gltf.animations, scene);
   const clipMode = useRef("");
@@ -233,46 +260,24 @@ function GlbBody({
     clearKit(scene);
     hideCarried(scene);
     const right = findSlot(scene, "r");
-    const left = findSlot(scene, "l");
     const head = findSlot(scene, "head");
-    if (kit === "sword" || kit === "dual" || kit === "shield" || kit === "staff") {
-      const sword = makeSword();
-      sword.name = "kit-sword-r";
-      scene.add(sword);
-    }
-    if (kit === "dual") {
-      const sword = makeSword();
-      sword.name = "kit-sword-l";
-      scene.add(sword);
-    }
-    if (kit === "shield") {
-      const shield = makeShield();
-      shield.name = "kit-off-l";
-      scene.add(shield);
-    }
-    if (kit === "staff") {
-      const staff = makeStaff();
-      staff.name = "kit-off-l";
-      scene.add(staff);
+    if (kit === "devil" || kit === "talwar") {
+      const sword = fitHandSword(bladeFile.scene);
+      (right ?? scene).add(sword);
     }
     if (wearCrown) {
-      const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
-      scene.add(crown);
-      placeKit(scene, "kit-crown", head, 0.16, 1);
+      const crown = fitCrown(crownFile.scene);
+      if (head) {
+        head.add(crown);
+        crown.position.set(0, 0.12, 0);
+      } else {
+        scene.add(crown);
+        crown.position.set(0, height * 0.86, 0);
+      }
     }
-    placeKit(scene, "kit-sword-r", right, 0.02, 0.42);
-    placeKit(scene, "kit-sword-l", left, 0.02, 0.42);
-    placeKit(scene, "kit-off-l", left, 0.04, kit === "staff" ? 0.55 : 0.7);
     return () => clearKit(scene);
-  }, [scene, kit, crownId, team, wearCrown, crownSpec.model, crownFile.scene]);
+  }, [scene, kit, crownId, team, wearCrown, crownFile.scene, bladeFile.scene, height]);
   useFrame(() => {
-    const right = findSlot(scene, "r");
-    const left = findSlot(scene, "l");
-    const head = findSlot(scene, "head");
-    placeKit(scene, "kit-crown", head, 0.16, 1);
-    placeKit(scene, "kit-sword-r", right, 0.02, 0.42);
-    placeKit(scene, "kit-sword-l", left, 0.02, 0.42);
-    placeKit(scene, "kit-off-l", left, 0.04, kit === "staff" ? 0.55 : 0.7);
     if (!sit) return;
     const bend = (re: RegExp, rad: number) => {
       const found: THREE.Bone[] = [];
@@ -284,10 +289,12 @@ function GlbBody({
       found.sort((a, b) => a.name.length - b.name.length);
       const bone = found[0];
       if (!bone) return;
-      bone.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), rad));
+      const data = bone.userData as { sitRest?: THREE.Quaternion };
+      if (!data.sitRest) data.sitRest = bone.quaternion.clone();
+      bone.quaternion.copy(data.sitRest).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), rad));
     };
-    bend(/upperleg/i, -1.05);
-    bend(/lowerleg/i, 1.2);
+    bend(/upperleg/i, -1.15);
+    bend(/lowerleg/i, 1.35);
   });
   return <primitive object={scene} />;
 }
@@ -329,7 +336,7 @@ export function Figurine({
   characterId,
   mountId = "none",
   swordId = "none",
-  crownId = "circlet",
+  crownId = "poly-band",
   team = "w",
   attackId = "march",
   striking = false,
@@ -409,8 +416,8 @@ export function Figurine({
         <Body url={mount.url} kind={mount.kind} height={mount.height ?? 1} dark={dark} />
       ) : null}
       <group
-        position={[0, riding ? (mount.height ?? 1) * 0.72 : 0, riding ? 0.02 : 0]}
-        rotation={[riding ? -0.18 : 0, character.yaw ?? 0, 0]}
+        position={[0, riding ? (mount.height ?? 1) * 0.5 : 0, riding ? 0.08 : 0]}
+        rotation={[riding ? -0.12 : 0, character.yaw ?? 0, 0]}
       >
         {plainKing ? (
           <StauntonKing white={!dark} crownId={crownId} team={team} swordId={swordId} />
@@ -516,4 +523,7 @@ export function StauntonKnight({ white }: { white: boolean }) {
 useGLTF.preload("/avatars/knight-piece.glb");
 useGLTF.preload("/avatars/king-an.glb");
 useGLTF.preload("/avatars/pirate.glb");
-useGLTF.preload("/avatars/horse.glb");
+useGLTF.preload("/avatars/crowns/poly-band.glb");
+useGLTF.preload("/avatars/crowns/poly-arch.glb");
+useGLTF.preload("/avatars/swords/devil.glb");
+useGLTF.preload("/avatars/swords/talwar.glb");

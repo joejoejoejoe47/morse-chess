@@ -557,7 +557,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
           className="club-stage relative h-full min-h-[420px] overflow-hidden rounded-2xl border border-[#332e26]"
           style={{ backgroundImage: "url(/club/marquetry.png)", backgroundSize: "cover", backgroundPosition: "center" }}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[#140e0a]/55" />
+          <div className="pointer-events-none absolute inset-0 bg-transparent" />
           <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 rounded-full border border-[#4a4034] bg-black/50 p-1 backdrop-blur-sm">
             {(["2d", "3d", "an"] as const).map((id) => (
               <button
