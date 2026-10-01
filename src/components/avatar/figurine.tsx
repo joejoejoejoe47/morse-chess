@@ -368,8 +368,7 @@ export function Figurine({
       return;
     }
     const step = pace?.current.act === "walk";
-    const swing = pace?.current.act === "attack";
-    if (pace && (step || swing)) {
+    if (pace) {
       group.rotation.y = 0;
       group.position.y = step ? Math.abs(Math.sin(t * 8)) * 0.05 : 0;
       return;
