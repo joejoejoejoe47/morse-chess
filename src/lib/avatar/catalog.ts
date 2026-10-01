@@ -59,7 +59,6 @@ export const CHARACTERS: CharacterItem[] = [
     url: "/avatars/pirate.glb",
     kind: "glb",
     height: 1.45,
-    yaw: Math.PI,
   },
   {
     id: "knight",
