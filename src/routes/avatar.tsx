@@ -125,12 +125,14 @@ function AvatarStudio() {
   }
 
   const [tab, setTab] = useState<"kings" | "swords" | "animals" | "crowns" | "frames" | "attacks">("kings");
-  const characterId = loadout.style === "an" ? loadout.anId : loadout.kingId;
+  const [ra, setRa] = useState(false);
+  const ownsRoyal = owned.includes("royal");
+  const characterId = ra ? "royal" : loadout.style === "an" ? loadout.anId : loadout.kingId;
   const viewLabel = loadout.team === "w" ? "View black" : "View white";
   const tabs =
     loadout.style === "2d"
       ? ([["crowns", "Crowns"]] as const)
-      : loadout.style === "an"
+      : ra || loadout.style === "an"
         ? ([
             ["swords", "Swords"],
             ["kings", "Kings"],
@@ -156,7 +158,7 @@ function AvatarStudio() {
               <CrownFlat id={loadout.crownId} dark={loadout.team === "b"} />
             </div>
           </div>
-        ) : loadout.style === "3d" ? (
+        ) : loadout.style === "3d" && !ra ? (
           <Canvas camera={{ position: [0.4, 4.8, 6.2], fov: 32 }} shadows onCreated={({ gl }) => keepWebGL(gl)}>
             <color attach="background" args={["#2a2118"]} />
             <Suspense fallback={null}>
@@ -213,11 +215,24 @@ function AvatarStudio() {
                 "min-h-10 rounded-full px-4 text-sm uppercase tracking-[0.14em]",
                 loadout.style === style ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
               )}
-              onClick={() => void commit({ ...loadout, style })}
+              onClick={() => {
+                setRa(false);
+                void commit({ ...loadout, style });
+              }}
             >
               {style}
             </button>
           ))}
+          <button
+            type="button"
+            className={cn(
+              "min-h-10 rounded-full px-4 text-sm uppercase tracking-[0.14em]",
+              ra ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+            )}
+            onClick={() => setRa(true)}
+          >
+            {ownsRoyal ? "RA" : "Buy RA"}
+          </button>
         </div>
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-ink/80 px-3 py-1.5 backdrop-blur-md">
           <img src="/morse-coin.png" alt="" className="size-5" />
@@ -275,11 +290,34 @@ function AvatarStudio() {
         </div>
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
           {error ? <p className="rounded-xl bg-[#3a221c] px-3 py-2 text-sm text-[#f4d2c8]">{error}</p> : null}
+          {ra && !ownsRoyal ? (
+            <button
+              type="button"
+              className="w-full rounded-xl bg-[#e6c56a] px-3 py-2 text-sm text-[#1a140f]"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    if (!owned.includes("royal")) {
+                      const bought = await buyGear({ data: { id: "royal" } });
+                      setCoins(bought.coins);
+                      setOwned(bought.owned);
+                    }
+                    await commit({ ...loadout, style: "an", anId: "royal" });
+                    setRa(false);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Not enough Morse coins.");
+                  }
+                })();
+              }}
+            >
+              Buy RA · 150 Morse coins
+            </button>
+          ) : null}
           {characterId === "royal" && shown === "crowns" ? (
             <p className="rounded-xl border border-[#3a3126] px-3 py-2 text-sm text-[#d9c7a4]">The royal king wears no crown.</p>
           ) : null}
           {shown === "kings"
-            ? CHARACTERS.filter((item) => loadout.style !== "3d" || item.id === "piece").map((item) => (
+            ? CHARACTERS.filter((item) => (ra || loadout.style === "an" ? item.id !== "piece" : item.id === "piece")).map((item) => (
                 <Portrait
                   key={item.id}
                   item={item}
@@ -402,7 +440,7 @@ function KingTable({ crownId, team }: { crownId: string; team: "w" | "b" }) {
         <meshStandardMaterial color="#4a3018" roughness={0.7} />
       </mesh>
       {squares}
-      <group position={[0, 0.1, 0]} scale={0.86}>
+      <group position={[0, 0.1, 0]} scale={1}>
         <Figurine characterId="piece" mountId="none" swordId="none" crownId={crownId} team={team} />
       </group>
     </>

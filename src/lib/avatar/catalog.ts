@@ -43,7 +43,7 @@ export const CHARACTERS: CharacterItem[] = [
   {
     id: "royal",
     name: "Royal",
-    price: 12,
+    price: 150,
     portrait: "/avatars/kings/royal.jpg",
     blurb: "Pays for the house. Wears no crown.",
     url: "/avatars/king-an.glb",
@@ -63,7 +63,7 @@ export const CHARACTERS: CharacterItem[] = [
   {
     id: "knight",
     name: "Silver Knight",
-    price: 6,
+    price: 0,
     portrait: "/avatars/kings/knight.jpg",
     blurb: "Closed helm, bright steel.",
     url: "/units/knight.glb",
@@ -123,23 +123,31 @@ export type CrownItem = GearItem & { gold: string; dark: string; model?: string 
 export const CROWNS: CrownItem[] = [
   {
     id: "poly-band",
-    name: "Band crown",
+    name: "Band",
     price: 0,
-    portrait: "",
-    blurb: "A low gold band that sits on the head.",
-    gold: "",
-    dark: "",
+    portrait: "/avatars/crowns/gold-circlet.jpg",
+    blurb: "A low gold band. It sits on the head.",
+    gold: "/avatars/crowns/gold-circlet.jpg",
+    dark: "/avatars/crowns/dark-circlet.jpg",
     model: "/avatars/crowns/poly-band.glb",
   },
   {
-    id: "poly-arch",
-    name: "Arch crown",
-    price: 8,
-    portrait: "",
-    blurb: "A gold crown with arches, sized for the head.",
-    gold: "",
-    dark: "",
-    model: "/avatars/crowns/poly-arch.glb",
+    id: "arched",
+    name: "Arched",
+    price: 5,
+    portrait: "/avatars/crowns/gold-arched.jpg",
+    blurb: "Gold arches, smaller than the head.",
+    gold: "/avatars/crowns/gold-arched.jpg",
+    dark: "/avatars/crowns/dark-spiked.jpg",
+  },
+  {
+    id: "laurel",
+    name: "Laurel",
+    price: 4,
+    portrait: "/avatars/crowns/gold-laurel.jpg",
+    blurb: "A ring of leaves on the head.",
+    gold: "/avatars/crowns/gold-laurel.jpg",
+    dark: "/avatars/crowns/dark-thorn.jpg",
   },
 ];
 
@@ -178,20 +186,15 @@ export const FRAMES: GearItem[] = [
 
 export const ATTACKS: GearItem[] = [
   { id: "march", name: "Normal", price: 0, portrait: "", blurb: "The king stands ready." },
-  { id: "flip", name: "Front flip", price: 4, portrait: "", blurb: "A front flip kick onto the square." },
-  { id: "slam", name: "Slam", price: 3, portrait: "", blurb: "The king drops onto the square." },
-  { id: "sweep", name: "Sweep", price: 3, portrait: "", blurb: "A wide blade turn." },
-  { id: "charge", name: "Charge", price: 5, portrait: "", blurb: "Horse or not, they rush." },
-  { id: "flash", name: "Flash", price: 4, portrait: "", blurb: "The crown lights the capture." },
-  { id: "bow", name: "Bow", price: 3, portrait: "", blurb: "A low courtesy, then the take." },
+  { id: "chop", name: "Chop", price: 4, portrait: "", blurb: "One clean cut with the blade." },
 ];
 
-export const STARTER_IDS = ["piece", "none", "poly-band", "plain", "march"];
+export const STARTER_IDS = ["piece", "knight", "none", "poly-band", "plain", "march"];
 
 export const DEFAULT_LOADOUT: AvatarLoadout = {
   style: "3d",
   team: "w",
-  anId: "piece",
+  anId: "knight",
   kingId: "piece",
   swordId: "none",
   crownId: "poly-band",
@@ -234,18 +237,20 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     typeof id === "string" && rows.some((row) => row.id === id) ? id : fallback;
   const oldSword = ["sword", "dual", "shield", "staff", "long", "cutlass", "axe", "rapier"];
   const swordRaw = oldSword.includes(String(src.swordId)) ? "devil" : src.swordId;
-  const oldCrown = ["circlet", "arched", "sun", "laurel"];
+  const oldCrown = ["circlet", "sun", "poly-arch"];
   const crownRaw = oldCrown.includes(String(src.crownId)) ? "poly-band" : src.crownId;
+  const oldAttack = ["flip", "slam", "sweep", "charge", "flash", "bow"];
+  const attackRaw = oldAttack.includes(String(src.attackId)) ? "chop" : src.attackId;
   return {
     style,
     team,
-    anId: pick(src.anId, "piece", CHARACTERS),
+    anId: pick(src.anId, "knight", CHARACTERS),
     kingId: pick(src.kingId, "piece", CHARACTERS),
     swordId: pick(swordRaw, "none", SWORDS),
     crownId: pick(crownRaw, "poly-band", CROWNS),
     mountId: pick(src.mountId, "none", MOUNTS),
     frameId: pick(src.frameId, "plain", FRAMES),
-    attackId: pick(src.attackId, "march", ATTACKS),
+    attackId: pick(attackRaw, "march", ATTACKS),
   };
 }
 

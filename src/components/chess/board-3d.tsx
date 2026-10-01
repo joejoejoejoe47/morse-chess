@@ -579,7 +579,7 @@ function AnimatedPiece({
         gear && type === "k" ? (
           <group scale={1.45} rotation={[0, Math.PI, 0]}>
             <Figurine
-              characterId={gear.anId}
+              characterId={gear.anId === "piece" ? "knight" : gear.anId}
               swordId={gear.swordId}
               crownId={gear.crownId}
               team={color}
@@ -604,9 +604,9 @@ function AnimatedPiece({
           <StauntonKnight white={color === "w"} />
         </group>
       ) : type === "k" && gear ? (
-        <group scale={0.86}>
+        <group scale={1}>
           <Figurine
-            characterId={gear.kingId}
+            characterId="piece"
             mountId={gear.mountId}
             swordId={gear.swordId}
             crownId={gear.crownId}

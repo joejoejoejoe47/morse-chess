@@ -33,7 +33,7 @@ function clampLoadout(loadout: AvatarLoadout, owned: Set<string>): AvatarLoadout
   const keep = (id: string, fallback: string) => (owned.has(id) || gearPrice(id) === 0 ? id : fallback);
   return {
     ...loadout,
-    anId: keep(loadout.anId, "piece"),
+    anId: keep(loadout.anId, "knight"),
     kingId: keep(loadout.kingId, "piece"),
     swordId: keep(loadout.swordId, "none"),
     crownId: keep(loadout.crownId, "poly-band"),

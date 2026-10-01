@@ -35,7 +35,7 @@ export function CoinDock() {
     };
   }, []);
 
-  if (coins == null || path.startsWith("/club")) return null;
+  if (coins == null || path.startsWith("/club") || path.startsWith("/avatar")) return null;
 
   return (
     <>
@@ -55,13 +55,11 @@ export function CoinDock() {
           ))
         : null}
       <div
-        className="pointer-events-none fixed bottom-3 left-3 z-[60] flex flex-col items-center"
-        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        className="pointer-events-none fixed top-3 right-3 z-[60] flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5"
+        style={{ marginTop: "env(safe-area-inset-top)" }}
       >
-        <img src="/morse-coin.png" alt="Morse coin" className="size-14 drop-shadow-[0_6px_10px_rgba(0,0,0,0.45)]" />
-        <span className="font-display text-[22px] leading-none tracking-wide text-[#f6e7b2] [text-shadow:0_2px_8px_rgba(0,0,0,0.7)]">
-          {coins}
-        </span>
+        <img src="/morse-coin.png" alt="Morse coin" className="size-7 shrink-0" />
+        <span className="font-display text-lg leading-none tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
       </div>
     </>
   );

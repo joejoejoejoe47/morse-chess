@@ -166,25 +166,27 @@ function hideCarried(root: THREE.Object3D) {
   });
 }
 
-function placeKit(scene: THREE.Object3D, name: string, slot: THREE.Object3D | null, lift: number, size: number) {
-  const obj = scene.getObjectByName(name);
-  if (!obj) return;
-  const anchor = slot ?? scene;
-  anchor.updateWorldMatrix(true, false);
-  const pos = new THREE.Vector3();
-  anchor.getWorldPosition(pos);
-  pos.y += lift;
-  const parent = obj.parent ?? scene;
-  parent.updateWorldMatrix(true, false);
-  parent.worldToLocal(pos);
-  obj.position.copy(pos);
-  const parentQuat = new THREE.Quaternion();
-  parent.getWorldQuaternion(parentQuat);
-  obj.quaternion.copy(parentQuat.invert());
-  const world = new THREE.Vector3();
-  parent.getWorldScale(world);
-  const inv = 1 / (Math.max(world.x, world.y, world.z) || 1);
-  obj.scale.setScalar(inv * size);
+function seatCrown(head: THREE.Object3D, crown: THREE.Object3D) {
+  head.add(crown);
+  crown.position.set(0, 0, 0);
+  crown.updateWorldMatrix(true, true);
+  const crownBox = new THREE.Box3().setFromObject(crown);
+  const crownSize = crownBox.getSize(new THREE.Vector3());
+  const headBox = new THREE.Box3();
+  head.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (mesh.isMesh && !mesh.userData.kit) headBox.expandByObject(mesh);
+  });
+  const headWidth = headBox.isEmpty() ? 0.2 : Math.max(headBox.getSize(new THREE.Vector3()).x, 0.12);
+  const fit = (headWidth * 0.68) / Math.max(crownSize.x, crownSize.z, 0.001);
+  crown.scale.multiplyScalar(fit);
+  crown.updateWorldMatrix(true, true);
+  const fitted = new THREE.Box3().setFromObject(crown);
+  const top = headBox.isEmpty() ? new THREE.Vector3(0, 0.14, 0) : headBox.max.clone();
+  const bottom = fitted.min.clone();
+  head.worldToLocal(top);
+  head.worldToLocal(bottom);
+  crown.position.y += top.y - bottom.y + 0.005;
 }
 
 function clearKit(root: THREE.Object3D) {
@@ -205,6 +207,7 @@ function GlbBody({
   sit = false,
   wearCrown = true,
   pace = null,
+  striking = false,
 }: {
   url: string;
   height: number;
@@ -215,6 +218,7 @@ function GlbBody({
   sit?: boolean;
   wearCrown?: boolean;
   pace?: MutableRefObject<{ act: string }> | null;
+  striking?: boolean;
 }) {
   const gltf = useGLTF(url);
   const crownSpec = crownById(crownId);
@@ -236,8 +240,8 @@ function GlbBody({
     };
   }, [actions, pace]);
   useFrame(() => {
-    if (!pace) return;
-    const want = pace.current.act === "walk" ? "walk" : pace.current.act === "attack" ? "attack" : "idle";
+    if (!pace && !striking) return;
+    const want = striking || pace?.current.act === "attack" ? "attack" : pace?.current.act === "walk" ? "walk" : "idle";
     if (want === clipMode.current) return;
     const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
     const named = (clip: { getClip: () => { name: string } }) => clip.getClip().name;
@@ -245,13 +249,16 @@ function GlbBody({
       want === "walk"
         ? list.find((clip) => /\|walk$/i.test(named(clip))) || list.find((clip) => /walk/i.test(named(clip)) && !/back|left|right/i.test(named(clip)))
         : want === "attack"
-          ? list.find((clip) => /sword_slash|punch_right|kick_right/i.test(named(clip))) || list.find((clip) => /slash|punch|kick/i.test(named(clip)))
+          ? list.find((clip) => /1H_Melee_Attack_Chop/i.test(named(clip))) ||
+            list.find((clip) => /Melee_Attack_Stab|Melee_Attack_Slice_Horizontal|Unarmed_Melee_Attack_Kick/i.test(named(clip))) ||
+            list.find((clip) => /attack/i.test(named(clip)) && !/death|hit|spin|ranged|block/i.test(named(clip)))
           : list.find((clip) => /idle_neutral|\|idle$/i.test(named(clip))) || list.find((clip) => /idle/i.test(named(clip)));
     const prev = list.find((clip) => clip.isRunning());
     prev?.fadeOut(0.15);
     if (next) {
       next.reset();
-      next.setLoop(THREE.LoopRepeat, Infinity);
+      next.setLoop(want === "attack" ? THREE.LoopOnce : THREE.LoopRepeat, want === "attack" ? 1 : Infinity);
+      next.clampWhenFinished = want === "attack";
       next.fadeIn(0.12).play();
     }
     clipMode.current = want;
@@ -266,37 +273,123 @@ function GlbBody({
       (right ?? scene).add(sword);
     }
     if (wearCrown) {
-      const crown = fitCrown(crownFile.scene);
-      if (head) {
-        head.add(crown);
-        crown.position.set(0, 0.12, 0);
-      } else {
+      const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
+      if (head) seatCrown(head, crown);
+      else {
         scene.add(crown);
-        crown.position.set(0, height * 0.86, 0);
+        crown.position.set(0, height * 0.92, 0);
       }
     }
     return () => clearKit(scene);
   }, [scene, kit, crownId, team, wearCrown, crownFile.scene, bladeFile.scene, height]);
   useFrame(() => {
     if (!sit) return;
-    const bend = (re: RegExp, rad: number) => {
-      const found: THREE.Bone[] = [];
-      scene.traverse((obj) => {
-        const next = obj as THREE.Bone;
-        if (!next.isBone || !re.test(next.name)) return;
-        found.push(next);
-      });
-      found.sort((a, b) => a.name.length - b.name.length);
-      const bone = found[0];
-      if (!bone) return;
+    const pose = (bone: THREE.Bone, euler: THREE.Euler) => {
       const data = bone.userData as { sitRest?: THREE.Quaternion };
       if (!data.sitRest) data.sitRest = bone.quaternion.clone();
-      bone.quaternion.copy(data.sitRest).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), rad));
+      bone.quaternion.copy(data.sitRest).multiply(new THREE.Quaternion().setFromEuler(euler));
     };
-    bend(/upperleg/i, -1.15);
-    bend(/lowerleg/i, 1.35);
+    scene.traverse((obj) => {
+      const bone = obj as THREE.Bone;
+      if (!bone.isBone) return;
+      const name = bone.name.toLowerCase();
+      const left = name.includes("left") || name.endsWith(".l") || name.includes("_l");
+      const right = name.includes("right") || name.endsWith(".r") || name.includes("_r");
+      if (!left && !right) return;
+      if (/upperleg|thigh/.test(name)) pose(bone, new THREE.Euler(-1.2, 0, (left ? 1 : -1) * 0.85));
+      else if (/lowerleg|calf|shin/.test(name)) pose(bone, new THREE.Euler(0.15, 0, 0));
+    });
   });
   return <primitive object={scene} />;
+}
+
+function gaitClip(
+  actions: Record<string, THREE.AnimationAction | null>,
+  want: "walk" | "idle",
+) {
+  const list = Object.values(actions).filter((clip): clip is THREE.AnimationAction => Boolean(clip));
+  const named = (clip: THREE.AnimationAction) => clip.getClip().name;
+  return want === "walk"
+    ? list.find((clip) => /\|Walk$/i.test(named(clip))) || list.find((clip) => /walk/i.test(named(clip)) && !/jump/i.test(named(clip)))
+    : list.find((clip) => /\|Idle$/i.test(named(clip))) || list.find((clip) => /^Idle$/i.test(named(clip))) || list.find((clip) => /idle/i.test(named(clip)) && !/hit|head/i.test(named(clip)));
+}
+
+function MountClips({
+  actions,
+  pace,
+}: {
+  actions: Record<string, THREE.AnimationAction | null>;
+  pace?: MutableRefObject<{ act: string }> | null;
+}) {
+  const mode = useRef("");
+  useFrame(() => {
+    const want = pace?.current.act === "walk" ? "walk" : "idle";
+    if (want === mode.current) return;
+    const list = Object.values(actions).filter((clip): clip is THREE.AnimationAction => Boolean(clip));
+    const next = gaitClip(actions, want);
+    list.forEach((clip) => {
+      if (clip !== next && clip.isRunning()) clip.fadeOut(0.15);
+    });
+    if (next) next.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(0.12).play();
+    mode.current = want;
+  });
+  return null;
+}
+
+function GlbMount({
+  url,
+  height,
+  dark,
+  pace,
+}: {
+  url: string;
+  height: number;
+  dark: boolean;
+  pace?: MutableRefObject<{ act: string }> | null;
+}) {
+  const gltf = useGLTF(url);
+  const scene = useMemo(() => {
+    const obj = prep(gltf.scene, height, dark);
+    obj.traverse((node) => {
+      if (/crown/i.test(node.name)) node.visible = false;
+    });
+    return obj;
+  }, [gltf.scene, height, dark]);
+  const { actions } = useAnimations(gltf.animations, scene);
+  return (
+    <>
+      <primitive object={scene} />
+      <MountClips actions={actions} pace={pace} />
+    </>
+  );
+}
+
+function FbxMount({
+  url,
+  height,
+  dark,
+  pace,
+}: {
+  url: string;
+  height: number;
+  dark: boolean;
+  pace?: MutableRefObject<{ act: string }> | null;
+}) {
+  const fbx = useFBX(url);
+  const scene = useMemo(() => {
+    const obj = prep(fbx, height, dark);
+    obj.traverse((node) => {
+      if (/crown/i.test(node.name)) node.visible = false;
+    });
+    return obj;
+  }, [fbx, height, dark]);
+  const { actions } = useAnimations(fbx.animations, scene);
+  return (
+    <>
+      <primitive object={scene} />
+      <MountClips actions={actions} pace={pace} />
+    </>
+  );
 }
 
 function FbxBody({ url, height, dark }: { url: string; height: number; dark: boolean }) {
@@ -316,6 +409,7 @@ function Body({
   sit = false,
   wearCrown = true,
   pace = null,
+  striking = false,
 }: {
   url: string;
   kind: "glb" | "fbx";
@@ -327,9 +421,10 @@ function Body({
   sit?: boolean;
   wearCrown?: boolean;
   pace?: MutableRefObject<{ act: string }> | null;
+  striking?: boolean;
 }) {
   if (kind === "fbx") return <FbxBody url={url} height={height} dark={dark} />;
-  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} pace={pace} />;
+  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} pace={pace} striking={striking} />;
 }
 
 export function Figurine({
@@ -354,6 +449,8 @@ export function Figurine({
   pace?: MutableRefObject<{ act: string }> | null;
 }) {
   const ref = useRef<THREE.Group>(null);
+  const mountRef = useRef<THREE.Group>(null);
+  const riderRef = useRef<THREE.Group>(null);
   const character = characterById(characterId);
   const mount = mountById(mountId);
   const dark = team === "b";
@@ -375,57 +472,42 @@ export function Figurine({
       return;
     }
     const step = pace?.current.act === "walk";
+    if (riding && mountRef.current && riderRef.current) {
+      const back = mountRef.current.getObjectByName("Back") || mountRef.current.getObjectByName("Torso") || mountRef.current;
+      const spot = new THREE.Vector3();
+      back.getWorldPosition(spot);
+      riderRef.current.parent?.worldToLocal(spot);
+      riderRef.current.position.set(spot.x, spot.y - character.height * 0.53, spot.z);
+      riderRef.current.rotation.set(0, character.yaw ?? 0, 0);
+    }
     if (pace) {
       group.rotation.y = 0;
-      group.position.y = step ? Math.abs(Math.sin(t * 8)) * 0.05 : 0;
+      if (!riding) group.position.y = step ? Math.abs(Math.sin(t * 8)) * 0.05 : 0;
       return;
     }
     group.position.y = 0;
-    if (!striking) {
-      group.rotation.y = Math.sin(t * 0.7) * 0.18 + (team === "b" ? Math.PI : 0);
-      return;
-    }
-    if (attackId === "flip") {
-      const p = (t * 0.9) % 1;
-      group.rotation.x = -p * Math.PI * 2;
-      group.position.y = Math.sin(p * Math.PI) * 1.05;
-      group.position.z = Math.sin(p * Math.PI) * 0.35;
-      group.rotation.y = team === "b" ? Math.PI : 0;
-    } else if (attackId === "slam") {
-      group.position.y = Math.abs(Math.sin(t * 9)) * 0.42;
-      group.rotation.y = team === "b" ? Math.PI : 0;
-    } else if (attackId === "sweep") {
-      group.rotation.y = Math.sin(t * 7) * 1.1;
-    } else if (attackId === "charge") {
-      group.position.z = Math.sin(t * 6) * 0.35;
-      group.rotation.y = team === "b" ? Math.PI : 0;
-    } else if (attackId === "bow") {
-      group.rotation.x = Math.abs(Math.sin(t * 3)) * 0.45;
-      group.rotation.y = team === "b" ? Math.PI : 0;
-    } else if (attackId === "flash") {
-      group.position.y = Math.sin(t * 14) * 0.08;
-      group.rotation.y = t * 3;
-    } else {
-      group.rotation.y = t * 0.8;
-    }
+    group.rotation.y = Math.sin(t * 0.7) * 0.18 + (team === "b" ? Math.PI : 0);
   });
 
   return (
     <group ref={ref}>
       {riding && mount.url && mount.kind ? (
-        <Body url={mount.url} kind={mount.kind} height={mount.height ?? 1} dark={dark} />
+        <group ref={mountRef}>
+          {mount.kind === "fbx" ? (
+            <FbxMount url={mount.url} height={mount.height ?? 1} dark={dark} pace={pace} />
+          ) : (
+            <GlbMount url={mount.url} height={mount.height ?? 1} dark={dark} pace={pace} />
+          )}
+        </group>
       ) : null}
-      <group
-        position={[0, riding ? (mount.height ?? 1) * 0.5 : 0, riding ? 0.08 : 0]}
-        rotation={[riding ? -0.12 : 0, character.yaw ?? 0, 0]}
-      >
+      <group ref={riderRef}>
         {plainKing ? (
-          <StauntonKing white={!dark} crownId={crownId} team={team} swordId={swordId} />
+          <StauntonKing white={!dark} crownId={crownId} team={team} swordId="none" />
         ) : (
           <Body
             url={character.url}
             kind={character.kind}
-            height={riding ? character.height * 0.58 : character.height}
+            height={character.height}
             dark={dark}
             kit={swordId}
             crownId={crownId}
@@ -433,6 +515,7 @@ export function Figurine({
             sit={riding}
             wearCrown={!royal}
             pace={pace}
+            striking={striking}
           />
         )}
       </group>
@@ -485,7 +568,7 @@ function StauntonKing({
         <boxGeometry args={[0.16, 0.04, 0.04]} />
         <meshStandardMaterial color="#e6c56a" metalness={0.72} roughness={0.28} />
       </mesh>
-      <primitive object={crown} position={[0, 0.98, 0]} />
+      <primitive object={crown} position={[0, 1.02, 0]} />
       {blade ? <primitive object={blade} position={[0.28, 0.7, 0]} /> : null}
     </group>
   );

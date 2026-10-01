@@ -4,6 +4,7 @@ import type { Square } from "chess.js";
 import { Clock, LogOut, Send } from "lucide-react";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { NamePlate } from "@/components/avatar/name-plate";
+import { RaBuy } from "@/components/avatar/ra-buy";
 import { SeatCircle } from "@/components/club/seat-circle";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
@@ -572,6 +573,11 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
                 {id}
               </button>
             ))}
+            <RaBuy
+              active={view === "an"}
+              onView={() => chooseView("an")}
+              className="min-h-8 rounded-full px-3 text-[11px] uppercase tracking-[0.14em] text-[#cfc4b2]"
+            />
           </div>
           {showTable && event ? (
             <ClubTable userId={userId} event={event} members={pack.members} view={view} />

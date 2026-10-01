@@ -31,6 +31,7 @@ import { roomBackdrop, saveLookPrefs, useLookPrefs } from "@/lib/chess/look-pref
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { LoadingTitle } from "@/components/loading-title";
 import { NamePlate } from "@/components/avatar/name-plate";
+import { RaBuy } from "@/components/avatar/ra-buy";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { cn } from "@/lib/utils";
 
@@ -545,6 +546,11 @@ export function GameView({ gameId }: { gameId: string }) {
             >
               AN
             </button>
+            <RaBuy
+              active={view === "an"}
+              onView={() => setBoardView("an")}
+              className="min-h-11 min-w-11 px-4 py-2 text-sm font-medium text-mist hover:text-ivory sm:px-3 sm:py-1.5 sm:text-[13px]"
+            />
           </div>
           <button
             type="button"

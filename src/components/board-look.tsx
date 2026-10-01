@@ -4,6 +4,7 @@ import type { Square } from "chess.js";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
 import { ClubBrand } from "@/components/club-brand";
+import { RaBuy } from "@/components/avatar/ra-buy";
 import { BoardAdjustPanel } from "@/components/board-adjust";
 import { ThemeToggle, useTheme } from "@/components/theme";
 import { Button } from "@/components/ui/button";
@@ -182,6 +183,7 @@ export function BoardLook({
             >
               AN
             </button>
+            <RaBuy active={view === "an"} onView={() => setView("an")} className="px-3 py-1.5 text-[13px] font-medium text-mist hover:text-ivory" />
           </div>
           <ThemeToggle className="rounded-full" />
           {onBack ? (

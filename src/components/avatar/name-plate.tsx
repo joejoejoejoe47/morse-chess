@@ -31,24 +31,19 @@ export function NamePlate({
   const character = characterById(loadout.anId);
   const frame = frameById(loadout.frameId);
   return (
-    <div className={cn("pointer-events-none flex flex-col gap-2", align === "right" ? "items-end" : "items-start")}>
+    <div className={cn("pointer-events-none flex items-center gap-3", align === "right" ? "flex-row-reverse" : "flex-row")}>
       <img
         src={character.portrait || "/party/w-k.png"}
         alt=""
         className={cn(
-          "size-14 shrink-0 rounded-full border border-gold-line/70 bg-[#1a140e] object-cover shadow-lg",
+          "size-11 shrink-0 rounded-full border border-gold-line/70 bg-[#1a140e] object-cover shadow-lg",
           dance && "origin-bottom animate-bounce",
         )}
       />
-      <div className={cn("flex max-w-[16rem] items-center gap-2 rounded-xl px-3 py-1.5", FRAMES[frame.id] ?? FRAMES.plain)}>
-        {frame.id === "coin" ? <img src="/morse-coin.png" alt="" className="size-5 shrink-0" /> : null}
-        <div className="min-w-0">
-          {label ? <p className="text-[10px] uppercase tracking-[0.16em] text-mist">{label}</p> : null}
-          <p className={cn("truncate font-display text-xl leading-tight text-ivory", dance && "text-3xl text-[#f6e7b2]")}>{name}</p>
-          {clock ? (
-            <p className={cn("font-display text-2xl tabular-nums", hot ? "text-cream" : "text-mist")}>{clock}</p>
-          ) : null}
-        </div>
+      <div className={cn("min-w-0 max-w-[14rem] rounded-full px-3 py-1.5", FRAMES[frame.id] ?? FRAMES.plain)}>
+        {label ? <p className="truncate text-[10px] uppercase tracking-[0.16em] text-mist">{label}</p> : null}
+        <p className={cn("truncate font-display text-lg leading-none text-ivory", dance && "text-2xl text-[#f6e7b2]")}>{name}</p>
+        {clock ? <p className={cn("mt-0.5 font-display text-xl tabular-nums leading-none", hot ? "text-cream" : "text-mist")}>{clock}</p> : null}
       </div>
     </div>
   );
