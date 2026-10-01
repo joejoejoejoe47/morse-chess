@@ -250,14 +250,69 @@ function WarUnit({
     const want = gait.current.act;
     const dt = Math.min(raw, 0.05);
     if (want === "death") {
-      if (mode.current !== "death") mode.current = "death";
-      fall.current = Math.min(1, fall.current + dt / 0.55);
-      const k = fall.current * fall.current;
-      if (ref.current) {
-        ref.current.rotation.x = -k * (Math.PI / 2);
-        ref.current.position.y = 0.02 + k * 0.04;
-        ref.current.position.z = 0;
+      if (mode.current !== "death") {
+        mode.current = "death";
+        fall.current = 0;
+        laid.current = false;
+        air.current = 0;
+        const hit = actions.Hit_A ?? actions.Hit_B;
+        const death = actions[clips.death];
+        const start = hit ?? death;
+        mixer.stopAllAction();
+        if (start) {
+          start.reset();
+          start.setLoop(THREE.LoopOnce, 1);
+          start.clampWhenFinished = true;
+          start.play();
+          if (!hit) air.current = 1;
+        }
       }
+      mixer.update(dt);
+      fall.current += dt;
+      const hitLen = (actions.Hit_A ?? actions.Hit_B)?.getClip().duration ?? 0.42;
+      const death = actions[clips.death];
+      if (!laid.current && fall.current > hitLen + 0.05 && death && !death.isRunning() && air.current < 1) {
+        mixer.stopAllAction();
+        death.reset();
+        death.setLoop(THREE.LoopOnce, 1);
+        death.clampWhenFinished = true;
+        death.play();
+        air.current = 1;
+      }
+      const deathDur = death?.getClip().duration ?? 1.15;
+      if (!laid.current && fall.current > hitLen + deathDur * 0.86) {
+        const lie = actions.Lie_Idle ?? actions.Lie_Pose ?? actions.Death_A_Pose;
+        if (lie) {
+          mixer.stopAllAction();
+          lie.reset();
+          lie.setLoop(THREE.LoopRepeat, Infinity);
+          lie.play();
+        }
+        laid.current = true;
+      }
+      if (ref.current) {
+        if (!death) {
+          if (fall.current > hitLen) {
+            const k = Math.min(1, (fall.current - hitLen) / 0.8);
+            const ease = 1 - (1 - k) ** 3;
+            ref.current.rotation.x = -ease * (Math.PI / 2);
+            ref.current.position.y = Math.sin(Math.min(1, k) * Math.PI) * 0.42;
+            ref.current.position.z = ease * 0.28;
+          } else {
+            ref.current.rotation.x = Math.sin(fall.current * 28) * 0.08;
+            ref.current.position.y = 0;
+          }
+        } else if (laid.current) {
+          ref.current.rotation.x = 0;
+          ref.current.position.y = 0;
+          ref.current.position.z = 0;
+        } else {
+          ref.current.rotation.x = 0;
+          ref.current.position.y = 0;
+          ref.current.position.z = 0;
+        }
+      }
+      if (gait.current.fade < 0.995) paint(clone, gait.current.fade);
       return;
     }
     mixer.update(dt);
@@ -370,7 +425,7 @@ function PictureSprite({
     const dead = gait.current.act === "death";
     const attacking = gait.current.act === "attack";
     const dt = Math.min(raw, 0.05);
-    if (dead) fall.current = Math.min(1, fall.current + dt / 0.7);
+    if (dead) fall.current = Math.min(1, fall.current + dt / 0.85);
     else fall.current = 0;
     if (flip && attacking) air.current = Math.min(1, air.current + dt / 0.72);
     else air.current = 0;
@@ -489,10 +544,32 @@ export function WarCorpse({
 }) {
   const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
   const born = useRef<number | null>(null);
+  const done = useRef(false);
 
   useFrame(({ clock }) => {
     if (born.current == null) born.current = clock.elapsedTime;
-    if (clock.elapsedTime - born.current > delay) gait.current.act = "death";
+    const t = clock.elapsedTime - born.current;
+    const strike = delay;
+    const fall = 1.7;
+    const lie = 3.4;
+    const fade = 3.6;
+    if (t < strike) {
+      gait.current.act = "idle";
+      gait.current.fade = 1;
+      return;
+    }
+    gait.current.act = "death";
+    const after = t - strike;
+    if (after < fall + lie) {
+      gait.current.fade = 1;
+      return;
+    }
+    const k = (after - fall - lie) / fade;
+    gait.current.fade = Math.max(0, 1 - k);
+    if (k >= 1 && !done.current) {
+      done.current = true;
+      onDone();
+    }
   });
 
   return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} wing={wing} gait={gait} />;

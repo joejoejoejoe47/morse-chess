@@ -570,7 +570,7 @@ function AnimatedPiece({
       ) : null}
       {people ? (
         gear && type === "k" ? (
-          <group scale={0.62}>
+          <group scale={1}>
             <Figurine
               characterId={gear.anId}
               swordId={gear.swordId}
@@ -578,6 +578,7 @@ function AnimatedPiece({
               team={color}
               attackId={gear.attackId}
               striking={slay}
+              pace={gait}
             />
           </group>
         ) : (

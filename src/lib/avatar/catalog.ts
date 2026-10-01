@@ -47,7 +47,7 @@ export const CHARACTERS: CharacterItem[] = [
     blurb: "Pays for the house. Wears no crown.",
     url: "/avatars/king-an.glb",
     kind: "glb",
-    height: 1.35,
+    height: 1.52,
   },
   {
     id: "pirate",

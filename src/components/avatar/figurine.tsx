@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useAnimations, useFBX, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -178,6 +178,7 @@ function GlbBody({
   team = "w",
   sit = false,
   wearCrown = true,
+  pace = null,
 }: {
   url: string;
   height: number;
@@ -187,13 +188,16 @@ function GlbBody({
   team?: TeamView;
   sit?: boolean;
   wearCrown?: boolean;
+  pace?: MutableRefObject<{ act: string }> | null;
 }) {
   const gltf = useGLTF(url);
   const crownSpec = crownById(crownId);
   const crownFile = useGLTF(crownSpec.model || "/avatars/crowns/poly-band.glb");
   const scene = useMemo(() => prep(gltf.scene, height, dark), [gltf.scene, height, dark]);
   const { actions } = useAnimations(gltf.animations, scene);
+  const clipMode = useRef("");
   useEffect(() => {
+    if (pace) return;
     const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
     const idle =
       list.find((clip) => /idle[_\s-]?neutral|\|idle$/i.test(clip.getClip().name)) ||
@@ -203,7 +207,28 @@ function GlbBody({
     return () => {
       idle?.fadeOut(0.1);
     };
-  }, [actions]);
+  }, [actions, pace]);
+  useFrame(() => {
+    if (!pace) return;
+    const want = pace.current.act === "walk" ? "walk" : pace.current.act === "attack" ? "attack" : "idle";
+    if (want === clipMode.current) return;
+    const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
+    const named = (clip: { getClip: () => { name: string } }) => clip.getClip().name;
+    const next =
+      want === "walk"
+        ? list.find((clip) => /\|walk$/i.test(named(clip))) || list.find((clip) => /walk/i.test(named(clip)) && !/back|left|right/i.test(named(clip)))
+        : want === "attack"
+          ? list.find((clip) => /sword_slash|punch_right|kick_right/i.test(named(clip))) || list.find((clip) => /slash|punch|kick/i.test(named(clip)))
+          : list.find((clip) => /idle_neutral|\|idle$/i.test(named(clip))) || list.find((clip) => /idle/i.test(named(clip)));
+    const prev = list.find((clip) => clip.isRunning());
+    prev?.fadeOut(0.15);
+    if (next) {
+      next.reset();
+      next.setLoop(THREE.LoopRepeat, Infinity);
+      next.fadeIn(0.12).play();
+    }
+    clipMode.current = want;
+  });
   useEffect(() => {
     clearKit(scene);
     hideCarried(scene);
@@ -283,6 +308,7 @@ function Body({
   team,
   sit = false,
   wearCrown = true,
+  pace = null,
 }: {
   url: string;
   kind: "glb" | "fbx";
@@ -293,9 +319,10 @@ function Body({
   team?: TeamView;
   sit?: boolean;
   wearCrown?: boolean;
+  pace?: MutableRefObject<{ act: string }> | null;
 }) {
   if (kind === "fbx") return <FbxBody url={url} height={height} dark={dark} />;
-  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} />;
+  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} pace={pace} />;
 }
 
 export function Figurine({
@@ -307,6 +334,7 @@ export function Figurine({
   attackId = "march",
   striking = false,
   dance = false,
+  pace = null,
 }: {
   characterId: string;
   mountId?: string;
@@ -316,6 +344,7 @@ export function Figurine({
   attackId?: string;
   striking?: boolean;
   dance?: boolean;
+  pace?: MutableRefObject<{ act: string }> | null;
 }) {
   const ref = useRef<THREE.Group>(null);
   const character = characterById(characterId);
@@ -336,6 +365,13 @@ export function Figurine({
     if (dance) {
       group.rotation.y = t * 2.4;
       group.position.y = Math.abs(Math.sin(t * 6)) * 0.18;
+      return;
+    }
+    const step = pace?.current.act === "walk";
+    const swing = pace?.current.act === "attack";
+    if (pace && (step || swing)) {
+      group.rotation.y = 0;
+      group.position.y = step ? Math.abs(Math.sin(t * 8)) * 0.05 : 0;
       return;
     }
     group.position.y = 0;
@@ -390,6 +426,7 @@ export function Figurine({
             team={team}
             sit={riding}
             wearCrown={!royal}
+            pace={pace}
           />
         )}
       </group>
