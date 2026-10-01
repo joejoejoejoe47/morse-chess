@@ -410,7 +410,7 @@ export function Figurine({
       ) : null}
       <group
         position={[0, riding ? (mount.height ?? 1) * 0.72 : 0, riding ? 0.02 : 0]}
-        rotation={[riding ? -0.18 : 0, 0, 0]}
+        rotation={[riding ? -0.18 : 0, character.yaw ?? 0, 0]}
       >
         {plainKing ? (
           <StauntonKing white={!dark} crownId={crownId} team={team} swordId={swordId} />
