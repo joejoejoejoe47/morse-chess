@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess, type Square } from "chess.js";
 import { Flag, Undo2 } from "lucide-react";
@@ -23,6 +23,7 @@ import { ClubBrand } from "@/components/club-brand";
 import { BoardAdjustPanel } from "@/components/board-adjust";
 import { useTheme } from "@/components/theme";
 import { ChessBoard2D } from "@/components/chess/board-2d";
+import { ChessBoard3D } from "@/components/chess/board-3d";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { equippedSkin } from "@/lib/chess/board-skins";
@@ -32,10 +33,6 @@ import { LoadingTitle } from "@/components/loading-title";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { cn } from "@/lib/utils";
-
-const ChessBoard3D = lazy(() =>
-  import("@/components/chess/board-3d").then((m) => ({ default: m.ChessBoard3D })),
-);
 
 const DARK_ROOM = "#0c0d0b";
 const LIGHT_ROOM = "#f6f1e4";
@@ -656,12 +653,7 @@ export function GameView({ gameId }: { gameId: string }) {
           {view === "2d" ? (
             <ChessBoard2D {...boardProps} />
           ) : (
-            <Suspense
-              fallback={
-                <LoadingTitle text="Setting the board…" />
-              }
-            >
-              <ChessBoard3D
+            <ChessBoard3D
                 {...boardProps}
                 roomColor={room}
                 roomImage={roomImage}
@@ -674,7 +666,6 @@ export function GameView({ gameId }: { gameId: string }) {
                 fightZoom={view === "an" && prefs.fightZoom}
                 kings={{ w: game.whiteLook, b: game.blackLook }}
               />
-            </Suspense>
           )}
         </div>
         {error ? (

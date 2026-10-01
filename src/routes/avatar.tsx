@@ -1,9 +1,10 @@
 import { Suspense, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Canvas } from "@react-three/fiber";
-import { ContactShadows, OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { Figurine } from "@/components/avatar/figurine";
+import { FieldStage } from "@/components/avatar/field-stage";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { keepWebGL } from "@/lib/gl-quiet";
@@ -35,12 +36,23 @@ function AvatarDoor() {
 
 function AvatarStudio() {
   const [loadout, setLoadout] = useState<AvatarLoadout>(DEFAULT_LOADOUT);
-  const [owned, setOwned] = useState<string[]>(["royal", "none", "circlet", "plain", "march"]);
+  const [owned, setOwned] = useState<string[]>(["piece", "none", "circlet", "plain", "march"]);
   const [coins, setCoins] = useState(0);
   const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [pins, setPins] = useState<string[]>([]);
+
   const [strike, setStrike] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("morse-pins") || "[]");
+      if (Array.isArray(saved)) setPins(saved.filter((id) => typeof id === "string"));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -74,8 +86,27 @@ function AvatarStudio() {
     }
   }
 
+  function togglePin(id: string) {
+    setStrike(false);
+    setPins((cur) => {
+      const next = cur.includes(id) ? cur.filter((item) => item !== id) : [...cur, id];
+      localStorage.setItem("morse-pins", JSON.stringify(next));
+      return next;
+    });
+  }
+
   async function equip(kind: keyof AvatarLoadout, id: string, price: number) {
     setError(null);
+    setStrike(false);
+    const current = String(loadout[kind] ?? "");
+    if (pins.includes(current) && current !== id) {
+      setError("Unpin it before you change it. The king does not stay stuck.");
+      return;
+    }
+    if (kind === "crownId" && (loadout.style === "an" ? loadout.anId : loadout.kingId) === "royal") {
+      setError("The royal king wears no crown.");
+      return;
+    }
     try {
       if (price > 0 && !owned.includes(id)) {
         const bought = await buyGear({ data: { id } });
@@ -101,6 +132,7 @@ function AvatarStudio() {
         ? ([
             ["swords", "Swords"],
             ["kings", "Kings"],
+            ["animals", "Animals"],
             ["crowns", "Crowns"],
             ["frames", "Frames"],
             ["attacks", "Attacks"],
@@ -128,44 +160,31 @@ function AvatarStudio() {
           </div>
         ) : (
           <Canvas
-            camera={{ position: [1.8, 1.35, 2.25], fov: 32 }}
+            camera={{ position: [4.6, 2.35, 7.4], fov: 38 }}
             shadows
             onCreated={({ gl }) => keepWebGL(gl)}
           >
-            <color attach="background" args={["#0c0d0b"]} />
-            <hemisphereLight args={["#f4efe4", "#1a140e", 0.85]} />
-            <ambientLight intensity={0.45} />
-            <directionalLight position={[4, 7, 3]} intensity={1.8} castShadow />
+            <color attach="background" args={["#9eb8cc"]} />
             <Suspense fallback={null}>
-              <group position={[0, 0, 0]}>
-                <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
-                  <boxGeometry args={[2.4, 2.4, 0.12]} />
-                  <meshStandardMaterial color={loadout.team === "w" ? "#f3e6c8" : "#241c16"} />
-                </mesh>
-                <mesh position={[0, 0.08, 0]}>
-                  <boxGeometry args={[2.55, 0.06, 2.55]} />
-                  <meshStandardMaterial color="#3a2a1c" />
-                </mesh>
-                <group position={[0, 0.16, 0]}>
-                  <Figurine
-                    key={`${characterId}-${loadout.mountId}-${loadout.swordId}-${loadout.crownId}-${loadout.team}`}
-                    characterId={characterId}
-                    mountId={loadout.style === "3d" ? loadout.mountId : "none"}
-                    swordId={loadout.swordId}
-                    crownId={loadout.crownId}
-                    team={loadout.team}
-                    attackId={loadout.attackId}
-                    striking={strike}
-                  />
-                </group>
+              <FieldStage />
+              <group position={[0, 0, 1.2]}>
+                <Figurine
+                  key={`${characterId}-${loadout.mountId}-${loadout.swordId}-${loadout.crownId}-${loadout.team}`}
+                  characterId={characterId}
+                  mountId={loadout.mountId}
+                  swordId={loadout.swordId}
+                  crownId={characterId === "royal" ? "circlet" : loadout.crownId}
+                  team={loadout.team}
+                  attackId={loadout.attackId}
+                  striking={strike}
+                />
               </group>
-              <ContactShadows opacity={0.4} scale={6} blur={2.2} far={3} />
             </Suspense>
             <OrbitControls
               enablePan={false}
-              target={[0, 0.85, 0]}
-              minDistance={1.8}
-              maxDistance={5.5}
+              target={[0, 1.15, 1]}
+              minDistance={3.2}
+              maxDistance={12}
               maxPolarAngle={Math.PI / 2.05}
             />
           </Canvas>
@@ -232,15 +251,15 @@ function AvatarStudio() {
         ) : null}
       </div>
 
-      <aside className="absolute inset-x-3 bottom-3 z-20 flex max-h-[40dvh] flex-col overflow-hidden rounded-2xl border border-line bg-[#10110f]/92 backdrop-blur-md sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-20 sm:max-h-none sm:w-[320px]">
-        <div className="flex gap-1 overflow-x-auto border-b border-line px-2">
+      <aside className="absolute inset-x-3 bottom-3 z-20 flex max-h-[42dvh] flex-col overflow-hidden rounded-3xl border border-[#3a3126] bg-[#16130f]/95 shadow-[0_24px_60px_rgba(0,0,0,0.45)] backdrop-blur-md sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-20 sm:max-h-none sm:w-[340px]">
+        <div className="flex gap-1 overflow-x-auto px-2 py-2">
           {tabs.map(([id, label]) => (
             <button
               key={id}
               type="button"
               className={cn(
-                "min-h-11 shrink-0 border-b-2 px-3 text-sm",
-                shown === id ? "border-ivory text-ivory" : "border-transparent text-mist hover:text-ivory",
+                "min-h-9 shrink-0 rounded-full px-3 text-sm",
+                shown === id ? "bg-[#f4efe6] text-[#1a140f]" : "text-[#cfc4b2] hover:bg-white/5",
               )}
               onClick={() => setTab(id)}
             >
@@ -248,8 +267,11 @@ function AvatarStudio() {
             </button>
           ))}
         </div>
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
+          {error ? <p className="rounded-xl bg-[#3a221c] px-3 py-2 text-sm text-[#f4d2c8]">{error}</p> : null}
+          {characterId === "royal" && shown === "crowns" ? (
+            <p className="rounded-xl border border-[#3a3126] px-3 py-2 text-sm text-[#d9c7a4]">The royal king wears no crown.</p>
+          ) : null}
           {shown === "kings"
             ? CHARACTERS.map((item) => (
                 <Portrait
@@ -258,6 +280,8 @@ function AvatarStudio() {
                   picked={characterId === item.id}
                   owned={owned.includes(item.id) || item.price === 0}
                   onPick={() => void equip(loadout.style === "an" ? "anId" : "kingId", item.id, item.price)}
+                  pinned={pins.includes(item.id)}
+                  onPin={() => togglePin(item.id)}
                 />
               ))
             : null}
@@ -269,6 +293,8 @@ function AvatarStudio() {
                   picked={loadout.swordId === item.id}
                   owned={owned.includes(item.id) || item.price === 0}
                   onPick={() => void equip("swordId", item.id, item.price)}
+                  pinned={pins.includes(item.id)}
+                  onPin={() => togglePin(item.id)}
                 />
               ))
             : null}
@@ -280,6 +306,8 @@ function AvatarStudio() {
                   picked={loadout.mountId === item.id}
                   owned={owned.includes(item.id) || item.price === 0}
                   onPick={() => void equip("mountId", item.id, item.price)}
+                  pinned={pins.includes(item.id)}
+                  onPin={() => togglePin(item.id)}
                 />
               ))
             : null}
@@ -291,6 +319,8 @@ function AvatarStudio() {
                   picked={loadout.crownId === item.id}
                   owned={owned.includes(item.id) || item.price === 0}
                   onPick={() => void equip("crownId", item.id, item.price)}
+                  pinned={pins.includes(item.id)}
+                  onPin={() => togglePin(item.id)}
                 />
               ))
             : null}
@@ -407,31 +437,50 @@ function Portrait({
   picked,
   owned,
   onPick,
+  pinned,
+  onPin,
 }: {
   item: GearItem;
   picked: boolean;
   owned: boolean;
   onPick: () => void;
+  pinned?: boolean;
+  onPin?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onPick}
+    <div
       className={cn(
-        "flex items-center gap-3 rounded-xl border bg-ink/40 p-1.5 text-left",
-        picked ? "border-ivory bg-white/[0.04]" : "border-line hover:border-line-strong",
+        "flex items-center gap-3 rounded-2xl border bg-[#1c1814] p-2",
+        picked ? "border-[#e6c56a] shadow-[0_0_0_1px_rgba(230,197,106,0.35)]" : "border-[#3a3126]",
       )}
     >
-      {item.portrait ? (
-        <img src={item.portrait} alt="" className="size-20 shrink-0 rounded-lg object-cover" />
-      ) : (
-        <GearMark id={item.id} />
-      )}
-      <span className="min-w-0">
-        <span className="block truncate font-display text-xl text-ivory">{item.name}</span>
-        <span className="block text-xs text-mist">{owned ? "Owned" : `${item.price} Morse coins`}</span>
-      </span>
-    </button>
+      <button type="button" onClick={onPick} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        {item.portrait ? (
+          <img src={item.portrait} alt="" className="size-16 shrink-0 rounded-xl object-cover" />
+        ) : item.id === "piece" ? (
+          <span className="grid size-16 shrink-0 place-items-center rounded-xl bg-[#e7d7b4] font-display text-4xl text-[#1c140e]">♔</span>
+        ) : (
+          <GearMark id={item.id} />
+        )}
+        <span className="min-w-0">
+          <span className="block truncate font-display text-2xl leading-none text-[#f7f1e6]">{item.name}</span>
+          <span className="mt-1 block text-xs text-[#b7ad9e]">{owned ? "Owned" : `${item.price} Morse coins`}</span>
+        </span>
+      </button>
+      {onPin ? (
+        <button
+          type="button"
+          aria-pressed={pinned}
+          onClick={onPin}
+          className={cn(
+            "shrink-0 rounded-full px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]",
+            pinned ? "bg-[#e6c56a] text-[#1a140f]" : "border border-[#4a4034] text-[#d9c7a4]",
+          )}
+        >
+          {pinned ? "Pinned" : "Pin"}
+        </button>
+      ) : null}
+    </div>
   );
 }
 

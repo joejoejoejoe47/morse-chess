@@ -1,11 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import type { Square } from "chess.js";
 import { Clock, LogOut, Send } from "lucide-react";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { SeatCircle } from "@/components/club/seat-circle";
 import { ChessBoard2D } from "@/components/chess/board-2d";
+import { ChessBoard3D } from "@/components/chess/board-3d";
 import { MorseCrest } from "@/components/club-brand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,8 +41,6 @@ import {
 } from "@/lib/server/clubs";
 import { cn } from "@/lib/utils";
 
-const ChessBoard3D = lazy(() => import("@/components/chess/board-3d").then((mod) => ({ default: mod.ChessBoard3D })));
-
 const CLUB_KEY = "morse-open-club";
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -58,9 +57,10 @@ function ClubDoor() {
 }
 
 function ClubApp({ userId }: { userId: string }) {
+  const navigate = useNavigate();
   const [clubId, setClubId] = useState<string>(() => {
     try {
-      return sessionStorage.getItem(CLUB_KEY) || "";
+      return localStorage.getItem(CLUB_KEY) || "";
     } catch {
       return "";
     }
@@ -75,9 +75,13 @@ function ClubApp({ userId }: { userId: string }) {
         const next = await loadChessClub({ data: { clubId } });
         if (!live) return;
         setPack(next);
+        if (next.club) {
+          localStorage.setItem(CLUB_KEY, next.club.id);
+          if (next.club.id !== clubId) setClubId(next.club.id);
+        }
         if (next.locked && clubId) {
           setClubId("");
-          sessionStorage.removeItem(CLUB_KEY);
+          localStorage.removeItem(CLUB_KEY);
         }
       } catch {
         /* still loading */
@@ -98,7 +102,7 @@ function ClubApp({ userId }: { userId: string }) {
         mode={mode}
         setMode={setMode}
         onOpen={(id) => {
-          sessionStorage.setItem(CLUB_KEY, id);
+          localStorage.setItem(CLUB_KEY, id);
           setClubId(id);
         }}
       />
@@ -109,9 +113,7 @@ function ClubApp({ userId }: { userId: string }) {
       userId={userId}
       pack={pack}
       onLeave={() => {
-        sessionStorage.removeItem(CLUB_KEY);
-        setClubId("");
-        setPack({ ...pack, club: null });
+        void navigate({ to: "/" });
       }}
     />
   );
@@ -482,14 +484,14 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
               ))}
             </div>
           ) : null}
-          <div className="mt-3 rounded-xl border border-[#332e26] bg-[#100e0c] p-3">
-            <p className="text-center font-display text-sm tracking-[0.28em] text-[#cfc4b2]">CHESS CLUB</p>
-            <p className="mt-3 text-sm text-[#e7dece]">• Standings</p>
-            <ol className="mt-2 space-y-1 text-sm">
+          <div className="mt-3 border-t border-[#332e26] pt-3">
+            <p className="font-display text-xs tracking-[0.22em] text-[#cfc4b2]">STANDINGS</p>
+            <ol className="mt-2 list-none space-y-1 p-0 text-sm">
               {standings.map((seat, index) => (
-                <li key={seat.userId} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-[#d9d0c2]">{index + 1}. {seat.username}</span>
-                  <span className="tabular-nums text-[#f4efe6]">{seat.score}</span>
+                <li key={seat.userId} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-baseline gap-2">
+                  <span className="tabular-nums text-[#8d8478]">{index + 1}</span>
+                  <span className="truncate">{seat.username}</span>
+                  <span className="tabular-nums text-[#e6c56a]">{seat.score}</span>
                 </li>
               ))}
             </ol>
@@ -551,8 +553,11 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
           ) : null}
         </aside>
 
-        <section className="club-stage auth-wood relative h-full min-h-[420px] overflow-hidden rounded-2xl border border-[#332e26]">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_46%,rgba(255,186,96,0.28),transparent_58%)]" />
+        <section
+          className="club-stage relative h-full min-h-[420px] overflow-hidden rounded-2xl border border-[#332e26]"
+          style={{ backgroundImage: "url(/club/marquetry.png)", backgroundSize: "cover", backgroundPosition: "center" }}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[#140e0a]/55" />
           <div className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 rounded-full border border-[#4a4034] bg-black/50 p-1 backdrop-blur-sm">
             {(["2d", "3d", "an"] as const).map((id) => (
               <button
@@ -851,7 +856,7 @@ function StageBoard({
     <div className="h-[min(58vh,520px)] w-[min(100%,520px)] overflow-hidden rounded-xl shadow-[0_0_70px_rgba(255,176,70,0.28)]">
       <Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#b7ad9e]">Setting the board…</div>}>
         <ChessBoard3D {...props} people={view === "an"} kings={kings} showTip={false} />
-      </Suspense>
+    </Suspense>
     </div>
   );
 }
@@ -892,10 +897,10 @@ function Bracket({
 
   return (
     <div>
-      <div className="mb-1 grid min-w-[860px] grid-cols-[1.15fr_20px_1fr_20px_1fr_22px_1.2fr_22px_1fr_20px_1fr_20px_1.15fr] text-center text-[11px] text-[#b7ad9e]">
+      <div className="mb-1 grid grid-cols-[1.15fr_16px_1fr_16px_1fr_18px_1.15fr_18px_1fr_16px_1fr_16px_1.15fr] text-center text-[11px] text-[#b7ad9e]">
         <span>Round 1</span><span /><span>Round 2</span><span /><span>Round 3</span><span /><span>Championship</span><span /><span>Round 3</span><span /><span>Round 2</span><span /><span>Round 1</span>
       </div>
-      <div className="grid h-[300px] min-w-[860px] grid-cols-[1.15fr_20px_1fr_20px_1fr_22px_1.2fr_22px_1fr_20px_1fr_20px_1.15fr] grid-rows-8">
+      <div className="grid h-[220px] grid-cols-[1.15fr_16px_1fr_16px_1fr_18px_1.15fr_18px_1fr_16px_1fr_16px_1.15fr] grid-rows-8">
         {outerRows.map((row, index) => (
           <BracketSeat key={`l1-${index}`} col={1} row={row} round={0} index={index} name={slotAt(0, index).name} onSeat={onSeat} />
         ))}
@@ -906,7 +911,7 @@ function Bracket({
         <BracketElbow col={4} row="1 / 7" side="left" />
         <BracketSeat col={5} row="1 / 7" round={2} index={0} name={slotAt(2, 0).name} onSeat={onSeat} />
         <BracketStem col={6} row="1 / 9" />
-        <BracketSeat col={7} row="3 / 7" round={3} index={0} name={slotAt(3, 0).name} onSeat={onSeat} final />
+        <BracketSeat col={7} row="4 / 6" round={3} index={0} name={slotAt(3, 0).name} onSeat={onSeat} final />
         <BracketStem col={8} row="1 / 9" />
         <BracketSeat col={9} row="1 / 7" round={2} index={1} name={slotAt(2, 1).name} onSeat={onSeat} />
         <BracketElbow col={10} row="1 / 7" side="right" />
@@ -943,11 +948,10 @@ function BracketSeat({
     <button
       type="button"
       style={{ gridColumn: col, gridRow: row }}
-      className="mx-0.5 h-8 self-center overflow-hidden rounded-md border border-[#3c352c] bg-[#16140f] px-2 text-left leading-tight"
+      className="mx-0.5 h-7 self-center overflow-hidden rounded-md border border-[#3c352c] bg-[#16140f]/95 px-2 text-left"
       onClick={() => onSeat(round, index)}
     >
-      <span className="block text-[8px] uppercase tracking-[0.14em] text-[#8d8478]">{final ? "Final" : `Seat ${index + 1}`}</span>
-      <span className="block truncate text-[12px] leading-tight text-[#efe6d6]">{name || "Empty seat"}</span>
+      <span className="block truncate text-[12px] leading-7 text-[#efe6d6]">{name || (final ? "Championship" : "Empty")}</span>
     </button>
   );
 }

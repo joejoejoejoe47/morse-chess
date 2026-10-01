@@ -30,11 +30,21 @@ export type CharacterItem = GearItem & {
 
 export const CHARACTERS: CharacterItem[] = [
   {
+    id: "piece",
+    name: "King",
+    price: 0,
+    portrait: "",
+    blurb: "The normal king. Free.",
+    url: "",
+    kind: "glb",
+    height: 1.15,
+  },
+  {
     id: "royal",
     name: "Royal",
-    price: 0,
+    price: 12,
     portrait: "/avatars/kings/royal.jpg",
-    blurb: "The house king.",
+    blurb: "Pays for the house. Wears no crown.",
     url: "/avatars/king-an.glb",
     kind: "glb",
     height: 1.35,
@@ -109,7 +119,7 @@ export const SWORDS: GearItem[] = [
   { id: "staff", name: "Sword and staff", price: 5, portrait: "", blurb: "Blade in the right, staff in the left." },
 ];
 
-export type CrownItem = GearItem & { gold: string; dark: string };
+export type CrownItem = GearItem & { gold: string; dark: string; model?: string };
 
 export const CROWNS: CrownItem[] = [
   {
@@ -148,6 +158,26 @@ export const CROWNS: CrownItem[] = [
     gold: "/avatars/crowns/gold-laurel.jpg",
     dark: "/avatars/crowns/dark-thorn.jpg",
   },
+  {
+    id: "poly-arch",
+    name: "Arch crown",
+    price: 8,
+    portrait: "",
+    blurb: "A real gold crown, arches and all.",
+    gold: "",
+    dark: "",
+    model: "/avatars/crowns/poly-arch.glb",
+  },
+  {
+    id: "poly-band",
+    name: "Band crown",
+    price: 7,
+    portrait: "",
+    blurb: "A low gold band set with points.",
+    gold: "",
+    dark: "",
+    model: "/avatars/crowns/poly-band.glb",
+  },
 ];
 
 export const MOUNTS: (GearItem & { url?: string; kind?: ModelKind; height?: number })[] = [
@@ -184,7 +214,8 @@ export const FRAMES: GearItem[] = [
 ];
 
 export const ATTACKS: GearItem[] = [
-  { id: "march", name: "March", price: 0, portrait: "", blurb: "The step you start with." },
+  { id: "march", name: "Normal", price: 0, portrait: "", blurb: "The king stands ready." },
+  { id: "flip", name: "Front flip", price: 4, portrait: "", blurb: "A front flip kick onto the square." },
   { id: "slam", name: "Slam", price: 3, portrait: "", blurb: "The king drops onto the square." },
   { id: "sweep", name: "Sweep", price: 3, portrait: "", blurb: "A wide blade turn." },
   { id: "charge", name: "Charge", price: 5, portrait: "", blurb: "Horse or not, they rush." },
@@ -192,13 +223,13 @@ export const ATTACKS: GearItem[] = [
   { id: "bow", name: "Bow", price: 3, portrait: "", blurb: "A low courtesy, then the take." },
 ];
 
-export const STARTER_IDS = ["royal", "none", "circlet", "plain", "march"];
+export const STARTER_IDS = ["piece", "none", "circlet", "plain", "march"];
 
 export const DEFAULT_LOADOUT: AvatarLoadout = {
   style: "3d",
   team: "w",
-  anId: "royal",
-  kingId: "royal",
+  anId: "piece",
+  kingId: "piece",
   swordId: "none",
   crownId: "circlet",
   mountId: "none",
@@ -242,8 +273,8 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
   return {
     style,
     team,
-    anId: pick(src.anId, "royal", CHARACTERS),
-    kingId: pick(src.kingId, "royal", CHARACTERS),
+    anId: pick(src.anId, "piece", CHARACTERS),
+    kingId: pick(src.kingId, "piece", CHARACTERS),
     swordId: pick(swordRaw, "none", SWORDS),
     crownId: pick(src.crownId, "circlet", CROWNS),
     mountId: pick(src.mountId, "none", MOUNTS),

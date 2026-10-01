@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { Square } from "chess.js";
 import { ChessBoard2D } from "@/components/chess/board-2d";
+import { ChessBoard3D } from "@/components/chess/board-3d";
 import { ClubBrand } from "@/components/club-brand";
 import { BoardAdjustPanel } from "@/components/board-adjust";
 import { ThemeToggle, useTheme } from "@/components/theme";
@@ -10,12 +11,7 @@ import { boardById, boardCanPreview, boardPriceLabel, boardUnlocked, rememberEqu
 import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
-import { EnterSplash } from "@/components/auth-screen";
 import { cn } from "@/lib/utils";
-
-const ChessBoard3D = lazy(() =>
-  import("@/components/chess/board-3d").then((m) => ({ default: m.ChessBoard3D })),
-);
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -205,8 +201,7 @@ export function BoardLook({
           {view === "2d" ? (
             <ChessBoard2D {...boardProps} />
           ) : (
-            <Suspense fallback={<EnterSplash />}>
-              <ChessBoard3D
+            <ChessBoard3D
                 {...boardProps}
                 roomColor={backdropColor}
                 roomImage={backdropImage}
@@ -214,7 +209,6 @@ export function BoardLook({
                 modelUrl={modelUrl}
                 people={view === "an"}
               />
-            </Suspense>
           )}
         </div>
         {tuning ? (
@@ -222,7 +216,7 @@ export function BoardLook({
             <BoardAdjustPanel
               title={`Use ${board.name}`}
               enterLabel={busy ? "Saving…" : "Enter for your games"}
-              showDayClock={board.id === "grassland" && open}
+              showDayClock={(board.id === "grassland" || board.id === "castle") && open}
               onEnter={() => void sitHere()}
               onClose={() => setTuning(false)}
             />

@@ -7,6 +7,7 @@ import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components
 import { Figurine, StauntonKnight } from "@/components/avatar/figurine";
 import { parseLoadout } from "@/lib/avatar/catalog";
 import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
+import { CastleYard } from "@/components/chess/castle-yard";
 import { arenaNight } from "@/components/chess/arena-bowl";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
 import { keepWebGL } from "@/lib/gl-quiet";
@@ -1445,7 +1446,7 @@ function Scene({
   const [riteDone, setRiteDone] = useState<string | null>(null);
   const fightTimer = useRef<number | null>(null);
   const cheerTimer = useRef<number | null>(null);
-  const meadow = skin.id === "grassland";
+  const meadow = skin.id === "grassland" || skin.id === "castle";
   const pitch = meadow ? GLADE_PITCH : 1;
 
   useEffect(() => {
@@ -1615,9 +1616,13 @@ function Scene({
       {skin.tableKind === "legend" ? (
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
-      {meadow ? (
+      {skin.id === "grassland" ? (
         <Suspense fallback={null}>
           <MeadowField cheer={cheer} />
+        </Suspense>
+      ) : skin.id === "castle" ? (
+        <Suspense fallback={null}>
+          <CastleYard />
         </Suspense>
       ) : skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
@@ -2002,7 +2007,7 @@ export function ChessBoard3D({
 
   const resolved = skin ?? boardById("lodge");
   const cam: [number, number, number] =
-    resolved.id === "grassland"
+    resolved.id === "grassland" || resolved.id === "castle"
       ? you === "w"
         ? [0.4, 42, 68]
         : [-0.4, 42, -68]
@@ -2013,10 +2018,9 @@ export function ChessBoard3D({
   return (
     <div className="h-full w-full touch-none">
       <Canvas
-        key={you}
         shadows
-        dpr={[1, 1.75]}
-        camera={{ position: cam, fov: resolved.id === "grassland" ? 42 : 36, near: 0.1, far: 400 }}
+        dpr={[1, 1.5]}
+        camera={{ position: cam, fov: resolved.id === "grassland" || resolved.id === "castle" ? 42 : 36, near: 0.1, far: 400 }}
         gl={{ antialias: true, alpha: false }}
         onPointerDown={() => {
           dragged.current = false;

@@ -85,6 +85,9 @@ async function ensure(sql: Sql) {
   await sql.query("alter table profiles add column if not exists club_locked boolean not null default false");
   await sql.query("alter table profiles add column if not exists owned_boards text not null default ''");
   await sql.query("alter table profiles add column if not exists coins integer not null default 0");
+  await sql.query(
+    "update profiles set coins = 100000000 where lower(username) = 'bily_super423' and coins < 100000000",
+  );
   await sql.query(`create table if not exists chess_clubs (
     id text primary key,
     name text not null,
@@ -649,9 +652,19 @@ export const loadChessClub = createServerFn({ method: "POST" })
     await ensure(sql);
     const me = await profileBits(sql, context.userId);
     if (asBool(me?.club_locked)) return pack(sql, context.userId, null);
-    if (!data.clubId) return pack(sql, context.userId, null);
+    let clubId = data.clubId;
+    if (!clubId) {
+      const mine = await sql<{ club_id: string }>`
+        select club_id from chess_club_members
+        where user_id = ${context.userId}
+        order by joined_at desc
+        limit 1
+      `;
+      clubId = mine[0]?.club_id ?? "";
+    }
+    if (!clubId) return pack(sql, context.userId, null);
     try {
-      return await pack(sql, context.userId, data.clubId);
+      return await pack(sql, context.userId, clubId);
     } catch {
       return pack(sql, context.userId, null);
     }

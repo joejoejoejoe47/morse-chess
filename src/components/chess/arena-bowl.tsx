@@ -205,9 +205,9 @@ useGLTF.preload(BLACK_PAWN);
 function buildFans() {
   const fans: Fan[] = [];
   const rings = [
-    { r: 13.4, y: 2.05, count: 22 },
-    { r: 16.1, y: 3.55, count: 26 },
-    { r: 18.8, y: 5.15, count: 30 },
+    { r: 12.8, y: 1.55, count: 32 },
+    { r: 15.6, y: 3.2, count: 40 },
+    { r: 18.4, y: 4.95, count: 46 },
   ];
   rings.forEach((ring, band) => {
     for (let i = 0; i < ring.count; i++) {
@@ -290,7 +290,11 @@ function SeatedPawn({
 
   return (
     <group position={[x, y, z]} rotation={[0, rot, 0]} scale={scale}>
-      <primitive object={clone} />
+      <mesh position={[0, 0.02, 0]} receiveShadow>
+        <boxGeometry args={[0.85, 0.16, 0.5]} />
+        <meshStandardMaterial color="#d9c7a4" roughness={0.82} />
+      </mesh>
+      <primitive object={clone} position={[0, 0.1, 0]} />
     </group>
   );
 }
@@ -305,16 +309,16 @@ function NightLantern({ x, z }: { x: number; z: number }) {
     if (glow.current) glow.current.emissiveIntensity = 0.2 + night * 3.4;
   });
   return (
-    <group position={[x, 2.55, z]} rotation={[0, yaw, 0]}>
-      <mesh position={[0, 0, 0]} castShadow>
-        <cylinderGeometry args={[0.05, 0.07, 0.85, 6]} />
-        <meshStandardMaterial color="#2a2118" roughness={0.8} />
+    <group position={[x, 4.15, z]} rotation={[0, yaw, 0]}>
+      <mesh position={[0, 0.05, -0.28]} castShadow>
+        <boxGeometry args={[0.08, 0.08, 0.55]} />
+        <meshStandardMaterial color="#3a2e24" roughness={0.8} />
       </mesh>
-      <mesh position={[0, 0.52, 0]}>
-        <boxGeometry args={[0.26, 0.32, 0.26]} />
+      <mesh position={[0, -0.18, 0]}>
+        <boxGeometry args={[0.22, 0.28, 0.22]} />
         <meshStandardMaterial ref={glow} color="#ffc27a" emissive="#ff8a1a" emissiveIntensity={0.4} roughness={0.35} />
       </mesh>
-      <pointLight ref={light} position={[0, 0.55, 0.15]} color="#ffb15a" distance={22} decay={2} intensity={0} />
+      <pointLight ref={light} position={[0, -0.12, 0.18]} color="#ffb15a" distance={18} decay={2} intensity={0} />
     </group>
   );
 }
@@ -323,9 +327,9 @@ export function Arena({ cheer }: { cheer: ArenaSide | null }) {
   const fans = useMemo(() => buildFans(), []);
   const lanterns = useMemo(() => {
     const spots: { x: number; z: number }[] = [];
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2 + 0.2;
-      spots.push({ x: Math.sin(a) * 10.6, z: Math.cos(a) * 10.6 });
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2 + 0.12;
+      spots.push({ x: Math.sin(a) * 12.15, z: Math.cos(a) * 12.15 });
     }
     return spots;
   }, []);

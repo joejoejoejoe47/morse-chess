@@ -31,27 +31,24 @@ export function NamePlate({
   const character = characterById(loadout.anId);
   const frame = frameById(loadout.frameId);
   return (
-    <div className={cn("pointer-events-none flex flex-col", align === "right" ? "items-end" : "items-start")}>
+    <div className={cn("pointer-events-none flex flex-col gap-2", align === "right" ? "items-end" : "items-start")}>
       <img
-        src={character.portrait}
+        src={character.portrait || "/party/w-k.png"}
         alt=""
         className={cn(
-          "mb-1 size-14 rounded-full border border-gold-line/70 object-cover shadow-lg",
+          "size-14 shrink-0 rounded-full border border-gold-line/70 bg-[#1a140e] object-cover shadow-lg",
           dance && "origin-bottom animate-bounce",
         )}
       />
-      <div className={cn("relative rounded-xl px-3 py-1.5", FRAMES[frame.id] ?? FRAMES.plain)}>
-        {frame.id === "coin" ? (
-          <>
-            <img src="/morse-coin.png" alt="" className="absolute -left-2 -top-2 size-5" />
-            <img src="/morse-coin.png" alt="" className="absolute -right-2 -top-2 size-5" />
-          </>
-        ) : null}
-        {label ? <p className="text-[10px] uppercase tracking-[0.16em] text-mist">{label}</p> : null}
-        <p className={cn("font-display text-xl leading-tight text-ivory", dance && "text-3xl text-[#f6e7b2]")}>{name}</p>
-        {clock ? (
-          <p className={cn("font-display text-2xl tabular-nums", hot ? "text-cream" : "text-mist")}>{clock}</p>
-        ) : null}
+      <div className={cn("flex max-w-[16rem] items-center gap-2 rounded-xl px-3 py-1.5", FRAMES[frame.id] ?? FRAMES.plain)}>
+        {frame.id === "coin" ? <img src="/morse-coin.png" alt="" className="size-5 shrink-0" /> : null}
+        <div className="min-w-0">
+          {label ? <p className="text-[10px] uppercase tracking-[0.16em] text-mist">{label}</p> : null}
+          <p className={cn("truncate font-display text-xl leading-tight text-ivory", dance && "text-3xl text-[#f6e7b2]")}>{name}</p>
+          {clock ? (
+            <p className={cn("font-display text-2xl tabular-nums", hot ? "text-cream" : "text-mist")}>{clock}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   );

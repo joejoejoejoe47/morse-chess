@@ -3,7 +3,7 @@ import { useAnimations, useFBX, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { characterById, mountById, type TeamView } from "@/lib/avatar/catalog";
+import { characterById, crownById, mountById, type TeamView } from "@/lib/avatar/catalog";
 
 function prep(source: THREE.Object3D, height: number, dark: boolean) {
   const obj = cloneSkeleton(source);
@@ -99,6 +99,25 @@ function makeCrown(id: string, team: TeamView) {
   return group;
 }
 
+function fitCrown(source: THREE.Object3D) {
+  const obj = source.clone(true);
+  obj.name = "kit-crown";
+  obj.userData.kit = true;
+  obj.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (mesh.isMesh) {
+      mesh.castShadow = true;
+      mesh.frustumCulled = false;
+    }
+  });
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.y, size.z, 0.001);
+  obj.scale.setScalar(0.28 / span);
+  obj.position.y = -box.min.y * (0.28 / span);
+  return obj;
+}
+
 function findSlot(root: THREE.Object3D, side: "r" | "l" | "head") {
   const names =
     side === "head"
@@ -158,6 +177,7 @@ function GlbBody({
   crownId = "circlet",
   team = "w",
   sit = false,
+  wearCrown = true,
 }: {
   url: string;
   height: number;
@@ -166,8 +186,11 @@ function GlbBody({
   crownId?: string;
   team?: TeamView;
   sit?: boolean;
+  wearCrown?: boolean;
 }) {
   const gltf = useGLTF(url);
+  const crownSpec = crownById(crownId);
+  const crownFile = useGLTF(crownSpec.model || "/avatars/crowns/poly-band.glb");
   const scene = useMemo(() => prep(gltf.scene, height, dark), [gltf.scene, height, dark]);
   const { actions } = useAnimations(gltf.animations, scene);
   useEffect(() => {
@@ -207,19 +230,21 @@ function GlbBody({
       staff.name = "kit-off-l";
       scene.add(staff);
     }
-    const crown = makeCrown(crownId, team);
-    scene.add(crown);
-    placeKit(scene, "kit-crown", head, 0.18, 1);
+    if (wearCrown) {
+      const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
+      scene.add(crown);
+      placeKit(scene, "kit-crown", head, 0.16, 1);
+    }
     placeKit(scene, "kit-sword-r", right, 0.02, 0.42);
     placeKit(scene, "kit-sword-l", left, 0.02, 0.42);
     placeKit(scene, "kit-off-l", left, 0.04, kit === "staff" ? 0.55 : 0.7);
     return () => clearKit(scene);
-  }, [scene, kit, crownId, team]);
+  }, [scene, kit, crownId, team, wearCrown, crownSpec.model, crownFile.scene]);
   useFrame(() => {
     const right = findSlot(scene, "r");
     const left = findSlot(scene, "l");
     const head = findSlot(scene, "head");
-    placeKit(scene, "kit-crown", head, 0.18, 1);
+    placeKit(scene, "kit-crown", head, 0.16, 1);
     placeKit(scene, "kit-sword-r", right, 0.02, 0.42);
     placeKit(scene, "kit-sword-l", left, 0.02, 0.42);
     placeKit(scene, "kit-off-l", left, 0.04, kit === "staff" ? 0.55 : 0.7);
@@ -257,6 +282,7 @@ function Body({
   crownId,
   team,
   sit = false,
+  wearCrown = true,
 }: {
   url: string;
   kind: "glb" | "fbx";
@@ -266,9 +292,10 @@ function Body({
   crownId?: string;
   team?: TeamView;
   sit?: boolean;
+  wearCrown?: boolean;
 }) {
   if (kind === "fbx") return <FbxBody url={url} height={height} dark={dark} />;
-  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} />;
+  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} />;
 }
 
 export function Figurine({
@@ -295,6 +322,8 @@ export function Figurine({
   const mount = mountById(mountId);
   const dark = team === "b";
   const riding = Boolean(mount.url && mount.kind);
+  const royal = character.id === "royal";
+  const plainKing = character.id === "piece";
 
   useFrame(({ clock }) => {
     const group = ref.current;
@@ -314,7 +343,13 @@ export function Figurine({
       group.rotation.y = Math.sin(t * 0.7) * 0.18 + (team === "b" ? Math.PI : 0);
       return;
     }
-    if (attackId === "slam") {
+    if (attackId === "flip") {
+      const p = (t * 0.9) % 1;
+      group.rotation.x = -p * Math.PI * 2;
+      group.position.y = Math.sin(p * Math.PI) * 1.05;
+      group.position.z = Math.sin(p * Math.PI) * 0.35;
+      group.rotation.y = team === "b" ? Math.PI : 0;
+    } else if (attackId === "slam") {
       group.position.y = Math.abs(Math.sin(t * 9)) * 0.42;
       group.rotation.y = team === "b" ? Math.PI : 0;
     } else if (attackId === "sweep") {
@@ -342,17 +377,73 @@ export function Figurine({
         position={[0, riding ? (mount.height ?? 1) * 0.72 : 0, riding ? 0.02 : 0]}
         rotation={[riding ? -0.18 : 0, 0, 0]}
       >
-        <Body
-          url={character.url}
-          kind={character.kind}
-          height={riding ? character.height * 0.58 : character.height}
-          dark={dark}
-          kit={swordId}
-          crownId={crownId}
-          team={team}
-          sit={riding}
-        />
+        {plainKing ? (
+          <StauntonKing white={!dark} crownId={crownId} team={team} swordId={swordId} />
+        ) : (
+          <Body
+            url={character.url}
+            kind={character.kind}
+            height={riding ? character.height * 0.58 : character.height}
+            dark={dark}
+            kit={swordId}
+            crownId={crownId}
+            team={team}
+            sit={riding}
+            wearCrown={!royal}
+          />
+        )}
       </group>
+    </group>
+  );
+}
+
+function StauntonKing({
+  white,
+  crownId,
+  team,
+  swordId,
+}: {
+  white: boolean;
+  crownId: string;
+  team: TeamView;
+  swordId: string;
+}) {
+  const spec = crownById(crownId);
+  const file = useGLTF(spec.model || "/avatars/crowns/poly-band.glb");
+  const crown = useMemo(
+    () => (spec.model ? fitCrown(file.scene) : makeCrown(crownId, team)),
+    [spec.model, file.scene, crownId, team],
+  );
+  const blade = useMemo(() => (swordId === "none" ? null : makeSword()), [swordId]);
+  const color = white ? "#f7f1e6" : "#241c16";
+  return (
+    <group>
+      <mesh position={[0, 0.08, 0]} castShadow>
+        <cylinderGeometry args={[0.3, 0.34, 0.16, 24]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.16} />
+      </mesh>
+      <mesh position={[0, 0.26, 0]} castShadow>
+        <cylinderGeometry args={[0.18, 0.24, 0.2, 20]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.16} />
+      </mesh>
+      <mesh position={[0, 0.62, 0]} castShadow>
+        <cylinderGeometry args={[0.1, 0.13, 0.5, 16]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.16} />
+      </mesh>
+      <mesh position={[0, 0.94, 0]} castShadow>
+        <cylinderGeometry args={[0.18, 0.15, 0.12, 18]} />
+        <meshStandardMaterial color={color} roughness={0.38} metalness={0.16} />
+      </mesh>
+      <mesh position={[0, 1.12, 0]} castShadow>
+        <boxGeometry args={[0.045, 0.2, 0.045]} />
+        <meshStandardMaterial color="#e6c56a" metalness={0.72} roughness={0.28} />
+      </mesh>
+      <mesh position={[0, 1.2, 0]} castShadow>
+        <boxGeometry args={[0.16, 0.04, 0.04]} />
+        <meshStandardMaterial color="#e6c56a" metalness={0.72} roughness={0.28} />
+      </mesh>
+      <primitive object={crown} position={[0, 0.98, 0]} />
+      {blade ? <primitive object={blade} position={[0.28, 0.7, 0]} /> : null}
     </group>
   );
 }
