@@ -34,8 +34,28 @@ function AvatarDoor() {
   return <AvatarStudio />;
 }
 
+function slotIds(kind: "king" | "swordId" | "mountId" | "crownId") {
+  if (kind === "king") return CHARACTERS.map((item) => item.id);
+  if (kind === "swordId") return SWORDS.map((item) => item.id);
+  if (kind === "mountId") return MOUNTS.map((item) => item.id);
+  return CROWNS.map((item) => item.id);
+}
+
+function previewLoadout(base: AvatarLoadout, pins: string[]): AvatarLoadout {
+  const next = { ...base };
+  for (const id of pins) {
+    if (CHARACTERS.some((item) => item.id === id)) {
+      if (next.style === "3d") next.kingId = id;
+      else next.anId = id;
+    } else if (SWORDS.some((item) => item.id === id)) next.swordId = id;
+    else if (MOUNTS.some((item) => item.id === id)) next.mountId = id;
+    else if (CROWNS.some((item) => item.id === id)) next.crownId = id;
+  }
+  return next;
+}
+
 function AvatarStudio() {
-  const [loadout, setLoadout] = useState<AvatarLoadout>(DEFAULT_LOADOUT);
+  const [worn, setWorn] = useState<AvatarLoadout>(DEFAULT_LOADOUT);
   const [owned, setOwned] = useState<string[]>(["piece", "none", "poly-band", "plain", "march"]);
   const [coins, setCoins] = useState(0);
   const [username, setUsername] = useState("");
@@ -59,7 +79,7 @@ function AvatarStudio() {
     void getAvatar()
       .then((row) => {
         if (!live || !row) return;
-        setLoadout(row.loadout);
+        setWorn(row.loadout);
         setOwned(row.owned);
         setCoins(row.coins);
         setUsername(row.username || "");
@@ -74,11 +94,11 @@ function AvatarStudio() {
   }, []);
 
   async function commit(next: AvatarLoadout) {
-    setLoadout(next);
+    setWorn(next);
     setError(null);
     try {
       const row = await saveAvatar({ data: { loadout: next } });
-      setLoadout(row.loadout);
+      setWorn(row.loadout);
       setCoins(row.coins);
       setOwned(row.owned);
     } catch (err) {
@@ -86,26 +106,22 @@ function AvatarStudio() {
     }
   }
 
-  function pinItem(kind: keyof AvatarLoadout, id: string, price: number) {
+  function pinItem(kind: "king" | "swordId" | "mountId" | "crownId", id: string) {
     setStrike(false);
-    const on = pins.includes(id);
+    setError(null);
+    const slot = slotIds(kind);
     setPins((cur) => {
-      const next = on ? cur.filter((item) => item !== id) : [...cur, id];
+      const on = cur.includes(id);
+      const next = on ? cur.filter((item) => item !== id) : [...cur.filter((item) => !slot.includes(item)), id];
       localStorage.setItem("morse-pins", JSON.stringify(next));
       return next;
     });
-    if (!on) void equip(kind, id, price, true);
   }
 
-  async function equip(kind: keyof AvatarLoadout, id: string, price: number, force = false) {
+  async function equip(kind: keyof AvatarLoadout, id: string, price: number) {
     setError(null);
     setStrike(false);
-    const current = String(loadout[kind] ?? "");
-    if (!force && pins.includes(current) && current !== id) {
-      setError("Unpin it before you change it. The king does not stay stuck.");
-      return;
-    }
-    if (kind === "crownId" && (loadout.style === "an" || loadout.style === "ra") && loadout.anId === "royal") {
+    if (kind === "crownId" && (worn.style === "an" || worn.style === "ra") && worn.anId === "royal") {
       setError("The royal king wears no crown.");
       return;
     }
@@ -115,14 +131,25 @@ function AvatarStudio() {
         setCoins(bought.coins);
         setOwned(bought.owned);
       }
-      const next = { ...loadout, [kind]: id } as AvatarLoadout;
-      if ((loadout.style === "an" || loadout.style === "ra") && kind === "kingId") next.anId = id;
-      if (loadout.style === "3d" && kind === "anId") next.kingId = id;
+      const next = { ...worn, [kind]: id } as AvatarLoadout;
+      if ((worn.style === "an" || worn.style === "ra") && kind === "kingId") next.anId = id;
+      if (worn.style === "3d" && kind === "anId") next.kingId = id;
+      const slot = kind === "anId" || kind === "kingId" ? "king" : kind === "swordId" || kind === "mountId" || kind === "crownId" ? kind : null;
+      if (slot) {
+        const drop = slotIds(slot);
+        setPins((cur) => {
+          const cleared = cur.filter((item) => !drop.includes(item));
+          localStorage.setItem("morse-pins", JSON.stringify(cleared));
+          return cleared;
+        });
+      }
       await commit(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Not enough Morse coins.");
     }
   }
+
+  const loadout = previewLoadout(worn, pins);
 
   const [tab, setTab] = useState<"kings" | "swords" | "animals" | "crowns" | "frames" | "attacks">("kings");
   const ownsRoyal = owned.includes("royal");
@@ -215,7 +242,7 @@ function AvatarStudio() {
                 "min-h-10 rounded-full px-4 text-sm uppercase tracking-[0.14em]",
                 loadout.style === style ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
               )}
-              onClick={() => void commit({ ...loadout, style })}
+              onClick={() => void commit({ ...worn, style })}
             >
               {style === "ra" ? (ownsRoyal ? "RA" : "Buy RA") : style}
             </button>
@@ -241,7 +268,7 @@ function AvatarStudio() {
         <button
           type="button"
           className="pointer-events-auto min-h-11 rounded-full border border-line bg-ink/85 px-4 text-sm text-ivory backdrop-blur-md hover:border-line-strong"
-          onClick={() => void commit({ ...loadout, team: loadout.team === "w" ? "b" : "w" })}
+          onClick={() => void commit({ ...worn, team: worn.team === "w" ? "b" : "w" })}
         >
           {viewLabel}
         </button>
@@ -289,7 +316,7 @@ function AvatarStudio() {
                       setCoins(bought.coins);
                       setOwned(bought.owned);
                     }
-                    await commit({ ...loadout, style: "ra", anId: "royal" });
+                    await commit({ ...worn, style: "ra", anId: "royal" });
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Not enough Morse coins.");
                   }
@@ -310,10 +337,10 @@ function AvatarStudio() {
                   key={item.id}
                   item={item}
                   picked={characterId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0}
+                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
                   onPick={() => void equip(animated ? "anId" : "kingId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
-                  onPin={() => pinItem(animated ? "anId" : "kingId", item.id, item.price)}
+                  onPin={() => pinItem("king", item.id)}
                 />
               ))
             : null}
@@ -323,10 +350,10 @@ function AvatarStudio() {
                   key={item.id}
                   item={item}
                   picked={loadout.swordId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0}
+                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
                   onPick={() => void equip("swordId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
-                  onPin={() => pinItem("swordId", item.id, item.price)}
+                  onPin={() => pinItem("swordId", item.id)}
                 />
               ))
             : null}
@@ -336,10 +363,10 @@ function AvatarStudio() {
                   key={item.id}
                   item={item}
                   picked={loadout.mountId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0}
+                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
                   onPick={() => void equip("mountId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
-                  onPin={() => pinItem("mountId", item.id, item.price)}
+                  onPin={() => pinItem("mountId", item.id)}
                 />
               ))
             : null}
@@ -349,10 +376,10 @@ function AvatarStudio() {
                   key={item.id}
                   item={{ ...item, portrait: crownArt(item.id, loadout.team) }}
                   picked={loadout.crownId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0}
+                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
                   onPick={() => void equip("crownId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
-                  onPin={() => pinItem("crownId", item.id, item.price)}
+                  onPin={() => pinItem("crownId", item.id)}
                 />
               ))
             : null}
