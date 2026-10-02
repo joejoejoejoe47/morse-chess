@@ -127,7 +127,7 @@ function AvatarStudio() {
   const [tab, setTab] = useState<"kings" | "swords" | "animals" | "crowns" | "frames" | "attacks">("kings");
   const ownsRoyal = owned.includes("royal");
   const animated = loadout.style === "an" || loadout.style === "ra";
-  const characterId = animated ? loadout.anId : loadout.kingId;
+  const characterId = loadout.style === "ra" ? "royal" : animated ? loadout.anId : loadout.kingId;
   const viewLabel = loadout.team === "w" ? "View black" : "View white";
   const tabs =
     loadout.style === "2d"
@@ -304,7 +304,7 @@ function AvatarStudio() {
           ) : null}
           {shown === "kings"
             ? CHARACTERS.filter((item) =>
-                loadout.style === "3d" ? item.id === "piece" : loadout.style === "an" ? item.id !== "piece" && item.id !== "royal" : item.id !== "piece",
+                loadout.style === "3d" ? item.id === "piece" : loadout.style === "ra" ? item.id === "royal" : item.id !== "piece" && item.id !== "royal",
               ).map((item) => (
                 <Portrait
                   key={item.id}

@@ -122,7 +122,7 @@ function fitCrown(source: THREE.Object3D) {
 
 function fitHandSword(source: THREE.Object3D) {
   const obj = source.clone(true);
-  obj.name = "kit-sword-r";
+  obj.name = "kit-blade";
   obj.userData.kit = true;
   obj.traverse((node) => {
     const mesh = node as THREE.Mesh;
@@ -133,19 +133,20 @@ function fitHandSword(source: THREE.Object3D) {
   });
   obj.rotation.set(0, 0, 0);
   obj.position.set(0, 0, 0);
+  obj.scale.set(1, 1, 1);
   obj.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const longest = Math.max(size.x, size.y, size.z, 0.001);
-  const fit = 0.58 / longest;
-  obj.scale.setScalar(fit);
+  obj.scale.setScalar(0.48 / longest);
   if (size.x >= size.y && size.x >= size.z) obj.rotation.z = Math.PI / 2;
-  else if (size.z > size.y) obj.rotation.x = -Math.PI / 2;
+  else if (size.z >= size.y && size.z >= size.x) obj.rotation.x = -Math.PI / 2;
   obj.updateMatrixWorld(true);
   const fitted = new THREE.Box3().setFromObject(obj);
-  const grip = fitted.min.clone();
-  obj.worldToLocal(grip);
-  obj.position.sub(grip);
+  const center = fitted.getCenter(new THREE.Vector3());
+  obj.position.x -= center.x;
+  obj.position.z -= center.z;
+  obj.position.y -= fitted.min.y;
   return obj;
 }
 
@@ -159,7 +160,7 @@ function findSlot(root: THREE.Object3D, side: "r" | "l" | "head") {
     side === "head"
       ? ["Head", "head", "mixamorigHead"]
       : side === "r"
-        ? ["hand.r", "RightHand", "mixamorigRightHand", "handslot.r", "wrist.r", "Wrist.R"]
+        ? ["handslot.r", "hand.r", "RightHand", "Wrist.R", "wrist.r", "Index1.R"]
         : ["handslot.l", "hand.l", "LeftHand", "mixamorigLeftHand", "Wrist.L", "wrist.l", "LowerArm.L", "lowerarm.l"];
   for (const name of names) {
     const hit = root.getObjectByName(name);
@@ -231,31 +232,38 @@ function GlbBody({
   const { actions } = useAnimations(gltf.animations, scene);
   const clipMode = useRef("");
   useEffect(() => {
-    if (pace) return;
+    if (pace && !sit) return;
     const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
+    const named = (clip: { getClip: () => { name: string } }) => clip.getClip().name;
+    const seated = sit
+      ? list.find((clip) => /sit_chair_idle/i.test(named(clip))) || list.find((clip) => /sit_floor_idle|sit_chair/i.test(named(clip)))
+      : null;
     const idle =
       list.find((clip) => /idle[_\s-]?neutral|\|idle$/i.test(clip.getClip().name)) ||
-      list.find((clip) => /idle/i.test(clip.getClip().name)) ||
+      list.find((clip) => /idle/i.test(clip.getClip().name) && !/sit|gun/i.test(clip.getClip().name)) ||
       null;
-    idle?.reset().fadeIn(0.2).play();
+    const play = seated || idle;
+    play?.reset().fadeIn(0.2).play();
     return () => {
-      idle?.fadeOut(0.1);
+      play?.fadeOut(0.1);
     };
-  }, [actions, pace]);
+  }, [actions, pace, sit]);
   useFrame(() => {
-    if (!pace && !striking) return;
-    const want = striking || pace?.current.act === "attack" ? "attack" : pace?.current.act === "walk" ? "walk" : "idle";
+    if (!pace && !striking && !sit) return;
+    const want = sit && !striking ? "sit" : striking || pace?.current.act === "attack" ? "attack" : pace?.current.act === "walk" ? "walk" : "idle";
     if (want === clipMode.current) return;
     const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
     const named = (clip: { getClip: () => { name: string } }) => clip.getClip().name;
     const next =
-      want === "walk"
+      want === "sit"
+        ? list.find((clip) => /sit_chair_idle/i.test(named(clip))) || list.find((clip) => /sit_floor_idle|sit_chair/i.test(named(clip)))
+        : want === "walk"
         ? list.find((clip) => /\|walk$/i.test(named(clip))) || list.find((clip) => /walk/i.test(named(clip)) && !/back|left|right/i.test(named(clip)))
         : want === "attack"
           ? list.find((clip) => /1H_Melee_Attack_Chop/i.test(named(clip))) ||
             list.find((clip) => /Melee_Attack_Stab|Melee_Attack_Slice_Horizontal|Unarmed_Melee_Attack_Kick/i.test(named(clip))) ||
             list.find((clip) => /attack/i.test(named(clip)) && !/death|hit|spin|ranged|block/i.test(named(clip)))
-          : list.find((clip) => /idle_neutral|\|idle$/i.test(named(clip))) || list.find((clip) => /idle/i.test(named(clip)));
+          : list.find((clip) => /idle_neutral|\|idle$/i.test(named(clip))) || list.find((clip) => /idle/i.test(named(clip)) && !/sit|gun/i.test(named(clip)));
     const prev = list.find((clip) => clip.isRunning());
     prev?.fadeOut(0.15);
     if (next) {
@@ -287,6 +295,8 @@ function GlbBody({
   }, [scene, kit, crownId, team, wearCrown, crownFile.scene, bladeFile.scene, height]);
   useFrame(() => {
     if (!sit) return;
+    const seated = Object.values(actions).some((clip) => clip && /sit_chair|sit_floor/i.test(clip.getClip().name));
+    if (seated) return;
     const pose = (bone: THREE.Bone, euler: THREE.Euler) => {
       const data = bone.userData as { sitRest?: THREE.Quaternion };
       if (!data.sitRest) data.sitRest = bone.quaternion.clone();
@@ -296,11 +306,8 @@ function GlbBody({
       const bone = obj as THREE.Bone;
       if (!bone.isBone) return;
       const name = bone.name.toLowerCase();
-      const left = name.includes("left") || name.endsWith(".l") || name.includes("_l");
-      const right = name.includes("right") || name.endsWith(".r") || name.includes("_r");
-      if (!left && !right) return;
-      if (/upperleg|thigh/.test(name)) pose(bone, new THREE.Euler(-0.25, 0, (left ? 1 : -1) * 0.85));
-      else if (/lowerleg|calf|shin/.test(name)) pose(bone, new THREE.Euler(1.15, 0, 0));
+      if (/upperleg|thigh/.test(name)) pose(bone, new THREE.Euler(-1.15, 0, 0));
+      else if (/lowerleg|calf|shin/.test(name)) pose(bone, new THREE.Euler(1.35, 0, 0));
     });
   });
   return <primitive object={scene} />;
@@ -478,10 +485,10 @@ export function Figurine({
     if (riding && mountRef.current && riderRef.current) {
       const box = new THREE.Box3().setFromObject(mountRef.current);
       if (!box.isEmpty()) {
-        const spot = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + (box.max.y - box.min.y) * 0.64, (box.min.z + box.max.z) / 2);
+        const spot = new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2);
         riderRef.current.parent?.worldToLocal(spot);
-        const rideHeight = character.height * 0.78;
-        riderRef.current.position.set(spot.x, spot.y - rideHeight * 0.5, spot.z);
+        const rideHeight = royal ? character.height * 0.95 : character.height * 0.7;
+        riderRef.current.position.set(spot.x, spot.y - rideHeight * 0.36, spot.z);
         riderRef.current.rotation.set(0, character.yaw ?? 0, 0);
       }
     }
@@ -497,7 +504,7 @@ export function Figurine({
   return (
     <group ref={ref}>
       {riding && mount.url && mount.kind ? (
-        <group ref={mountRef}>
+        <group ref={mountRef} scale={royal ? 1 : 1.75}>
           {mount.kind === "fbx" ? (
             <FbxMount url={mount.url} height={mount.height ?? 1} dark={dark} pace={pace} />
           ) : (
@@ -512,7 +519,7 @@ export function Figurine({
           <Body
             url={character.url}
             kind={character.kind}
-            height={riding ? character.height * 0.78 : character.height}
+            height={riding ? (royal ? character.height * 0.95 : character.height * 0.7) : character.height}
             dark={dark}
             kit={swordId}
             crownId={crownId}

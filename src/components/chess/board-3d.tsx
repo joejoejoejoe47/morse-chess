@@ -580,7 +580,7 @@ function AnimatedPiece({
       {real && gear && type === "k" ? (
         <group scale={1.15} rotation={[0, Math.PI, 0]}>
           <Figurine
-            characterId={gear.anId === "piece" ? "knight" : gear.anId}
+            characterId="royal"
             mountId={gear.mountId}
             swordId={gear.swordId}
             crownId={gear.crownId}
