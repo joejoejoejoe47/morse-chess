@@ -7,7 +7,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { SpaceCrew } from "@/components/chess/space-crew";
 
 export type PeopleCast = "stone" | "pipe" | "ring" | "wars" | "mario" | "lotr";
-export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "attack" | "death" | "cheer" | "pickup"; fade: number };
+export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "charge" | "attack" | "death" | "cheer" | "pickup"; fade: number };
 
 const PROP = /sword|shield|axe|knife|crossbow|throw|spell|wand|staff|mug|cape|helmet|hat|hood|cloak|badge/i;
 const BODY = /head|body|arm|leg|eyes|jaw|skull/i;
