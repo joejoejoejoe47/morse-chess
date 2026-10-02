@@ -1,0 +1,3 @@
+{
+  "serve": "node scripts/with-app-env.mjs vite dev --host 0.0.0.0 --port $PORT"
+}
