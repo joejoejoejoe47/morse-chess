@@ -581,7 +581,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
           </div>
           {showTable && event ? (
             <ClubTable userId={userId} event={event} members={pack.members} view={view} />
-          ) : (
+          ) : view === "2d" ? (
             <div className="absolute inset-x-6 bottom-8 top-14 [container-type:size]">
               <div className="mx-auto aspect-square h-[min(100cqh,100cqw)] w-[min(100cqh,100cqw)]">
                 <StageBoard
@@ -596,6 +596,21 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
                   onMove={() => undefined}
                 />
               </div>
+            </div>
+          ) : (
+            <div className="absolute inset-0 top-12">
+              <StageBoard
+                view={view}
+                fen={START_FEN}
+                you="w"
+                lastMove={null}
+                myTurn={false}
+                disabled
+                skin={skin}
+                kings={{ w: pack.look, b: "" }}
+                onMove={() => undefined}
+                plate="/club/board-platform.png"
+              />
             </div>
           )}
           <label className="absolute bottom-3 left-3 z-30 inline-flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-xs text-[#f4efe6] backdrop-blur-sm">
@@ -762,6 +777,7 @@ function WatchBoard({
         {...props}
         people={view === "an"}
         real={view === "ra"}
+        plate="/club/board-platform.png"
         kings={{ w: game.whiteLook, b: game.blackLook }}
       />
     </Suspense>
@@ -840,6 +856,7 @@ function StageBoard({
   skin,
   onMove,
   kings,
+  plate,
 }: {
   view: "2d" | "3d" | "an" | "ra";
   fen: string;
@@ -850,6 +867,7 @@ function StageBoard({
   skin: ReturnType<typeof boardById>;
   onMove: (from: Square, to: Square) => void;
   kings?: { w?: string; b?: string };
+  plate?: string;
 }) {
   const props = { fen, you, lastMove, myTurn, disabled, skin, onMove };
   if (view === "2d") {
@@ -860,9 +878,9 @@ function StageBoard({
     );
   }
   return (
-    <div className="h-[min(58vh,520px)] w-[min(100%,520px)] overflow-hidden rounded-xl shadow-[0_0_70px_rgba(255,176,70,0.28)]">
+    <div className={plate ? "h-full w-full" : "h-[min(58vh,520px)] w-[min(100%,520px)] overflow-hidden rounded-xl shadow-[0_0_70px_rgba(255,176,70,0.28)]"}>
       <Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#b7ad9e]">Setting the board…</div>}>
-        <ChessBoard3D {...props} people={view === "an"} real={view === "ra"} kings={kings} showTip={false} />
+        <ChessBoard3D {...props} people={view === "an"} real={view === "ra"} kings={kings} showTip={false} plate={plate} />
     </Suspense>
     </div>
   );

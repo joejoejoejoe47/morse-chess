@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html, OrbitControls } from "@react-three/drei";
+import { Html, OrbitControls, useTexture } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
@@ -646,6 +646,24 @@ function AnimatedPiece({
   );
 }
 
+function PhotoPlate({ url }: { url: string }) {
+  const tex = useTexture(url);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  const width = 8 / 0.3008;
+  const depth = 8 / 0.5885;
+  const side = useMemo(() => new THREE.MeshStandardMaterial({ color: "#2a1c12", roughness: 0.84 }), []);
+  const top = useMemo(
+    () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.58, metalness: 0.04 }),
+    [tex],
+  );
+  return (
+    <mesh position={[-0.1, -0.12, 0.18]} receiveShadow material={[side, side, top, side, side, side]}>
+      <boxGeometry args={[width, 0.24, depth]} />
+    </mesh>
+  );
+}
+
 function BoardSquares({
   selected,
   legal,
@@ -656,6 +674,7 @@ function BoardSquares({
   lightMap,
   darkMap,
   meadow = false,
+  ghost = false,
   pitch = 1,
 }: {
   selected: string | null;
@@ -667,6 +686,7 @@ function BoardSquares({
   lightMap?: THREE.Texture | null;
   darkMap?: THREE.Texture | null;
   meadow?: boolean;
+  ghost?: boolean;
   pitch?: number;
 }) {
   const squares = useMemo(() => {
@@ -711,9 +731,9 @@ function BoardSquares({
                 : skin.darkSq;
         return (
           <group key={sq}>
-            {meadow ? (
+            {meadow || ghost ? (
               <mesh
-                position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.14, z]}
+                position={[x, meadow ? gladeHeight(x, z) + 0.14 : 0.12, z]}
                 rotation={[-Math.PI / 2, 0, 0]}
                 userData={{ light, lock: true }}
                 onClick={(e) => {
@@ -1386,6 +1406,7 @@ function Scene({
   showTip,
   fightZoom,
   kings,
+  plate = null,
 }: {
   fen: string;
   you: Side;
@@ -1409,6 +1430,7 @@ function Scene({
   showTip: boolean;
   fightZoom: boolean;
   kings?: { w?: string; b?: string };
+  plate?: string | null;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -1642,7 +1664,11 @@ function Scene({
       {skin.tableKind === "legend" ? (
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
-      {skin.id === "grassland" ? (
+      {plate ? (
+        <Suspense fallback={null}>
+          <PhotoPlate url={plate} />
+        </Suspense>
+      ) : skin.id === "grassland" ? (
         <Suspense fallback={null}>
           <MeadowField cheer={cheer} />
         </Suspense>
@@ -1681,6 +1707,7 @@ function Scene({
         lightMap={wood?.light}
         darkMap={wood?.dark}
         meadow={meadow}
+        ghost={Boolean(plate)}
         pitch={pitch}
       />
       <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
@@ -1968,6 +1995,7 @@ export function ChessBoard3D({
   fightZoom = false,
   kings,
   real = false,
+  plate = null,
 }: {
   fen: string;
   you: Side;
@@ -1989,6 +2017,7 @@ export function ChessBoard3D({
   showTip?: boolean;
   fightZoom?: boolean;
   kings?: { w?: string; b?: string };
+  plate?: string | null;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -2090,6 +2119,7 @@ export function ChessBoard3D({
           showTip={showTip}
           fightZoom={fightZoom}
           kings={kings}
+          plate={plate}
         />
       </Canvas>
     </div>
