@@ -506,12 +506,14 @@ function AnimatedPiece({
     const dest = squareToWorld(square, pitch);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
     const jumping = type === "n";
-    if (people || jumping) {
+    const mounted = Boolean(gear && gear.mountId && gear.mountId !== "none");
+    if (people || jumping || mounted) {
       if (!trip.current || trip.current.to.distanceTo(target) > 0.01) {
         trip.current = { from: pos.current.clone(), to: target.clone(), t: 0 };
       }
       const span = trip.current.from.distanceTo(trip.current.to);
-      if (span > 0.02) trip.current.t = Math.min(1, trip.current.t + dt / (jumping ? 0.86 : 0.72));
+      const charging = mounted && slay;
+      if (span > 0.02) trip.current.t = Math.min(1, trip.current.t + dt / (charging ? 0.32 : jumping ? 0.86 : 0.72));
       else trip.current.t = 1;
       pos.current.lerpVectors(trip.current.from, trip.current.to, trip.current.t);
     } else {
@@ -526,17 +528,18 @@ function AnimatedPiece({
         : 0;
     const groundY = pitch > 1 ? gladeHeight(pos.current.x, pos.current.z) : 0;
     ref.current.position.set(pos.current.x, 0.08 + lift.current + hop + groundY, pos.current.z);
-    if (people) {
+    if (people || mounted) {
       const traveling = (trip.current?.t ?? 1) < 1;
       gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
       if (traveling) gait.current.phase += dt * 9;
       if (!traveling && slay && !swung.current) {
         swung.current = true;
-        attackUntil.current = performance.now() + (clash || duelAt ? 1900 : 980);
+        attackUntil.current = performance.now() + (mounted ? 900 : clash || duelAt ? 1900 : 980);
       }
-      gait.current.act = performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
-      if (duelAt && gait.current.act === "attack") {
-        const foe = squareToWorld(duelAt as Square, pitch);
+      const charging = mounted && slay && traveling;
+      gait.current.act = performance.now() < attackUntil.current ? "attack" : charging ? "charge" : traveling ? "walk" : "idle";
+      if ((duelAt && gait.current.act === "attack") || charging) {
+        const foe = squareToWorld((duelAt || square) as Square, pitch);
         const fx = foe[0] - pos.current.x;
         const fz = foe[2] - pos.current.z;
         if (Math.hypot(fx, fz) > 0.05) ref.current.rotation.y = Math.atan2(fx, fz);
@@ -545,6 +548,13 @@ function AnimatedPiece({
         const dz = target.z - pos.current.z;
         if (Math.hypot(dx, dz) > 0.08) ref.current.rotation.y = Math.atan2(dx, dz);
         else if (gait.current.act !== "attack") ref.current.rotation.y = color === "w" ? Math.PI : 0;
+      }
+      if (mounted && gait.current.act === "attack") {
+        const age = (900 - (attackUntil.current - performance.now())) / 900;
+        const lunge = Math.sin(Math.min(1, Math.max(0, age)) * Math.PI) * 0.72;
+        const yaw = ref.current.rotation.y;
+        ref.current.position.x += Math.sin(yaw) * lunge;
+        ref.current.position.z += Math.cos(yaw) * lunge;
       }
       return;
     }
@@ -1478,7 +1488,7 @@ function Scene({
   const prevPieces = useRef<typeof pieces | null>(null);
   const seenCapture = useRef("");
   const [bodies, setBodies] = useState<
-    { id: string; sq: Square; aside: Square; type: PieceSymbol; color: Color; delay: number }[]
+    { id: string; sq: Square; aside: Square; type: PieceSymbol; color: Color; delay: number; knock: boolean }[]
   >([]);
   const [captureSq, setCaptureSq] = useState<string | null>(null);
   const [duelAside, setDuelAside] = useState<Square | null>(null);
@@ -1539,6 +1549,7 @@ function Scene({
             type: fallen.type,
             color: fallen.color,
             delay: 0.15,
+            knock: false,
           },
         ]);
       }
@@ -1549,13 +1560,22 @@ function Scene({
       if (cheerTimer.current) window.clearTimeout(cheerTimer.current);
       cheerTimer.current = window.setTimeout(() => setCheer(null), 2400);
     }
-    if (!people) {
-      setCaptureSq(null);
-      return;
-    }
-    if (!victim) {
+    if (!victim || !mover) {
       setCaptureSq(null);
       setDuelAside(null);
+      return;
+    }
+    const look = kings?.[mover.color];
+    let knock = false;
+    if (look) {
+      try {
+        knock = parseLoadout(JSON.parse(look)).mountId !== "none";
+      } catch {
+        knock = false;
+      }
+    }
+    if (!people && !knock) {
+      setCaptureSq(null);
       return;
     }
     const aside = stepAside(lastMove.from as Square, victim.sq, new Set(pieces.map((p) => p.sq)));
@@ -1579,10 +1599,11 @@ function Scene({
         aside,
         type: victim.type,
         color: victim.color,
-        delay: 0.72,
+        delay: knock ? 0.85 : 0.72,
+        knock,
       },
     ]);
-  }, [pieces, people, lastMove, fen, fightZoom, pitch, meadow]);
+  }, [pieces, people, lastMove, fen, fightZoom, pitch, meadow, kings]);
 
   const wood = useMemo(() => {
     if (skin.id === "marble") {
@@ -1755,7 +1776,7 @@ function Scene({
           }}
         />
       ) : null}
-      {people
+      {people || bodies.some((body) => body.knock)
         ? bodies.map((body) => {
             const corpse = (
               <WarCorpse
@@ -1765,13 +1786,13 @@ function Scene({
                 sword={body.color !== you}
                 clash={body.aside !== body.sq || fightZoom}
                 wing={body.sq[0] < "e" ? "a" : "b"}
-                delay={body.aside !== body.sq ? 1.9 : body.delay}
+                delay={body.knock ? 0.7 : body.aside !== body.sq ? 1.9 : body.delay}
                 onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
               />
             );
             if (body.aside !== body.sq) {
               return (
-                <DuelShift key={body.id} from={body.sq} to={body.aside} face={(lastMove?.to ?? body.sq) as Square} pitch={pitch}>
+                <DuelShift key={body.id} from={body.sq} to={body.aside} face={(lastMove?.to ?? body.sq) as Square} pitch={pitch} knock={body.knock}>
                   {corpse}
                 </DuelShift>
               );
@@ -1844,26 +1865,33 @@ function DuelShift({
   to,
   face,
   pitch = 1,
+  knock = false,
   children,
 }: {
   from: Square;
   to: Square;
   face: Square;
   pitch?: number;
+  knock?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<THREE.Group>(null);
-  const t = useRef(0);
+  const age = useRef(0);
   const a = squareToWorld(from, pitch);
   const b = squareToWorld(to, pitch);
   const look = squareToWorld(face, pitch);
 
   useFrame((_, raw) => {
     if (!ref.current) return;
-    t.current = Math.min(1, t.current + Math.min(raw, 0.1) / 0.46);
-    const x = a[0] + (b[0] - a[0]) * t.current;
-    const z = a[2] + (b[2] - a[2]) * t.current;
-    ref.current.position.set(x, 0.08 + (pitch > 1 ? gladeHeight(x, z) : 0), z);
+    age.current += Math.min(raw, 0.1);
+    const wait = knock ? 0.42 : 0;
+    const span = knock ? 0.22 : 0.46;
+    const u = Math.min(1, Math.max(0, (age.current - wait) / span));
+    const shove = knock ? u * u : u;
+    const x = a[0] + (b[0] - a[0]) * shove;
+    const z = a[2] + (b[2] - a[2]) * shove;
+    const hop = knock ? Math.sin(u * Math.PI) * 0.85 : 0;
+    ref.current.position.set(x, 0.08 + hop + (pitch > 1 ? gladeHeight(x, z) : 0), z);
     const dx = look[0] - x;
     const dz = look[2] - z;
     if (Math.hypot(dx, dz) > 0.04) ref.current.rotation.y = Math.atan2(dx, dz);

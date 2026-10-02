@@ -246,7 +246,7 @@ function GlbBody({
     };
   }, [actions, pace, sit]);
   useFrame(() => {
-    if (sit && !striking) {
+    if (sit) {
       if (clipMode.current !== "ride") {
         Object.values(actions).forEach((clip) => clip?.stop());
         clipMode.current = "ride";
@@ -322,10 +322,16 @@ function GlbBody({
 
 function gaitClip(
   actions: Record<string, THREE.AnimationAction | null>,
-  want: "walk" | "idle",
+  want: "walk" | "idle" | "gallop" | "butt",
 ) {
   const list = Object.values(actions).filter((clip): clip is THREE.AnimationAction => Boolean(clip));
   const named = (clip: THREE.AnimationAction) => clip.getClip().name;
+  if (want === "gallop") {
+    return list.find((clip) => /gallop/i.test(named(clip)) && !/jump/i.test(named(clip))) || list.find((clip) => /\|walk$/i.test(named(clip)));
+  }
+  if (want === "butt") {
+    return list.find((clip) => /attack_headbutt/i.test(named(clip))) || list.find((clip) => /gallop/i.test(named(clip)) && !/jump/i.test(named(clip)));
+  }
   return want === "walk"
     ? list.find((clip) => /\|Walk$/i.test(named(clip))) || list.find((clip) => /walk/i.test(named(clip)) && !/jump/i.test(named(clip)))
     : list.find((clip) => /\|Idle$/i.test(named(clip))) || list.find((clip) => /^Idle$/i.test(named(clip))) || list.find((clip) => /idle/i.test(named(clip)) && !/hit|head/i.test(named(clip)));
@@ -340,14 +346,20 @@ function MountClips({
 }) {
   const mode = useRef("");
   useFrame(() => {
-    const want = pace?.current.act === "walk" ? "walk" : "idle";
+    const act = pace?.current.act;
+    const want = act === "attack" ? "butt" : act === "charge" ? "gallop" : act === "walk" ? "walk" : "idle";
     if (want === mode.current) return;
     const list = Object.values(actions).filter((clip): clip is THREE.AnimationAction => Boolean(clip));
     const next = gaitClip(actions, want);
     list.forEach((clip) => {
-      if (clip !== next && clip.isRunning()) clip.fadeOut(0.15);
+      if (clip !== next && clip.isRunning()) clip.fadeOut(0.12);
     });
-    if (next) next.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(0.12).play();
+    if (next) {
+      next.reset();
+      next.setLoop(want === "butt" ? THREE.LoopOnce : THREE.LoopRepeat, want === "butt" ? 1 : Infinity);
+      next.clampWhenFinished = want === "butt";
+      next.fadeIn(0.08).play();
+    }
     mode.current = want;
   });
   return null;
