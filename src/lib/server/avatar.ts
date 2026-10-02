@@ -63,7 +63,7 @@ async function readRow(sql: Sql, userId: string) {
   } catch {
     parsed = DEFAULT_LOADOUT;
   }
-  const style: PieceStyle = row.piece_style === "2d" || row.piece_style === "an" || row.piece_style === "3d" ? row.piece_style : "3d";
+  const style: PieceStyle = row.piece_style === "2d" || row.piece_style === "an" || row.piece_style === "ra" || row.piece_style === "3d" ? row.piece_style : "3d";
   return {
     coins: Number(row.coins) || 0,
     username: row.username,
@@ -100,7 +100,7 @@ export const saveAvatar = createServerFn({ method: "POST" })
 export const setPieceStyle = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { style: string }) => ({
-    style: input?.style === "2d" || input?.style === "an" ? input.style : "3d",
+    style: input?.style === "2d" || input?.style === "an" || input?.style === "ra" ? input.style : "3d",
   }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();

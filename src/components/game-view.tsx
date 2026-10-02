@@ -79,12 +79,12 @@ function imageIsLight(src: string) {
   });
 }
 
-type BoardView = "2d" | "3d" | "an";
+type BoardView = "2d" | "3d" | "an" | "ra";
 
 function readBoardView(): BoardView {
   try {
     const saved = localStorage.getItem("morse-board-view");
-    if (saved === "2d" || saved === "an") return saved;
+    if (saved === "2d" || saved === "an" || saved === "ra") return saved;
     return "3d";
   } catch {
     return "3d";
@@ -547,8 +547,8 @@ export function GameView({ gameId }: { gameId: string }) {
               AN
             </button>
             <RaBuy
-              active={view === "an"}
-              onView={() => setBoardView("an")}
+              active={view === "ra"}
+              onView={() => setBoardView("ra")}
               className="min-h-11 min-w-11 px-4 py-2 text-sm font-medium text-mist hover:text-ivory sm:px-3 sm:py-1.5 sm:text-[13px]"
             />
           </div>
@@ -668,6 +668,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
                 seatVideo={seatVideo}
                 people={view === "an"}
+                real={view === "ra"}
                 showTip={prefs.pieceTip}
                 fightZoom={view === "an" && prefs.fightZoom}
                 kings={{ w: game.whiteLook, b: game.blackLook }}

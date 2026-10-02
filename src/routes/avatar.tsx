@@ -105,7 +105,7 @@ function AvatarStudio() {
       setError("Unpin it before you change it. The king does not stay stuck.");
       return;
     }
-    if (kind === "crownId" && (loadout.style === "an" ? loadout.anId : loadout.kingId) === "royal") {
+    if (kind === "crownId" && (loadout.style === "an" || loadout.style === "ra") && loadout.anId === "royal") {
       setError("The royal king wears no crown.");
       return;
     }
@@ -116,7 +116,7 @@ function AvatarStudio() {
         setOwned(bought.owned);
       }
       const next = { ...loadout, [kind]: id } as AvatarLoadout;
-      if (loadout.style === "an" && kind === "kingId") next.anId = id;
+      if ((loadout.style === "an" || loadout.style === "ra") && kind === "kingId") next.anId = id;
       if (loadout.style === "3d" && kind === "anId") next.kingId = id;
       await commit(next);
     } catch (err) {
@@ -125,14 +125,14 @@ function AvatarStudio() {
   }
 
   const [tab, setTab] = useState<"kings" | "swords" | "animals" | "crowns" | "frames" | "attacks">("kings");
-  const [ra, setRa] = useState(false);
   const ownsRoyal = owned.includes("royal");
-  const characterId = ra ? "royal" : loadout.style === "an" ? loadout.anId : loadout.kingId;
+  const animated = loadout.style === "an" || loadout.style === "ra";
+  const characterId = animated ? loadout.anId : loadout.kingId;
   const viewLabel = loadout.team === "w" ? "View black" : "View white";
   const tabs =
     loadout.style === "2d"
       ? ([["crowns", "Crowns"]] as const)
-      : ra || loadout.style === "an"
+      : animated
         ? ([
             ["swords", "Swords"],
             ["kings", "Kings"],
@@ -158,7 +158,7 @@ function AvatarStudio() {
               <CrownFlat id={loadout.crownId} dark={loadout.team === "b"} />
             </div>
           </div>
-        ) : loadout.style === "3d" && !ra ? (
+        ) : loadout.style === "3d" ? (
           <Canvas camera={{ position: [0.4, 4.8, 6.2], fov: 32 }} shadows onCreated={({ gl }) => keepWebGL(gl)}>
             <color attach="background" args={["#2a2118"]} />
             <Suspense fallback={null}>
@@ -207,7 +207,7 @@ function AvatarStudio() {
           Lounge
         </Link>
         <div className="pointer-events-auto flex rounded-full border border-line bg-ink/80 p-1 backdrop-blur-md">
-          {(["2d", "3d", "an"] as PieceStyle[]).map((style) => (
+          {(["2d", "3d", "an", "ra"] as PieceStyle[]).map((style) => (
             <button
               key={style}
               type="button"
@@ -215,24 +215,11 @@ function AvatarStudio() {
                 "min-h-10 rounded-full px-4 text-sm uppercase tracking-[0.14em]",
                 loadout.style === style ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
               )}
-              onClick={() => {
-                setRa(false);
-                void commit({ ...loadout, style });
-              }}
+              onClick={() => void commit({ ...loadout, style })}
             >
-              {style}
+              {style === "ra" ? (ownsRoyal ? "RA" : "Buy RA") : style}
             </button>
           ))}
-          <button
-            type="button"
-            className={cn(
-              "min-h-10 rounded-full px-4 text-sm uppercase tracking-[0.14em]",
-              ra ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
-            )}
-            onClick={() => setRa(true)}
-          >
-            {ownsRoyal ? "RA" : "Buy RA"}
-          </button>
         </div>
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-ink/80 px-3 py-1.5 backdrop-blur-md">
           <img src="/morse-coin.png" alt="" className="size-5" />
@@ -290,7 +277,7 @@ function AvatarStudio() {
         </div>
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
           {error ? <p className="rounded-xl bg-[#3a221c] px-3 py-2 text-sm text-[#f4d2c8]">{error}</p> : null}
-          {ra && !ownsRoyal ? (
+          {loadout.style === "ra" && !ownsRoyal ? (
             <button
               type="button"
               className="w-full rounded-xl bg-[#e6c56a] px-3 py-2 text-sm text-[#1a140f]"
@@ -302,8 +289,7 @@ function AvatarStudio() {
                       setCoins(bought.coins);
                       setOwned(bought.owned);
                     }
-                    await commit({ ...loadout, style: "an", anId: "royal" });
-                    setRa(false);
+                    await commit({ ...loadout, style: "ra", anId: "royal" });
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Not enough Morse coins.");
                   }
@@ -317,15 +303,17 @@ function AvatarStudio() {
             <p className="rounded-xl border border-[#3a3126] px-3 py-2 text-sm text-[#d9c7a4]">The royal king wears no crown.</p>
           ) : null}
           {shown === "kings"
-            ? CHARACTERS.filter((item) => (ra || loadout.style === "an" ? item.id !== "piece" : item.id === "piece")).map((item) => (
+            ? CHARACTERS.filter((item) =>
+                loadout.style === "3d" ? item.id === "piece" : loadout.style === "an" ? item.id !== "piece" && item.id !== "royal" : item.id !== "piece",
+              ).map((item) => (
                 <Portrait
                   key={item.id}
                   item={item}
                   picked={characterId === item.id}
                   owned={owned.includes(item.id) || item.price === 0}
-                  onPick={() => void equip(loadout.style === "an" ? "anId" : "kingId", item.id, item.price)}
+                  onPick={() => void equip(animated ? "anId" : "kingId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
-                  onPin={() => pinItem(loadout.style === "an" ? "anId" : "kingId", item.id, item.price)}
+                  onPin={() => pinItem(animated ? "anId" : "kingId", item.id, item.price)}
                 />
               ))
             : null}

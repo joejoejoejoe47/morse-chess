@@ -452,6 +452,7 @@ function AnimatedPiece({
   skin,
   outlineOn,
   people,
+  real = false,
   cast,
   slay,
   showTip,
@@ -473,6 +474,7 @@ function AnimatedPiece({
   skin: BoardSkin;
   outlineOn: boolean;
   people: boolean;
+  real?: boolean;
   cast: PeopleCast;
   slay: boolean;
   showTip: boolean;
@@ -575,11 +577,25 @@ function AnimatedPiece({
           </span>
         </Html>
       ) : null}
-      {people ? (
+      {real && gear && type === "k" ? (
+        <group scale={1.15} rotation={[0, Math.PI, 0]}>
+          <Figurine
+            characterId={gear.anId === "piece" ? "knight" : gear.anId}
+            mountId={gear.mountId}
+            swordId={gear.swordId}
+            crownId={gear.crownId}
+            team={color}
+            attackId={gear.attackId}
+            striking={slay}
+            pace={gait}
+          />
+        </group>
+      ) : people ? (
         gear && type === "k" ? (
           <group scale={1.45} rotation={[0, Math.PI, 0]}>
             <Figurine
-              characterId={gear.anId === "piece" ? "knight" : gear.anId}
+              characterId={gear.anId === "piece" || gear.anId === "royal" ? "knight" : gear.anId}
+              mountId={gear.mountId}
               swordId={gear.swordId}
               crownId={gear.crownId}
               team={color}
@@ -1366,6 +1382,7 @@ function Scene({
   roomScene,
   modelUrl,
   people,
+  real = false,
   showTip,
   fightZoom,
   kings,
@@ -1388,6 +1405,7 @@ function Scene({
   roomScene: RoomScene;
   modelUrl: string | null;
   people: boolean;
+  real?: boolean;
   showTip: boolean;
   fightZoom: boolean;
   kings?: { w?: string; b?: string };
@@ -1682,6 +1700,7 @@ function Scene({
           skin={skin}
           outlineOn={outlineOn}
           people={people}
+          real={real}
           cast={skin.anSet ?? "stone"}
           slay={captureSq === p.sq}
           showTip={showTip}
@@ -1948,6 +1967,7 @@ export function ChessBoard3D({
   showTip = true,
   fightZoom = false,
   kings,
+  real = false,
 }: {
   fen: string;
   you: Side;
@@ -1965,6 +1985,7 @@ export function ChessBoard3D({
   roomScene?: RoomScene;
   modelUrl?: string | null;
   people?: boolean;
+  real?: boolean;
   showTip?: boolean;
   fightZoom?: boolean;
   kings?: { w?: string; b?: string };
@@ -2065,6 +2086,7 @@ export function ChessBoard3D({
           roomScene={roomScene}
           modelUrl={modelUrl}
           people={people}
+          real={real}
           showTip={showTip}
           fightZoom={fightZoom}
           kings={kings}

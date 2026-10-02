@@ -84,9 +84,10 @@ function makeCrown(id: string, team: TeamView) {
     const a = (i / spikes) * Math.PI * 2;
     const spike =
       id === "laurel"
-        ? new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), metal(gold ? "#b7c98a" : "#2a241c", 0.3))
+        ? new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), metal(gold ? "#c5d69a" : "#6d7a58", 0.25))
         : new THREE.Mesh(new THREE.ConeGeometry(0.026, id === "sun" ? 0.09 : 0.13, 5), metal(color, shine));
-    spike.position.set(Math.cos(a) * 0.1, 0.07, Math.sin(a) * 0.1);
+    spike.position.set(Math.cos(a) * 0.09, 0.03, Math.sin(a) * 0.09);
+    spike.scale.set(1, 0.7, 1.4);
     group.add(spike);
   }
   if (id === "arched") {
@@ -130,12 +131,21 @@ function fitHandSword(source: THREE.Object3D) {
       mesh.frustumCulled = false;
     }
   });
+  obj.rotation.set(0, 0, 0);
+  obj.position.set(0, 0, 0);
+  obj.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
-  const fit = 0.55 / Math.max(size.y, size.x, size.z, 0.001);
+  const longest = Math.max(size.x, size.y, size.z, 0.001);
+  const fit = 0.58 / longest;
   obj.scale.setScalar(fit);
-  obj.position.set(0, 0.05, 0.02);
-  obj.rotation.set(-0.4, 0, 0.2);
+  if (size.x >= size.y && size.x >= size.z) obj.rotation.z = Math.PI / 2;
+  else if (size.z > size.y) obj.rotation.x = -Math.PI / 2;
+  obj.updateMatrixWorld(true);
+  const fitted = new THREE.Box3().setFromObject(obj);
+  const grip = fitted.min.clone();
+  obj.worldToLocal(grip);
+  obj.position.sub(grip);
   return obj;
 }
 
@@ -149,7 +159,7 @@ function findSlot(root: THREE.Object3D, side: "r" | "l" | "head") {
     side === "head"
       ? ["Head", "head", "mixamorigHead"]
       : side === "r"
-        ? ["handslot.r", "hand.r", "RightHand", "mixamorigRightHand", "Wrist.R", "wrist.r", "LowerArm.R", "lowerarm.r"]
+        ? ["hand.r", "RightHand", "mixamorigRightHand", "handslot.r", "wrist.r", "Wrist.R"]
         : ["handslot.l", "hand.l", "LeftHand", "mixamorigLeftHand", "Wrist.L", "wrist.l", "LowerArm.L", "lowerarm.l"];
   for (const name of names) {
     const hit = root.getObjectByName(name);
@@ -169,24 +179,17 @@ function hideCarried(root: THREE.Object3D) {
 function seatCrown(head: THREE.Object3D, crown: THREE.Object3D) {
   head.add(crown);
   crown.position.set(0, 0, 0);
+  crown.rotation.set(0, 0, 0);
   crown.updateWorldMatrix(true, true);
-  const crownBox = new THREE.Box3().setFromObject(crown);
-  const crownSize = crownBox.getSize(new THREE.Vector3());
-  const headBox = new THREE.Box3();
-  head.traverse((node) => {
-    const mesh = node as THREE.Mesh;
-    if (mesh.isMesh && !mesh.userData.kit) headBox.expandByObject(mesh);
-  });
-  const headWidth = headBox.isEmpty() ? 0.2 : Math.max(headBox.getSize(new THREE.Vector3()).x, 0.12);
-  const fit = (headWidth * 0.68) / Math.max(crownSize.x, crownSize.z, 0.001);
+  const box = new THREE.Box3().setFromObject(crown);
+  const size = box.getSize(new THREE.Vector3());
+  const fit = 0.15 / Math.max(size.x, size.z, 0.001);
   crown.scale.multiplyScalar(fit);
   crown.updateWorldMatrix(true, true);
   const fitted = new THREE.Box3().setFromObject(crown);
-  const top = headBox.isEmpty() ? new THREE.Vector3(0, 0.14, 0) : headBox.max.clone();
   const bottom = fitted.min.clone();
-  head.worldToLocal(top);
   head.worldToLocal(bottom);
-  crown.position.y += top.y - bottom.y + 0.005;
+  crown.position.y += 0.1 - bottom.y;
 }
 
 function clearKit(root: THREE.Object3D) {
@@ -296,8 +299,8 @@ function GlbBody({
       const left = name.includes("left") || name.endsWith(".l") || name.includes("_l");
       const right = name.includes("right") || name.endsWith(".r") || name.includes("_r");
       if (!left && !right) return;
-      if (/upperleg|thigh/.test(name)) pose(bone, new THREE.Euler(-1.2, 0, (left ? 1 : -1) * 0.85));
-      else if (/lowerleg|calf|shin/.test(name)) pose(bone, new THREE.Euler(0.15, 0, 0));
+      if (/upperleg|thigh/.test(name)) pose(bone, new THREE.Euler(-0.25, 0, (left ? 1 : -1) * 0.85));
+      else if (/lowerleg|calf|shin/.test(name)) pose(bone, new THREE.Euler(1.15, 0, 0));
     });
   });
   return <primitive object={scene} />;
@@ -473,12 +476,14 @@ export function Figurine({
     }
     const step = pace?.current.act === "walk";
     if (riding && mountRef.current && riderRef.current) {
-      const back = mountRef.current.getObjectByName("Back") || mountRef.current.getObjectByName("Torso") || mountRef.current;
-      const spot = new THREE.Vector3();
-      back.getWorldPosition(spot);
-      riderRef.current.parent?.worldToLocal(spot);
-      riderRef.current.position.set(spot.x, spot.y - character.height * 0.53, spot.z);
-      riderRef.current.rotation.set(0, character.yaw ?? 0, 0);
+      const box = new THREE.Box3().setFromObject(mountRef.current);
+      if (!box.isEmpty()) {
+        const spot = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + (box.max.y - box.min.y) * 0.64, (box.min.z + box.max.z) / 2);
+        riderRef.current.parent?.worldToLocal(spot);
+        const rideHeight = character.height * 0.78;
+        riderRef.current.position.set(spot.x, spot.y - rideHeight * 0.5, spot.z);
+        riderRef.current.rotation.set(0, character.yaw ?? 0, 0);
+      }
     }
     if (pace) {
       group.rotation.y = 0;
@@ -507,7 +512,7 @@ export function Figurine({
           <Body
             url={character.url}
             kind={character.kind}
-            height={character.height}
+            height={riding ? character.height * 0.78 : character.height}
             dark={dark}
             kit={swordId}
             crownId={crownId}

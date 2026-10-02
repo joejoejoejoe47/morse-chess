@@ -25,7 +25,7 @@ export function RaBuy({
     <button
       type="button"
       disabled={busy}
-      className={cn(className, active && owned && "bg-ivory text-ink")}
+      className={cn(className, active && "bg-ivory text-ink")}
       onClick={() => {
         onView();
         if (owned || busy) return;
@@ -37,7 +37,7 @@ export function RaBuy({
         void buyGear({ data: { id: "royal" } })
           .then(async (bought) => {
             const row = await getAvatar();
-            if (row) await saveAvatar({ data: { loadout: { ...row.loadout, style: "an", anId: "royal" } } });
+            if (row) await saveAvatar({ data: { loadout: { ...row.loadout, style: "ra", anId: "royal" } } });
             setOwned(bought.owned.includes("royal"));
           })
           .catch(() => undefined)

@@ -234,10 +234,10 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
   const [foe, setFoe] = useState("");
   const [showFoe, setShowFoe] = useState(false);
   const [chart, setChart] = useState(true);
-  const [view, setView] = useState<"2d" | "3d" | "an">(() => {
+  const [view, setView] = useState<"2d" | "3d" | "an" | "ra">(() => {
     try {
       const saved = localStorage.getItem("morse-board-view");
-      return saved === "3d" || saved === "an" ? saved : "2d";
+      return saved === "3d" || saved === "an" || saved === "ra" ? saved : "2d";
     } catch {
       return "2d";
     }
@@ -298,7 +298,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
   const skin = boardById(showTable && event ? event.boardId : club.boardId);
   const owned = BOARD_CATALOG.filter((board) => boardUnlocked(pack.score, board, pack.username, pack.ownedBoards));
 
-  function chooseView(next: "2d" | "3d" | "an") {
+  function chooseView(next: "2d" | "3d" | "an" | "ra") {
     setView(next);
     try {
       localStorage.setItem("morse-board-view", next);
@@ -574,8 +574,8 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
               </button>
             ))}
             <RaBuy
-              active={view === "an"}
-              onView={() => chooseView("an")}
+              active={view === "ra"}
+              onView={() => chooseView("ra")}
               className="min-h-8 rounded-full px-3 text-[11px] uppercase tracking-[0.14em] text-[#cfc4b2]"
             />
           </div>
@@ -640,7 +640,7 @@ function ClubTable({
   userId: string;
   event: ClubEvent;
   members: ClubSeat[];
-  view: "2d" | "3d" | "an";
+  view: "2d" | "3d" | "an" | "ra";
 }) {
   const [games, setGames] = useState<Watch[]>([]);
   const [left, setLeft] = useState(0);
@@ -737,7 +737,7 @@ function WatchBoard({
   userId,
 }: {
   game: Watch;
-  view: "2d" | "3d" | "an";
+  view: "2d" | "3d" | "an" | "ra";
   skinId: string;
   userId: string;
 }) {
@@ -761,6 +761,7 @@ function WatchBoard({
       <ChessBoard3D
         {...props}
         people={view === "an"}
+        real={view === "ra"}
         kings={{ w: game.whiteLook, b: game.blackLook }}
       />
     </Suspense>
@@ -840,7 +841,7 @@ function StageBoard({
   onMove,
   kings,
 }: {
-  view: "2d" | "3d" | "an";
+  view: "2d" | "3d" | "an" | "ra";
   fen: string;
   you: Side;
   lastMove: { from: string; to: string } | null;
@@ -861,7 +862,7 @@ function StageBoard({
   return (
     <div className="h-[min(58vh,520px)] w-[min(100%,520px)] overflow-hidden rounded-xl shadow-[0_0_70px_rgba(255,176,70,0.28)]">
       <Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#b7ad9e]">Setting the board…</div>}>
-        <ChessBoard3D {...props} people={view === "an"} kings={kings} showTip={false} />
+        <ChessBoard3D {...props} people={view === "an"} real={view === "ra"} kings={kings} showTip={false} />
     </Suspense>
     </div>
   );
