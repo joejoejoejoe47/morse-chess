@@ -29,6 +29,10 @@ function prep(source: THREE.Object3D, height: number, dark: boolean) {
   obj.updateMatrixWorld(true);
   const grounded = new THREE.Box3().setFromObject(obj);
   obj.position.y -= grounded.min.y;
+  obj.traverse((node) => {
+    const bone = node as THREE.Bone;
+    if (bone.isBone) bone.userData.bindQuat = bone.quaternion.clone();
+  });
   return obj;
 }
 
@@ -138,15 +142,13 @@ function fitHandSword(source: THREE.Object3D) {
   const box = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const longest = Math.max(size.x, size.y, size.z, 0.001);
-  obj.scale.setScalar(0.48 / longest);
+  obj.scale.setScalar(0.62 / longest);
   if (size.x >= size.y && size.x >= size.z) obj.rotation.z = Math.PI / 2;
   else if (size.z >= size.y && size.z >= size.x) obj.rotation.x = -Math.PI / 2;
   obj.updateMatrixWorld(true);
   const fitted = new THREE.Box3().setFromObject(obj);
   const center = fitted.getCenter(new THREE.Vector3());
-  obj.position.x -= center.x;
-  obj.position.z -= center.z;
-  obj.position.y -= fitted.min.y;
+  obj.position.set(-center.x, -fitted.min.y, -center.z);
   return obj;
 }
 
@@ -232,32 +234,32 @@ function GlbBody({
   const { actions } = useAnimations(gltf.animations, scene);
   const clipMode = useRef("");
   useEffect(() => {
-    if (pace && !sit) return;
+    if (sit || pace) return;
     const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
-    const named = (clip: { getClip: () => { name: string } }) => clip.getClip().name;
-    const seated = sit
-      ? list.find((clip) => /sit_chair_idle/i.test(named(clip))) || list.find((clip) => /sit_floor_idle|sit_chair/i.test(named(clip)))
-      : null;
     const idle =
       list.find((clip) => /idle[_\s-]?neutral|\|idle$/i.test(clip.getClip().name)) ||
       list.find((clip) => /idle/i.test(clip.getClip().name) && !/sit|gun/i.test(clip.getClip().name)) ||
       null;
-    const play = seated || idle;
-    play?.reset().fadeIn(0.2).play();
+    idle?.reset().fadeIn(0.2).play();
     return () => {
-      play?.fadeOut(0.1);
+      idle?.fadeOut(0.1);
     };
   }, [actions, pace, sit]);
   useFrame(() => {
-    if (!pace && !striking && !sit) return;
-    const want = sit && !striking ? "sit" : striking || pace?.current.act === "attack" ? "attack" : pace?.current.act === "walk" ? "walk" : "idle";
+    if (sit && !striking) {
+      if (clipMode.current !== "ride") {
+        Object.values(actions).forEach((clip) => clip?.stop());
+        clipMode.current = "ride";
+      }
+      return;
+    }
+    if (!pace && !striking) return;
+    const want = striking || pace?.current.act === "attack" ? "attack" : pace?.current.act === "walk" ? "walk" : "idle";
     if (want === clipMode.current) return;
     const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
     const named = (clip: { getClip: () => { name: string } }) => clip.getClip().name;
     const next =
-      want === "sit"
-        ? list.find((clip) => /sit_chair_idle/i.test(named(clip))) || list.find((clip) => /sit_floor_idle|sit_chair/i.test(named(clip)))
-        : want === "walk"
+      want === "walk"
         ? list.find((clip) => /\|walk$/i.test(named(clip))) || list.find((clip) => /walk/i.test(named(clip)) && !/back|left|right/i.test(named(clip)))
         : want === "attack"
           ? list.find((clip) => /1H_Melee_Attack_Chop/i.test(named(clip))) ||
@@ -281,7 +283,9 @@ function GlbBody({
     const head = findSlot(scene, "head");
     if (kit === "devil" || kit === "talwar") {
       const sword = fitHandSword(bladeFile.scene);
-      (right ?? scene).add(sword);
+      const socket = right ?? scene;
+      socket.add(sword);
+      sword.position.y += /handslot/i.test(socket.name) ? 0.04 : 0.12;
     }
     if (wearCrown) {
       const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
@@ -295,19 +299,22 @@ function GlbBody({
   }, [scene, kit, crownId, team, wearCrown, crownFile.scene, bladeFile.scene, height]);
   useFrame(() => {
     if (!sit) return;
-    const seated = Object.values(actions).some((clip) => clip && /sit_chair|sit_floor/i.test(clip.getClip().name));
-    if (seated) return;
     const pose = (bone: THREE.Bone, euler: THREE.Euler) => {
-      const data = bone.userData as { sitRest?: THREE.Quaternion };
-      if (!data.sitRest) data.sitRest = bone.quaternion.clone();
-      bone.quaternion.copy(data.sitRest).multiply(new THREE.Quaternion().setFromEuler(euler));
+      const data = bone.userData as { bindQuat?: THREE.Quaternion };
+      const rest = data.bindQuat ?? bone.quaternion;
+      bone.quaternion.copy(rest).multiply(new THREE.Quaternion().setFromEuler(euler));
     };
     scene.traverse((obj) => {
       const bone = obj as THREE.Bone;
       if (!bone.isBone) return;
       const name = bone.name.toLowerCase();
-      if (/upperleg|thigh/.test(name)) pose(bone, new THREE.Euler(-1.15, 0, 0));
-      else if (/lowerleg|calf|shin/.test(name)) pose(bone, new THREE.Euler(1.35, 0, 0));
+      if (/end$/.test(name)) return;
+      const left = name.endsWith(".l") || name.endsWith("_l") || name.includes("left");
+      const right = name.endsWith(".r") || name.endsWith("_r") || name.includes("right");
+      if (!left && !right) return;
+      const side = left ? 1 : -1;
+      if (/upperleg|thigh/.test(name)) pose(bone, new THREE.Euler(-0.55, 0, side * 0.62));
+      else if (/lowerleg|calf|shin/.test(name)) pose(bone, new THREE.Euler(1.15, 0, 0));
     });
   });
   return <primitive object={scene} />;
@@ -485,10 +492,19 @@ export function Figurine({
     if (riding && mountRef.current && riderRef.current) {
       const box = new THREE.Box3().setFromObject(mountRef.current);
       if (!box.isEmpty()) {
-        const spot = new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y, (box.min.z + box.max.z) / 2);
+        const span = box.max.y - box.min.y;
+        const torso = mountRef.current.getObjectByName("Torso") || mountRef.current.getObjectByName("Back");
+        const spot = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + span * 0.6, (box.min.z + box.max.z) / 2);
+        if (torso) {
+          const bone = new THREE.Vector3();
+          torso.getWorldPosition(bone);
+          spot.x = bone.x;
+          spot.z = bone.z;
+          spot.y = bone.y + span * 0.2;
+        }
         riderRef.current.parent?.worldToLocal(spot);
         const rideHeight = royal ? character.height * 0.95 : character.height * 0.7;
-        riderRef.current.position.set(spot.x, spot.y - rideHeight * 0.36, spot.z);
+        riderRef.current.position.set(spot.x, spot.y - rideHeight * 0.52, spot.z);
         riderRef.current.rotation.set(0, character.yaw ?? 0, 0);
       }
     }
