@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import * as THREE from "three";
+import { asset } from "@/lib/base";
 
 export type ArenaSide = "w" | "b" | "all";
 
@@ -11,8 +12,8 @@ export const arenaNight = { value: 0 };
 
 const COLOSSEUM_SCALE = 15;
 const COLOSSEUM_LIFT = 0.31 * COLOSSEUM_SCALE;
-const WHITE_PAWN = "/units/rogue.glb";
-const BLACK_PAWN = "/units/skeleton-minion.glb";
+const WHITE_PAWN = asset("/units/rogue.glb");
+const BLACK_PAWN = asset("/units/skeleton-minion.glb");
 
 const ARCH_FILES = [-7, -5, -3, -1, 1, 3, 5, 7];
 const ARCH_R = 11.35;
@@ -180,7 +181,7 @@ function ArchDoor({ x, z, compact = false }: { x: number; z: number; compact?: b
 }
 
 function Coliseum() {
-  const gltf = useGLTF("/arena/coliseum.glb");
+  const gltf = useGLTF(asset("/arena/coliseum.glb"));
   const model = useMemo(() => {
     const root = gltf.scene.clone(true);
     root.traverse((obj) => {
@@ -198,7 +199,7 @@ function Coliseum() {
   return <primitive object={model} scale={COLOSSEUM_SCALE} position={[0, COLOSSEUM_LIFT, 0]} />;
 }
 
-useGLTF.preload("/arena/coliseum.glb");
+useGLTF.preload(asset("/arena/coliseum.glb"));
 useGLTF.preload(WHITE_PAWN);
 useGLTF.preload(BLACK_PAWN);
 

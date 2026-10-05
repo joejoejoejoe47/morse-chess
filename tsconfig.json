@@ -18,8 +18,7 @@
     "checkJs": true,
     "noEmit": true,
     "types": [
-      "vite/client",
-      "node"
+      "vite/client"
     ],
     "baseUrl": ".",
     "paths": {
@@ -30,7 +29,6 @@
     "allowImportingTsExtensions": true
   },
   "include": [
-    "src",
-    "server"
+    "src"
   ]
 }

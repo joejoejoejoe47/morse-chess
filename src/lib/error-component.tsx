@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
+import { BASE } from "@/lib/base";
 
 const FALLBACK_MESSAGE = "An unexpected error occurred. Try reloading the page.";
 
@@ -31,7 +32,7 @@ export function AppErrorComponent({ error, reset }: ErrorComponentProps) {
     }
     if (tried) return;
     const timer = window.setTimeout(() => {
-      window.location.assign("/boards");
+      window.location.assign(BASE + "/boards");
     }, 600);
     return () => window.clearTimeout(timer);
   }, [message, reset]);

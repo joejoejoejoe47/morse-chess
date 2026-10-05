@@ -3,6 +3,7 @@ import { signOut, clearPreviewBearer } from "@/lib/auth/client";
 import { clearClubSession } from "@/lib/auth/club-session";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BASE } from "@/lib/base";
 
 export function ClubSignOut({ className }: { className?: string }) {
   const [signingOut, setSigningOut] = useState(false);
@@ -21,7 +22,7 @@ export function ClubSignOut({ className }: { className?: string }) {
         clearClubSession();
         clearPreviewBearer();
         void signOut("/").catch(() => {
-          window.location.href = "/";
+          window.location.href = BASE + "/";
           setSigningOut(false);
           setFailed(true);
         });

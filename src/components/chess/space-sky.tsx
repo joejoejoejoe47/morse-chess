@@ -2,6 +2,7 @@ import { useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { asset } from "@/lib/base";
 
 function loadMap(url: string) {
   const tex = new THREE.TextureLoader().load(url);
@@ -70,7 +71,7 @@ function Body({
 }) {
   const ref = useRef<THREE.Group>(null);
   const tex = useMemo(() => loadMap(map), [map]);
-  const ringTex = useMemo(() => (ring ? loadMap("/space/ring.png") : null), [ring]);
+  const ringTex = useMemo(() => (ring ? loadMap(asset("/space/ring.png")) : null), [ring]);
   useFrame((_, dt) => {
     if (ref.current) ref.current.rotation.y += spin * dt;
   });
@@ -98,13 +99,13 @@ export function SpaceSky() {
   return (
     <group>
       <Stars />
-      <Body map="/space/sun.jpg" radius={4.6} position={[-48, 1, 2]} spin={0.05} unlit />
-      <Body map="/space/venus.jpg" radius={1.7} position={[-16, -2, 42]} spin={0.1} unlit />
-      <Body map="/space/earth.jpg" radius={1.8} position={[10, -4, 48]} spin={0.18} unlit />
-      <Body map="/space/mars.jpg" radius={1.5} position={[46, -6, 4]} spin={0.16} unlit />
-      <Body map="/space/jupiter.jpg" radius={4.4} position={[26, 1, -44]} spin={0.22} unlit />
-      <Body map="/space/saturn.jpg" radius={3.5} position={[-4, -8, -56]} spin={0.18} unlit ring />
-      <Body map="/space/neptune.jpg" radius={2.1} position={[-36, -1, -32]} spin={0.14} unlit />
+      <Body map=asset("/space/sun.jpg") radius={4.6} position={[-48, 1, 2]} spin={0.05} unlit />
+      <Body map=asset("/space/venus.jpg") radius={1.7} position={[-16, -2, 42]} spin={0.1} unlit />
+      <Body map=asset("/space/earth.jpg") radius={1.8} position={[10, -4, 48]} spin={0.18} unlit />
+      <Body map=asset("/space/mars.jpg") radius={1.5} position={[46, -6, 4]} spin={0.16} unlit />
+      <Body map=asset("/space/jupiter.jpg") radius={4.4} position={[26, 1, -44]} spin={0.22} unlit />
+      <Body map=asset("/space/saturn.jpg") radius={3.5} position={[-4, -8, -56]} spin={0.18} unlit ring />
+      <Body map=asset("/space/neptune.jpg") radius={2.1} position={[-36, -1, -32]} spin={0.14} unlit />
     </group>
   );
 }

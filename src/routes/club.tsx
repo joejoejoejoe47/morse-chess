@@ -41,11 +41,12 @@ import {
   type ClubSeat,
 } from "@/lib/server/clubs";
 import { cn } from "@/lib/utils";
+import { asset } from "@/lib/base";
 
 const CLUB_KEY = "morse-open-club";
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-export const Route = createFileRoute("/club")({ ssr: false, component: ClubDoor });
+export const Route = createFileRoute("/club")({ component: ClubDoor });
 
 type ClubPack = Awaited<ReturnType<typeof loadChessClub>>;
 type Watch = Awaited<ReturnType<typeof watchClubGame>>;
@@ -609,7 +610,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
                 skin={skin}
                 kings={{ w: pack.look, b: "" }}
                 onMove={() => undefined}
-                plate="/club/board-platform.png"
+                plate=asset("/club/board-platform.png")
               />
             </div>
           )}
@@ -777,7 +778,7 @@ function WatchBoard({
         {...props}
         people={view === "an"}
         real={view === "ra"}
-        plate="/club/board-platform.png"
+        plate=asset("/club/board-platform.png")
         kings={{ w: game.whiteLook, b: game.blackLook }}
       />
     </Suspense>

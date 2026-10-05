@@ -5,6 +5,7 @@ import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { SpaceCrew } from "@/components/chess/space-crew";
+import { asset } from "@/lib/base";
 
 export type PeopleCast = "stone" | "pipe" | "ring" | "wars" | "mario" | "lotr";
 export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "charge" | "attack" | "death" | "cheer" | "pickup"; fade: number };
@@ -17,39 +18,39 @@ const LOOK: Record<
   { w: string; b: string; show: string[]; scale: number; darkTint?: string }
 > = {
   k: {
-    w: "/units/knight.glb",
-    b: "/units/skeleton-warrior.glb",
+    w: asset("/units/knight.glb"),
+    b: asset("/units/skeleton-warrior.glb"),
     show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"],
     scale: 0.76,
   },
   q: {
-    w: "/units/rogue-hooded.glb",
-    b: "/units/skeleton-rogue.glb",
+    w: asset("/units/rogue-hooded.glb"),
+    b: asset("/units/skeleton-rogue.glb"),
     show: ["Knife", "Knife_Offhand", "Rogue_Cape", "Rogue_Head_Hooded", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape", "Skeleton_Rogue_Head"],
     scale: 0.72,
   },
   b: {
-    w: "/units/mage.glb",
-    b: "/units/skeleton-mage.glb",
+    w: asset("/units/mage.glb"),
+    b: asset("/units/skeleton-mage.glb"),
     show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"],
     scale: 0.7,
   },
   n: {
-    w: "/units/barbarian.glb",
-    b: "/units/skeleton-warrior.glb",
+    w: asset("/units/barbarian.glb"),
+    b: asset("/units/skeleton-warrior.glb"),
     show: ["1H_Axe", "Barbarian_Round_Shield", "Barbarian_Hat", "Skeleton_Warrior_Helmet"],
     scale: 0.72,
   },
   r: {
-    w: "/units/knight.glb",
-    b: "/units/knight.glb",
+    w: asset("/units/knight.glb"),
+    b: asset("/units/knight.glb"),
     show: ["1H_Sword", "Rectangle_Shield", "Knight_Helmet"],
     scale: 0.84,
     darkTint: "#3e3832",
   },
   p: {
-    w: "/units/rogue.glb",
-    b: "/units/skeleton-minion.glb",
+    w: asset("/units/rogue.glb"),
+    b: asset("/units/skeleton-minion.glb"),
     show: ["Knife", "Rogue_Cape", "Skeleton_Minion_Cloak"],
     scale: 0.62,
   },
@@ -58,41 +59,41 @@ const LOOK: Record<
 type CastLook = Record<PieceSymbol, { w: string; b: string; show: string[]; scale: number; darkTint?: string }>;
 
 const WARS: CastLook = {
-  k: { w: "/units/knight.glb", b: "/units/skeleton-warrior.glb", show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.78 },
-  q: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-rogue.glb", show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"], scale: 0.7, darkTint: "#6a3040" },
-  b: { w: "/units/mage.glb", b: "/units/skeleton-mage.glb", show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.68, darkTint: "#304060" },
-  n: { w: "/units/barbarian.glb", b: "/units/skeleton-minion.glb", show: ["1H_Axe", "Barbarian_Hat", "Barbarian_Round_Shield", "Skeleton_Minion_Cloak"], scale: 0.74 },
-  r: { w: "/units/rogue.glb", b: "/units/knight.glb", show: ["Knife", "Rogue_Cape", "1H_Sword", "Rectangle_Shield"], scale: 0.82, darkTint: "#2a3344" },
-  p: { w: "/units/mage.glb", b: "/units/skeleton-warrior.glb", show: ["Mage_Cape", "1H_Sword"], scale: 0.52, darkTint: "#402028" },
+  k: { w: asset("/units/knight.glb"), b: asset("/units/skeleton-warrior.glb"), show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.78 },
+  q: { w: asset("/units/rogue-hooded.glb"), b: asset("/units/skeleton-rogue.glb"), show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"], scale: 0.7, darkTint: "#6a3040" },
+  b: { w: asset("/units/mage.glb"), b: asset("/units/skeleton-mage.glb"), show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.68, darkTint: "#304060" },
+  n: { w: asset("/units/barbarian.glb"), b: asset("/units/skeleton-minion.glb"), show: ["1H_Axe", "Barbarian_Hat", "Barbarian_Round_Shield", "Skeleton_Minion_Cloak"], scale: 0.74 },
+  r: { w: asset("/units/rogue.glb"), b: asset("/units/knight.glb"), show: ["Knife", "Rogue_Cape", "1H_Sword", "Rectangle_Shield"], scale: 0.82, darkTint: "#2a3344" },
+  p: { w: asset("/units/mage.glb"), b: asset("/units/skeleton-warrior.glb"), show: ["Mage_Cape", "1H_Sword"], scale: 0.52, darkTint: "#402028" },
 };
 
 const MARIO: CastLook = {
-  k: { w: "/units/knight.glb", b: "/units/barbarian.glb", show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "1H_Axe", "Barbarian_Hat"], scale: 0.8 },
-  q: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-rogue.glb", show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood"], scale: 0.7, darkTint: "#3a2010" },
-  b: { w: "/units/mage.glb", b: "/units/skeleton-mage.glb", show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.66, darkTint: "#204020" },
-  n: { w: "/units/barbarian.glb", b: "/units/knight.glb", show: ["1H_Axe", "Barbarian_Round_Shield", "Barbarian_Hat", "1H_Sword", "Knight_Helmet"], scale: 0.72, darkTint: "#503018" },
-  r: { w: "/units/rogue.glb", b: "/units/skeleton-warrior.glb", show: ["Knife", "Rogue_Cape", "1H_Sword", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.84, darkTint: "#2a4018" },
-  p: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-minion.glb", show: ["Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Minion_Cloak", "1H_Sword"], scale: 0.5, darkTint: "#402010" },
+  k: { w: asset("/units/knight.glb"), b: asset("/units/barbarian.glb"), show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "1H_Axe", "Barbarian_Hat"], scale: 0.8 },
+  q: { w: asset("/units/rogue-hooded.glb"), b: asset("/units/skeleton-rogue.glb"), show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood"], scale: 0.7, darkTint: "#3a2010" },
+  b: { w: asset("/units/mage.glb"), b: asset("/units/skeleton-mage.glb"), show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.66, darkTint: "#204020" },
+  n: { w: asset("/units/barbarian.glb"), b: asset("/units/knight.glb"), show: ["1H_Axe", "Barbarian_Round_Shield", "Barbarian_Hat", "1H_Sword", "Knight_Helmet"], scale: 0.72, darkTint: "#503018" },
+  r: { w: asset("/units/rogue.glb"), b: asset("/units/skeleton-warrior.glb"), show: ["Knife", "Rogue_Cape", "1H_Sword", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.84, darkTint: "#2a4018" },
+  p: { w: asset("/units/rogue-hooded.glb"), b: asset("/units/skeleton-minion.glb"), show: ["Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Minion_Cloak", "1H_Sword"], scale: 0.5, darkTint: "#402010" },
 };
 
 const LOTR: CastLook = {
-  k: { w: "/units/knight.glb", b: "/units/skeleton-warrior.glb", show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.8 },
-  q: { w: "/units/rogue-hooded.glb", b: "/units/skeleton-rogue.glb", show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"], scale: 0.72, darkTint: "#3a2820" },
-  b: { w: "/units/mage.glb", b: "/units/skeleton-mage.glb", show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.7, darkTint: "#241c18" },
-  n: { w: "/units/barbarian.glb", b: "/units/knight.glb", show: ["1H_Axe", "Barbarian_Hat", "Barbarian_Round_Shield", "1H_Sword", "Knight_Helmet", "Rectangle_Shield"], scale: 0.74, darkTint: "#1a1816" },
-  r: { w: "/units/rogue.glb", b: "/units/skeleton-minion.glb", show: ["Knife", "Rogue_Cape", "1H_Sword", "Skeleton_Minion_Cloak"], scale: 0.86, darkTint: "#2a2420" },
-  p: { w: "/units/mage.glb", b: "/units/skeleton-warrior.glb", show: ["Mage_Cape", "1H_Sword", "Skeleton_Warrior_Cloak"], scale: 0.54, darkTint: "#201814" },
+  k: { w: asset("/units/knight.glb"), b: asset("/units/skeleton-warrior.glb"), show: ["1H_Sword", "Knight_Helmet", "Knight_Cape", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"], scale: 0.8 },
+  q: { w: asset("/units/rogue-hooded.glb"), b: asset("/units/skeleton-rogue.glb"), show: ["Knife", "Knife_Offhand", "Rogue_Head_Hooded", "Rogue_Cape", "Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"], scale: 0.72, darkTint: "#3a2820" },
+  b: { w: asset("/units/mage.glb"), b: asset("/units/skeleton-mage.glb"), show: ["2H_Staff", "Mage_Hat", "Mage_Cape", "Skeleton_Mage_Hat"], scale: 0.7, darkTint: "#241c18" },
+  n: { w: asset("/units/barbarian.glb"), b: asset("/units/knight.glb"), show: ["1H_Axe", "Barbarian_Hat", "Barbarian_Round_Shield", "1H_Sword", "Knight_Helmet", "Rectangle_Shield"], scale: 0.74, darkTint: "#1a1816" },
+  r: { w: asset("/units/rogue.glb"), b: asset("/units/skeleton-minion.glb"), show: ["Knife", "Rogue_Cape", "1H_Sword", "Skeleton_Minion_Cloak"], scale: 0.86, darkTint: "#2a2420" },
+  p: { w: asset("/units/mage.glb"), b: asset("/units/skeleton-warrior.glb"), show: ["Mage_Cape", "1H_Sword", "Skeleton_Warrior_Cloak"], scale: 0.54, darkTint: "#201814" },
 };
 
 const CASTS: Record<"wars" | "mario" | "lotr", CastLook> = { wars: WARS, mario: MARIO, lotr: LOTR };
 
 const PARTY: Record<PieceSymbol, { w: string; b: string; h: number }> = {
-  k: { w: "/party/w-k.png", b: "/party/b-k.png", h: 1.42 },
-  q: { w: "/party/w-q.png", b: "/party/b-q.png", h: 1.38 },
-  b: { w: "/party/w-b.png", b: "/party/b-b.png", h: 1.36 },
-  n: { w: "/party/w-n.png", b: "/party/b-n.png", h: 1.22 },
-  r: { w: "/party/w-r.png", b: "/party/b-r.png", h: 1.32 },
-  p: { w: "/party/w-p.png", b: "/party/b-p.png", h: 0.92 },
+  k: { w: asset("/party/w-k.png"), b: asset("/party/b-k.png"), h: 1.42 },
+  q: { w: asset("/party/w-q.png"), b: asset("/party/b-q.png"), h: 1.38 },
+  b: { w: asset("/party/w-b.png"), b: asset("/party/b-b.png"), h: 1.36 },
+  n: { w: asset("/party/w-n.png"), b: asset("/party/b-n.png"), h: 1.22 },
+  r: { w: asset("/party/w-r.png"), b: asset("/party/b-r.png"), h: 1.32 },
+  p: { w: asset("/party/w-p.png"), b: asset("/party/b-p.png"), h: 0.92 },
 };
 for (const row of Object.values(PARTY)) {
   useTexture.preload(row.w);
@@ -165,7 +166,7 @@ function WarUnit({
   flip?: boolean;
 }) {
   const { scene, animations } = useGLTF(url);
-  const donor = useGLTF("/units/knight.glb");
+  const donor = useGLTF(asset("/units/knight.glb"));
   const allow = useMemo(() => new Set(show), [show]);
   const clone = useMemo(() => {
     const next = cloneSkeleton(scene);

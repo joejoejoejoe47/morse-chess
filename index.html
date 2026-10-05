@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" class="antialiased">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Morse Chess</title>
+    <meta name="theme-color" content="#0c0d0b" />
+    <meta name="description" content="Morse Chess — a private club board. Challenge by name, play timed or breeze, keep score." />
+    <meta name="application-name" content="Morse Chess" />
+    <meta property="og:title" content="Morse Chess" />
+    <meta property="og:site_name" content="MorseChess.com" />
+    <meta property="og:description" content="Sit at the Morse table. Challenge a name, or sit across MorseBot." />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./__grok/icon-180.png" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600&display=swap"
+    />
+    <!--MORSE_BASE-->
+    <script>try{var t=localStorage.getItem('mores-theme');var r=document.documentElement;r.classList.remove('light','dark');r.classList.add(t==='light'?'light':'dark');r.style.colorScheme=t==='light'?'light':'dark';}catch(e){document.documentElement.classList.add('dark')}</script>
+  </head>
+  <body class="club-wash min-h-dvh">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

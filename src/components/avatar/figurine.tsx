@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { characterById, crownById, mountById, type TeamView } from "@/lib/avatar/catalog";
+import { asset } from "@/lib/base";
 
 function prep(source: THREE.Object3D, height: number, dark: boolean) {
   const obj = cloneSkeleton(source);
@@ -153,8 +154,8 @@ function fitHandSword(source: THREE.Object3D) {
 }
 
 function swordFile(id: string) {
-  if (id === "talwar") return "/avatars/swords/talwar.glb";
-  return "/avatars/swords/devil.glb";
+  if (id === "talwar") return asset("/avatars/swords/talwar.glb");
+  return asset("/avatars/swords/devil.glb");
 }
 
 function findSlot(root: THREE.Object3D, side: "r" | "l" | "head") {
@@ -228,7 +229,7 @@ function GlbBody({
 }) {
   const gltf = useGLTF(url);
   const crownSpec = crownById(crownId);
-  const crownFile = useGLTF(crownSpec.model || "/avatars/crowns/poly-band.glb");
+  const crownFile = useGLTF(crownSpec.model || asset("/avatars/crowns/poly-band.glb"));
   const bladeFile = useGLTF(swordFile(kit));
   const scene = useMemo(() => prep(gltf.scene, height, dark), [gltf.scene, height, dark]);
   const { actions } = useAnimations(gltf.animations, scene);
@@ -575,7 +576,7 @@ function StauntonKing({
   swordId: string;
 }) {
   const spec = crownById(crownId);
-  const file = useGLTF(spec.model || "/avatars/crowns/poly-band.glb");
+  const file = useGLTF(spec.model || asset("/avatars/crowns/poly-band.glb"));
   const crown = useMemo(
     () => (spec.model ? fitCrown(file.scene) : makeCrown(crownId, team)),
     [spec.model, file.scene, crownId, team],
@@ -615,7 +616,7 @@ function StauntonKing({
 }
 
 export function StauntonKnight({ white }: { white: boolean }) {
-  const gltf = useGLTF("/avatars/knight-piece.glb");
+  const gltf = useGLTF(asset("/avatars/knight-piece.glb"));
   const scene = useMemo(() => {
     const obj = gltf.scene.clone(true);
     const tint = new THREE.Color(white ? "#f4efe4" : "#2a211c");
@@ -643,10 +644,10 @@ export function StauntonKnight({ white }: { white: boolean }) {
   return <primitive object={scene} />;
 }
 
-useGLTF.preload("/avatars/knight-piece.glb");
-useGLTF.preload("/avatars/king-an.glb");
-useGLTF.preload("/avatars/pirate.glb");
-useGLTF.preload("/avatars/crowns/poly-band.glb");
-useGLTF.preload("/avatars/crowns/poly-arch.glb");
-useGLTF.preload("/avatars/swords/devil.glb");
-useGLTF.preload("/avatars/swords/talwar.glb");
+useGLTF.preload(asset("/avatars/knight-piece.glb"));
+useGLTF.preload(asset("/avatars/king-an.glb"));
+useGLTF.preload(asset("/avatars/pirate.glb"));
+useGLTF.preload(asset("/avatars/crowns/poly-band.glb"));
+useGLTF.preload(asset("/avatars/crowns/poly-arch.glb"));
+useGLTF.preload(asset("/avatars/swords/devil.glb"));
+useGLTF.preload(asset("/avatars/swords/talwar.glb"));

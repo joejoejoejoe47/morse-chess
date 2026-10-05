@@ -1,0 +1,311 @@
+{
+  "boards": {
+    "defaultId": "lodge",
+    "masterUsername": "MasterGus",
+    "masterScore": 9000,
+    "items": [
+      {
+        "id": "lodge",
+        "name": "Lodge",
+        "cost": 0,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "pipe-court",
+        "name": "Pipe Court",
+        "cost": 0,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "ring-march",
+        "name": "Ring March",
+        "cost": 0,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "studio",
+        "name": "Studio",
+        "cost": 0,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "pine",
+        "name": "Pine",
+        "cost": 1240,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "crimson",
+        "name": "Crimson",
+        "cost": 1600,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "frost",
+        "name": "Frost",
+        "cost": 1320,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "emerald",
+        "name": "Emerald",
+        "cost": 1360,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "gilt",
+        "name": "Gilt",
+        "cost": 1400,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "cherry",
+        "name": "Cherry",
+        "cost": 1440,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "tide",
+        "name": "Tide",
+        "cost": 1480,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "aurora",
+        "name": "Aurora",
+        "cost": 1520,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "walnut",
+        "name": "Walnut",
+        "cost": 1560,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "mystery",
+        "name": "Mystery",
+        "cost": 1600,
+        "coinCost": 0,
+        "sealed": true
+      },
+      {
+        "id": "marble",
+        "name": "Marble",
+        "cost": 1500,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "mahogany",
+        "name": "Mahogany",
+        "cost": 1280,
+        "coinCost": 0,
+        "sealed": false
+      },
+      {
+        "id": "ring-host",
+        "name": "Dark Edition",
+        "cost": 0,
+        "coinCost": 40,
+        "sealed": false
+      },
+      {
+        "id": "grassland",
+        "name": "COLUSSEUM",
+        "cost": 0,
+        "coinCost": 100,
+        "sealed": false
+      },
+      {
+        "id": "castle",
+        "name": "Castle",
+        "cost": 0,
+        "coinCost": 80,
+        "sealed": false
+      }
+    ]
+  },
+  "avatar": {
+    "starterIds": [
+      "piece",
+      "knight",
+      "none",
+      "poly-band",
+      "plain",
+      "march"
+    ],
+    "defaultLoadout": {
+      "style": "3d",
+      "team": "w",
+      "anId": "knight",
+      "kingId": "piece",
+      "swordId": "none",
+      "crownId": "poly-band",
+      "mountId": "none",
+      "frameId": "plain",
+      "attackId": "march"
+    },
+    "groups": {
+      "characters": [
+        {
+          "id": "piece",
+          "price": 0
+        },
+        {
+          "id": "royal",
+          "price": 150
+        },
+        {
+          "id": "pirate",
+          "price": 4
+        },
+        {
+          "id": "knight",
+          "price": 0
+        },
+        {
+          "id": "mage",
+          "price": 6
+        },
+        {
+          "id": "rogue",
+          "price": 5
+        },
+        {
+          "id": "barbarian",
+          "price": 5
+        },
+        {
+          "id": "hooded",
+          "price": 7
+        }
+      ],
+      "swords": [
+        {
+          "id": "none",
+          "price": 0
+        },
+        {
+          "id": "devil",
+          "price": 4
+        },
+        {
+          "id": "talwar",
+          "price": 4
+        }
+      ],
+      "crowns": [
+        {
+          "id": "poly-band",
+          "price": 0
+        },
+        {
+          "id": "arched",
+          "price": 5
+        },
+        {
+          "id": "laurel",
+          "price": 4
+        }
+      ],
+      "mounts": [
+        {
+          "id": "none",
+          "price": 0
+        },
+        {
+          "id": "horse",
+          "price": 8
+        },
+        {
+          "id": "cow",
+          "price": 6
+        }
+      ],
+      "frames": [
+        {
+          "id": "plain",
+          "price": 0
+        },
+        {
+          "id": "gold",
+          "price": 3
+        },
+        {
+          "id": "laurel",
+          "price": 3
+        },
+        {
+          "id": "night",
+          "price": 4
+        },
+        {
+          "id": "check",
+          "price": 2
+        },
+        {
+          "id": "coin",
+          "price": 5
+        }
+      ],
+      "attacks": [
+        {
+          "id": "march",
+          "price": 0
+        },
+        {
+          "id": "chop",
+          "price": 4
+        }
+      ]
+    },
+    "legacy": {
+      "sword": {
+        "from": [
+          "sword",
+          "dual",
+          "shield",
+          "staff",
+          "long",
+          "cutlass",
+          "axe",
+          "rapier"
+        ],
+        "to": "devil"
+      },
+      "crown": {
+        "from": [
+          "circlet",
+          "sun",
+          "poly-arch"
+        ],
+        "to": "poly-band"
+      },
+      "attack": {
+        "from": [
+          "flip",
+          "slam",
+          "sweep",
+          "charge",
+          "flash",
+          "bow"
+        ],
+        "to": "chop"
+      }
+    }
+  }
+}

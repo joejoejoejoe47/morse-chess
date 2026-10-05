@@ -6,7 +6,6 @@ import { useClubDoor } from "@/lib/auth/use-club-door";
 import { getHomeState } from "@/lib/server/mores";
 
 export const Route = createFileRoute("/boards")({
-  ssr: false,
   component: BoardsPage,
 });
 

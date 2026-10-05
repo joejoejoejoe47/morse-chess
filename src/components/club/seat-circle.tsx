@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { defaultIceServers } from "@/lib/multiplayer";
+import { apiUrl } from "@/lib/base";
 
 function slug(id: string) {
   return id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "seat";
@@ -50,7 +51,7 @@ export function SeatCircle({
     }
 
     async function signal(to: string, kind: "offer" | "answer" | "ice", payload: unknown) {
-      await fetch("/api/rtc", {
+      await fetch(apiUrl("/api/rtc"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ op: "signal", room, from: me, to, kind, payload }),
@@ -116,7 +117,7 @@ export function SeatCircle({
       if (closed) return;
       try {
         const params = new URLSearchParams({ room, peer: me, name: name.slice(0, 64), since: String(cursor) });
-        const res = await fetch(`/api/rtc?${params}`);
+        const res = await fetch(apiUrl(`/api/rtc?${params}`));
         if (res.ok) {
           const body = (await res.json()) as {
             peers: { id: string }[];
@@ -161,7 +162,7 @@ export function SeatCircle({
       pcs.forEach((pc) => pc.close());
       stream?.getTracks().forEach((track) => track.stop());
       void audio.close().catch(() => undefined);
-      void fetch("/api/rtc", {
+      void fetch(apiUrl("/api/rtc"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ op: "leave", room, peer: me }),

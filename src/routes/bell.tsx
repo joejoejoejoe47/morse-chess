@@ -3,7 +3,7 @@ import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { BellDesk } from "@/components/bell-desk";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 
-export const Route = createFileRoute("/bell")({ ssr: false, component: BellDoor });
+export const Route = createFileRoute("/bell")({ component: BellDoor });
 
 function BellDoor() {
   const door = useClubDoor();

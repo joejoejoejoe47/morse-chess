@@ -7,7 +7,6 @@ import { getHomeState } from "@/lib/server/mores";
 import { boardById, DEFAULT_BOARD_ID } from "@/lib/chess/board-skins";
 
 export const Route = createFileRoute("/boards/$boardId")({
-  ssr: false,
   component: BoardLookPage,
 });
 

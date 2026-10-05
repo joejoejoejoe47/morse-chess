@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { asset } from "@/lib/base";
 
 const KEY = "morse-studio-splash";
 
@@ -29,7 +30,7 @@ export function StudioSplash() {
 
   return (
     <div className="fixed inset-0 z-[80] bg-black">
-      <img src="/morse-studios.png" alt="Morse Studios" className="h-full w-full object-cover object-center" />
+      <img src=asset("/morse-studios.png") alt="Morse Studios" className="h-full w-full object-cover object-center" />
     </div>
   );
 }

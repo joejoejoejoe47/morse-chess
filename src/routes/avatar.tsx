@@ -24,8 +24,9 @@ import {
 } from "@/lib/avatar/catalog";
 import { buyGear, getAvatar, saveAvatar } from "@/lib/server/avatar";
 import { cn } from "@/lib/utils";
+import { asset } from "@/lib/base";
 
-export const Route = createFileRoute("/avatar")({ ssr: false, component: AvatarDoor });
+export const Route = createFileRoute("/avatar")({ component: AvatarDoor });
 
 function AvatarDoor() {
   const door = useClubDoor();
@@ -249,7 +250,7 @@ function AvatarStudio() {
           ))}
         </div>
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-ink/80 px-3 py-1.5 backdrop-blur-md">
-          <img src="/morse-coin.png" alt="" className="size-5" />
+          <img src=asset("/morse-coin.png") alt="" className="size-5" />
           <span className="font-display text-lg tabular-nums text-ivory">{coins.toLocaleString()}</span>
         </div>
       </header>
@@ -429,7 +430,7 @@ function AvatarStudio() {
   );
 }
 function KingTable({ crownId, team }: { crownId: string; team: "w" | "b" }) {
-  const wood = useTexture("/club/marquetry.png");
+  const wood = useTexture(asset("/club/marquetry.png"));
   const squares = [];
   for (let rank = 0; rank < 8; rank += 1) {
     for (let file = 0; file < 8; file += 1) {

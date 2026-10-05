@@ -1,0 +1,101 @@
+import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { Bell, BellOff, Shield, Volume2, VolumeX } from "lucide-react";
+import { loadBellSettings, subscribeBellSettings, toggleBellMute, toggleClubBell } from "@/lib/bell";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { cn } from "@/lib/utils";
+
+const circle =
+  "grid size-11 shrink-0 place-items-center rounded-full border border-line-strong bg-walnut text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition-[border-color,transform] duration-150 hover:border-gold-line hover:text-ivory";
+
+export function BellButton({ className }: { className?: string }) {
+  const { user } = useCurrentUserState();
+  const accountId = user?.id ?? null;
+  const [unmuted, setUnmuted] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setUnmuted(loadBellSettings(accountId).unmuted);
+    sync();
+    setReady(true);
+    return subscribeBellSettings(sync);
+  }, [accountId]);
+
+  return (
+    <Link
+      to="/bell"
+      aria-label={unmuted ? "Challenge bell settings, on" : "Challenge bell settings, muted"}
+      className={cn(circle, unmuted && "border-gold-line text-ivory", className)}
+    >
+      {ready && unmuted ? <Bell className="size-4" /> : <BellOff className="size-4 opacity-80" />}
+    </Link>
+  );
+}
+
+export function BellMuteButton({ className }: { className?: string }) {
+  const { user } = useCurrentUserState();
+  const accountId = user?.id ?? null;
+  const [unmuted, setUnmuted] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setUnmuted(loadBellSettings(accountId).unmuted);
+    sync();
+    setReady(true);
+    return subscribeBellSettings(sync);
+  }, [accountId]);
+
+  return (
+    <button
+      type="button"
+      disabled={!accountId}
+      aria-label={unmuted ? "Mute the bell" : "Unmute the bell"}
+      title={unmuted ? "Mute" : "Unmute"}
+      className={cn(circle, unmuted && "border-gold-line text-ivory", className)}
+      onClick={() => {
+        if (!accountId) return;
+        setUnmuted(toggleBellMute(accountId).unmuted);
+      }}
+    >
+      {ready && unmuted ? <Volume2 className="size-4" /> : <VolumeX className="size-4 opacity-80" />}
+    </button>
+  );
+}
+
+export function BellControls({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <BellButton />
+      <BellMuteButton />
+      <ClubBellButton />
+    </div>
+  );
+}
+
+function ClubBellButton({ className }: { className?: string }) {
+  const { user } = useCurrentUserState();
+  const accountId = user?.id ?? null;
+  const [on, setOn] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setOn(loadBellSettings(accountId).clubUnmuted);
+    sync();
+    return subscribeBellSettings(sync);
+  }, [accountId]);
+
+  return (
+    <button
+      type="button"
+      disabled={!accountId}
+      aria-label={on ? "Club permission bell on" : "Club permission bell off"}
+      title={on ? "Club joins will ring" : "Club joins are quiet"}
+      className={cn(circle, on && "border-gold-line text-ivory", className)}
+      onClick={() => {
+        if (!accountId) return;
+        setOn(toggleClubBell(accountId).clubUnmuted);
+      }}
+    >
+      {on ? <Shield className="size-4" /> : <BellOff className="size-4 opacity-70" />}
+    </button>
+  );
+}

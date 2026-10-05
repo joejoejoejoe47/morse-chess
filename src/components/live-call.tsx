@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { defaultIceServers, type RtcPollResponse } from "@/lib/multiplayer";
 import { pipePersonCutout } from "@/lib/media/cutout";
 import { cn } from "@/lib/utils";
+import { apiUrl } from "@/lib/base";
 
 function peerSlug(id: string) {
   const s = id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
@@ -61,7 +62,7 @@ export function LiveCall({
     let cutoutStop: (() => void) | null = null;
 
     async function signal(to: string, kind: "offer" | "answer" | "ice", payload: unknown) {
-      await fetch("/api/rtc", {
+      await fetch(apiUrl("/api/rtc"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ op: "signal", room, from: me, to, kind, payload }),
@@ -141,7 +142,7 @@ export function LiveCall({
       if (closed) return;
       try {
         const params = new URLSearchParams({ room, peer: me, name: name.slice(0, 64), since: String(cursor) });
-        const res = await fetch(`/api/rtc?${params}`);
+        const res = await fetch(apiUrl(`/api/rtc?${params}`));
         if (!res.ok) throw new Error("signaling");
         const body = (await res.json()) as RtcPollResponse;
         const other = body.peers.find((p) => p.id !== me);
@@ -194,7 +195,7 @@ export function LiveCall({
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       onRemoteRef.current?.(null);
-      void fetch("/api/rtc", {
+      void fetch(apiUrl("/api/rtc"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ op: "leave", room, peer: me }),

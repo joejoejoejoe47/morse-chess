@@ -1,5 +1,6 @@
 import { characterById, frameById, parseLoadout } from "@/lib/avatar/catalog";
 import { cn } from "@/lib/utils";
+import { asset } from "@/lib/base";
 
 const FRAMES: Record<string, string> = {
   plain: "border border-line bg-ink/80",
@@ -33,7 +34,7 @@ export function NamePlate({
   return (
     <div className={cn("pointer-events-none flex items-center gap-3", align === "right" ? "flex-row-reverse" : "flex-row")}>
       <img
-        src={character.portrait || "/party/w-k.png"}
+        src={character.portrait || asset("/party/w-k.png")}
         alt=""
         className={cn(
           "size-11 shrink-0 rounded-full border border-gold-line/70 bg-[#1a140e] object-cover shadow-lg",

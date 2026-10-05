@@ -1,0 +1,10 @@
+{
+  "name": "Morse Chess",
+  "short_name": "Morse Chess",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0c0d0b",
+  "theme_color": "#0c0d0b",
+  "icons": [{ "src": "__grok/icon-180.png", "sizes": "180x180", "type": "image/png" }]
+}

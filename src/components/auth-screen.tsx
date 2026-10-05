@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MorseCrest } from "@/components/club-brand";
+import { apiUrl } from "@/lib/base";
 
 type Mode = "create" | "enter";
 
@@ -75,7 +76,7 @@ export function AuthScreen() {
         await authClient.getSession();
         await claimUsername({ data: { username: name } });
       } else {
-        const res = await fetch("/api/club-sign-in", {
+        const res = await fetch(apiUrl("/api/club-sign-in"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           credentials: "include",

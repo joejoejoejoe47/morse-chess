@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { getPurse } from "@/lib/server/mores";
+import { asset } from "@/lib/base";
 
 export function CoinDock() {
   const path = useRouterState({ select: (state) => state.location.pathname });
@@ -43,7 +44,7 @@ export function CoinDock() {
         ? [0, 1, 2, 3, 4].map((i) => (
             <img
               key={i}
-              src="/morse-coin.png"
+              src=asset("/morse-coin.png")
               alt=""
               className="coin-fly pointer-events-none z-[70]"
               style={{
@@ -58,7 +59,7 @@ export function CoinDock() {
         className="pointer-events-none fixed top-3 right-3 z-[60] flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5"
         style={{ marginTop: "env(safe-area-inset-top)" }}
       >
-        <img src="/morse-coin.png" alt="Morse coin" className="size-7 shrink-0" />
+        <img src=asset("/morse-coin.png") alt="Morse coin" className="size-7 shrink-0" />
         <span className="font-display text-lg leading-none tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
       </div>
     </>

@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { Arena, arenaNight, type ArenaSide } from "@/components/chess/arena-bowl";
+import { asset } from "@/lib/base";
 
 export const GLADE_PITCH = 2;
 
@@ -101,10 +102,10 @@ const SKY_FRAG = `
   }
 `;
 
-useGLTF.preload("/glade/trees.glb");
+useGLTF.preload(asset("/glade/trees.glb"));
 
 function Grove() {
-  const gltf = useGLTF("/glade/trees.glb");
+  const gltf = useGLTF(asset("/glade/trees.glb"));
   const trees = useMemo(() => {
     const kinds = [1, 2, 3, 4, 5]
       .map((n) => gltf.scene.getObjectByName(`NormalTree_${n}`))
@@ -146,9 +147,9 @@ function Grove() {
 
 export function MeadowField({ cheer = null }: { cheer?: ArenaSide | null }) {
   const maps = useTexture({
-    map: "/glade/ground/diff.jpg",
-    normalMap: "/glade/ground/nor.jpg",
-    roughnessMap: "/glade/ground/rough.jpg",
+    map: asset("/glade/ground/diff.jpg"),
+    normalMap: asset("/glade/ground/nor.jpg"),
+    roughnessMap: asset("/glade/ground/rough.jpg"),
   });
 
   const field = useMemo(() => {

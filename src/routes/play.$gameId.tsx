@@ -4,7 +4,6 @@ import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 
 export const Route = createFileRoute("/play/$gameId")({
-  ssr: false,
   component: PlayPage,
 });
 

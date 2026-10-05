@@ -1,0 +1,258 @@
+import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import type { Square } from "chess.js";
+import { ChessBoard2D } from "@/components/chess/board-2d";
+import { ChessBoard3D } from "@/components/chess/board-3d";
+import { ClubBrand } from "@/components/club-brand";
+import { RaBuy } from "@/components/avatar/ra-buy";
+import { BoardAdjustPanel } from "@/components/board-adjust";
+import { ThemeToggle, useTheme } from "@/components/theme";
+import { Button } from "@/components/ui/button";
+import { boardById, boardCanPreview, boardPriceLabel, boardUnlocked, rememberEquipped, type BoardSkin } from "@/lib/chess/board-skins";
+import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs";
+import { useRoomModelUrl } from "@/lib/chess/room-model";
+import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
+import { cn } from "@/lib/utils";
+
+const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+export function BoardLook({
+  boardId,
+  score,
+  username,
+  equippedBoard,
+  coins = 0,
+  coinsReady = false,
+  ownedBoards = [],
+  startTuning = false,
+  onBack,
+  onEquipped,
+  onPurse,
+}: {
+  boardId: string;
+  score: number;
+  username?: string;
+  equippedBoard: string;
+  coins?: number;
+  coinsReady?: boolean;
+  ownedBoards?: string[];
+  startTuning?: boolean;
+  onBack?: () => void;
+  onEquipped?: (id: string) => void;
+  onPurse?: (purse: { coins: number; owned: string[] }) => void;
+}) {
+  const theme = useTheme();
+  const prefs = useLookPrefs();
+  const modelUrl = useRoomModelUrl(prefs.roomScene === "model", prefs.modelRev);
+  const room = roomColorFor(theme, prefs);
+  const cosmic = prefs.roomScene === "space" || prefs.roomScene === "model";
+  const backdropColor = cosmic ? "#05060c" : room;
+  const backdropImage = prefs.roomScene === "photo" ? prefs.roomImage : null;
+  const board: BoardSkin = boardById(boardId);
+  const [owned, setOwned] = useState(ownedBoards);
+  const open = boardUnlocked(score, board, username, owned);
+  const peek = boardCanPreview(score, board, username);
+  const equipped = equippedBoard === board.id;
+  const [view, setView] = useState<"2d" | "3d" | "an" | "ra">("3d");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tuning, setTuning] = useState(startTuning && open);
+
+  useEffect(() => {
+    if (startTuning && open) setTuning(true);
+  }, [startTuning, open]);
+
+  const boardProps = {
+    fen: START_FEN,
+    you: "w" as const,
+    lastMove: null,
+    myTurn: false,
+    onMove: (_from: Square, _to: Square) => {},
+    disabled: true,
+    appearance: theme,
+    skin: board,
+    outlineOn: prefs.outline,
+  };
+
+  async function purchase() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await buyBoard({ data: { boardId: board.id } });
+      if (!res.ok) setError(res.error ?? "Could not buy that board.");
+      else {
+        setOwned(res.owned);
+        onPurse?.({ coins: res.coins, owned: res.owned });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not buy that board.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sitHere() {
+    if (!open) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (!equipped) {
+        try {
+          await setEquippedBoard({ data: { boardId: board.id } });
+        } catch {
+          /* still use it locally if this score unlocks it */
+        }
+        rememberEquipped(board.id);
+        onEquipped?.(board.id);
+      }
+      setTuning(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sit at that table.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!peek) {
+    return (
+      <main className="relative flex h-dvh flex-col overflow-hidden" style={roomBackdrop(backdropColor, backdropImage)}>
+        <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <ClubBrand to="/" />
+          {onBack ? (
+            <Button size="sm" variant="outline" className="rounded-full" onClick={onBack}>
+              Back
+            </Button>
+          ) : (
+            <Button asChild size="sm" variant="outline" className="rounded-full">
+              <Link to="/boards">Back</Link>
+            </Button>
+          )}
+        </header>
+        <div className="grid flex-1 place-items-center px-6">
+          <div className="max-w-md text-center">
+            <p className="font-display text-6xl text-mist">?</p>
+            <h1 className="mt-4 font-display text-4xl text-ivory">Mystery</h1>
+            <p className="mt-3 text-base text-mist">
+              Sealed until 1600 Elo. No peek until it is yours.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="relative flex h-dvh flex-col overflow-hidden" style={roomBackdrop(backdropColor, backdropImage)}>
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <ClubBrand to="/" />
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <span className="text-[15px] text-mist">
+            {board.name}
+            {" · "}
+            {boardPriceLabel(board)}
+            {" · look only"}
+          </span>
+          <div className="flex overflow-hidden rounded-full border border-line bg-panel">
+            <button
+              type="button"
+              className={cn(
+                "px-3 py-1.5 text-[13px] font-medium",
+                view === "2d" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
+              onClick={() => setView("2d")}
+            >
+              2D
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "px-3 py-1.5 text-[13px] font-medium",
+                view === "3d" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
+              onClick={() => setView("3d")}
+            >
+              3D
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "px-3 py-1.5 text-[13px] font-medium",
+                view === "an" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+              )}
+              onClick={() => setView("an")}
+            >
+              AN
+            </button>
+            <RaBuy active={view === "ra"} onView={() => setView("ra")} className="px-3 py-1.5 text-[13px] font-medium text-mist hover:text-ivory" />
+          </div>
+          <ThemeToggle className="rounded-full" />
+          {onBack ? (
+            <Button size="sm" variant="outline" className="rounded-full" onClick={onBack}>
+              Back
+            </Button>
+          ) : (
+            <Button asChild size="sm" variant="outline" className="rounded-full">
+              <Link to="/boards">Back</Link>
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <div className="relative min-h-0 flex-1">
+        <div className="absolute inset-0">
+          {view === "2d" ? (
+            <ChessBoard2D {...boardProps} />
+          ) : (
+            <ChessBoard3D
+                {...boardProps}
+                roomColor={backdropColor}
+                roomImage={backdropImage}
+                roomScene={prefs.roomScene}
+                modelUrl={modelUrl}
+                people={view === "an"}
+                real={view === "ra"}
+              />
+          )}
+        </div>
+        {tuning ? (
+          <div className="absolute inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-4 sm:bottom-4">
+            <BoardAdjustPanel
+              title={`Use ${board.name}`}
+              enterLabel={busy ? "Saving…" : "Enter for your games"}
+              showDayClock={(board.id === "grassland" || board.id === "castle") && open}
+              onEnter={() => void sitHere()}
+              onClose={() => setTuning(false)}
+            />
+          </div>
+        ) : (
+          <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex flex-col items-center gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="pointer-events-auto max-w-md rounded-xl border border-line bg-ink/75 px-4 py-3 backdrop-blur-sm">
+              <p className="font-display text-2xl text-ivory">{board.name}</p>
+              <p className="mt-1 text-[15px] text-mist">{board.blurb}</p>
+              {error ? <p className="mt-2 text-[13px] text-danger">{error}</p> : null}
+            </div>
+            <div className="pointer-events-auto flex gap-2">
+              {open ? (
+                <Button variant="solid" onClick={() => setTuning(true)}>
+                  {equipped ? "Use · adjust" : "Use this board"}
+                </Button>
+              ) : (board.coinCost ?? 0) > 0 ? (
+                <Button variant="solid" disabled={busy || !coinsReady} onClick={() => void purchase()}>
+                  {busy
+                    ? "Buying…"
+                    : !coinsReady
+                      ? "Checking your coins…"
+                      : `Buy · ${(board.coinCost ?? 0).toLocaleString()} coins${coins < (board.coinCost ?? 0) ? ` · you have ${coins.toLocaleString()}` : ""}`}
+                </Button>
+              ) : (
+                <Button variant="outline" disabled>
+                  Look only · reach {board.cost} to sit
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

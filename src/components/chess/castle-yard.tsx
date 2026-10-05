@@ -4,11 +4,12 @@ import { useGLTF, useTexture } from "@react-three/drei";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import * as THREE from "three";
 import { arenaNight } from "@/components/chess/arena-bowl";
+import { asset } from "@/lib/base";
 
-useGLTF.preload("/boards/castle.glb");
-useGLTF.preload("/units/rogue.glb");
-useGLTF.preload("/units/skeleton-minion.glb");
-useGLTF.preload("/glade/trees.glb");
+useGLTF.preload(asset("/boards/castle.glb"));
+useGLTF.preload(asset("/units/rogue.glb"));
+useGLTF.preload(asset("/units/skeleton-minion.glb"));
+useGLTF.preload(asset("/glade/trees.glb"));
 
 function WallLantern({ x, y, z }: { x: number; y: number; z: number }) {
   const yaw = Math.atan2(-x, -z);
@@ -36,14 +37,14 @@ function WallLantern({ x, y, z }: { x: number; y: number; z: number }) {
 
 export function CastleYard() {
   const maps = useTexture({
-    map: "/glade/ground/diff.jpg",
-    normalMap: "/glade/ground/nor.jpg",
-    roughnessMap: "/glade/ground/rough.jpg",
+    map: asset("/glade/ground/diff.jpg"),
+    normalMap: asset("/glade/ground/nor.jpg"),
+    roughnessMap: asset("/glade/ground/rough.jpg"),
   });
-  const castleGltf = useGLTF("/boards/castle.glb");
-  const treesGltf = useGLTF("/glade/trees.glb");
-  const lightPawn = useGLTF("/units/rogue.glb");
-  const darkPawn = useGLTF("/units/skeleton-minion.glb");
+  const castleGltf = useGLTF(asset("/boards/castle.glb"));
+  const treesGltf = useGLTF(asset("/glade/trees.glb"));
+  const lightPawn = useGLTF(asset("/units/rogue.glb"));
+  const darkPawn = useGLTF(asset("/units/skeleton-minion.glb"));
 
   const field = useMemo(() => {
     for (const tex of [maps.map, maps.normalMap, maps.roughnessMap]) {

@@ -1,18 +1,19 @@
 import { useMemo } from "react";
 import { useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
+import { asset } from "@/lib/base";
 
-useGLTF.preload("/glade/trees.glb");
-useGLTF.preload("/arena/coliseum.glb");
+useGLTF.preload(asset("/glade/trees.glb"));
+useGLTF.preload(asset("/arena/coliseum.glb"));
 
 export function FieldStage() {
   const maps = useTexture({
-    map: "/glade/ground/diff.jpg",
-    normalMap: "/glade/ground/nor.jpg",
-    roughnessMap: "/glade/ground/rough.jpg",
+    map: asset("/glade/ground/diff.jpg"),
+    normalMap: asset("/glade/ground/nor.jpg"),
+    roughnessMap: asset("/glade/ground/rough.jpg"),
   });
-  const treesGltf = useGLTF("/glade/trees.glb");
-  const bowl = useGLTF("/arena/coliseum.glb");
+  const treesGltf = useGLTF(asset("/glade/trees.glb"));
+  const bowl = useGLTF(asset("/arena/coliseum.glb"));
 
   const ground = useMemo(() => {
     for (const tex of [maps.map, maps.normalMap, maps.roughnessMap]) {
