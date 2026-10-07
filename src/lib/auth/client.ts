@@ -7,8 +7,10 @@ import { BASE } from "@/lib/base";
  * `/sign-in/email`, `/sign-out`), so the React hooks work unchanged. The session
  * is an HttpOnly cookie set by PHP.
  */
+// When baseURL carries a path, Better Auth uses it as-is (it does not append /api/auth),
+// so spell the whole auth path out; BASE is "" at a site root or "/chess" in a folder.
 export const authClient = createAuthClient({
-  baseURL: (typeof window !== "undefined" ? window.location.origin : "") + BASE,
+  baseURL: (typeof window !== "undefined" ? window.location.origin : "") + BASE + "/api/auth",
 });
 
 export const authEnabled = true;
