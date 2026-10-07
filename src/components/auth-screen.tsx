@@ -12,6 +12,12 @@ import { Label } from "@/components/ui/label";
 import { MorseCrest } from "@/components/club-brand";
 import { apiUrl } from "@/lib/base";
 
+// Our /api/club-sign-in route is not one of Better Auth's own endpoints, so tell the
+// session store to refetch (otherwise a stale "signed out" answer can stick).
+function refreshSession() {
+  (authClient as unknown as { $store?: { notify: (k: string) => void } }).$store?.notify("$sessionSignal");
+}
+
 type Mode = "create" | "enter";
 
 export function AuthScreen() {
@@ -73,6 +79,7 @@ export function AuthScreen() {
           setError(/already|exist|registered/i.test(msg) ? "That email already has a seat. Sign in." : msg);
           return;
         }
+        refreshSession();
         await authClient.getSession();
         await claimUsername({ data: { username: name } });
       } else {
@@ -87,6 +94,7 @@ export function AuthScreen() {
           setError(data?.error || "No seat with that name and password. Use the email you created the account with.");
           return;
         }
+        refreshSession();
         await authClient.getSession();
       }
       markClubSession();
