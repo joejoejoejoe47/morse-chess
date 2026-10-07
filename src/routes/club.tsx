@@ -610,7 +610,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
                 skin={skin}
                 kings={{ w: pack.look, b: "" }}
                 onMove={() => undefined}
-                plate=asset("/club/board-platform.png")
+                plate={asset("/club/board-platform.png")}
               />
             </div>
           )}
@@ -778,7 +778,7 @@ function WatchBoard({
         {...props}
         people={view === "an"}
         real={view === "ra"}
-        plate=asset("/club/board-platform.png")
+        plate={asset("/club/board-platform.png")}
         kings={{ w: game.whiteLook, b: game.blackLook }}
       />
     </Suspense>

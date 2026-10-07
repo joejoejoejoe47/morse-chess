@@ -250,7 +250,7 @@ function AvatarStudio() {
           ))}
         </div>
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-line bg-ink/80 px-3 py-1.5 backdrop-blur-md">
-          <img src=asset("/morse-coin.png") alt="" className="size-5" />
+          <img src={asset("/morse-coin.png")} alt="" className="size-5" />
           <span className="font-display text-lg tabular-nums text-ivory">{coins.toLocaleString()}</span>
         </div>
       </header>

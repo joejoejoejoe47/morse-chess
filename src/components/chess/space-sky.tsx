@@ -99,13 +99,13 @@ export function SpaceSky() {
   return (
     <group>
       <Stars />
-      <Body map=asset("/space/sun.jpg") radius={4.6} position={[-48, 1, 2]} spin={0.05} unlit />
-      <Body map=asset("/space/venus.jpg") radius={1.7} position={[-16, -2, 42]} spin={0.1} unlit />
-      <Body map=asset("/space/earth.jpg") radius={1.8} position={[10, -4, 48]} spin={0.18} unlit />
-      <Body map=asset("/space/mars.jpg") radius={1.5} position={[46, -6, 4]} spin={0.16} unlit />
-      <Body map=asset("/space/jupiter.jpg") radius={4.4} position={[26, 1, -44]} spin={0.22} unlit />
-      <Body map=asset("/space/saturn.jpg") radius={3.5} position={[-4, -8, -56]} spin={0.18} unlit ring />
-      <Body map=asset("/space/neptune.jpg") radius={2.1} position={[-36, -1, -32]} spin={0.14} unlit />
+      <Body map={asset("/space/sun.jpg")} radius={4.6} position={[-48, 1, 2]} spin={0.05} unlit />
+      <Body map={asset("/space/venus.jpg")} radius={1.7} position={[-16, -2, 42]} spin={0.1} unlit />
+      <Body map={asset("/space/earth.jpg")} radius={1.8} position={[10, -4, 48]} spin={0.18} unlit />
+      <Body map={asset("/space/mars.jpg")} radius={1.5} position={[46, -6, 4]} spin={0.16} unlit />
+      <Body map={asset("/space/jupiter.jpg")} radius={4.4} position={[26, 1, -44]} spin={0.22} unlit />
+      <Body map={asset("/space/saturn.jpg")} radius={3.5} position={[-4, -8, -56]} spin={0.18} unlit ring />
+      <Body map={asset("/space/neptune.jpg")} radius={2.1} position={[-36, -1, -32]} spin={0.14} unlit />
     </group>
   );
 }
