@@ -37,7 +37,7 @@ if ($path === '/api' || str_starts_with($path, '/api/')) {
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 
-$index = __DIR__ . '/index.html';
+$index = is_file(__DIR__ . '/app.html') ? __DIR__ . '/app.html' : __DIR__ . '/index.html';
 if (!is_file($index)) {
     http_response_code(503);
     header('Content-Type: text/plain; charset=utf-8');
