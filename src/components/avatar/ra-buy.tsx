@@ -28,7 +28,7 @@ export function RaShop({
         className="w-full max-w-md overflow-hidden rounded-3xl border border-[#3a3126] bg-[#16130f] shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <img src={asset("/avatars/ra-preview.jpg")} alt="Real animation" className="h-64 w-full object-cover" />
+        <img src={asset("/avatars/ra-preview.png")} alt="Real animation" className="h-64 w-full object-cover" />
         <div className="space-y-3 p-4">
           <p className="font-display text-2xl text-[#f4efe6]">Real animation</p>
           <p className="text-sm text-[#d9c7a4]">Men in fantasy clothes. They strike with the animation library.</p>

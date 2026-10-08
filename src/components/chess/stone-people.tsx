@@ -174,12 +174,19 @@ function WarUnit({
     next.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (mesh.isMesh) {
-        mesh.castShadow = true;
+        mesh.castShadow = !mesh.isSkinnedMesh;
+        mesh.receiveShadow = false;
         mesh.frustumCulled = false;
+        mesh.visible = true;
         const src = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         const copies = src.map((mat) => {
           const copy = mat.clone();
           const colored = copy as THREE.MeshStandardMaterial;
+          colored.transparent = false;
+          colored.opacity = 1;
+          colored.depthWrite = true;
+          colored.side = THREE.DoubleSide;
+          if (mesh.isSkinnedMesh) colored.skinning = true;
           if (tintColor && colored.color) colored.color.multiply(tintColor);
           if (clip) {
             colored.clippingPlanes = [clip];

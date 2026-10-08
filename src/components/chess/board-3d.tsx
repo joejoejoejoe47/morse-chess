@@ -1493,7 +1493,6 @@ function Scene({
     to: Square;
   } | null>(null);
   const [riteDone, setRiteDone] = useState<string | null>(null);
-  const fightTimer = useRef<number | null>(null);
   const cheerTimer = useRef<number | null>(null);
   const meadow = skin.id === "grassland" || skin.id === "castle";
   const pitch = meadow ? GLADE_PITCH : 1;
@@ -1556,44 +1555,10 @@ function Scene({
       setDuelAside(null);
       return;
     }
-    const look = kings?.[mover.color];
-    let knock = false;
-    if (look) {
-      try {
-        knock = parseLoadout(JSON.parse(look)).mountId !== "none";
-      } catch {
-        knock = false;
-      }
-    }
-    if (!people && !knock) {
-      setCaptureSq(null);
-      return;
-    }
-    const aside = stepAside(lastMove.from as Square, victim.sq, new Set(pieces.map((p) => p.sq)));
-    setCaptureSq(lastMove.to);
-    setDuelAside(aside !== victim.sq ? aside : null);
-    if (fightZoom && aside !== victim.sq) {
-      const here = squareToWorld(lastMove.to, pitch);
-      const there = squareToWorld(aside, pitch);
-      setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
-    }
-    if (fightTimer.current) window.clearTimeout(fightTimer.current);
-    fightTimer.current = window.setTimeout(() => {
-      setFightLook(null);
-      setDuelAside(null);
-    }, 2600);
-    setBodies((list) => [
-      ...list,
-      {
-        id: `${victim.sq}-${victim.color}${victim.type}-${key}`,
-        sq: victim.sq,
-        aside,
-        type: victim.type,
-        color: victim.color,
-        delay: knock ? 0.85 : 0.72,
-        knock,
-      },
-    ]);
+    // The taken unit leaves. The mover already walks onto that square.
+    setCaptureSq(null);
+    setDuelAside(null);
+    setFightLook(null);
   }, [pieces, people, lastMove, fen, fightZoom, pitch, meadow, kings]);
 
   const wood = useMemo(() => {

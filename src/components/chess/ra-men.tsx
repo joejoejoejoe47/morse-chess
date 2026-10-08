@@ -99,13 +99,26 @@ export function RaPawn({
     obj.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (!mesh.isMesh) return;
-      mesh.castShadow = true;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
       mesh.frustumCulled = false;
+      mesh.visible = true;
+      if (mesh.geometry.getAttribute("color")) {
+        mesh.geometry = mesh.geometry.clone();
+        mesh.geometry.deleteAttribute("color");
+      }
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       mesh.material = list.map((mat) => {
         const copy = mat.clone() as THREE.MeshStandardMaterial;
+        copy.vertexColors = false;
+        copy.transparent = false;
+        copy.opacity = 1;
+        copy.depthWrite = true;
+        copy.side = THREE.DoubleSide;
+        copy.alphaTest = 0;
         if (/hair|brow/i.test(copy.name)) copy.color.set("#1a140f");
-        if (/ranger|peasant/i.test(copy.name)) copy.color.set(team === "blue" ? "#1d4ed8" : "#dc2626");
+        else if (/ranger|peasant/i.test(copy.name)) copy.color.set(team === "blue" ? "#1d4ed8" : "#dc2626");
+        else copy.color.set("#ffffff");
         return copy;
       });
     });
@@ -157,7 +170,6 @@ export function RaPawn({
   const { actions, mixer } = useAnimations(clips, scene);
   const mode = useRef("");
   const seq = useRef(0);
-  const breathAt = useRef(Math.random() * Math.PI * 2);
   const playNamed = (name: string, once: boolean) => {
     const list = Object.values(actions).filter((clip): clip is THREE.AnimationAction => Boolean(clip));
     const next = list.find((clip) => clip.getClip().name === name);
@@ -182,11 +194,15 @@ export function RaPawn({
     mixer.addEventListener("finished", onDone);
     return () => mixer.removeEventListener("finished", onDone);
   }, [mixer, role, actions, gait]);
-  useFrame(({ clock }) => {
-    const base = (scene.userData.fit as number) || scene.scale.x || 1;
-    const breath = 1 + Math.sin(clock.elapsedTime * 1.45 + breathAt.current) * 0.016;
-    scene.scale.set(base, base * breath, base);
+  useFrame(() => {
+    const base = (scene.userData.fit as number) || 1;
+    scene.scale.setScalar(base);
     if (gait.current.fade < 0.995) paint(scene, gait.current.fade);
+    else if (scene.userData.faded) {
+      paint(scene, 1);
+      scene.userData.faded = 0;
+    }
+    if (gait.current.fade < 0.995) scene.userData.faded = 1;
     const act = gait.current.act;
     const want = act === "attack" ? "attack" : act === "walk" || act === "charge" ? "walk" : act === "death" ? "death" : "idle";
     if (want === mode.current) return;

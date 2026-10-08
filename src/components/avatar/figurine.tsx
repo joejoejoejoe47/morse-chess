@@ -11,13 +11,18 @@ function prep(source: THREE.Object3D, height: number, dark: boolean) {
   obj.traverse((node) => {
     const mesh = node as THREE.Mesh;
     if (!mesh.isMesh) return;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow = !mesh.isSkinnedMesh;
+    mesh.receiveShadow = false;
     mesh.frustumCulled = false;
+    mesh.visible = true;
     const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const next = list.map((mat) => {
       const copy = mat.clone() as THREE.MeshStandardMaterial;
-      if ("skinning" in copy) (copy as THREE.MeshStandardMaterial & { skinning?: boolean }).skinning = true;
+      copy.skinning = Boolean(mesh.isSkinnedMesh);
+      copy.transparent = false;
+      copy.opacity = 1;
+      copy.depthWrite = true;
+      copy.side = THREE.DoubleSide;
       if (dark && copy.color) copy.color = copy.color.clone().multiplyScalar(0.38);
       return copy;
     });
