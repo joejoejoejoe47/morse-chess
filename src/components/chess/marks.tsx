@@ -11,6 +11,19 @@ const PATHS: Record<PieceKind, string> = {
   p: "M20 6.2c2.4 0 4.4 2 4.4 4.4 0 1.4-.6 2.6-1.6 3.4 2.2.8 3.8 2.8 3.8 5.2v1.6H13.4v-1.6c0-2.4 1.6-4.4 3.8-5.2-1-.8-1.6-2-1.6-3.4 0-2.4 2-4.4 4.4-4.4zM12.2 24.4V30h15.6v-5.6H12.2z",
 };
 
+export function ShieldBadge({ kind, side }: { kind: PieceKind; side: "w" | "b" }) {
+  const fill = side === "w" ? "#1d4ed8" : "#dc2626";
+  return (
+    <svg viewBox="0 0 64 74" className="h-12 w-10 drop-shadow" aria-hidden>
+      <path d="M32 3 L58 12 V36 C58 52 46 64 32 71 C18 64 6 52 6 36 V12 Z" fill={fill} stroke="#0b1220" strokeWidth="2.5" />
+      <path d="M32 8 L52 15 V35 C52 48 43 58 32 64 C21 58 12 48 12 35 V15 Z" fill={side === "w" ? "#2563eb" : "#b91c1c"} />
+      <g transform="translate(12 16)">
+        <path d={PATHS[kind]} fill="#f7f4ee" />
+      </g>
+    </svg>
+  );
+}
+
 export function PieceMark({
   kind,
   tone = "current",

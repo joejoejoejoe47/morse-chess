@@ -191,7 +191,7 @@
         },
         {
           "id": "hooded",
-          "price": 7
+          "price": 0
         }
       ],
       "swords": [
@@ -226,14 +226,6 @@
         {
           "id": "none",
           "price": 0
-        },
-        {
-          "id": "horse",
-          "price": 8
-        },
-        {
-          "id": "cow",
-          "price": 6
         }
       ],
       "frames": [

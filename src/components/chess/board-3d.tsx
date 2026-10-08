@@ -14,11 +14,25 @@ import { keepWebGL } from "@/lib/gl-quiet";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
-import { HtmlPiece } from "@/components/chess/html-piece";
+import { ShieldBadge } from "@/components/chess/marks";
 import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
 import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
+
+const INK_BOARDS = new Set([
+  "lodge",
+  "studio",
+  "marble",
+  "frost",
+  "pine",
+  "crimson",
+  "emerald",
+  "tide",
+  "aurora",
+  "mystery",
+  "ring-host",
+]);
 
 function hexRgb(hex: string) {
   const n = hex.replace("#", "");
@@ -560,9 +574,7 @@ function AnimatedPiece({
       }
       return;
     }
-    const knightTurn =
-      skin.id === "lodge" || skin.id === "pine" || skin.id === "pipe-court" || skin.id === "ring-march";
-    ref.current.rotation.y = type === "n" ? (color === "w" ? Math.PI : 0) + (knightTurn ? Math.PI : 0) : 0;
+    ref.current.rotation.y = 0;
   });
 
   return (
@@ -579,13 +591,8 @@ function AnimatedPiece({
     >
       {showTip ? (
         <Html position={[0, 1.45, 0]} center zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
-          <span className="grid size-12 place-items-center rounded-md border border-white/25 bg-black/60 shadow-lg">
-            <HtmlPiece
-              kind={type}
-              fill={color === "w" ? "#f7f3ea" : "#1c140e"}
-              edge={color === "w" ? "#2a1810" : "#f4efe4"}
-              className="!m-0 !h-10 !w-8"
-            />
+          <span className="grid place-items-center" style={{ pointerEvents: "none" }}>
+            <ShieldBadge kind={type} side={color === "w" ? "w" : "b"} />
           </span>
         </Html>
       ) : null}
@@ -596,9 +603,12 @@ function AnimatedPiece({
       ) : people ? (
         gear && type === "k" ? (
           <group scale={1.45} rotation={[0, Math.PI, 0]}>
+            {gear.anId === "knight" && gear.swordId !== "none" && color === "w" ? (
+              <StonePerson type="r" white cast={cast} sword wing={square[0] < "e" ? "a" : "b"} gait={gait} />
+            ) : (
             <Figurine
               characterId={gear.anId === "piece" || gear.anId === "royal" ? "knight" : gear.anId}
-              mountId={gear.mountId}
+              mountId="none"
               swordId={gear.swordId}
               crownId={gear.crownId}
               team={color}
@@ -606,6 +616,7 @@ function AnimatedPiece({
               striking={slay}
               pace={gait}
             />
+            )}
           </group>
         ) : (
         <StonePerson
@@ -620,7 +631,11 @@ function AnimatedPiece({
         )
       ) : (
         <>
-          <SculptedPiece type={type} color={color} />
+          <SculptedPiece
+            type={type}
+            color={color}
+            ink={INK_BOARDS.has(skin.id) ? (color === "w" ? "#f7f4ee" : "#14110e") : undefined}
+          />
           {type === "k" && gear?.crownId && gear.crownId !== "none" ? (
             <group position={[0, 0.86, 0]} scale={0.72}>
               <KingCrown id={gear.crownId} team={color} />
@@ -769,9 +784,9 @@ function BoardSquares({
             </mesh>
             )}
             {legal.has(sq) ? (
-              <mesh position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.18, z]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[meadow ? 0.2 : 0.16, 22]} />
-                <meshBasicMaterial color={skin.dot} transparent opacity={0.88} />
+              <mesh position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.16, z]}>
+                <boxGeometry args={[0.1, 0.03, 0.1]} />
+                <meshBasicMaterial color="#1a140f" transparent opacity={0.55} />
               </mesh>
             ) : null}
           </group>

@@ -104,7 +104,7 @@ export const CHARACTERS: CharacterItem[] = [
   {
     id: "hooded",
     name: "Hooded",
-    price: 7,
+    price: 0,
     portrait: asset("/avatars/kings/hooded.jpg"),
     blurb: "The cowl keeps the crown.",
     url: asset("/units/rogue-hooded.glb"),
@@ -154,26 +154,6 @@ export const CROWNS: CrownItem[] = [
 
 export const MOUNTS: (GearItem & { url?: string; kind?: ModelKind; height?: number })[] = [
   { id: "none", name: "On foot", price: 0, portrait: "", blurb: "Stands on the square." },
-  {
-    id: "horse",
-    name: "Horse",
-    price: 8,
-    portrait: asset("/avatars/mounts/horse.jpg"),
-    blurb: "The king rides.",
-    url: asset("/avatars/horse.glb"),
-    kind: "glb",
-    height: 1.05,
-  },
-  {
-    id: "cow",
-    name: "Cow",
-    price: 6,
-    portrait: asset("/avatars/mounts/cow.jpg"),
-    blurb: "A steadier throne.",
-    url: asset("/avatars/cow.fbx"),
-    kind: "fbx",
-    height: 0.95,
-  },
 ];
 
 export const FRAMES: GearItem[] = [

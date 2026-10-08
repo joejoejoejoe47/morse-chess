@@ -34,7 +34,7 @@ const HEIGHT: Record<PieceSymbol, number> = {
   p: 0.66,
 };
 
-export function SculptedPiece({ type, color }: { type: PieceSymbol; color: Color }) {
+export function SculptedPiece({ type, color, ink }: { type: PieceSymbol; color: Color; ink?: string }) {
   const gltf = useGLTF(FILE[color][type]);
   const scene = useMemo(() => {
     const obj = cloneSkeleton(gltf.scene);
@@ -44,18 +44,20 @@ export function SculptedPiece({ type, color }: { type: PieceSymbol; color: Color
       mesh.castShadow = true;
       mesh.frustumCulled = false;
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      mesh.material = list.map((mat) => {
+      const next = list.map((mat) => {
         const copy = (mat as THREE.MeshStandardMaterial).clone();
-        if (copy.map) {
+        if (ink) {
+          copy.map = null;
+          copy.color.set(ink);
+          copy.metalness = 0.16;
+          copy.roughness = 0.38;
+        } else if (copy.map) {
           copy.map.colorSpace = THREE.SRGBColorSpace;
           copy.color.set("#ffffff");
         }
         return copy;
       });
-      if (!Array.isArray(mesh.material) || mesh.material.length === 1) {
-        const only = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-        mesh.material = only;
-      }
+      mesh.material = next.length === 1 ? next[0] : next;
     });
     obj.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(obj);
@@ -63,9 +65,9 @@ export function SculptedPiece({ type, color }: { type: PieceSymbol; color: Color
     obj.scale.multiplyScalar(HEIGHT[type] / (size.y || 1));
     obj.updateMatrixWorld(true);
     obj.position.y -= new THREE.Box3().setFromObject(obj).min.y;
-    obj.rotation.y = type === "n" ? (color === "w" ? 0 : Math.PI) : color === "w" ? Math.PI : 0;
+    obj.rotation.y = color === "w" ? Math.PI : 0;
     return obj;
-  }, [gltf.scene, type, color]);
+  }, [gltf.scene, type, color, ink]);
   return <primitive object={scene} />;
 }
 

@@ -174,7 +174,6 @@ function AvatarStudio() {
         ? ([
             ["swords", "Swords"],
             ["kings", "Kings"],
-            ["animals", "Animals"],
             ["crowns", "Crowns"],
             ["frames", "Frames"],
             ["attacks", "Attacks"],
@@ -337,43 +336,37 @@ function AvatarStudio() {
             <p className="rounded-xl border border-[#3a3126] px-3 py-2 text-sm text-[#d9c7a4]">The royal king wears no crown.</p>
           ) : null}
           {shown === "kings"
-            ? CHARACTERS.filter((item) =>
-                loadout.style === "3d" ? item.id === "piece" : loadout.style === "ra" ? item.id === "royal" : item.id !== "piece" && item.id !== "royal",
-              ).map((item) => (
+            ? CHARACTERS.filter((item) => item.id !== "hooded" && (loadout.style === "3d" ? item.id === "piece" : loadout.style === "ra" ? item.id === "royal" : item.id !== "piece" && item.id !== "royal")).map((item) => (
                 <Portrait
                   key={item.id}
                   item={item}
                   picked={characterId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
+                  owned={owned.includes(item.id) || item.price === 0}
                   onPick={() => void equip(animated ? "anId" : "kingId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
                   onPin={() => pinItem("king", item.id)}
                 />
               ))
             : null}
+          {shown === "kings" && (characterId === "rogue" || characterId === "hooded") && (owned.includes("rogue") || characterId === "hooded") ? (
+            <button
+              type="button"
+              className="w-full rounded-xl border border-[#4a4034] px-3 py-3 text-left text-sm text-[#f4efe6]"
+              onClick={() => void equip("anId", characterId === "hooded" ? "rogue" : "hooded", 0)}
+            >
+              {characterId === "hooded" ? "Hood is on. Take it off." : "Add a hood"}
+            </button>
+          ) : null}
           {shown === "swords"
-            ? SWORDS.map((item) => (
+            ? SWORDS.filter((item) => characterId !== "knight" || item.id === "none" || item.id === "devil").map((item) => (
                 <Portrait
                   key={item.id}
-                  item={item}
+                  item={characterId === "knight" && item.id === "devil" ? { ...item, name: "Sword" } : item}
                   picked={loadout.swordId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
+                  owned={owned.includes(item.id) || item.price === 0}
                   onPick={() => void equip("swordId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
                   onPin={() => pinItem("swordId", item.id)}
-                />
-              ))
-            : null}
-          {shown === "animals"
-            ? MOUNTS.map((item) => (
-                <Portrait
-                  key={item.id}
-                  item={item}
-                  picked={loadout.mountId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
-                  onPick={() => void equip("mountId", item.id, item.price)}
-                  pinned={pins.includes(item.id)}
-                  onPin={() => pinItem("mountId", item.id)}
                 />
               ))
             : null}
@@ -383,7 +376,7 @@ function AvatarStudio() {
                   key={item.id}
                   item={{ ...item, portrait: crownArt(item.id, loadout.team) }}
                   picked={loadout.crownId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0 || pins.includes(item.id)}
+                  owned={owned.includes(item.id) || item.price === 0}
                   onPick={() => void equip("crownId", item.id, item.price)}
                   pinned={pins.includes(item.id)}
                   onPin={() => pinItem("crownId", item.id)}

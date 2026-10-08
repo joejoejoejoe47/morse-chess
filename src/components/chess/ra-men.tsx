@@ -26,12 +26,35 @@ const RA_URL: Record<PieceSymbol, string> = {
 
 const RA_ATTACK: Record<PieceSymbol, string[]> = {
   k: ["Sword_Heavy_Combo"],
-  b: ["Melee_Hook"],
+  b: ["Sword_Regular_Combo"],
   n: ["Sword_Dash", "Sword_Regular_B"],
-  r: ["Melee_Hook"],
+  r: ["Sword_Regular_B", "Sword_Regular_C"],
   q: ["Sword_Regular_Combo"],
   p: ["Sword_Regular_A"],
 };
+
+const ARM = /^(clavicle_|upperarm_|lowerarm_|hand_|index_|middle_|ring_|pinky_|thumb_)/;
+
+function normalWalk(clips: THREE.AnimationClip[]) {
+  const walk = clips.find((clip) => clip.name === "Walk_Carry_Loop");
+  const idle = clips.find((clip) => clip.name === "Idle_No_Loop");
+  if (!walk || !idle) return null;
+  const still = new Map(idle.tracks.map((track) => [track.name, track]));
+  const tracks = walk.tracks.map((track) => {
+    if (!ARM.test(track.name)) return track.clone();
+    const pose = still.get(track.name);
+    if (!pose) return track.clone();
+    const size = track.getValueSize();
+    const values = new Float32Array(track.times.length * size);
+    for (let i = 0; i < track.times.length; i++) {
+      for (let k = 0; k < size; k++) values[i * size + k] = pose.values[k] ?? 0;
+    }
+    return track.ValueTypeName === "quaternion"
+      ? new THREE.QuaternionKeyframeTrack(track.name, track.times, values)
+      : new THREE.VectorKeyframeTrack(track.name, track.times, values);
+  });
+  return new THREE.AnimationClip("Walk_Normal_Loop", walk.duration, tracks);
+}
 
 useGLTF.preload(RA_KING);
 useGLTF.preload(RA_BISHOP);
@@ -127,7 +150,11 @@ export function RaPawn({
     return obj;
   }, [gltf.scene, bladeFile.scene, url, team, role]);
   const anims = useGLTF(RA_ANIMS);
-  const { actions, mixer } = useAnimations(anims.animations, scene);
+  const clips = useMemo(() => {
+    const walk = normalWalk(anims.animations);
+    return walk ? [...anims.animations, walk] : anims.animations;
+  }, [anims.animations]);
+  const { actions, mixer } = useAnimations(clips, scene);
   const mode = useRef("");
   const seq = useRef(0);
   const breathAt = useRef(Math.random() * Math.PI * 2);
@@ -166,9 +193,9 @@ export function RaPawn({
     mode.current = want;
     seq.current = 0;
     if (want === "attack") playNamed(RA_ATTACK[role][0], true);
-    else if (want === "walk") playNamed("Walk_Carry_Loop", false);
+    else if (want === "walk") playNamed("Walk_Normal_Loop", false);
     else if (want === "death") playNamed("Hit_Knockback", true);
-    else playNamed("Idle_No_Loop", false);
+    else playNamed("Idle_Shield_Loop", false);
   });
   return <primitive object={scene} />;
 }
