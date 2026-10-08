@@ -97,7 +97,11 @@ final class Avatar
                 throw new RpcError('Claim a username before dressing the king.');
             }
             $next = self::clampLoadout($wanted, $current['owned']);
-            $next['style'] = $wanted['style'];
+            $style = $wanted['style'];
+            if ($style === 'ra' && !in_array('royal', $current['owned'], true)) {
+                $style = $current['loadout']['style'] === 'ra' ? '3d' : $current['loadout']['style'];
+            }
+            $next['style'] = $style;
             Db::run(
                 'UPDATE profiles SET avatar_json = ?, piece_style = ? WHERE user_id = ?',
                 [json_encode($next, JSON_UNESCAPED_SLASHES), $next['style'], $userId]
@@ -111,6 +115,12 @@ final class Avatar
     {
         $style = $data['style'] ?? null;
         $style = in_array($style, ['2d', 'an', 'ra'], true) ? $style : '3d';
+        if ($style === 'ra') {
+            $current = self::readRow($userId);
+            if ($current === null || !in_array('royal', $current['owned'], true)) {
+                throw new RpcError('RA costs 200 Morse coins.');
+            }
+        }
         Db::run('UPDATE profiles SET piece_style = ? WHERE user_id = ?', [$style, $userId]);
         return ['style' => $style];
     }

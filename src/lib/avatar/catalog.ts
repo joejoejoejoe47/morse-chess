@@ -44,7 +44,7 @@ export const CHARACTERS: CharacterItem[] = [
   {
     id: "royal",
     name: "Royal",
-    price: 150,
+    price: 200,
     portrait: asset("/avatars/kings/royal.jpg"),
     blurb: "Pays for the house. Wears no crown.",
     url: asset("/avatars/king-an.glb"),

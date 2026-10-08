@@ -4,7 +4,7 @@ import { Html, OrbitControls, useTexture } from "@react-three/drei";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
-import { Figurine, StauntonKnight } from "@/components/avatar/figurine";
+import { Figurine } from "@/components/avatar/figurine";
 import { parseLoadout } from "@/lib/avatar/catalog";
 import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
 import { CastleYard } from "@/components/chess/castle-yard";
@@ -15,6 +15,8 @@ import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
 import { HtmlPiece } from "@/components/chess/html-piece";
+import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
+import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 
@@ -505,9 +507,9 @@ function AnimatedPiece({
     const dt = Math.min(raw, 0.1);
     const dest = squareToWorld(square, pitch);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
-    const jumping = type === "n";
+    const jumping = type === "n" && !real;
     const mounted = Boolean(gear && gear.mountId && gear.mountId !== "none");
-    if (people || jumping || mounted) {
+    if (people || real || jumping || mounted) {
       if (!trip.current || trip.current.to.distanceTo(target) > 0.01) {
         trip.current = { from: pos.current.clone(), to: target.clone(), t: 0 };
       }
@@ -528,13 +530,13 @@ function AnimatedPiece({
         : 0;
     const groundY = pitch > 1 ? gladeHeight(pos.current.x, pos.current.z) : 0;
     ref.current.position.set(pos.current.x, 0.08 + lift.current + hop + groundY, pos.current.z);
-    if (people || mounted) {
+    if (people || real || mounted) {
       const traveling = (trip.current?.t ?? 1) < 1;
       gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
       if (traveling) gait.current.phase += dt * 9;
       if (!traveling && slay && !swung.current) {
         swung.current = true;
-        attackUntil.current = performance.now() + (mounted ? 900 : clash || duelAt ? 1900 : 980);
+        attackUntil.current = performance.now() + (mounted ? 900 : real && (type === "k" || type === "q" || type === "n") ? 2600 : real ? 1600 : clash || duelAt ? 1900 : 980);
       }
       const charging = mounted && slay && traveling;
       gait.current.act = performance.now() < attackUntil.current ? "attack" : charging ? "charge" : traveling ? "walk" : "idle";
@@ -575,7 +577,7 @@ function AnimatedPiece({
       }}
       onPointerOut={() => setTip(false)}
     >
-      {tip && showTip ? (
+      {showTip ? (
         <Html position={[0, 1.45, 0]} center zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
           <span className="grid size-12 place-items-center rounded-md border border-white/25 bg-black/60 shadow-lg">
             <HtmlPiece
@@ -587,18 +589,9 @@ function AnimatedPiece({
           </span>
         </Html>
       ) : null}
-      {real && gear && type === "k" ? (
-        <group scale={1.15} rotation={[0, Math.PI, 0]}>
-          <Figurine
-            characterId="royal"
-            mountId={gear.mountId}
-            swordId={gear.swordId}
-            crownId={gear.crownId}
-            team={color}
-            attackId={gear.attackId}
-            striking={slay}
-            pace={gait}
-          />
+      {real ? (
+        <group scale={type === "p" ? 0.9 : type === "k" || type === "q" ? 1.08 : 1}>
+          <RaPawn gait={gait} url={raUnitUrl(type)} team={color === "w" ? "blue" : "red"} role={type} />
         </group>
       ) : people ? (
         gear && type === "k" ? (
@@ -625,32 +618,15 @@ function AnimatedPiece({
           gait={gait}
         />
         )
-      ) : type === "n" ? (
-        <group scale={skin.pieceScale || 1}>
-          <StauntonKnight white={color === "w"} />
-        </group>
-      ) : type === "k" && gear ? (
-        <group scale={1}>
-          <Figurine
-            characterId="piece"
-            mountId={gear.mountId}
-            swordId={gear.swordId}
-            crownId={gear.crownId}
-            team={color}
-            attackId={gear.attackId}
-            striking={slay}
-          />
-        </group>
       ) : (
-        <PieceMesh
-          type={type}
-          color={color}
-          geometries={geometries}
-          ivory={ivory}
-          ebony={ebony}
-          skin={skin}
-          outlineOn={outlineOn}
-        />
+        <>
+          <SculptedPiece type={type} color={color} />
+          {type === "k" && gear?.crownId && gear.crownId !== "none" ? (
+            <group position={[0, 0.86, 0]} scale={0.72}>
+              <KingCrown id={gear.crownId} team={color} />
+            </group>
+          ) : null}
+        </>
       )}
     </group>
   );

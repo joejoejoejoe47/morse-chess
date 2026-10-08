@@ -1,9 +1,13 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useTexture } from "@react-three/drei";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { Figurine } from "@/components/avatar/figurine";
+import { RaShop } from "@/components/avatar/ra-buy";
+import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
+import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
+import type { Gait } from "@/components/chess/stone-people";
 import { FieldStage } from "@/components/avatar/field-stage";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { useClubDoor } from "@/lib/auth/use-club-door";
@@ -65,6 +69,8 @@ function AvatarStudio() {
   const [pins, setPins] = useState<string[]>([]);
 
   const [strike, setStrike] = useState(false);
+  const [offer, setOffer] = useState(false);
+  const [buyingRa, setBuyingRa] = useState(false);
 
   useEffect(() => {
     try {
@@ -128,6 +134,10 @@ function AvatarStudio() {
     }
     try {
       if (price > 0 && !owned.includes(id)) {
+        if (coins < price) {
+          setError(`That costs ${price} Morse coins. You have ${coins.toLocaleString()}.`);
+          return;
+        }
         const bought = await buyGear({ data: { id } });
         setCoins(bought.coins);
         setOwned(bought.owned);
@@ -194,6 +204,17 @@ function AvatarStudio() {
             </Suspense>
             <OrbitControls enablePan={false} target={[0, 0.45, 0]} minDistance={3} maxDistance={12} maxPolarAngle={1.15} />
           </Canvas>
+        ) : loadout.style === "ra" ? (
+          <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows onCreated={({ gl }) => keepWebGL(gl)}>
+            <color attach="background" args={["#9eb8cc"]} />
+            <Suspense fallback={null}>
+              <FieldStage />
+              <group position={[0, 0, 1.2]}>
+                <RaPreview team={loadout.team} />
+              </group>
+            </Suspense>
+            <OrbitControls enablePan={false} target={[0, 1.1, 1.2]} minDistance={3} maxDistance={12} maxPolarAngle={1.35} />
+          </Canvas>
         ) : (
           <Canvas
             camera={{ position: [4.6, 2.35, 7.4], fov: 38 }}
@@ -243,7 +264,14 @@ function AvatarStudio() {
                 "min-h-10 rounded-full px-4 text-sm uppercase tracking-[0.14em]",
                 loadout.style === style ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
               )}
-              onClick={() => void commit({ ...worn, style })}
+              onClick={() => {
+                if (style === "ra" && !owned.includes("royal")) {
+                  setError(null);
+                  setOffer(true);
+                  return;
+                }
+                void commit({ ...worn, style });
+              }}
             >
               {style === "ra" ? (ownsRoyal ? "RA" : "Buy RA") : style}
             </button>
@@ -305,28 +333,6 @@ function AvatarStudio() {
         </div>
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
           {error ? <p className="rounded-xl bg-[#3a221c] px-3 py-2 text-sm text-[#f4d2c8]">{error}</p> : null}
-          {loadout.style === "ra" && !ownsRoyal ? (
-            <button
-              type="button"
-              className="w-full rounded-xl bg-[#e6c56a] px-3 py-2 text-sm text-[#1a140f]"
-              onClick={() => {
-                void (async () => {
-                  try {
-                    if (!owned.includes("royal")) {
-                      const bought = await buyGear({ data: { id: "royal" } });
-                      setCoins(bought.coins);
-                      setOwned(bought.owned);
-                    }
-                    await commit({ ...worn, style: "ra", anId: "royal" });
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : "Not enough Morse coins.");
-                  }
-                })();
-              }}
-            >
-              Buy RA · 150 Morse coins
-            </button>
-          ) : null}
           {characterId === "royal" && shown === "crowns" ? (
             <p className="rounded-xl border border-[#3a3126] px-3 py-2 text-sm text-[#d9c7a4]">The royal king wears no crown.</p>
           ) : null}
@@ -426,9 +432,34 @@ function AvatarStudio() {
             : null}
         </div>
       </aside>
+      <RaShop
+        open={offer}
+        coins={coins}
+        busy={buyingRa}
+        onClose={() => setOffer(false)}
+        onBuy={() => {
+          if (coins < 200 || buyingRa) return;
+          setBuyingRa(true);
+          setError(null);
+          void buyGear({ data: { id: "royal" } })
+            .then(async (bought) => {
+              setCoins(bought.coins);
+              setOwned(bought.owned);
+              await commit({ ...worn, style: "ra" });
+              setOffer(false);
+            })
+            .catch((err) => setError(err instanceof Error ? err.message : "Not enough Morse coins."))
+            .finally(() => setBuyingRa(false));
+        }}
+      />
     </main>
   );
 }
+function RaPreview({ team }: { team: "w" | "b" }) {
+  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
+  return <RaPawn gait={gait} url={raUnitUrl("k")} team={team === "b" ? "red" : "blue"} role="k" />;
+}
+
 function KingTable({ crownId, team }: { crownId: string; team: "w" | "b" }) {
   const wood = useTexture(asset("/club/marquetry.png"));
   const squares = [];
@@ -456,8 +487,11 @@ function KingTable({ crownId, team }: { crownId: string; team: "w" | "b" }) {
         <meshStandardMaterial color="#4a3018" roughness={0.7} />
       </mesh>
       {squares}
-      <group position={[0, 0.1, 0]} scale={1}>
-        <Figurine characterId="piece" mountId="none" swordId="none" crownId={crownId} team={team} />
+      <group position={[0, 0.1, 0]}>
+        <SculptedPiece type="k" color={team} />
+        <group position={[0, 0.86, 0]} scale={0.72}>
+          <KingCrown id={crownId} team={team} />
+        </group>
       </group>
     </>
   );
