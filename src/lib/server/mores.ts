@@ -26,7 +26,7 @@ export type GameSnapshot = {
   chatOpen: boolean;
   liveOpen: boolean;
   cameraOpen: boolean;
-  chat: { id: number; from: string; text: string }[];
+  chat: { id: number; from: string; text: string; image: string | null }[];
   scorePrize: number | null;
   pull: boolean;
   coins: number;

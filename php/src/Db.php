@@ -340,6 +340,9 @@ final class Db
                 if (in_array($code, [1050, 1060, 1061], true)) {
                     continue;
                 }
+                if (self::isSqlite() && str_contains(strtolower($e->getMessage()), 'duplicate column')) {
+                    continue;
+                }
                 throw $e;
             }
         }

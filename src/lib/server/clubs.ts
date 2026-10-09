@@ -17,6 +17,7 @@ export type ClubMessage = {
   fromName: string;
   toId: string | null;
   body: string;
+  image: string | null;
   at: string;
 };
 

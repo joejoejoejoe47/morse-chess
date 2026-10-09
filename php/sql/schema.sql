@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS `game_chat` (
   `game_id` VARCHAR(64) NOT NULL,
   `user_id` VARCHAR(64) NOT NULL,
   `body` MEDIUMTEXT NOT NULL,
+  `image` MEDIUMTEXT NULL,
   `created_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `game_chat_game_idx` (`game_id`, `id`)
@@ -202,10 +203,14 @@ CREATE TABLE IF NOT EXISTS `chess_club_messages` (
   `from_user_id` VARCHAR(64) NOT NULL,
   `to_user_id` VARCHAR(64) NULL,
   `body` MEDIUMTEXT NOT NULL,
+  `image` MEDIUMTEXT NULL,
   `created_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `chess_club_messages_club_idx` (`club_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `game_chat` ADD COLUMN `image` MEDIUMTEXT NULL;
+ALTER TABLE `chess_club_messages` ADD COLUMN `image` MEDIUMTEXT NULL;
 
 CREATE TABLE IF NOT EXISTS `chess_club_events` (
   `id` VARCHAR(64) NOT NULL,

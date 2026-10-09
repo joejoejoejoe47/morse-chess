@@ -1,7 +1,7 @@
-import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Square } from "chess.js";
-import { Clock, LogOut, Send } from "lucide-react";
+import { Clock, ImagePlus, LogOut, Send } from "lucide-react";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { RaBuy } from "@/components/avatar/ra-buy";
@@ -40,6 +40,7 @@ import {
   type ClubMessage,
   type ClubSeat,
 } from "@/lib/server/clubs";
+import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
 import { asset } from "@/lib/base";
 
@@ -255,6 +256,8 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
     }
   });
   const [error, setError] = useState<string | null>(null);
+  const [dropOver, setDropOver] = useState(false);
+  const picture = useRef<HTMLInputElement>(null);
   const [bracket, setBracket] = useState<Awaited<ReturnType<typeof getBracket>> | null>(null);
   const [calls, setCalls] = useState<{ id: string; fromName: string; at: number; toId: string }[]>([]);
   const me = pack.members.find((seat) => seat.userId === userId);
@@ -291,10 +294,29 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
 
   async function mail(e: FormEvent) {
     e.preventDefault();
-    const body = draft.trim();
-    if (!body) return;
-    setDraft("");
-    await sendClubMail({ data: { clubId: club.id, toId: peer === "EVERY" ? null : peer, body } });
+    await post(draft, null);
+  }
+
+  async function post(text: string, image: string | null) {
+    const body = text.trim();
+    if (!body && !image) return;
+    if (body) setDraft("");
+    setError(null);
+    try {
+      await sendClubMail({ data: { clubId: club.id, toId: peer === "EVERY" ? null : peer, body, image } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The picture did not send.");
+    }
+  }
+
+  async function dropPicture(file: File | undefined) {
+    if (!file) return;
+    try {
+      const image = await shrinkChatImage(file);
+      await post("", image);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The picture did not send.");
+    }
   }
 
   const event = pack.event;
@@ -542,23 +564,77 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
             <Stat label="ELO" value={String(cardScore)} mark="elo" />
           </dl>
           <h3 className="mt-3 shrink-0 font-display text-[1.35rem]">{focus ? "Private" : "Global Chat"}</h3>
-          <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto">
-            {thread.map((msg) => (
-              <Mail key={msg.id} msg={msg} mine={msg.fromId === userId} />
-            ))}
+          <div
+            className={cn("relative mt-2 flex min-h-0 flex-1 flex-col", dropOver && "rounded-xl ring-2 ring-[#e6c56a]")}
+            onDragEnter={(e) => {
+              if (![...e.dataTransfer.types].includes("Files")) return;
+              e.preventDefault();
+              setDropOver(true);
+            }}
+            onDragOver={(e) => {
+              if (![...e.dataTransfer.types].includes("Files")) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+              setDropOver(true);
+            }}
+            onDragLeave={(e) => {
+              if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+              setDropOver(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDropOver(false);
+              void dropPicture(e.dataTransfer.files?.[0]);
+            }}
+          >
+            {dropOver ? (
+              <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-xl bg-black/55 text-sm text-[#f4efe6]">
+                Drop the picture
+              </div>
+            ) : null}
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+              {thread.map((msg) => (
+                <Mail key={msg.id} msg={msg} mine={msg.fromId === userId} />
+              ))}
+            </div>
+            <form className="mt-3 flex shrink-0 items-center gap-2" onSubmit={mail}>
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onPaste={(e) => {
+                  const file = [...e.clipboardData.files].find((item) => item.type.startsWith("image/"));
+                  if (!file) return;
+                  e.preventDefault();
+                  void dropPicture(file);
+                }}
+                placeholder={focus ? "Private note, or drop a picture…" : "Tell the club, or drop a picture…"}
+                className="min-w-0 flex-1 rounded-full border border-[#3a3228] bg-[#0e0c0a] px-3 py-2 text-sm outline-none"
+              />
+              <input
+                ref={picture}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  void dropPicture(file);
+                }}
+              />
+              <button
+                type="button"
+                aria-label="Add a picture"
+                className="inline-flex size-9 items-center justify-center rounded-full border border-[#3a3228] text-[#f4efe6]"
+                onClick={() => picture.current?.click()}
+              >
+                <ImagePlus className="size-4" />
+              </button>
+              <button type="submit" className="inline-flex items-center gap-1 rounded-full bg-[#6d4c32] px-3 py-2 text-sm text-[#f8f1e6]">
+                <Send className="size-3.5" />
+                Send
+              </button>
+            </form>
           </div>
-          <form className="mt-3 flex shrink-0 items-center gap-2" onSubmit={mail}>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={focus ? "Private note…" : "Tell the whole club…"}
-              className="min-w-0 flex-1 rounded-full border border-[#3a3228] bg-[#0e0c0a] px-3 py-2 text-sm outline-none"
-            />
-            <button type="submit" className="inline-flex items-center gap-1 rounded-full bg-[#6d4c32] px-3 py-2 text-sm text-[#f8f1e6]">
-              <Send className="size-3.5" />
-              Send
-            </button>
-          </form>
           {focus ? (
             <button type="button" className="mt-2 text-left text-xs text-[#cbb892]" onClick={() => void placeClubCall({ data: { clubId: club.id, toId: focus.userId } })}>
               Call {focus.username}
@@ -649,10 +725,12 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
   );
 }
 function Mail({ msg, mine }: { msg: ClubMessage; mine: boolean }) {
+  const picture = isChatImage(msg.image);
   return (
     <div className={cn("rounded-lg px-2 py-1.5", mine ? "bg-forest/40" : "bg-ink/50")}>
       <p className="text-[10px] uppercase tracking-[0.12em] text-mist">{msg.fromName}</p>
-      <p className="text-sm">{msg.body}</p>
+      {picture ? <img src={msg.image} alt="" className="mt-1 max-h-44 w-full rounded-md object-contain" /> : null}
+      {msg.body ? <p className="text-sm">{msg.body}</p> : null}
     </div>
   );
 }

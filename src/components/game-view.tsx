@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess, type Square } from "chess.js";
-import { Flag, Undo2 } from "lucide-react";
+import { Flag, ImagePlus, Undo2 } from "lucide-react";
 import {
   claimTimeout,
   closeGameCamera,
@@ -33,6 +33,7 @@ import { LoadingTitle } from "@/components/loading-title";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { RaBuy } from "@/components/avatar/ra-buy";
 import { setPieceStyle } from "@/lib/server/avatar";
+import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
 
 const DARK_ROOM = "#0c0d0b";
@@ -282,6 +283,8 @@ export function GameView({ gameId }: { gameId: string }) {
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
   const [view, setView] = useState<BoardView>(readBoardView);
   const [draft, setDraft] = useState("");
+  const [dropOver, setDropOver] = useState(false);
+  const picture = useRef<HTMLInputElement>(null);
   const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null);
   const [tuning, setTuning] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -327,6 +330,17 @@ export function GameView({ gameId }: { gameId: string }) {
     if (snap.lastMove && snap.lastMove.san !== lastSan.current) {
       chessClick(snap.lastMove.san);
       lastSan.current = snap.lastMove.san;
+    }
+  }
+
+  async function sendPicture(file: File | undefined) {
+    if (!file) return;
+    try {
+      const image = await shrinkChatImage(file);
+      const snap = await sendGameChat({ data: { gameId, text: "", image } });
+      if (snap) applySnap(snap, true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The picture did not send.");
     }
   }
 
@@ -766,21 +780,50 @@ export function GameView({ gameId }: { gameId: string }) {
                 </button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+            <div
+              className={cn("flex min-h-0 flex-1 flex-col", dropOver && "ring-2 ring-gold-line ring-inset")}
+              onDragEnter={(e) => {
+                if (![...e.dataTransfer.types].includes("Files")) return;
+                e.preventDefault();
+                setDropOver(true);
+              }}
+              onDragOver={(e) => {
+                if (![...e.dataTransfer.types].includes("Files")) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+                setDropOver(true);
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                setDropOver(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDropOver(false);
+                void sendPicture(e.dataTransfer.files?.[0]);
+              }}
+            >
+            <div className="relative min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+              {dropOver ? (
+                <div className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-xl bg-black/55 text-sm text-ivory">
+                  Drop the picture
+                </div>
+              ) : null}
               {(game.chat ?? []).length === 0 ? (
-                <p className="text-[13px] text-mist">Say something. The user sees it on this same table.</p>
+                <p className="text-[13px] text-mist">Say something, or drop a picture. The user sees it on this same table.</p>
               ) : (
                 (game.chat ?? []).map((m) => (
                   <div key={m.id} className="rounded-lg bg-panel px-3 py-2">
                     <p className="text-[11px] uppercase tracking-[0.12em] text-mist">{m.from}</p>
-                    <p className="mt-0.5 text-[15px] text-ivory">{m.text}</p>
+                    {isChatImage(m.image) ? <img src={m.image} alt="" className="mt-1 max-h-44 w-full rounded-md object-contain" /> : null}
+                    {m.text ? <p className="mt-0.5 text-[15px] text-ivory">{m.text}</p> : null}
                   </div>
                 ))
               )}
               <div ref={chatEnd} />
             </div>
             <form
-              className="border-t border-line p-2"
+              className="flex items-center gap-2 border-t border-line p-2"
               onSubmit={async (e) => {
                 e.preventDefault();
                 const text = draft.trim();
@@ -793,11 +836,37 @@ export function GameView({ gameId }: { gameId: string }) {
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Message…"
+                onPaste={(e) => {
+                  const file = [...e.clipboardData.files].find((item) => item.type.startsWith("image/"));
+                  if (!file) return;
+                  e.preventDefault();
+                  void sendPicture(file);
+                }}
+                placeholder="Message, or drop a picture…"
                 maxLength={280}
-                className="w-full rounded-lg border border-line bg-panel px-3 py-3 text-base text-ivory outline-none placeholder:text-mist focus:border-gold-line"
+                className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-3 text-base text-ivory outline-none placeholder:text-mist focus:border-gold-line"
               />
+              <input
+                ref={picture}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  void sendPicture(file);
+                }}
+              />
+              <button
+                type="button"
+                aria-label="Add a picture"
+                className="inline-flex size-11 items-center justify-center rounded-lg border border-line text-ivory"
+                onClick={() => picture.current?.click()}
+              >
+                <ImagePlus className="size-4" />
+              </button>
             </form>
+            </div>
             {game.liveOpen && !vsBot ? (
               <LiveCall gameId={game.id} selfId={selfId} name={myName} audio />
             ) : (

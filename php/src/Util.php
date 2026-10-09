@@ -31,4 +31,20 @@ final class Util
         }
         return $catalog;
     }
+
+    /** A shrunk chat picture, or null. Throws RpcError when the payload is not a picture. */
+    public static function chatImage(mixed $raw): ?string
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        $image = is_string($raw) ? $raw : '';
+        if ($image === '') {
+            return null;
+        }
+        if (strlen($image) > 160000 || !preg_match('#\Adata:image/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}\z#', $image)) {
+            throw new RpcError('That image is too big, or it is not a picture.');
+        }
+        return $image;
+    }
 }

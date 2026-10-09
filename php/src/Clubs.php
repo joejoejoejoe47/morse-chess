@@ -595,7 +595,7 @@ final class Clubs
         }
         $members = self::seats((string) $club['id'], (string) $club['host_user_id']);
         $messages = Db::all(
-            'SELECT m.id, m.from_user_id, m.to_user_id, m.body, m.created_at, p.username
+            'SELECT m.id, m.from_user_id, m.to_user_id, m.body, m.image, m.created_at, p.username
              FROM chess_club_messages m
              JOIN profiles p ON p.user_id = m.from_user_id
              WHERE m.club_id = ?
@@ -630,6 +630,7 @@ final class Clubs
                 'fromName' => (string) $row['username'],
                 'toId' => $row['to_user_id'] === null ? null : (string) $row['to_user_id'],
                 'body' => (string) $row['body'],
+                'image' => ($row['image'] ?? '') !== '' ? (string) $row['image'] : null,
                 'at' => Db::iso($row['created_at']),
             ], $messages),
             'requests' => array_map(static fn ($row) => [
@@ -818,8 +819,9 @@ final class Clubs
         $clubId = self::str($data['clubId'] ?? '');
         $toId = !empty($data['toId']) ? self::str($data['toId']) : null;
         $body = mb_substr(self::trim(self::str($data['body'] ?? '')), 0, 500);
-        if ($body === '') {
-            throw new RpcError('Write something first.');
+        $image = Util::chatImage($data['image'] ?? null);
+        if ($body === '' && $image === null) {
+            throw new RpcError('Write something, or drop a picture.');
         }
         self::ensure();
         if (!self::membership($clubId, $userId)) {
@@ -830,8 +832,8 @@ final class Clubs
         }
         $to = (!$toId || $toId === 'EVERY') ? null : $toId;
         Db::run(
-            'INSERT INTO chess_club_messages (id, club_id, from_user_id, to_user_id, body, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-            [Util::uuid(), $clubId, $userId, $to, $body, Db::now()]
+            'INSERT INTO chess_club_messages (id, club_id, from_user_id, to_user_id, body, image, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [Util::uuid(), $clubId, $userId, $to, $body, $image, Db::now()]
         );
         return ['ok' => true];
     }

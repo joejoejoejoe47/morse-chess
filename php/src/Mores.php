@@ -746,7 +746,7 @@ final class Mores
         $white = self::profileById((string) $fresh['white_user_id']);
         $black = self::profileById((string) $fresh['black_user_id']);
         $moves = Db::all('SELECT san, from_sq, to_sq FROM game_moves WHERE game_id = ? ORDER BY ply ASC', [$fresh['id']]);
-        $chatRows = Db::all('SELECT id, user_id, body FROM game_chat WHERE game_id = ? ORDER BY id ASC LIMIT 80', [$fresh['id']]);
+        $chatRows = Db::all('SELECT id, user_id, body, image FROM game_chat WHERE game_id = ? ORDER BY id ASC LIMIT 80', [$fresh['id']]);
         $nameOf = static function (string $id) use ($fresh, $white, $black): string {
             if ($id === $fresh['white_user_id']) {
                 return $white['username'] ?? 'White';
@@ -794,7 +794,12 @@ final class Mores
             'chatOpen' => Db::bool($fresh['chat_open'] ?? 0),
             'liveOpen' => Db::bool($fresh['live_open'] ?? 0),
             'cameraOpen' => Db::bool($fresh['camera_open'] ?? 0),
-            'chat' => array_map(static fn (array $r): array => ['id' => (int) $r['id'], 'from' => $nameOf((string) $r['user_id']), 'text' => (string) $r['body']], $chatRows),
+            'chat' => array_map(static fn (array $r): array => [
+                'id' => (int) $r['id'],
+                'from' => $nameOf((string) $r['user_id']),
+                'text' => (string) $r['body'],
+                'image' => ($r['image'] ?? '') !== '' ? (string) $r['image'] : null,
+            ], $chatRows),
             'scorePrize' => $prize === null ? null : ($you === 'w' ? self::toInt($prize, 0) : -self::toInt($prize, 0)),
             'pull' => Db::bool($fresh['pull'] ?? 0),
             'coins' => $me['coins'] ?? 0,
@@ -1266,6 +1271,7 @@ final class Mores
         $text = is_scalar($raw) ? (string) $raw : '';
         $text = preg_replace('/^\s+|\s+$/u', '', $text) ?? $text;
         $text = mb_substr($text, 0, 280);
+        $image = Util::chatImage($data['image'] ?? null);
         $game = self::loadGame(self::str($data, 'gameId'));
         if ($game === null) {
             return null;
@@ -1274,10 +1280,10 @@ final class Mores
             return null;
         }
         Db::run('UPDATE games SET chat_open = 1 WHERE id = ?', [$game['id']]);
-        if ($text !== '') {
+        if ($text !== '' || $image !== null) {
             Db::run(
-                'INSERT INTO game_chat (game_id, user_id, body, created_at) VALUES (?, ?, ?, ?)',
-                [$game['id'], $userId, $text, Db::now()]
+                'INSERT INTO game_chat (game_id, user_id, body, image, created_at) VALUES (?, ?, ?, ?, ?)',
+                [$game['id'], $userId, $text, $image, Db::now()]
             );
         }
         $game['chat_open'] = 1;
