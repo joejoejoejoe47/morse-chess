@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS `profiles` (
   `owned_gear` VARCHAR(2048) NOT NULL DEFAULT '',
   `club_locked` TINYINT(1) NOT NULL DEFAULT 0,
   `elo_scaled` TINYINT(1) NOT NULL DEFAULT 0,
+  `sandbox_owned` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `profiles_username_lc_uq` (`username_lc`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -211,6 +212,7 @@ CREATE TABLE IF NOT EXISTS `chess_club_messages` (
 
 ALTER TABLE `game_chat` ADD COLUMN `image` MEDIUMTEXT NULL;
 ALTER TABLE `chess_club_messages` ADD COLUMN `image` MEDIUMTEXT NULL;
+ALTER TABLE `profiles` ADD COLUMN `sandbox_owned` TINYINT(1) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS `chess_club_events` (
   `id` VARCHAR(64) NOT NULL,

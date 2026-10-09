@@ -111,11 +111,13 @@ export function RaPawn({
   url,
   team,
   role,
+  tint,
 }: {
   gait: React.MutableRefObject<Gait>;
   url: string;
   team: "blue" | "red";
   role: PieceSymbol;
+  tint?: string;
 }) {
   const gltf = useGLTF(url);
   const bladeFile = useGLTF(RA_SWORD);
@@ -140,7 +142,7 @@ export function RaPawn({
         if (mesh.isSkinnedMesh) copy.skinning = true;
         if (/hair|brow/i.test(copy.name)) copy.color.set("#1a140f");
         else if (/ranger|peasant/i.test(copy.name)) {
-          copy.emissive = new THREE.Color(team === "blue" ? "#2563eb" : "#dc2626");
+          copy.emissive = new THREE.Color(tint ?? (team === "blue" ? "#2563eb" : "#dc2626"));
           copy.emissiveIntensity = 0.45;
           if (copy.map) copy.emissiveMap = copy.map;
         }
@@ -188,7 +190,7 @@ export function RaPawn({
     obj.userData.fit = obj.scale.x || 1;
     widenBones(obj);
     return obj;
-  }, [gltf.scene, bladeFile.scene, url, team, role]);
+  }, [gltf.scene, bladeFile.scene, url, team, role, tint]);
   const anims = useGLTF(RA_ANIMS);
   const clips = useMemo(() => {
     const walk = normalWalk(anims.animations);

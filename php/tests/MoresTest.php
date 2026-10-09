@@ -50,7 +50,7 @@ function human_game(string $a, string $b, string $nameB, string $mode = 'timed')
 $expected = ['usernameAvailable', 'claimUsername', 'getPurse', 'getHomeState', 'joinQueue', 'leaveQueue', 'sendChallenge',
     'respondChallenge', 'cancelChallenge', 'openGameLive', 'openGameChat', 'closeGameChat', 'openGameCamera',
     'closeGameCamera', 'sendGameChat', 'getGame', 'makeMove', 'claimTimeout', 'resignGame', 'startBotGame', 'buyBoard',
-    'setEquippedBoard', 'listClubUsers', 'getChallengeInbox'];
+    'setEquippedBoard', 'listClubUsers', 'getChallengeInbox', 'getSandbox', 'buySandbox'];
 foreach ($expected as $n) {
     check(in_array($n, Rpc::names(), true), "rpc $n registered");
 }
@@ -348,6 +348,14 @@ check(fails(call([Mores::class, 'setEquippedBoard'], 'ghost', ['boardId' => 'lod
 Db::run('UPDATE profiles SET coins = 100, owned_boards = ? WHERE user_id = ?', ['', 'bob']);
 Mores::buyBoard('bob', ['boardId' => 'grassland']);
 check(Mores::buyBoard('bob', ['boardId' => 'castle'])['ok'] === false && (int) Db::value("SELECT coins FROM profiles WHERE user_id = 'bob'") === 0, 'purse never goes negative');
+
+check(fails(call([Mores::class, 'buySandbox'], 'ghost', []), 'Choose a club name first.'), 'buySandbox needs profile');
+Db::run('UPDATE profiles SET coins = 0, sandbox_owned = 0 WHERE user_id = ?', ['alice']);
+check(Mores::buySandbox('alice', [])['ok'] === false, 'sandbox costs 90');
+Db::run('UPDATE profiles SET coins = 90 WHERE user_id = ?', ['alice']);
+check(Mores::buySandbox('alice', []) === ['ok' => true, 'coins' => 0, 'owned' => true], 'sandbox unlocks for 90');
+check(Mores::buySandbox('alice', []) === ['ok' => true, 'coins' => 0, 'owned' => true], 'sandbox buy is idempotent');
+check(Mores::getSandbox('alice', []) === ['owned' => true, 'coins' => 0], 'sandbox gate reads the purse');
 
 // ── club users list + inbox ────────────────────────────────────────────────
 $list = Mores::listClubUsers('alice', []);

@@ -84,3 +84,5 @@ export const buyBoard = rpc("buyBoard");
 export const setEquippedBoard = rpc("setEquippedBoard");
 export const listClubUsers = rpc("listClubUsers");
 export const getChallengeInbox = rpc("getChallengeInbox");
+export const getSandbox = rpc<{ owned: boolean; coins: number }>("getSandbox");
+export const buySandbox = rpc<{ ok: boolean; error?: string; coins: number; owned: boolean }>("buySandbox");

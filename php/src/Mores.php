@@ -60,6 +60,7 @@ final class Mores
             'respondChallenge', 'cancelChallenge', 'openGameLive', 'openGameChat', 'closeGameChat',
             'openGameCamera', 'closeGameCamera', 'sendGameChat', 'getGame', 'makeMove', 'claimTimeout',
             'resignGame', 'startBotGame', 'buyBoard', 'setEquippedBoard', 'listClubUsers', 'getChallengeInbox',
+            'getSandbox', 'buySandbox',
         ] as $name) {
             Rpc::register($name, [self::class, $name]);
         }
@@ -178,7 +179,7 @@ final class Mores
              WHERE username_lc = 'mastergus' AND coins_ready = 0"
         );
         $row = Db::one(
-            'SELECT user_id, username, username_lc, score, equipped_board, coins, bot_streak, owned_boards, avatar_json
+            'SELECT user_id, username, username_lc, score, equipped_board, coins, bot_streak, owned_boards, avatar_json, sandbox_owned
              FROM profiles WHERE user_id = ? LIMIT 1' . ($lock ? Db::forUpdate() : ''),
             [$userId]
         );
@@ -196,6 +197,7 @@ final class Mores
             'bot_streak' => self::toInt($row['bot_streak'], 0),
             'owned_boards' => implode(',', self::ownedList($row['owned_boards'])),
             'avatar_json' => $row['avatar_json'] !== null ? (string) $row['avatar_json'] : null,
+            'sandbox_owned' => self::toInt($row['sandbox_owned'] ?? 0, 0),
         ];
     }
 
@@ -1413,6 +1415,43 @@ final class Mores
                 return ['ok' => false, 'error' => 'You need ' . number_format($price) . ' coins. You have ' . number_format($purse) . '.'];
             }
             return ['ok' => true, 'coins' => $purse - $price, 'owned' => $next];
+        });
+    }
+
+    /** @param array<string,mixed> $data */
+    public static function getSandbox(string $userId, array $data): mixed
+    {
+        $me = self::profileById($userId);
+        if ($me === null) {
+            throw new RpcError('Choose a club name first.');
+        }
+        return ['owned' => (int) ($me['sandbox_owned'] ?? 0) === 1, 'coins' => (int) $me['coins']];
+    }
+
+    /** @param array<string,mixed> $data */
+    public static function buySandbox(string $userId, array $data): mixed
+    {
+        $price = 90;
+        return Db::transaction(static function () use ($userId, $price): array {
+            $me = self::profileById($userId, true);
+            if ($me === null) {
+                throw new RpcError('Choose a club name first.');
+            }
+            $purse = (int) $me['coins'];
+            if ((int) ($me['sandbox_owned'] ?? 0) === 1) {
+                return ['ok' => true, 'coins' => $purse, 'owned' => true];
+            }
+            if ($purse < $price) {
+                return ['ok' => false, 'error' => 'You need 90 coins. You have ' . number_format($purse) . '.', 'coins' => $purse, 'owned' => false];
+            }
+            $changed = Db::run(
+                'UPDATE profiles SET coins = coins - ?, sandbox_owned = 1 WHERE user_id = ? AND coins >= ? AND sandbox_owned = 0',
+                [$price, $userId, $price]
+            );
+            if ($changed === 0) {
+                return ['ok' => false, 'error' => 'You need 90 coins. You have ' . number_format($purse) . '.', 'coins' => $purse, 'owned' => false];
+            }
+            return ['ok' => true, 'coins' => $purse - $price, 'owned' => true];
         });
     }
 
