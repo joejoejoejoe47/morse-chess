@@ -226,6 +226,9 @@ function ClubGate({
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        {mode === "enter" ? (
+          <p className="mt-3 text-sm text-mist">Ask to join this chess club before you can enter it.</p>
+        ) : null}
         {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
         {note ? <p className="mt-3 text-sm text-cream">{note}</p> : null}
         <Button type="submit" variant="solid" size="lg" className="mt-4 w-full" disabled={busy}>

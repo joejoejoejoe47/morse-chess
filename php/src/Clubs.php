@@ -718,10 +718,17 @@ final class Clubs
         if (!self::checkPassword($password, $club)) {
             return ['ok' => false, 'sorry' => false, 'error' => 'That password does not open this chess club.'];
         }
-        Db::run('UPDATE profiles SET club_locked = 0 WHERE user_id = ?', [$userId]);
         if (!$member) {
-            return ['ok' => false, 'sorry' => false, 'error' => 'You have not been welcomed into that chess club.'];
+            $asked = Db::one(
+                'SELECT status FROM chess_club_requests WHERE club_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1',
+                [$club['id'], $userId]
+            );
+            if ($asked === null) {
+                return ['ok' => false, 'sorry' => false, 'error' => 'Ask to join this chess club before you can enter it.'];
+            }
+            return ['ok' => false, 'sorry' => false, 'error' => 'The host has not welcomed you yet. You can enter after you are welcomed.'];
         }
+        Db::run('UPDATE profiles SET club_locked = 0 WHERE user_id = ?', [$userId]);
         return ['ok' => true, 'state' => self::pack($userId, (string) $club['id'])];
     }
 

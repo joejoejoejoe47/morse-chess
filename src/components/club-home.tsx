@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Navigate, useNavigate, Link } from "@tanstack/react-router";
 import { Timer, Wind, X } from "lucide-react";
 import { ClubBrand, ClubHeaderActions, MorseCrest } from "@/components/club-brand";
@@ -41,6 +41,7 @@ export function ClubHome() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const seenInvite = useRef("");
 
   useEffect(() => {
     if (claim) return;
@@ -74,6 +75,16 @@ export function ClubHome() {
       window.clearInterval(id);
     };
   }, [navigate]);
+
+  useEffect(() => {
+    if (flow.kind !== "waiting" || !flow.challengeId || !home) return;
+    const row = home.outgoing.find((c) => c.id === flow.challengeId);
+    if (row?.status === "pending") {
+      seenInvite.current = flow.challengeId;
+      return;
+    }
+    if (seenInvite.current === flow.challengeId) setFlow({ kind: "idle" });
+  }, [home, flow]);
 
   if (isPending || !user) return <SplashSkeleton />;
   if (!home) {
@@ -143,7 +154,7 @@ export function ClubHome() {
     setError(null);
     const name = target.trim();
     if (!USERNAME_RE.test(name)) {
-      setError("Enter a club name (8–20 letters, numbers, or underscores).");
+      setError("Enter a username (8–20 letters, numbers, or underscores).");
       return;
     }
     setBusy(true);
@@ -496,13 +507,13 @@ export function ClubHome() {
               <form className="mt-5 space-y-4" onSubmit={submitChallenge}>
                 <Badge>{flow.mode} game</Badge>
                 <div className="space-y-2">
-                  <Label htmlFor="opp">Club name</Label>
+                  <Label htmlFor="opp">Username</Label>
                   <Input
                     id="opp"
                     autoFocus
                     value={target}
                     onChange={(e) => setTarget(e.target.value)}
-                    placeholder="Type the user's club name"
+                    placeholder="Type the user's name"
                   />
                 </div>
                 {error ? <p className="text-sm text-danger">{error}</p> : null}

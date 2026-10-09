@@ -928,11 +928,21 @@ final class Mores
         return ['coins' => $profile['coins']];
     }
 
+    private static function expireNamedChallenges(): void
+    {
+        Db::run(
+            "UPDATE challenges SET status = 'cancelled'
+             WHERE status = 'pending' AND (kind IS NULL OR kind <> 'pull') AND created_at < ?",
+            [Db::ts(Db::nowMs() - 5 * 60 * 1000)]
+        );
+    }
+
     /** @param array<string,mixed> $data */
     public static function getHomeState(string $userId, array $data): mixed
     {
         self::ensureBots();
         self::ensureEloScale();
+        self::expireNamedChallenges();
         $profile = self::profileById($userId);
         if ($profile === null) {
             return [
@@ -1106,6 +1116,7 @@ final class Mores
         $username = self::cleanUsername(self::str($data, 'username'));
         $mode = self::parseMode($data['mode'] ?? null);
         self::ensureBots();
+        self::expireNamedChallenges();
         $me = self::profileById($userId);
         if ($me === null) {
             throw new RpcError('Choose a club name first.');
@@ -1116,7 +1127,7 @@ final class Mores
         }
         $to = Db::one('SELECT user_id, username FROM profiles WHERE username_lc = ? LIMIT 1', [strtolower($username)]);
         if ($to === null) {
-            return ['ok' => false, 'error' => 'No player with that club name.'];
+            return ['ok' => false, 'error' => 'No player with that username.'];
         }
         $toId = (string) $to['user_id'];
         if ($toId === $userId) {
@@ -1145,6 +1156,7 @@ final class Mores
     {
         $id = self::str($data, 'id');
         $accept = (bool) ($data['accept'] ?? false);
+        self::expireNamedChallenges();
         $ch = Db::one('SELECT id, from_user_id, to_user_id, mode, status, kind FROM challenges WHERE id = ? LIMIT 1', [$id]);
         if ($ch === null || $ch['to_user_id'] !== $userId) {
             return ['ok' => false, 'error' => 'Challenge not found.'];
@@ -1439,6 +1451,7 @@ final class Mores
     public static function getChallengeInbox(string $userId, array $data): mixed
     {
         self::touchProfile($userId);
+        self::expireNamedChallenges();
         $rows = Db::all(
             "SELECT c.id, p.username, c.kind FROM challenges c JOIN profiles p ON p.user_id = c.from_user_id
              WHERE c.to_user_id = ? AND c.status = 'pending' ORDER BY c.created_at DESC LIMIT 24",

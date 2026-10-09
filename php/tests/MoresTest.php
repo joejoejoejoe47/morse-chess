@@ -119,7 +119,7 @@ check($h['queueMiss'] === true && $h['queued'] === false && $h['activeGameId'] =
 check(Mores::getChallengeInbox('bob', []) === [], 'pull challenge cancelled after miss');
 
 // ── challenge -> accept / decline / cancel ─────────────────────────────────
-check(call([Mores::class, 'sendChallenge'], 'alice', ['username' => 'nobody_here', 'mode' => 'timed']) === ['ok' => false, 'error' => 'No player with that club name.'], 'challenge unknown');
+check(call([Mores::class, 'sendChallenge'], 'alice', ['username' => 'nobody_here', 'mode' => 'timed']) === ['ok' => false, 'error' => 'No player with that username.'], 'challenge unknown');
 check(call([Mores::class, 'sendChallenge'], 'alice', ['username' => 'alice_aaa', 'mode' => 'timed']) === ['ok' => false, 'error' => 'You cannot challenge yourself.'], 'challenge self');
 $c = Mores::sendChallenge('alice', ['username' => 'BOB_bobby', 'mode' => 'breeze']);
 check($c['ok'] === true && is_string($c['challengeId']), 'challenge sent (case-insensitive name)');

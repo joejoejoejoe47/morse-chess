@@ -119,7 +119,7 @@ function paint(root: THREE.Object3D, opacity: number) {
   });
 }
 
-/** GPU skinning drops these 65-bone men (only the unskinned sword draws). Pose on the CPU instead. */
+/** GPU skinning drops these 65-bone men. Draw a plain mesh with CPU-posed vertices instead. */
 function bakeSkin(src: THREE.SkinnedMesh, dst: THREE.BufferAttribute) {
   src.updateMatrixWorld(true);
   src.skeleton.update();
@@ -164,6 +164,15 @@ function bakeSkin(src: THREE.SkinnedMesh, dst: THREE.BufferAttribute) {
   dst.needsUpdate = true;
 }
 
+function plainMaterial(mat: THREE.Material) {
+  const copy = mat.clone();
+  const dyed = copy as THREE.MeshStandardMaterial & { defines?: Record<string, string> };
+  dyed.skinning = false;
+  if (dyed.defines) delete dyed.defines.USE_SKINNING;
+  dyed.customProgramCacheKey = () => "ra-baked-body";
+  return copy;
+}
+
 function showBodies(root: THREE.Object3D) {
   const skinned: THREE.SkinnedMesh[] = [];
   root.traverse((node) => {
@@ -175,26 +184,43 @@ function showBodies(root: THREE.Object3D) {
     const geo = src.geometry.clone();
     geo.deleteAttribute("skinIndex");
     geo.deleteAttribute("skinWeight");
-    const mesh = new THREE.Mesh(geo, src.material);
-    mesh.name = src.name;
-    mesh.castShadow = false;
+    const list = Array.isArray(src.material) ? src.material : [src.material];
+    const mats = list.map((mat) => plainMaterial(mat));
+    const mesh = new THREE.Mesh(geo, mats.length === 1 ? mats[0] : mats);
+    mesh.name = `${src.name}_baked`;
+    mesh.castShadow = true;
     mesh.receiveShadow = false;
     mesh.frustumCulled = false;
-    mesh.visible = src.visible;
     mesh.position.copy(src.position);
     mesh.quaternion.copy(src.quaternion);
     mesh.scale.copy(src.scale);
     src.parent?.add(mesh);
-    src.visible = false;
     pairs.push({ src, mesh });
   }
-  root.userData.pose = () => {
+  const pose = () => {
     root.updateMatrixWorld(true);
     for (const pair of pairs) {
       if (!pair.mesh.visible) continue;
-      bakeSkin(pair.src, pair.mesh.geometry.attributes.position as THREE.BufferAttribute);
+      const attr = pair.mesh.geometry.attributes.position as THREE.BufferAttribute;
+      bakeSkin(pair.src, attr);
+      pair.mesh.geometry.computeBoundingSphere();
     }
   };
+  root.userData.pose = pose;
+  root.updateMatrixWorld(true);
+  pose();
+  let tall = 0;
+  for (const pair of pairs) {
+    const box = new THREE.Box3().setFromObject(pair.mesh);
+    tall = Math.max(tall, box.getSize(new THREE.Vector3()).y);
+  }
+  const bakedOk = tall > 0.2;
+  for (const pair of pairs) {
+    pair.mesh.visible = bakedOk;
+    pair.src.visible = !bakedOk;
+    pair.src.frustumCulled = false;
+    if (!bakedOk) Object.defineProperty(pair.src, "isSkinnedMesh", { value: false });
+  }
 }
 
 export function raUnitUrl(type: PieceSymbol) {
@@ -344,7 +370,7 @@ export function RaPawn({
       else playNamed("Idle_Shield_Loop", false);
     }
     const pose = scene.userData.pose as (() => void) | undefined;
-    if (moving || (scene.userData.hold as number) < 3) {
+    if (moving || (scene.userData.hold as number) < 45) {
       pose?.();
       scene.userData.hold = ((scene.userData.hold as number) || 0) + 1;
     }
