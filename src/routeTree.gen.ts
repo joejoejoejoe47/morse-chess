@@ -15,6 +15,7 @@ import { Route as BellRouteImport } from './routes/bell'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as ChessRouteImport } from './routes/chess'
 import { Route as ClubRouteImport } from './routes/club'
+import { Route as SandboxRouteImport } from './routes/sandbox'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ApiClubSignInRouteImport } from './routes/api/club-sign-in'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -51,6 +52,11 @@ const ChessRoute = ChessRouteImport.update({
 const ClubRoute = ClubRouteImport.update({
   id: '/club',
   path: '/club',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SandboxRoute = SandboxRouteImport.update({
+  id: '/sandbox',
+  path: '/sandbox',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
+  '/sandbox': typeof SandboxRoute
   '/login': typeof LoginRoute
   '/api/club-sign-in': typeof ApiClubSignInRoute
   '/api/health': typeof ApiHealthRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
+  '/sandbox': typeof SandboxRoute
   '/login': typeof LoginRoute
   '/api/club-sign-in': typeof ApiClubSignInRoute
   '/api/health': typeof ApiHealthRoute
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/boards': typeof BoardsRouteWithChildren
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
+  '/sandbox': typeof SandboxRoute
   '/login': typeof LoginRoute
   '/api/club-sign-in': typeof ApiClubSignInRoute
   '/api/health': typeof ApiHealthRoute
@@ -190,6 +199,7 @@ export interface RootRouteChildren {
   BoardsRoute: typeof BoardsRouteWithChildren
   ChessRoute: typeof ChessRoute
   ClubRoute: typeof ClubRoute
+  SandboxRoute: typeof SandboxRoute
   LoginRoute: typeof LoginRoute
   ApiClubSignInRoute: typeof ApiClubSignInRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -240,6 +250,13 @@ declare module '@tanstack/react-router' {
       path: '/club'
       fullPath: '/club'
       preLoaderRoute: typeof ClubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sandbox': {
+      id: '/sandbox'
+      path: '/sandbox'
+      fullPath: '/sandbox'
+      preLoaderRoute: typeof SandboxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -312,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   BoardsRoute: BoardsRouteWithChildren,
   ChessRoute: ChessRoute,
   ClubRoute: ClubRoute,
+  SandboxRoute: SandboxRoute,
   LoginRoute: LoginRoute,
   ApiClubSignInRoute: ApiClubSignInRoute,
   ApiHealthRoute: ApiHealthRoute,

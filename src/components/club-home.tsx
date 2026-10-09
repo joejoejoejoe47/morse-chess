@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SplashSkeleton } from "@/components/auth-screen";
 import { JoinSlips } from "@/components/club/join-slips";
+import { SandboxGate } from "@/components/sandbox-gate";
 
 type Flow =
   | { kind: "idle" }
@@ -274,6 +275,7 @@ export function ClubHome() {
           </p>
         </button>
       </section>
+      <SandboxGate />
       <Link
         to="/club"
         className="relative mt-4 flex min-h-14 w-full items-center justify-center rounded-xl border border-gold-line/55 bg-walnut/90 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"

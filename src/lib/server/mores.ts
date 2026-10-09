@@ -1488,3 +1488,41 @@ export const getChallengeInbox = createServerFn({ method: "GET" })
       kind: r.kind === "pull" ? ("pull" as const) : ("named" as const),
     }));
   });
+
+const SANDBOX_ID = "sandbox-cross";
+const SANDBOX_PRICE = 90;
+
+export const sandboxStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const me = await profileById(sql, context.userId);
+    if (!me) return { owned: false, coins: 0, price: SANDBOX_PRICE };
+    return {
+      owned: ownedList(me.owned_boards).includes(SANDBOX_ID),
+      coins: toInt(me.coins, 0),
+      price: SANDBOX_PRICE,
+    };
+  });
+
+export const buySandbox = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const me = await profileById(sql, context.userId);
+    if (!me) throw new Error("Choose a club name first.");
+    const owned = ownedList(me.owned_boards);
+    const purse = toInt(me.coins, 0);
+    if (owned.includes(SANDBOX_ID)) return { ok: true as const, coins: purse, owned: true };
+    if (purse < SANDBOX_PRICE) {
+      return {
+        ok: false as const,
+        error: `You need ${SANDBOX_PRICE} Morse coins. You have ${purse.toLocaleString()}.`,
+        coins: purse,
+      };
+    }
+    const coins = purse - SANDBOX_PRICE;
+    const next = [...owned, SANDBOX_ID];
+    await sql`update profiles set coins = ${coins}, owned_boards = ${next.join(",")} where user_id = ${context.userId}`;
+    return { ok: true as const, coins, owned: true };
+  });
