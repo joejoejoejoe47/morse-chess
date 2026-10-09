@@ -198,11 +198,11 @@ check((int) Db::value("SELECT score FROM profiles WHERE user_id = ?", [$black]) 
 $coinsBefore = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']);
 $snap = Mores::resignGame('alice', ['gameId' => $gid]);
 check($snap['status'] === ($white === 'alice' ? 'black_win' : 'white_win') && $snap['winnerUserId'] === 'bob', 'resign hands the win to the other side');
-check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']) === $coinsBefore + 1, 'winner gets +1 style coin');
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']) === $coinsBefore + 2, 'winner gets +2 Morse coins');
 $bobSnap = Mores::getGame('bob', ['gameId' => $gid]);
 $aliceSnap = Mores::getGame('alice', ['gameId' => $gid]);
-check($bobSnap['coinAward'] === 1 && $aliceSnap['coinAward'] === 0, 'coinAward shown to winner only');
-check($bobSnap['coins'] === $coinsBefore + 1, 'snapshot carries purse');
+check($bobSnap['coinAward'] === 2 && $aliceSnap['coinAward'] === 0, 'coinAward shown to winner only');
+check($bobSnap['coins'] === $coinsBefore + 2, 'snapshot carries purse');
 check(Mores::resignGame('cara', ['gameId' => $gid]) === null, 'outsider resign -> null');
 check(Mores::resignGame('alice', ['gameId' => 'zzz']) === null, 'resign unknown -> null');
 
@@ -321,8 +321,8 @@ if ($g['you'] === 'w') {
     Db::run('UPDATE games SET turn_started_at = ?, white_clock_ms = 1000 WHERE id = ?', [Db::ts(Db::nowMs() - 2000), $gid]);
 }
 $s = Mores::claimTimeout('cara', ['gameId' => $gid]);
-check($s['winnerUserId'] === 'cara' && $s['coinAward'] === 6, 'sixth win in a row pays 5 + 1 style coin');
-check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['cara']) === 6 && (int) Db::value('SELECT bot_streak FROM profiles WHERE user_id = ?', ['cara']) === 0, 'streak resets after payout');
+check($s['winnerUserId'] === 'cara' && $s['coinAward'] === 7, 'sixth win in a row pays 5 + 2 Morse coins');
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['cara']) === 7 && (int) Db::value('SELECT bot_streak FROM profiles WHERE user_id = ?', ['cara']) === 0, 'streak resets after payout');
 // bot elo moves too
 check((int) Db::value("SELECT score FROM profiles WHERE user_id = 'bot-mores'") !== 1840, 'bot Elo is settled like any other player');
 

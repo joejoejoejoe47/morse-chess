@@ -358,8 +358,8 @@ final class Mores
         if (($style !== '' ? $style : '3d') !== '3d') {
             return;
         }
-        Db::run('UPDATE profiles SET coins = coins + 1 WHERE user_id = ?', [$winnerUserId]);
-        $next = self::toInt($game['coin_award'] ?? null, 0) + 1;
+        Db::run('UPDATE profiles SET coins = coins + 2 WHERE user_id = ?', [$winnerUserId]);
+        $next = self::toInt($game['coin_award'] ?? null, 0) + 2;
         Db::run('UPDATE games SET coin_award = ? WHERE id = ?', [$next, $game['id']]);
         $game['coin_award'] = $next;
     }

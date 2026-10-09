@@ -393,7 +393,7 @@ final class Clubs
         Db::run('UPDATE profiles SET score = CASE WHEN score - 8 < 100 THEN 100 ELSE score - 8 END WHERE user_id = ?', [$loser]);
         $style = Db::value('SELECT piece_style FROM profiles WHERE user_id = ? LIMIT 1', [$winnerUserId]);
         if (($style ?: '3d') === '3d') {
-            Db::run('UPDATE profiles SET coins = coins + 1 WHERE user_id = ?', [$winnerUserId]);
+            Db::run('UPDATE profiles SET coins = coins + 2 WHERE user_id = ?', [$winnerUserId]);
         }
     }
 
