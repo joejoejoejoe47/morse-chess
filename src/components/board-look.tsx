@@ -143,7 +143,7 @@ export function BoardLook({
 
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden" style={roomBackdrop(backdropColor, backdropImage)}>
-      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <header data-coin-bar className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <ClubBrand to="/" />
         <div className="flex flex-wrap items-center justify-end gap-3">
           <span className="text-[15px] text-mist">

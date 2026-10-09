@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Square } from "chess.js";
 import { Clock, LogOut, Send } from "lucide-react";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { asset } from "@/lib/base";
 
 const CLUB_KEY = "morse-open-club";
+const DOOR_KEY = "door";
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 export const Route = createFileRoute("/club")({ component: ClubDoor });
@@ -59,7 +60,6 @@ function ClubDoor() {
 }
 
 function ClubApp({ userId }: { userId: string }) {
-  const navigate = useNavigate();
   const [clubId, setClubId] = useState<string>(() => {
     try {
       return localStorage.getItem(CLUB_KEY) || "";
@@ -115,7 +115,15 @@ function ClubApp({ userId }: { userId: string }) {
       userId={userId}
       pack={pack}
       onLeave={() => {
-        void navigate({ to: "/" });
+        try {
+          localStorage.setItem(CLUB_KEY, DOOR_KEY);
+        } catch {
+          /* the door still opens for this visit */
+        }
+        setClubId(DOOR_KEY);
+        setPack((current) =>
+          current ? { ...current, club: null, members: [], messages: [], requests: [], event: null } : current,
+        );
       }}
     />
   );
@@ -371,7 +379,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
             </button>
             <button type="button" className="inline-flex items-center gap-2 px-2 py-2 text-sm text-[#ddd4c4]" onClick={onLeave}>
               <LogOut className="size-4" />
-              Leave the room
+              Leave the club
             </button>
             <Link to="/" className="inline-flex items-center gap-2 px-2 py-2 text-sm text-[#ddd4c4]">
               Lounge

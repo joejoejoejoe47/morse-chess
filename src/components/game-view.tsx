@@ -504,7 +504,7 @@ export function GameView({ gameId }: { gameId: string }) {
       className="relative flex h-dvh max-h-dvh flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
       style={roomBackdrop(room, roomImage)}
     >
-      <header className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
+      <header data-coin-bar className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
         <ClubBrand to="/" tone={backdropLight ? "dark" : "light"} />
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-[15px] text-mist md:inline">
