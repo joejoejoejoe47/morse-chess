@@ -124,7 +124,7 @@ function fitCrown(source: THREE.Object3D) {
   const box = new THREE.Box3().setFromObject(obj);
   const size = box.getSize(new THREE.Vector3());
   const span = Math.max(size.x, size.z, 0.001);
-  const fit = 0.18 / span;
+  const fit = 0.1 / span;
   obj.scale.setScalar(fit);
   obj.position.y = -box.min.y * fit;
   return obj;
@@ -192,7 +192,7 @@ function seatCrown(head: THREE.Object3D, crown: THREE.Object3D) {
   crown.updateMatrixWorld(true);
   const raw = new THREE.Box3().setFromObject(crown);
   const span = Math.max(raw.max.x - raw.min.x, raw.max.z - raw.min.z, 0.001);
-  crown.scale.setScalar(0.16 / span);
+  crown.scale.setScalar(0.09 / span);
   crown.updateMatrixWorld(true);
   const fitted = new THREE.Box3().setFromObject(crown);
   const center = fitted.getCenter(new THREE.Vector3());
@@ -200,7 +200,7 @@ function seatCrown(head: THREE.Object3D, crown: THREE.Object3D) {
   head.add(crown);
   const headScale = new THREE.Vector3();
   head.getWorldScale(headScale);
-  crown.position.y += 0.09 / Math.max(Math.abs(headScale.y), 0.001);
+  crown.position.y += 0.045 / Math.max(Math.abs(headScale.y), 0.001);
 }
 
 function clearKit(root: THREE.Object3D) {

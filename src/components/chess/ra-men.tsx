@@ -7,21 +7,33 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { asset } from "@/lib/base";
 import type { Gait } from "@/components/chess/stone-people";
 
-const RA_KING = asset("/units/fantasy/king.gltf");
-const RA_BISHOP = asset("/units/fantasy/bishop.gltf");
-const RA_KNIGHT = asset("/units/fantasy/knight.gltf");
-const RA_ROOK = asset("/units/fantasy/rook.gltf");
-const RA_PAWN = asset("/units/fantasy/pawn.gltf");
+const MALE_RANGER = asset("/units/fantasy/male-ranger.gltf");
+const FEMALE_RANGER = asset("/units/fantasy/female-ranger.gltf");
+const MALE_PEASANT = asset("/units/fantasy/male-peasant.gltf");
+const FEMALE_PEASANT = asset("/units/fantasy/female-peasant.gltf");
+const HEAD_KING = asset("/units/fantasy/king.gltf");
+const HEAD_QUEEN = asset("/units/fantasy/queen.gltf");
+const HEAD_PAWN = asset("/units/fantasy/pawn.gltf");
 const RA_ANIMS = asset("/units/fantasy/anims.glb");
 const RA_SWORD = asset("/avatars/swords/devil.glb");
 
+// Official Quaternius Modular Character Outfits (Fantasy): rangers and peasants.
 const RA_URL: Record<PieceSymbol, string> = {
-  k: RA_KING,
-  q: RA_KING,
-  b: RA_BISHOP,
-  n: RA_KNIGHT,
-  r: RA_ROOK,
-  p: RA_PAWN,
+  k: MALE_RANGER,
+  q: FEMALE_RANGER,
+  b: FEMALE_PEASANT,
+  n: MALE_RANGER,
+  r: MALE_PEASANT,
+  p: MALE_PEASANT,
+};
+
+const RA_HEAD: Record<PieceSymbol, string> = {
+  k: HEAD_KING,
+  q: HEAD_QUEEN,
+  b: HEAD_QUEEN,
+  n: HEAD_KING,
+  r: HEAD_KING,
+  p: HEAD_PAWN,
 };
 
 const RA_ATTACK: Record<PieceSymbol, string[]> = {
@@ -56,14 +68,44 @@ function normalWalk(clips: THREE.AnimationClip[]) {
   return new THREE.AnimationClip("Walk_Normal_Loop", walk.duration, tracks);
 }
 
-useGLTF.preload(RA_KING);
-useGLTF.preload(RA_BISHOP);
-useGLTF.preload(RA_KNIGHT);
-useGLTF.preload(RA_ROOK);
-useGLTF.preload(RA_PAWN);
+useGLTF.preload(MALE_RANGER);
+useGLTF.preload(FEMALE_RANGER);
+useGLTF.preload(MALE_PEASANT);
+useGLTF.preload(FEMALE_PEASANT);
+useGLTF.preload(HEAD_KING);
+useGLTF.preload(HEAD_QUEEN);
+useGLTF.preload(HEAD_PAWN);
 useGLTF.preload(RA_ANIMS);
 useGLTF.preload(RA_SWORD);
 
+function isFaceMesh(name: string) {
+  return /^(Eyes|Eyebrows|Hair_|SuperHero_|Superhero_)/.test(name);
+}
+
+function graftFace(outfit: THREE.Object3D, donor: THREE.Object3D) {
+  let skeleton: THREE.Skeleton | null = null;
+  let host: THREE.Object3D = outfit;
+  outfit.traverse((node) => {
+    const mesh = node as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || !mesh.skeleton) return;
+    skeleton = mesh.skeleton;
+    if (mesh.parent) host = mesh.parent;
+  });
+  if (!skeleton) return;
+  const bones = skeleton;
+  donor.traverse((node) => {
+    const mesh = node as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || !isFaceMesh(mesh.name)) return;
+    const copy = mesh.clone();
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    copy.material = mats.map((mat) => mat.clone());
+    copy.skeleton = bones;
+    copy.bind(bones, copy.bindMatrix);
+    copy.frustumCulled = false;
+    copy.castShadow = false;
+    host.add(copy);
+  });
+}
 function paint(root: THREE.Object3D, opacity: number) {
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
@@ -93,9 +135,11 @@ export function RaPawn({
   role: PieceSymbol;
 }) {
   const gltf = useGLTF(url);
+  const headFile = useGLTF(RA_HEAD[role]);
   const bladeFile = useGLTF(RA_SWORD);
   const scene = useMemo(() => {
     const obj = cloneSkeleton(gltf.scene);
+    graftFace(obj, headFile.scene);
     obj.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -126,8 +170,9 @@ export function RaPawn({
         return copy;
       });
     });
-    if (role === "k") {
-      const hood = obj.getObjectByName("Male_Ranger_Head_Hood");
+    if (role === "k" || role === "q") {
+      const hood =
+        obj.getObjectByName("Male_Ranger_Head_Hood") || obj.getObjectByName("Female_Ranger_Head_Hood");
       if (hood) hood.visible = false;
     }
     const hand = obj.getObjectByName("hand_r");
@@ -165,7 +210,7 @@ export function RaPawn({
     obj.position.y -= new THREE.Box3().setFromObject(obj).min.y;
     obj.userData.fit = obj.scale.x || 1;
     return obj;
-  }, [gltf.scene, bladeFile.scene, url, team, role]);
+  }, [gltf.scene, headFile.scene, bladeFile.scene, url, team, role]);
   const anims = useGLTF(RA_ANIMS);
   const clips = useMemo(() => {
     const walk = normalWalk(anims.animations);

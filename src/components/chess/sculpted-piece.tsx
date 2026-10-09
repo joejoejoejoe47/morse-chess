@@ -89,7 +89,7 @@ export function KingCrown({ id, team }: { id: string; team: TeamView }) {
     const box = new THREE.Box3().setFromObject(obj);
     const size = box.getSize(new THREE.Vector3());
     const span = Math.max(size.x, size.z, 0.001);
-    const fit = 0.2 / span;
+    const fit = 0.25 / span;
     obj.scale.setScalar(fit);
     obj.updateMatrixWorld(true);
     const fitted = new THREE.Box3().setFromObject(obj);

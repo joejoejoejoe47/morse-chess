@@ -638,7 +638,7 @@ function AnimatedPiece({
             ink={INK_BOARDS.has(skin.id) ? (color === "w" ? "#f7f4ee" : "#14110e") : undefined}
           />
           {type === "k" && gear?.crownId && gear.crownId !== "none" ? (
-            <group position={[0, 1.0, 0]}>
+            <group position={[0, 0.9, 0]}>
               <KingCrown id={gear.crownId} team={color} />
             </group>
           ) : null}
