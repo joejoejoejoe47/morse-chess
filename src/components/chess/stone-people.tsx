@@ -43,10 +43,9 @@ const LOOK: Record<
   },
   r: {
     w: asset("/units/knight.glb"),
-    b: asset("/units/knight.glb"),
-    show: ["1H_Sword", "Rectangle_Shield", "Knight_Helmet"],
+    b: asset("/units/skeleton-warrior.glb"),
+    show: ["1H_Sword", "Rectangle_Shield", "Knight_Helmet", "Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"],
     scale: 0.84,
-    darkTint: "#3e3832",
   },
   p: {
     w: asset("/units/rogue.glb"),

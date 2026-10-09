@@ -206,6 +206,10 @@
         {
           "id": "talwar",
           "price": 4
+        },
+        {
+          "id": "rook",
+          "price": 5
         }
       ],
       "crowns": [
@@ -214,18 +218,22 @@
           "price": 0
         },
         {
-          "id": "arched",
-          "price": 5
+          "id": "halo",
+          "price": 4
         },
         {
-          "id": "laurel",
-          "price": 4
+          "id": "royal-crown",
+          "price": 6
         }
       ],
       "mounts": [
         {
           "id": "none",
           "price": 0
+        },
+        {
+          "id": "dog",
+          "price": 8
         }
       ],
       "frames": [
@@ -283,7 +291,9 @@
         "from": [
           "circlet",
           "sun",
-          "poly-arch"
+          "poly-arch",
+          "arched",
+          "laurel"
         ],
         "to": "poly-band"
       },

@@ -73,6 +73,7 @@ export function SculptedPiece({ type, color, ink, yaw }: { type: PieceSymbol; co
 
 /** Crown width matches the Staunton king's head. Bottom sits at local y=0. */
 export function KingCrown({ id, team }: { id: string; team: TeamView }) {
+  void team;
   const spec = crownById(id);
   const gltf = useGLTF(spec.model || asset("/avatars/crowns/poly-band.glb"));
   const scene = useMemo(() => {
@@ -90,10 +91,11 @@ export function KingCrown({ id, team }: { id: string; team: TeamView }) {
     const box = new THREE.Box3().setFromObject(holder);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const fit = 0.26 / Math.max(size.x, size.z, 0.001);
+    const halo = id === "halo";
+    const fit = (halo ? 0.32 : 0.26) / Math.max(size.x, size.z, 0.001);
     holder.scale.setScalar(fit);
-    holder.position.set(-center.x * fit, -box.min.y * fit, -center.z * fit);
+    holder.position.set(-center.x * fit, -box.min.y * fit + (halo ? 0.07 : 0), -center.z * fit);
     return holder;
-  }, [gltf.scene, team]);
+  }, [gltf.scene, id]);
   return <primitive object={scene} />;
 }

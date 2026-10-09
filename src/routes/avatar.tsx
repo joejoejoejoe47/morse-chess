@@ -7,7 +7,8 @@ import { Figurine } from "@/components/avatar/figurine";
 import { RaShop } from "@/components/avatar/ra-buy";
 import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
 import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
-import type { Gait } from "@/components/chess/stone-people";
+import { StonePerson, type Gait } from "@/components/chess/stone-people";
+import { RaCrown, WarDog } from "@/components/chess/war-dog";
 import { FieldStage } from "@/components/avatar/field-stage";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { useClubDoor } from "@/lib/auth/use-club-door";
@@ -128,7 +129,7 @@ function AvatarStudio() {
   async function equip(kind: keyof AvatarLoadout, id: string, price: number) {
     setError(null);
     setStrike(false);
-    if (kind === "crownId" && (worn.style === "an" || worn.style === "ra") && worn.anId === "royal") {
+    if (kind === "crownId" && worn.style === "an" && worn.anId === "royal") {
       setError("The royal king wears no crown.");
       return;
     }
@@ -145,6 +146,7 @@ function AvatarStudio() {
       const next = { ...worn, [kind]: id } as AvatarLoadout;
       if ((worn.style === "an" || worn.style === "ra") && kind === "kingId") next.anId = id;
       if (worn.style === "3d" && kind === "anId") next.kingId = id;
+      if ((kind === "anId" || kind === "kingId") && id !== "knight" && next.swordId === "rook") next.swordId = "none";
       const slot = kind === "anId" || kind === "kingId" ? "king" : kind === "swordId" || kind === "mountId" || kind === "crownId" ? kind : null;
       if (slot) {
         const drop = slotIds(slot);
@@ -162,25 +164,35 @@ function AvatarStudio() {
 
   const loadout = previewLoadout(worn, pins);
 
-  const [tab, setTab] = useState<"kings" | "swords" | "animals" | "crowns" | "frames" | "attacks">("kings");
+  const [tab, setTab] = useState<"kings" | "swords" | "dog" | "crowns" | "frames" | "attacks">("kings");
   const ownsRoyal = owned.includes("royal");
   const animated = loadout.style === "an" || loadout.style === "ra";
   const characterId = loadout.style === "ra" ? "royal" : animated ? loadout.anId : loadout.kingId;
   const viewLabel = loadout.team === "w" ? "View black" : "View white";
+  const silver = loadout.style === "an" && loadout.anId === "knight";
   const tabs =
     loadout.style === "2d"
       ? ([["crowns", "Crowns"]] as const)
-      : animated
+      : loadout.style === "ra"
         ? ([
             ["kings", "Kings"],
             ["crowns", "Crowns"],
+            ["dog", "Dog"],
             ["frames", "Frames"],
             ["attacks", "Attacks"],
           ] as const)
-        : ([
-            ["kings", "King"],
-            ["crowns", "Crowns"],
-          ] as const);
+        : animated
+          ? ([
+              ["kings", "Kings"],
+              ...(silver ? ([["swords", "Swords"]] as const) : []),
+              ["crowns", "Crowns"],
+              ["frames", "Frames"],
+              ["attacks", "Attacks"],
+            ] as const)
+          : ([
+              ["kings", "King"],
+              ["crowns", "Crowns"],
+            ] as const);
   const shown = tabs.some(([id]) => id === tab) ? tab : tabs[0][0];
 
   return (
@@ -208,7 +220,7 @@ function AvatarStudio() {
             <Suspense fallback={null}>
               <FieldStage />
               <group position={[0, 0, 1.2]}>
-                <RaPreview team={loadout.team} />
+                <RaPreview team={loadout.team} crownId={loadout.crownId} dog={loadout.mountId === "dog"} />
               </group>
             </Suspense>
             <OrbitControls enablePan={false} target={[0, 1.1, 1.2]} minDistance={3} maxDistance={12} maxPolarAngle={1.35} />
@@ -223,16 +235,22 @@ function AvatarStudio() {
             <Suspense fallback={null}>
               <FieldStage />
               <group position={[0, 0, 1.2]}>
+                {loadout.anId === "knight" && loadout.swordId === "rook" ? (
+                  <group scale={1.45}>
+                    <BlueRook />
+                  </group>
+                ) : (
                 <Figurine
                   key={`${characterId}-${loadout.mountId}-${loadout.swordId}-${loadout.crownId}-${loadout.team}`}
                   characterId={characterId}
-                  mountId={loadout.mountId}
+                  mountId="none"
                   swordId="none"
                   crownId={loadout.crownId}
                   team={loadout.team}
                   attackId={loadout.attackId}
                   striking={strike}
                 />
+                )}
               </group>
             </Suspense>
             <OrbitControls
@@ -331,7 +349,7 @@ function AvatarStudio() {
         </div>
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
           {error ? <p className="rounded-xl bg-[#3a221c] px-3 py-2 text-sm text-[#f4d2c8]">{error}</p> : null}
-          {characterId === "royal" && shown === "crowns" ? (
+          {loadout.style === "an" && characterId === "royal" && shown === "crowns" ? (
             <p className="rounded-xl border border-[#3a3126] px-3 py-2 text-sm text-[#d9c7a4]">The royal king wears no crown.</p>
           ) : null}
           {shown === "kings"
@@ -355,6 +373,37 @@ function AvatarStudio() {
             >
               {characterId === "hooded" ? "Hood is on. Take it off." : "Add a hood"}
             </button>
+          ) : null}
+          {shown === "swords"
+            ? SWORDS.filter((item) => item.id === "none" || item.id === "rook").map((item) => (
+                <Portrait
+                  key={item.id}
+                  item={item}
+                  picked={loadout.swordId === item.id}
+                  owned={owned.includes(item.id) || item.price === 0}
+                  onPick={() => void equip("swordId", item.id, item.price)}
+                  pinned={pins.includes(item.id)}
+                  onPin={() => pinItem("swordId", item.id)}
+                />
+              ))
+            : null}
+          {shown === "dog" ? (
+            <>
+              <p className="rounded-xl border border-[#3a3126] px-3 py-2 text-sm text-[#d9c7a4]">
+                Crown or dog. The dog costs coins. In a game he runs out and tears the enemy to bits.
+              </p>
+              {MOUNTS.map((item) => (
+                <Portrait
+                  key={item.id}
+                  item={item}
+                  picked={loadout.mountId === item.id}
+                  owned={owned.includes(item.id) || item.price === 0}
+                  onPick={() => void equip("mountId", item.id, item.price)}
+                  pinned={pins.includes(item.id)}
+                  onPin={() => pinItem("mountId", item.id)}
+                />
+              ))}
+            </>
           ) : null}
           {shown === "crowns"
             ? CROWNS.map((item) => (
@@ -434,9 +483,24 @@ function AvatarStudio() {
     </main>
   );
 }
-function RaPreview({ team }: { team: "w" | "b" }) {
+function RaPreview({ team, crownId, dog }: { team: "w" | "b"; crownId: string; dog: boolean }) {
   const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
-  return <RaPawn gait={gait} url={raUnitUrl("k")} team={team === "b" ? "red" : "blue"} role="k" />;
+  return (
+    <group>
+      <RaPawn gait={gait} url={raUnitUrl("k")} team={team === "b" ? "red" : "blue"} role="k" />
+      <RaCrown crownId={crownId} team={team} />
+      {dog ? (
+        <group position={[0.75, 0, 0.2]}>
+          <WarDog act="idle" />
+        </group>
+      ) : null}
+    </group>
+  );
+}
+
+function BlueRook() {
+  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
+  return <StonePerson type="r" white cast="stone" gait={gait} flip={false} />;
 }
 
 function KingTable({ crownId, team }: { crownId: string; team: "w" | "b" }) {
@@ -481,16 +545,22 @@ function CrownFlat({ id, dark }: { id: string; dark: boolean }) {
   const edge = dark ? "#0c0a08" : "#7a5620";
   const leaf = dark ? "#3e4a36" : "#8fa56a";
   const crown =
-    id === "poly-arch"
-      ? "M10 58 L22 30 Q50 4 78 30 L90 58 Z"
-      : "M12 58 L18 40 L32 48 L50 28 L68 48 L82 40 L88 58 Z";
+    id === "halo"
+      ? ""
+      : id === "royal-crown"
+        ? "M8 58 L16 22 L28 40 L50 8 L72 40 L84 22 L92 58 Z"
+        : id === "poly-arch"
+          ? "M10 58 L22 30 Q50 4 78 30 L90 58 Z"
+          : "M12 58 L18 40 L32 48 L50 28 L68 48 L82 40 L88 58 Z";
   return (
     <svg
       viewBox="0 0 100 70"
       className="pointer-events-none absolute left-1/2 top-[27%] w-[34%] -translate-x-1/2"
       aria-hidden
     >
-      {id === "laurel" ? (
+      {id === "halo" ? (
+        <ellipse cx="50" cy="36" rx="28" ry="10" fill="none" stroke={metal} strokeWidth="5" />
+      ) : id === "laurel" ? (
         <g fill={leaf} stroke={edge} strokeWidth="1.2">
           {[-1, 1].map((side) => (
             <g key={side} transform={`translate(50 48) scale(${side} 1)`}>
@@ -523,7 +593,15 @@ function GearMark({ id }: { id: string }) {
         ? "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"
         : id === "staff"
           ? "M12 21V4 M12 6l3 2 M12 6l-3 2"
-          : id === "none"
+          : id === "rook"
+            ? "M12 20V5 M8 9h8 M6 20h12v-5H6z"
+            : id === "halo"
+              ? "M12 5a7 7 0 1 0 0.01 0"
+              : id === "royal-crown"
+                ? "M4 18 L8 6 L12 14 L16 4 L20 14 L24 6 L20 18 Z"
+                : id === "dog"
+                  ? "M4 14c2-5 4-6 6-4 1 0 2 1 2 1s1-1 2-1c2-2 4-1 6 4 0 4-2 6-4 6H8c-2 0-4-2-4-6z"
+                  : id === "none"
             ? "M8 16c2-4 6-4 8 0"
             : "M12 20V5 M8 9h8";
   return (

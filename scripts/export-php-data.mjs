@@ -47,7 +47,7 @@ const out = {
     // Legacy ids that parseLoadout() remaps to current ones.
     legacy: {
       sword: { from: ["sword", "dual", "shield", "staff", "long", "cutlass", "axe", "rapier"], to: "devil" },
-      crown: { from: ["circlet", "sun", "poly-arch"], to: "poly-band" },
+      crown: { from: ["circlet", "sun", "poly-arch", "arched", "laurel"], to: "poly-band" },
       attack: { from: ["flip", "slam", "sweep", "charge", "flash", "bow"], to: "chop" },
     },
   },

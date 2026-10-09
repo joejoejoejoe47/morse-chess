@@ -3,7 +3,7 @@ import { useAnimations, useFBX, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { characterById, crownById, mountById, type TeamView } from "@/lib/avatar/catalog";
+import { characterById, crownById, mountById, skeletonFor, type TeamView } from "@/lib/avatar/catalog";
 import { asset } from "@/lib/base";
 
 function prep(source: THREE.Object3D, height: number, dark: boolean) {
@@ -229,6 +229,7 @@ function seatCrown(root: THREE.Object3D, head: THREE.Object3D, crown: THREE.Obje
   parent.matrixWorld.decompose(new THREE.Vector3(), quat, ps);
   delta.applyQuaternion(quat.invert());
   crown.position.set(delta.x / (ps.x || 1), delta.y / (ps.y || 1), delta.z / (ps.z || 1));
+  if (crown.userData.halo) crown.position.y += 0.1 / (ps.y || 1);
 }
 
 function clearKit(root: THREE.Object3D) {
@@ -250,6 +251,7 @@ function GlbBody({
   wearCrown = true,
   pace = null,
   striking = false,
+  dress = null,
 }: {
   url: string;
   height: number;
@@ -261,6 +263,7 @@ function GlbBody({
   wearCrown?: boolean;
   pace?: MutableRefObject<{ act: string }> | null;
   striking?: boolean;
+  dress?: string[] | null;
 }) {
   const gltf = useGLTF(url);
   const crownSpec = crownById(crownId);
@@ -315,9 +318,16 @@ function GlbBody({
   useEffect(() => {
     clearKit(scene);
     hideCarried(scene);
+    if (dress) {
+      const allow = new Set(dress);
+      scene.traverse((obj) => {
+        if (/helmet|hat|hood|cape|cloak/i.test(obj.name) && !allow.has(obj.name)) obj.visible = false;
+      });
+    }
     const head = findSlot(scene, "head");
     if (wearCrown) {
       const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
+      if (crownId === "halo") crown.userData.halo = true;
       if (head) seatCrown(scene, head, crown);
       else {
         scene.add(crown);
@@ -325,7 +335,7 @@ function GlbBody({
       }
     }
     return () => clearKit(scene);
-  }, [scene, kit, crownId, team, wearCrown, crownFile.scene, bladeFile.scene, height]);
+  }, [scene, kit, crownId, team, wearCrown, crownFile.scene, bladeFile.scene, height, dress]);
   useFrame(() => {
     if (!sit) return;
     const pose = (bone: THREE.Bone, euler: THREE.Euler) => {
@@ -468,6 +478,7 @@ function Body({
   wearCrown = true,
   pace = null,
   striking = false,
+  dress = null,
 }: {
   url: string;
   kind: "glb" | "fbx";
@@ -480,9 +491,10 @@ function Body({
   wearCrown?: boolean;
   pace?: MutableRefObject<{ act: string }> | null;
   striking?: boolean;
+  dress?: string[] | null;
 }) {
   if (kind === "fbx") return <FbxBody url={url} height={height} dark={dark} />;
-  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} pace={pace} striking={striking} />;
+  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} pace={pace} striking={striking} dress={dress} />;
 }
 
 export function Figurine({
@@ -511,8 +523,9 @@ export function Figurine({
   const riderRef = useRef<THREE.Group>(null);
   const character = characterById(characterId);
   const mount = mountById(mountId);
-  const dark = team === "b";
-  const riding = Boolean(mount.url && mount.kind);
+  const bones = team === "b" ? skeletonFor(character.id) : null;
+  const dark = team === "b" && !bones;
+  const riding = Boolean(mount.url && mount.kind && mount.id !== "dog");
   const royal = character.id === "royal";
   const plainKing = character.id === "piece";
 
@@ -574,7 +587,7 @@ export function Figurine({
           <StauntonKing white={!dark} crownId={crownId} team={team} swordId="none" />
         ) : (
           <Body
-            url={character.url}
+            url={bones?.url || character.url}
             kind={character.kind}
             height={riding ? (royal ? character.height * 0.95 : character.height * 0.7) : character.height}
             dark={dark}
@@ -585,6 +598,7 @@ export function Figurine({
             wearCrown={!royal}
             pace={pace}
             striking={striking}
+            dress={bones?.show ?? null}
           />
         )}
       </group>

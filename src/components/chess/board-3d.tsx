@@ -17,6 +17,7 @@ import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
 import { ShieldBadge } from "@/components/chess/marks";
 import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
 import { RaCorpse, RaPawn, raUnitUrl } from "@/components/chess/ra-men";
+import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 
@@ -476,6 +477,7 @@ function AnimatedPiece({
   duelAt,
   pitch = 1,
   look,
+  dogAway = false,
 }: {
   square: string;
   spawnFrom: string;
@@ -498,6 +500,7 @@ function AnimatedPiece({
   duelAt: string | null;
   pitch?: number;
   look?: string;
+  dogAway?: boolean;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom, pitch);
@@ -597,13 +600,21 @@ function AnimatedPiece({
         </Html>
       ) : null}
       {real ? (
-        <group scale={type === "p" ? 0.9 : type === "k" || type === "q" ? 1.08 : 1}>
-          <RaPawn gait={gait} url={raUnitUrl(type)} team={color === "w" ? "blue" : "red"} role={type} />
+        <group>
+          <group scale={type === "p" ? 0.9 : type === "k" || type === "q" ? 1.08 : 1}>
+            <RaPawn gait={gait} url={raUnitUrl(type)} team={color === "w" ? "blue" : "red"} role={type} />
+          </group>
+          {type === "k" && gear?.crownId ? <RaCrown crownId={gear.crownId} team={color} /> : null}
+          {type === "k" && gear?.mountId === "dog" && !dogAway ? (
+            <group position={[color === "w" ? 0.62 : -0.62, 0, 0.18]}>
+              <WarDog pace={gait} />
+            </group>
+          ) : null}
         </group>
       ) : people ? (
         gear && type === "k" ? (
           <group scale={1.45}>
-            {gear.anId === "knight" && gear.swordId !== "none" && color === "w" ? (
+            {gear.anId === "knight" && gear.swordId === "rook" && color === "w" ? (
               <StonePerson type="r" white cast={cast} sword={false} wing={square[0] < "e" ? "a" : "b"} gait={gait} flip={false} />
             ) : (
             <Figurine
@@ -1483,6 +1494,7 @@ function Scene({
     { id: string; sq: Square; aside: Square; type: PieceSymbol; color: Color; delay: number; knock: boolean }[]
   >([]);
   const [captureSq, setCaptureSq] = useState<string | null>(null);
+  const [maul, setMaul] = useState<{ id: string; from: Square; to: Square; color: Color } | null>(null);
   const [duelAside, setDuelAside] = useState<Square | null>(null);
   const [fightLook, setFightLook] = useState<{ x: number; z: number } | null>(null);
   const [cheer, setCheer] = useState<Color | "all" | null>(null);
@@ -1559,12 +1571,23 @@ function Scene({
     }
     const look = kings?.[mover.color];
     let knock = false;
+    let dog = false;
     if (look) {
       try {
-        knock = parseLoadout(JSON.parse(look)).mountId !== "none";
+        const gear = parseLoadout(JSON.parse(look));
+        dog = Boolean(real && gear.mountId === "dog");
+        knock = gear.mountId !== "none" && gear.mountId !== "dog";
       } catch {
         knock = false;
       }
+    }
+    if (dog) {
+      const id = `${victim.sq}-${key}`;
+      setMaul({ id, from: lastMove.from as Square, to: victim.sq, color: mover.color });
+      setCaptureSq(lastMove.to);
+      setDuelAside(null);
+      window.setTimeout(() => setMaul((cur) => (cur?.id === id ? null : cur)), 2400);
+      return;
     }
     if (!people && !real && !knock) {
       setCaptureSq(null);
@@ -1749,9 +1772,19 @@ function Scene({
           pitch={pitch}
           duelAt={captureSq === p.sq ? duelAside : null}
           look={kings?.[p.color]}
+          dogAway={Boolean(maul && maul.color === p.color)}
           onClick={() => onSquare(p.sq)}
         />
       ))}
+      {maul ? (
+        <DogCharge
+          key={maul.id}
+          from={maul.from}
+          to={maul.to}
+          pitch={pitch}
+          onDone={() => setMaul((cur) => (cur?.id === maul.id ? null : cur))}
+        />
+      ) : null}
       {rite && people ? (
         <PromoMarch
           color={rite.color}

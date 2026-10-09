@@ -117,6 +117,13 @@ export const SWORDS: GearItem[] = [
   { id: "none", name: "Bare hands", price: 0, portrait: "", blurb: "Nothing in the hand." },
   { id: "devil", name: "Devil sword", price: 4, portrait: "", blurb: "One sword, held in the right hand." },
   { id: "talwar", name: "Talwar", price: 4, portrait: "", blurb: "One curved sword, held in the right hand." },
+  {
+    id: "rook",
+    name: "Rook sword",
+    price: 5,
+    portrait: "",
+    blurb: "The silver knight becomes the blue rook.",
+  },
 ];
 
 export type CrownItem = GearItem & { gold: string; dark: string; model?: string };
@@ -133,27 +140,39 @@ export const CROWNS: CrownItem[] = [
     model: asset("/avatars/crowns/poly-band.glb"),
   },
   {
-    id: "arched",
-    name: "Arched",
-    price: 5,
-    portrait: asset("/avatars/crowns/gold-arched.jpg"),
-    blurb: "Gold arches, smaller than the head.",
-    gold: asset("/avatars/crowns/gold-arched.jpg"),
-    dark: asset("/avatars/crowns/dark-spiked.jpg"),
+    id: "halo",
+    name: "Halo",
+    price: 4,
+    portrait: "",
+    blurb: "A ring of light over the head.",
+    gold: "",
+    dark: "",
+    model: asset("/avatars/crowns/halo.glb"),
   },
   {
-    id: "laurel",
-    name: "Laurel",
-    price: 4,
-    portrait: asset("/avatars/crowns/gold-laurel.jpg"),
-    blurb: "A ring of leaves on the head.",
-    gold: asset("/avatars/crowns/gold-laurel.jpg"),
-    dark: asset("/avatars/crowns/dark-thorn.jpg"),
+    id: "royal-crown",
+    name: "Royal Crown",
+    price: 6,
+    portrait: "",
+    blurb: "The high crown, small on the head.",
+    gold: "",
+    dark: "",
+    model: asset("/avatars/crowns/royal.glb"),
   },
 ];
 
 export const MOUNTS: (GearItem & { url?: string; kind?: ModelKind; height?: number })[] = [
-  { id: "none", name: "On foot", price: 0, portrait: "", blurb: "Stands on the square." },
+  { id: "none", name: "No dog", price: 0, portrait: "", blurb: "The king stands alone." },
+  {
+    id: "dog",
+    name: "War dog",
+    price: 8,
+    portrait: "",
+    blurb: "Stands with the ranger king. In a game he runs out and tears a capture to bits.",
+    url: asset("/avatars/husky.glb"),
+    kind: "glb",
+    height: 0.78,
+  },
 ];
 
 export const FRAMES: GearItem[] = [
@@ -195,7 +214,23 @@ export const attackById = (id: string) => byId(ATTACKS).get(id) ?? ATTACKS[0];
 
 export function crownArt(id: string, team: TeamView) {
   const crown = crownById(id);
+  if (!crown.gold && !crown.dark) return "";
   return team === "b" ? crown.dark : crown.gold;
+}
+
+/** Black view of each man: the same fighter, as a skeleton. */
+const BONES: Record<string, { url: string; show: string[] }> = {
+  knight: { url: asset("/units/skeleton-warrior.glb"), show: ["Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"] },
+  barbarian: { url: asset("/units/skeleton-warrior.glb"), show: ["Skeleton_Warrior_Helmet"] },
+  mage: { url: asset("/units/skeleton-mage.glb"), show: ["Skeleton_Mage_Hat"] },
+  rogue: { url: asset("/units/skeleton-rogue.glb"), show: ["Skeleton_Rogue_Cape"] },
+  hooded: { url: asset("/units/skeleton-rogue.glb"), show: ["Skeleton_Rogue_Hood", "Skeleton_Rogue_Cape"] },
+  pirate: { url: asset("/units/skeleton-rogue.glb"), show: ["Skeleton_Rogue_Cape"] },
+  royal: { url: asset("/units/skeleton-warrior.glb"), show: ["Skeleton_Warrior_Helmet", "Skeleton_Warrior_Cloak"] },
+};
+
+export function skeletonFor(id: string) {
+  return BONES[id] ?? null;
 }
 
 export function allGear() {
@@ -218,7 +253,7 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     typeof id === "string" && rows.some((row) => row.id === id) ? id : fallback;
   const oldSword = ["sword", "dual", "shield", "staff", "long", "cutlass", "axe", "rapier"];
   const swordRaw = oldSword.includes(String(src.swordId)) ? "devil" : src.swordId;
-  const oldCrown = ["circlet", "sun", "poly-arch"];
+  const oldCrown = ["circlet", "sun", "poly-arch", "arched", "laurel"];
   const crownRaw = oldCrown.includes(String(src.crownId)) ? "poly-band" : src.crownId;
   const oldAttack = ["flip", "slam", "sweep", "charge", "flash", "bow"];
   const attackRaw = oldAttack.includes(String(src.attackId)) ? "chop" : src.attackId;
