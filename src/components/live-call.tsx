@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { defaultIceServers, type RtcPollResponse } from "@/lib/multiplayer";
-import { pipePersonCutout } from "@/lib/media/cutout";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/base";
 
@@ -34,6 +33,7 @@ export function LiveCall({
 }) {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
   const onRemoteRef = useRef(onRemoteVideo);
   onRemoteRef.current = onRemoteVideo;
   const [status, setStatus] = useState(video ? "Opening camera…" : "Connecting…");
@@ -59,7 +59,6 @@ export function LiveCall({
     let ignoreOffer = false;
     const pending: RTCIceCandidateInit[] = [];
     let remoteId: string | null = null;
-    let cutoutStop: (() => void) | null = null;
 
     async function signal(to: string, kind: "offer" | "answer" | "ice", payload: unknown) {
       await fetch(apiUrl("/api/rtc"), {
@@ -161,29 +160,24 @@ export function LiveCall({
       try {
         const raw = await navigator.mediaDevices.getUserMedia({
           audio,
-          video: video ? { facingMode: "user", width: { ideal: 720 }, height: { ideal: 1000 } } : false,
+          video: video ? { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } } : false,
         });
         if (closed) {
           raw.getTracks().forEach((t) => t.stop());
           return;
         }
-        let outgoing = raw;
-        if (video) {
-          const cut = await pipePersonCutout(raw);
-          cutoutStop = () => {
-            cut.stop();
-            raw.getTracks().forEach((t) => t.stop());
-          };
-          outgoing = cut.stream;
-        }
-        outgoing.getAudioTracks().forEach((t) => {
+        raw.getAudioTracks().forEach((t) => {
           t.enabled = audio && !mutedRef.current;
         });
-        streamRef.current = outgoing;
-        setStatus(video ? "Waiting for the user's camera…" : "Waiting for the user…");
+        streamRef.current = raw;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = raw;
+          void localVideoRef.current.play().catch(() => undefined);
+        }
+        setStatus(video ? "Waiting for the other camera…" : "Waiting for the user…");
         void poll();
       } catch {
-        setStatus(video ? "Allow the camera to sit at the table" : "Allow the microphone to go live");
+        setStatus(video ? "Allow the camera so you can see each other" : "Allow the microphone to go live");
       }
     })();
 
@@ -191,7 +185,6 @@ export function LiveCall({
       closed = true;
       if (pollTimer) clearTimeout(pollTimer);
       pc?.close();
-      cutoutStop?.();
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       onRemoteRef.current?.(null);
@@ -203,6 +196,22 @@ export function LiveCall({
       }).catch(() => undefined);
     };
   }, [gameId, selfId, name, audio, video]);
+
+  if (video) {
+    return (
+      <div className="flex items-end gap-2 rounded-2xl border border-line bg-ink/85 p-2 shadow-lg backdrop-blur-md">
+        <div className="overflow-hidden rounded-xl bg-black">
+          <p className="px-2 pt-1 text-[10px] uppercase tracking-[0.14em] text-mist">Them</p>
+          <video ref={remoteVideoRef} autoPlay playsInline className="h-36 w-24 object-cover sm:h-48 sm:w-32" />
+        </div>
+        <div className="overflow-hidden rounded-xl bg-black">
+          <p className="px-2 pt-1 text-[10px] uppercase tracking-[0.14em] text-mist">You</p>
+          <video ref={localVideoRef} autoPlay playsInline muted className="h-28 w-20 object-cover sm:h-36 sm:w-24" />
+        </div>
+        <p className="max-w-32 pb-1 text-[12px] text-mist">{status}</p>
+      </div>
+    );
+  }
 
   const videoEl = (
     <video

@@ -16,7 +16,7 @@ import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/l
 import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
 import { ShieldBadge } from "@/components/chess/marks";
 import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
-import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
+import { RaCorpse, RaPawn, raUnitUrl } from "@/components/chess/ra-men";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 
@@ -602,14 +602,14 @@ function AnimatedPiece({
         </group>
       ) : people ? (
         gear && type === "k" ? (
-          <group scale={1.45} rotation={[0, Math.PI, 0]}>
+          <group scale={1.45}>
             {gear.anId === "knight" && gear.swordId !== "none" && color === "w" ? (
-              <StonePerson type="r" white cast={cast} sword wing={square[0] < "e" ? "a" : "b"} gait={gait} />
+              <StonePerson type="r" white cast={cast} sword={false} wing={square[0] < "e" ? "a" : "b"} gait={gait} flip={false} />
             ) : (
             <Figurine
               characterId={gear.anId === "piece" || gear.anId === "royal" ? "knight" : gear.anId}
               mountId="none"
-              swordId={gear.swordId}
+              swordId="none"
               crownId={gear.crownId}
               team={color}
               attackId={gear.attackId}
@@ -623,10 +623,11 @@ function AnimatedPiece({
           type={type}
           white={color === "w"}
           cast={cast}
-          sword={color !== you}
+          sword={false}
           clash={clash}
           wing={square[0] < "e" ? "a" : "b"}
           gait={gait}
+          flip={false}
         />
         )
       ) : (
@@ -637,7 +638,7 @@ function AnimatedPiece({
             ink={INK_BOARDS.has(skin.id) ? (color === "w" ? "#f7f4ee" : "#14110e") : undefined}
           />
           {type === "k" && gear?.crownId && gear.crownId !== "none" ? (
-            <group position={[0, 0.86, 0]} scale={0.72}>
+            <group position={[0, 1.0, 0]}>
               <KingCrown id={gear.crownId} team={color} />
             </group>
           ) : null}
@@ -1553,13 +1554,49 @@ function Scene({
     if (!victim || !mover) {
       setCaptureSq(null);
       setDuelAside(null);
+      setFightLook(null);
       return;
     }
-    // The taken unit leaves. The mover already walks onto that square.
-    setCaptureSq(null);
-    setDuelAside(null);
-    setFightLook(null);
-  }, [pieces, people, lastMove, fen, fightZoom, pitch, meadow, kings]);
+    const look = kings?.[mover.color];
+    let knock = false;
+    if (look) {
+      try {
+        knock = parseLoadout(JSON.parse(look)).mountId !== "none";
+      } catch {
+        knock = false;
+      }
+    }
+    if (!people && !real && !knock) {
+      setCaptureSq(null);
+      setDuelAside(null);
+      setFightLook(null);
+      return;
+    }
+    const aside = stepAside(lastMove.from as Square, victim.sq, new Set(pieces.map((p) => p.sq)));
+    setCaptureSq(lastMove.to);
+    setDuelAside(aside !== victim.sq ? aside : null);
+    if ((fightZoom || real || people) && aside !== victim.sq) {
+      const here = squareToWorld(lastMove.to, pitch);
+      const there = squareToWorld(aside, pitch);
+      setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
+    }
+    window.setTimeout(() => {
+      setFightLook(null);
+      setDuelAside(null);
+    }, real ? 2800 : 2600);
+    setBodies((list) => [
+      ...list,
+      {
+        id: `${victim.sq}-${victim.color}${victim.type}-${key}`,
+        sq: victim.sq,
+        aside,
+        type: victim.type,
+        color: victim.color,
+        delay: real ? 1.15 : knock ? 0.85 : 0.72,
+        knock,
+      },
+    ]);
+  }, [pieces, people, real, lastMove, fen, fightZoom, pitch, meadow, kings]);
 
   const wood = useMemo(() => {
     if (skin.id === "marble") {
@@ -1732,14 +1769,21 @@ function Scene({
           }}
         />
       ) : null}
-      {people || bodies.some((body) => body.knock)
+      {people || real || bodies.some((body) => body.knock)
         ? bodies.map((body) => {
-            const corpse = (
+            const corpse = real ? (
+              <RaCorpse
+                role={body.type}
+                team={body.color === "w" ? "blue" : "red"}
+                delay={body.knock ? 0.7 : body.aside !== body.sq ? 1.9 : body.delay}
+                onDone={() => setBodies((list) => list.filter((item) => item.id !== body.id))}
+              />
+            ) : (
               <WarCorpse
                 type={body.type}
                 white={body.color === "w"}
                 cast={skin.anSet ?? "stone"}
-                sword={body.color !== you}
+                sword={false}
                 clash={body.aside !== body.sq || fightZoom}
                 wing={body.sq[0] < "e" ? "a" : "b"}
                 delay={body.knock ? 0.7 : body.aside !== body.sq ? 1.9 : body.delay}

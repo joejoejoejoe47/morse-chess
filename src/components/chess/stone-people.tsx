@@ -580,5 +580,5 @@ export function WarCorpse({
     }
   });
 
-  return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} wing={wing} gait={gait} />;
+  return <StonePerson type={type} white={white} cast={cast} sword={sword} clash={clash} wing={wing} gait={gait} flip={false} />;
 }

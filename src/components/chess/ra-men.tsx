@@ -116,9 +116,13 @@ export function RaPawn({
         copy.depthWrite = true;
         copy.side = THREE.DoubleSide;
         copy.alphaTest = 0;
+        copy.color.set("#ffffff");
         if (/hair|brow/i.test(copy.name)) copy.color.set("#1a140f");
-        else if (/ranger|peasant/i.test(copy.name)) copy.color.set(team === "blue" ? "#1d4ed8" : "#dc2626");
-        else copy.color.set("#ffffff");
+        else if (/ranger|peasant/i.test(copy.name)) {
+          copy.emissive = new THREE.Color(team === "blue" ? "#2563eb" : "#dc2626");
+          copy.emissiveIntensity = 0.45;
+          if (copy.map) copy.emissiveMap = copy.map;
+        }
         return copy;
       });
     });
@@ -214,4 +218,45 @@ export function RaPawn({
     else playNamed("Idle_Shield_Loop", false);
   });
   return <primitive object={scene} />;
+}
+
+export function RaCorpse({
+  role,
+  team,
+  delay,
+  onDone,
+}: {
+  role: PieceSymbol;
+  team: "blue" | "red";
+  delay: number;
+  onDone: () => void;
+}) {
+  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
+  const born = useRef<number | null>(null);
+  const done = useRef(false);
+  useFrame(({ clock }) => {
+    if (born.current == null) born.current = clock.elapsedTime;
+    const t = clock.elapsedTime - born.current;
+    const fall = 1.5;
+    const lie = 2.2;
+    const fade = 1.4;
+    if (t < delay) {
+      gait.current.act = "idle";
+      gait.current.fade = 1;
+      return;
+    }
+    gait.current.act = "death";
+    const after = t - delay;
+    if (after < fall + lie) {
+      gait.current.fade = 1;
+      return;
+    }
+    const k = (after - fall - lie) / fade;
+    gait.current.fade = Math.max(0, 1 - k);
+    if (k >= 1 && !done.current) {
+      done.current = true;
+      onDone();
+    }
+  });
+  return <RaPawn gait={gait} url={raUnitUrl(role)} team={team} role={role} />;
 }

@@ -78,8 +78,24 @@ export function KingCrown({ id, team }: { id: string; team: TeamView }) {
     const obj = gltf.scene.clone(true);
     obj.traverse((node) => {
       const mesh = node as THREE.Mesh;
-      if (mesh.isMesh) mesh.castShadow = true;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.frustumCulled = false;
     });
+    obj.position.set(0, 0, 0);
+    obj.rotation.set(0, 0, 0);
+    obj.scale.set(1, 1, 1);
+    obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    const span = Math.max(size.x, size.z, 0.001);
+    const fit = 0.2 / span;
+    obj.scale.setScalar(fit);
+    obj.updateMatrixWorld(true);
+    const fitted = new THREE.Box3().setFromObject(obj);
+    const center = fitted.getCenter(new THREE.Vector3());
+    obj.position.set(-center.x, -fitted.min.y, -center.z);
+    void team;
     return obj;
   }, [gltf.scene, team]);
   return <primitive object={scene} />;

@@ -282,7 +282,6 @@ export function GameView({ gameId }: { gameId: string }) {
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
   const [view, setView] = useState<BoardView>(readBoardView);
   const [draft, setDraft] = useState("");
-  const [seatVideo, setSeatVideo] = useState<HTMLVideoElement | null>(null);
   const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null);
   const [tuning, setTuning] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -487,7 +486,7 @@ export function GameView({ gameId }: { gameId: string }) {
   const skin = equippedSkin(game.myScore, game.myBoard, myName, game.ownedBoards);
   const vsBot = isBotUserId(opp.userId);
   const selfId = game.you === "w" ? game.white.userId : game.black.userId;
-  const cameraOn = view === "3d" && game.cameraOpen;
+  const cameraOn = Boolean(game.cameraOpen) && !vsBot;
   const boardProps = {
     fen: game.fen,
     you: game.you,
@@ -665,12 +664,12 @@ export function GameView({ gameId }: { gameId: string }) {
                 roomImage={roomImage}
                 roomScene={liveScene}
                 modelUrl={liveScene === "model" ? modelUrl : null}
-                tableSeat={cameraOn ? (vsBot ? "bot" : "video") : null}
-                seatVideo={seatVideo}
+                tableSeat={null}
+                seatVideo={null}
                 people={view === "an"}
                 real={view === "ra"}
                 showTip={prefs.pieceTip}
-                fightZoom={view === "an" && prefs.fightZoom}
+                fightZoom={(view === "an" || view === "ra") && prefs.fightZoom}
                 kings={{ w: game.whiteLook, b: game.blackLook }}
               />
           )}
@@ -725,22 +724,23 @@ export function GameView({ gameId }: { gameId: string }) {
         ) : null}
         {over ? <ResultOverlay game={game} /> : null}
         {cameraOn && !vsBot ? (
-          <LiveCall
-            gameId={game.id}
-            selfId={selfId}
-            name={myName}
-            audio={false}
-            video
-            hud={false}
-            onRemoteVideo={setSeatVideo}
-          />
+          <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
+            <LiveCall
+              gameId={game.id}
+              selfId={selfId}
+              name={myName}
+              audio={false}
+              video
+              showRemoteVideo
+            />
+          </div>
         ) : null}
         {game.chatOpen ? (
           <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[48%] flex-col border-t border-line bg-ink/95 backdrop-blur-md sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[min(100%,20rem)] sm:border-l sm:border-t-0">
             <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
               <p className="text-xs uppercase tracking-[0.16em] text-mist">Table chat</p>
               <div className="flex flex-wrap justify-end gap-2">
-                {view === "3d" ? (
+                {vsBot ? null : (
                   <button
                     type="button"
                     className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory hover:border-line-strong"
@@ -753,7 +753,7 @@ export function GameView({ gameId }: { gameId: string }) {
                   >
                     {game.cameraOpen ? "Camera off" : "Real life"}
                   </button>
-                ) : null}
+                )}
                 <button
                   type="button"
                   className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory hover:border-line-strong"
@@ -828,8 +828,7 @@ export function GameView({ gameId }: { gameId: string }) {
             >
               Chat
             </button>
-            {view === "3d" ? (
-              game.cameraOpen ? (
+            {vsBot ? null : game.cameraOpen ? (
                 <button
                   type="button"
                   className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"
@@ -851,8 +850,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 >
                   Real life
                 </button>
-              )
-            ) : null}
+              )}
             {game.liveOpen && !vsBot ? (
               <div className="w-56 rounded-full bg-ink/80 backdrop-blur-md">
                 <LiveCall gameId={game.id} selfId={selfId} name={myName} audio />

@@ -186,19 +186,21 @@ function hideCarried(root: THREE.Object3D) {
 }
 
 function seatCrown(head: THREE.Object3D, crown: THREE.Object3D) {
-  head.add(crown);
   crown.position.set(0, 0, 0);
   crown.rotation.set(0, 0, 0);
-  crown.updateWorldMatrix(true, true);
-  const box = new THREE.Box3().setFromObject(crown);
-  const size = box.getSize(new THREE.Vector3());
-  const fit = 0.15 / Math.max(size.x, size.z, 0.001);
-  crown.scale.multiplyScalar(fit);
-  crown.updateWorldMatrix(true, true);
+  crown.scale.set(1, 1, 1);
+  crown.updateMatrixWorld(true);
+  const raw = new THREE.Box3().setFromObject(crown);
+  const span = Math.max(raw.max.x - raw.min.x, raw.max.z - raw.min.z, 0.001);
+  crown.scale.setScalar(0.16 / span);
+  crown.updateMatrixWorld(true);
   const fitted = new THREE.Box3().setFromObject(crown);
-  const bottom = fitted.min.clone();
-  head.worldToLocal(bottom);
-  crown.position.y += 0.1 - bottom.y;
+  const center = fitted.getCenter(new THREE.Vector3());
+  crown.position.set(-center.x, -fitted.min.y, -center.z);
+  head.add(crown);
+  const headScale = new THREE.Vector3();
+  head.getWorldScale(headScale);
+  crown.position.y += 0.09 / Math.max(Math.abs(headScale.y), 0.001);
 }
 
 function clearKit(root: THREE.Object3D) {
@@ -285,14 +287,7 @@ function GlbBody({
   useEffect(() => {
     clearKit(scene);
     hideCarried(scene);
-    const right = findSlot(scene, "r");
     const head = findSlot(scene, "head");
-    if (kit === "devil" || kit === "talwar") {
-      const sword = fitHandSword(bladeFile.scene);
-      const socket = right ?? scene;
-      socket.add(sword);
-      sword.position.y += /handslot/i.test(socket.name) ? 0.04 : 0.12;
-    }
     if (wearCrown) {
       const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
       if (head) seatCrown(head, crown);
@@ -532,7 +527,7 @@ export function Figurine({
       return;
     }
     group.position.y = 0;
-    group.rotation.y = Math.sin(t * 0.7) * 0.18 + (team === "b" ? Math.PI : 0);
+    group.rotation.y = Math.sin(t * 0.7) * 0.12;
   });
 
   return (

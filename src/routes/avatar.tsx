@@ -172,7 +172,6 @@ function AvatarStudio() {
       ? ([["crowns", "Crowns"]] as const)
       : animated
         ? ([
-            ["swords", "Swords"],
             ["kings", "Kings"],
             ["crowns", "Crowns"],
             ["frames", "Frames"],
@@ -228,7 +227,7 @@ function AvatarStudio() {
                   key={`${characterId}-${loadout.mountId}-${loadout.swordId}-${loadout.crownId}-${loadout.team}`}
                   characterId={characterId}
                   mountId={loadout.mountId}
-                  swordId={loadout.swordId}
+                  swordId="none"
                   crownId={loadout.crownId}
                   team={loadout.team}
                   attackId={loadout.attackId}
@@ -357,19 +356,6 @@ function AvatarStudio() {
               {characterId === "hooded" ? "Hood is on. Take it off." : "Add a hood"}
             </button>
           ) : null}
-          {shown === "swords"
-            ? SWORDS.filter((item) => characterId !== "knight" || item.id === "none" || item.id === "devil").map((item) => (
-                <Portrait
-                  key={item.id}
-                  item={characterId === "knight" && item.id === "devil" ? { ...item, name: "Sword" } : item}
-                  picked={loadout.swordId === item.id}
-                  owned={owned.includes(item.id) || item.price === 0}
-                  onPick={() => void equip("swordId", item.id, item.price)}
-                  pinned={pins.includes(item.id)}
-                  onPin={() => pinItem("swordId", item.id)}
-                />
-              ))
-            : null}
           {shown === "crowns"
             ? CROWNS.map((item) => (
                 <Portrait
@@ -482,7 +468,7 @@ function KingTable({ crownId, team }: { crownId: string; team: "w" | "b" }) {
       {squares}
       <group position={[0, 0.1, 0]}>
         <SculptedPiece type="k" color={team} />
-        <group position={[0, 0.86, 0]} scale={0.72}>
+        <group position={[0, 1.0, 0]}>
           <KingCrown id={crownId} team={team} />
         </group>
       </group>
