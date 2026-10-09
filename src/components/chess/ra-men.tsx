@@ -7,33 +7,24 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { asset } from "@/lib/base";
 import type { Gait } from "@/components/chess/stone-people";
 
-const MALE_RANGER = asset("/units/fantasy/male-ranger.gltf");
-const FEMALE_RANGER = asset("/units/fantasy/female-ranger.gltf");
-const MALE_PEASANT = asset("/units/fantasy/male-peasant.gltf");
-const FEMALE_PEASANT = asset("/units/fantasy/female-peasant.gltf");
-const HEAD_KING = asset("/units/fantasy/king.gltf");
-const HEAD_QUEEN = asset("/units/fantasy/queen.gltf");
-const HEAD_PAWN = asset("/units/fantasy/pawn.gltf");
+const KING = asset("/units/fantasy/king.gltf");
+const QUEEN = asset("/units/fantasy/queen.gltf");
+const BISHOP = asset("/units/fantasy/bishop.gltf");
+const KNIGHT = asset("/units/fantasy/knight.gltf");
+const ROOK = asset("/units/fantasy/rook.gltf");
+const PAWN = asset("/units/fantasy/pawn.gltf");
 const RA_ANIMS = asset("/units/fantasy/anims.glb");
 const RA_SWORD = asset("/avatars/swords/devil.glb");
 
-// Official Quaternius Modular Character Outfits (Fantasy): rangers and peasants.
+// Headed rangers and peasants — the same men the preview draws. Do not swap in a
+// headless outfit and hide the skinned mesh; that leaves only the sword.
 const RA_URL: Record<PieceSymbol, string> = {
-  k: MALE_RANGER,
-  q: FEMALE_RANGER,
-  b: FEMALE_PEASANT,
-  n: MALE_RANGER,
-  r: MALE_PEASANT,
-  p: MALE_PEASANT,
-};
-
-const RA_HEAD: Record<PieceSymbol, string> = {
-  k: HEAD_KING,
-  q: HEAD_QUEEN,
-  b: HEAD_QUEEN,
-  n: HEAD_KING,
-  r: HEAD_KING,
-  p: HEAD_PAWN,
+  k: KING,
+  q: QUEEN,
+  b: BISHOP,
+  n: KNIGHT,
+  r: ROOK,
+  p: PAWN,
 };
 
 const RA_ATTACK: Record<PieceSymbol, string[]> = {
@@ -68,44 +59,14 @@ function normalWalk(clips: THREE.AnimationClip[]) {
   return new THREE.AnimationClip("Walk_Normal_Loop", walk.duration, tracks);
 }
 
-useGLTF.preload(MALE_RANGER);
-useGLTF.preload(FEMALE_RANGER);
-useGLTF.preload(MALE_PEASANT);
-useGLTF.preload(FEMALE_PEASANT);
-useGLTF.preload(HEAD_KING);
-useGLTF.preload(HEAD_QUEEN);
-useGLTF.preload(HEAD_PAWN);
+useGLTF.preload(KING);
+useGLTF.preload(QUEEN);
+useGLTF.preload(BISHOP);
+useGLTF.preload(KNIGHT);
+useGLTF.preload(ROOK);
+useGLTF.preload(PAWN);
 useGLTF.preload(RA_ANIMS);
 useGLTF.preload(RA_SWORD);
-
-function isFaceMesh(name: string) {
-  return /^(Eyes|Eyebrows|Hair_|SuperHero_|Superhero_)/.test(name);
-}
-
-function graftFace(outfit: THREE.Object3D, donor: THREE.Object3D) {
-  let skeleton: THREE.Skeleton | null = null;
-  let host: THREE.Object3D = outfit;
-  outfit.traverse((node) => {
-    const mesh = node as THREE.SkinnedMesh;
-    if (!mesh.isSkinnedMesh || !mesh.skeleton) return;
-    skeleton = mesh.skeleton;
-    if (mesh.parent) host = mesh.parent;
-  });
-  if (!skeleton) return;
-  const bones = skeleton;
-  donor.traverse((node) => {
-    const mesh = node as THREE.SkinnedMesh;
-    if (!mesh.isSkinnedMesh || !isFaceMesh(mesh.name)) return;
-    const copy = mesh.clone();
-    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    copy.material = mats.map((mat) => mat.clone());
-    copy.skeleton = bones;
-    copy.bind(bones, copy.bindMatrix);
-    copy.frustumCulled = false;
-    copy.castShadow = false;
-    host.add(copy);
-  });
-}
 function paint(root: THREE.Object3D, opacity: number) {
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
@@ -119,108 +80,26 @@ function paint(root: THREE.Object3D, opacity: number) {
   });
 }
 
-/** GPU skinning drops these 65-bone men. Draw a plain mesh with CPU-posed vertices instead. */
-function bakeSkin(src: THREE.SkinnedMesh, dst: THREE.BufferAttribute) {
-  src.updateMatrixWorld(true);
-  src.skeleton.update();
-  const pos = src.geometry.attributes.position;
-  const idx = src.geometry.attributes.skinIndex;
-  const wt = src.geometry.attributes.skinWeight;
-  const bones = src.skeleton.boneMatrices;
-  const bind = src.bindMatrix.elements;
-  const inv = src.bindMatrixInverse.elements;
-  const pa = pos.array as Float32Array;
-  const ia = idx.array as ArrayLike<number>;
-  const wa = wt.array as Float32Array;
-  const out = dst.array as Float32Array;
-  const count = pos.count;
-  for (let i = 0; i < count; i++) {
-    const i3 = i * 3;
-    const x = pa[i3];
-    const y = pa[i3 + 1];
-    const z = pa[i3 + 2];
-    const bx = bind[0] * x + bind[4] * y + bind[8] * z + bind[12];
-    const by = bind[1] * x + bind[5] * y + bind[9] * z + bind[13];
-    const bz = bind[2] * x + bind[6] * y + bind[10] * z + bind[14];
-    const bw = bind[3] * x + bind[7] * y + bind[11] * z + bind[15];
-    const i4 = i * 4;
-    let ax = 0;
-    let ay = 0;
-    let az = 0;
-    let aw = 0;
-    for (let k = 0; k < 4; k++) {
-      const wgt = wa[i4 + k];
-      if (!wgt) continue;
-      const b = ia[i4 + k] * 16;
-      ax += (bones[b] * bx + bones[b + 4] * by + bones[b + 8] * bz + bones[b + 12] * bw) * wgt;
-      ay += (bones[b + 1] * bx + bones[b + 5] * by + bones[b + 9] * bz + bones[b + 13] * bw) * wgt;
-      az += (bones[b + 2] * bx + bones[b + 6] * by + bones[b + 10] * bz + bones[b + 14] * bw) * wgt;
-      aw += (bones[b + 3] * bx + bones[b + 7] * by + bones[b + 11] * bz + bones[b + 15] * bw) * wgt;
-    }
-    out[i3] = inv[0] * ax + inv[4] * ay + inv[8] * az + inv[12] * aw;
-    out[i3 + 1] = inv[1] * ax + inv[5] * ay + inv[9] * az + inv[13] * aw;
-    out[i3 + 2] = inv[2] * ax + inv[6] * ay + inv[10] * az + inv[14] * aw;
-  }
-  dst.needsUpdate = true;
-}
-
-function plainMaterial(mat: THREE.Material) {
-  const copy = mat.clone();
-  const dyed = copy as THREE.MeshStandardMaterial & { defines?: Record<string, string> };
-  dyed.skinning = false;
-  if (dyed.defines) delete dyed.defines.USE_SKINNING;
-  dyed.customProgramCacheKey = () => "ra-baked-body";
-  return copy;
-}
-
-function showBodies(root: THREE.Object3D) {
-  const skinned: THREE.SkinnedMesh[] = [];
+/** 65 bones need a 20×20 float texture, which some GPUs drop. A 32×32 power-of-two texture still skins. */
+function widenBones(root: THREE.Object3D) {
+  const seen = new Set<THREE.Skeleton>();
   root.traverse((node) => {
     const mesh = node as THREE.SkinnedMesh;
-    if (mesh.isSkinnedMesh) skinned.push(mesh);
+    if (!mesh.isSkinnedMesh || !mesh.skeleton || seen.has(mesh.skeleton)) return;
+    seen.add(mesh.skeleton);
+    const skeleton = mesh.skeleton;
+    skeleton.computeBoneTexture = () => {
+      const size = 32;
+      const data = new Float32Array(size * size * 4);
+      const src = skeleton.boneMatrices;
+      if (src) data.set(src.subarray(0, Math.min(src.length, skeleton.bones.length * 16)));
+      const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
+      tex.needsUpdate = true;
+      skeleton.boneMatrices = data;
+      skeleton.boneTexture = tex;
+      return skeleton;
+    };
   });
-  const pairs: { src: THREE.SkinnedMesh; mesh: THREE.Mesh }[] = [];
-  for (const src of skinned) {
-    const geo = src.geometry.clone();
-    geo.deleteAttribute("skinIndex");
-    geo.deleteAttribute("skinWeight");
-    const list = Array.isArray(src.material) ? src.material : [src.material];
-    const mats = list.map((mat) => plainMaterial(mat));
-    const mesh = new THREE.Mesh(geo, mats.length === 1 ? mats[0] : mats);
-    mesh.name = `${src.name}_baked`;
-    mesh.castShadow = true;
-    mesh.receiveShadow = false;
-    mesh.frustumCulled = false;
-    mesh.position.copy(src.position);
-    mesh.quaternion.copy(src.quaternion);
-    mesh.scale.copy(src.scale);
-    src.parent?.add(mesh);
-    pairs.push({ src, mesh });
-  }
-  const pose = () => {
-    root.updateMatrixWorld(true);
-    for (const pair of pairs) {
-      if (!pair.mesh.visible) continue;
-      const attr = pair.mesh.geometry.attributes.position as THREE.BufferAttribute;
-      bakeSkin(pair.src, attr);
-      pair.mesh.geometry.computeBoundingSphere();
-    }
-  };
-  root.userData.pose = pose;
-  root.updateMatrixWorld(true);
-  pose();
-  let tall = 0;
-  for (const pair of pairs) {
-    const box = new THREE.Box3().setFromObject(pair.mesh);
-    tall = Math.max(tall, box.getSize(new THREE.Vector3()).y);
-  }
-  const bakedOk = tall > 0.2;
-  for (const pair of pairs) {
-    pair.mesh.visible = bakedOk;
-    pair.src.visible = !bakedOk;
-    pair.src.frustumCulled = false;
-    if (!bakedOk) Object.defineProperty(pair.src, "isSkinnedMesh", { value: false });
-  }
 }
 
 export function raUnitUrl(type: PieceSymbol) {
@@ -239,22 +118,16 @@ export function RaPawn({
   role: PieceSymbol;
 }) {
   const gltf = useGLTF(url);
-  const headFile = useGLTF(RA_HEAD[role]);
   const bladeFile = useGLTF(RA_SWORD);
   const scene = useMemo(() => {
     const obj = cloneSkeleton(gltf.scene);
-    graftFace(obj, headFile.scene);
     obj.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (!mesh.isMesh) return;
-      mesh.castShadow = false;
+      mesh.castShadow = true;
       mesh.receiveShadow = false;
       mesh.frustumCulled = false;
       mesh.visible = true;
-      if (mesh.geometry.getAttribute("color")) {
-        mesh.geometry = mesh.geometry.clone();
-        mesh.geometry.deleteAttribute("color");
-      }
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       mesh.material = list.map((mat) => {
         const copy = mat.clone() as THREE.MeshStandardMaterial;
@@ -264,7 +137,7 @@ export function RaPawn({
         copy.depthWrite = true;
         copy.side = THREE.DoubleSide;
         copy.alphaTest = 0;
-        copy.color.set("#ffffff");
+        if (mesh.isSkinnedMesh) copy.skinning = true;
         if (/hair|brow/i.test(copy.name)) copy.color.set("#1a140f");
         else if (/ranger|peasant/i.test(copy.name)) {
           copy.emissive = new THREE.Color(team === "blue" ? "#2563eb" : "#dc2626");
@@ -313,9 +186,9 @@ export function RaPawn({
     obj.updateMatrixWorld(true);
     obj.position.y -= new THREE.Box3().setFromObject(obj).min.y;
     obj.userData.fit = obj.scale.x || 1;
-    showBodies(obj);
+    widenBones(obj);
     return obj;
-  }, [gltf.scene, headFile.scene, bladeFile.scene, url, team, role]);
+  }, [gltf.scene, bladeFile.scene, url, team, role]);
   const anims = useGLTF(RA_ANIMS);
   const clips = useMemo(() => {
     const walk = normalWalk(anims.animations);
@@ -359,7 +232,6 @@ export function RaPawn({
     if (gait.current.fade < 0.995) scene.userData.faded = 1;
     const act = gait.current.act;
     const want = act === "attack" ? "attack" : act === "walk" || act === "charge" ? "walk" : act === "death" ? "death" : "idle";
-    const moving = want === "walk" || want === "attack" || want === "death";
     if (want !== mode.current) {
       mode.current = want;
       seq.current = 0;
@@ -368,11 +240,6 @@ export function RaPawn({
       else if (want === "walk") playNamed("Walk_Normal_Loop", false);
       else if (want === "death") playNamed("Hit_Knockback", true);
       else playNamed("Idle_Shield_Loop", false);
-    }
-    const pose = scene.userData.pose as (() => void) | undefined;
-    if (moving || (scene.userData.hold as number) < 45) {
-      pose?.();
-      scene.userData.hold = ((scene.userData.hold as number) || 0) + 1;
     }
   });
   return <primitive object={scene} />;
