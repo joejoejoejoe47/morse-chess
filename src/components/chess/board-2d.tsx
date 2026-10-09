@@ -156,10 +156,10 @@ export function ChessBoard2D({
                     </span>
                   ) : null}
                   {legal.has(sq) && !piece ? (
-                    <span className="pointer-events-none absolute left-1/2 top-1/2 size-[28%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink/35" />
+                    <span className="pointer-events-none absolute left-1/2 top-1/2 size-[38%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_14px_rgba(255,255,255,0.9)]" />
                   ) : null}
                   {occLegal ? (
-                    <span className="pointer-events-none absolute inset-[12%] rounded-full border-[3px] border-ink/40" />
+                    <span className="pointer-events-none absolute inset-[10%] rounded-full border-[4px] border-white shadow-[0_0_12px_rgba(255,255,255,0.75)]" />
                   ) : null}
                   {fi === 0 ? (
                     <span

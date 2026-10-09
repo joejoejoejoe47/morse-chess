@@ -34,7 +34,7 @@ const HEIGHT: Record<PieceSymbol, number> = {
   p: 0.66,
 };
 
-export function SculptedPiece({ type, color, ink }: { type: PieceSymbol; color: Color; ink?: string }) {
+export function SculptedPiece({ type, color, ink, yaw }: { type: PieceSymbol; color: Color; ink?: string; yaw?: number }) {
   const gltf = useGLTF(FILE[color][type]);
   const scene = useMemo(() => {
     const obj = cloneSkeleton(gltf.scene);
@@ -65,38 +65,35 @@ export function SculptedPiece({ type, color, ink }: { type: PieceSymbol; color: 
     obj.scale.multiplyScalar(HEIGHT[type] / (size.y || 1));
     obj.updateMatrixWorld(true);
     obj.position.y -= new THREE.Box3().setFromObject(obj).min.y;
-    obj.rotation.y = color === "w" ? Math.PI : 0;
+    obj.rotation.y = yaw ?? (color === "w" ? Math.PI : 0);
     return obj;
-  }, [gltf.scene, type, color, ink]);
+  }, [gltf.scene, type, color, ink, yaw]);
   return <primitive object={scene} />;
 }
 
+/** Crown width matches the Staunton king's head. Bottom sits at local y=0. */
 export function KingCrown({ id, team }: { id: string; team: TeamView }) {
   const spec = crownById(id);
   const gltf = useGLTF(spec.model || asset("/avatars/crowns/poly-band.glb"));
   const scene = useMemo(() => {
+    const holder = new THREE.Group();
     const obj = gltf.scene.clone(true);
+    holder.add(obj);
     obj.traverse((node) => {
       const mesh = node as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.castShadow = true;
-      mesh.frustumCulled = false;
+      if (mesh.isMesh) {
+        mesh.castShadow = true;
+        mesh.frustumCulled = false;
+      }
     });
-    obj.position.set(0, 0, 0);
-    obj.rotation.set(0, 0, 0);
-    obj.scale.set(1, 1, 1);
-    obj.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(obj);
+    holder.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(holder);
     const size = box.getSize(new THREE.Vector3());
-    const span = Math.max(size.x, size.z, 0.001);
-    const fit = 0.25 / span;
-    obj.scale.setScalar(fit);
-    obj.updateMatrixWorld(true);
-    const fitted = new THREE.Box3().setFromObject(obj);
-    const center = fitted.getCenter(new THREE.Vector3());
-    obj.position.set(-center.x, -fitted.min.y, -center.z);
-    void team;
-    return obj;
+    const center = box.getCenter(new THREE.Vector3());
+    const fit = 0.26 / Math.max(size.x, size.z, 0.001);
+    holder.scale.setScalar(fit);
+    holder.position.set(-center.x * fit, -box.min.y * fit, -center.z * fit);
+    return holder;
   }, [gltf.scene, team]);
   return <primitive object={scene} />;
 }

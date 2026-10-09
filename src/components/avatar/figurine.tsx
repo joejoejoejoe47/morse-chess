@@ -185,22 +185,50 @@ function hideCarried(root: THREE.Object3D) {
   });
 }
 
-function seatCrown(head: THREE.Object3D, crown: THREE.Object3D) {
+function seatCrown(root: THREE.Object3D, head: THREE.Object3D, crown: THREE.Object3D) {
+  let want = 0.22;
+  const seat = new THREE.Vector3();
+  let found = false;
+  root.updateWorldMatrix(true, true);
+  root.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.visible) return;
+    if (!/head|helmet|hat/i.test(mesh.name) || /hood|hair/i.test(mesh.name)) return;
+    const hb = new THREE.Box3().setFromObject(mesh);
+    if (hb.isEmpty()) return;
+    if (!found || hb.max.y >= seat.y) {
+      const hs = hb.getSize(new THREE.Vector3());
+      want = Math.max(hs.x, hs.z, 0.12);
+      seat.set((hb.min.x + hb.max.x) / 2, hb.max.y, (hb.min.z + hb.max.z) / 2);
+      found = true;
+    }
+  });
+  if (!found) {
+    head.getWorldPosition(seat);
+    seat.y += 0.14;
+  }
+  head.add(crown);
   crown.position.set(0, 0, 0);
   crown.rotation.set(0, 0, 0);
   crown.scale.set(1, 1, 1);
-  crown.updateMatrixWorld(true);
-  const raw = new THREE.Box3().setFromObject(crown);
-  const span = Math.max(raw.max.x - raw.min.x, raw.max.z - raw.min.z, 0.001);
-  crown.scale.setScalar(0.09 / span);
-  crown.updateMatrixWorld(true);
+  crown.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(crown);
+  const span = Math.max(box.getSize(new THREE.Vector3()).x, box.getSize(new THREE.Vector3()).z, 0.001);
+  crown.scale.setScalar(want / span);
+  crown.updateWorldMatrix(true, true);
   const fitted = new THREE.Box3().setFromObject(crown);
-  const center = fitted.getCenter(new THREE.Vector3());
-  crown.position.set(-center.x, -fitted.min.y, -center.z);
-  head.add(crown);
-  const headScale = new THREE.Vector3();
-  head.getWorldScale(headScale);
-  crown.position.y += 0.045 / Math.max(Math.abs(headScale.y), 0.001);
+  const delta = new THREE.Vector3(
+    seat.x - (fitted.min.x + fitted.max.x) / 2,
+    seat.y - fitted.min.y,
+    seat.z - (fitted.min.z + fitted.max.z) / 2,
+  );
+  const parent = crown.parent ?? head;
+  parent.updateWorldMatrix(true, false);
+  const quat = new THREE.Quaternion();
+  const ps = new THREE.Vector3();
+  parent.matrixWorld.decompose(new THREE.Vector3(), quat, ps);
+  delta.applyQuaternion(quat.invert());
+  crown.position.set(delta.x / (ps.x || 1), delta.y / (ps.y || 1), delta.z / (ps.z || 1));
 }
 
 function clearKit(root: THREE.Object3D) {
@@ -290,7 +318,7 @@ function GlbBody({
     const head = findSlot(scene, "head");
     if (wearCrown) {
       const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
-      if (head) seatCrown(head, crown);
+      if (head) seatCrown(scene, head, crown);
       else {
         scene.add(crown);
         crown.position.set(0, height * 0.92, 0);

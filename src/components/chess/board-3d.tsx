@@ -638,7 +638,7 @@ function AnimatedPiece({
             ink={INK_BOARDS.has(skin.id) ? (color === "w" ? "#f7f4ee" : "#14110e") : undefined}
           />
           {type === "k" && gear?.crownId && gear.crownId !== "none" ? (
-            <group position={[0, 0.9, 0]}>
+            <group position={[0, 0.92, 0]} rotation={[0, color === "w" ? Math.PI : 0, 0]}>
               <KingCrown id={gear.crownId} team={color} />
             </group>
           ) : null}
@@ -785,9 +785,9 @@ function BoardSquares({
             </mesh>
             )}
             {legal.has(sq) ? (
-              <mesh position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.16, z]}>
-                <boxGeometry args={[0.1, 0.03, 0.1]} />
-                <meshBasicMaterial color="#1a140f" transparent opacity={0.55} />
+              <mesh position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.3, z]} renderOrder={2}>
+                <sphereGeometry args={[0.18, 24, 16]} />
+                <meshBasicMaterial color="#ffffff" toneMapped={false} depthWrite={false} />
               </mesh>
             ) : null}
           </group>

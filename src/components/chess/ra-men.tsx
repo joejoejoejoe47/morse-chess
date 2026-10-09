@@ -119,6 +119,84 @@ function paint(root: THREE.Object3D, opacity: number) {
   });
 }
 
+/** GPU skinning drops these 65-bone men (only the unskinned sword draws). Pose on the CPU instead. */
+function bakeSkin(src: THREE.SkinnedMesh, dst: THREE.BufferAttribute) {
+  src.updateMatrixWorld(true);
+  src.skeleton.update();
+  const pos = src.geometry.attributes.position;
+  const idx = src.geometry.attributes.skinIndex;
+  const wt = src.geometry.attributes.skinWeight;
+  const bones = src.skeleton.boneMatrices;
+  const bind = src.bindMatrix.elements;
+  const inv = src.bindMatrixInverse.elements;
+  const pa = pos.array as Float32Array;
+  const ia = idx.array as ArrayLike<number>;
+  const wa = wt.array as Float32Array;
+  const out = dst.array as Float32Array;
+  const count = pos.count;
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    const x = pa[i3];
+    const y = pa[i3 + 1];
+    const z = pa[i3 + 2];
+    const bx = bind[0] * x + bind[4] * y + bind[8] * z + bind[12];
+    const by = bind[1] * x + bind[5] * y + bind[9] * z + bind[13];
+    const bz = bind[2] * x + bind[6] * y + bind[10] * z + bind[14];
+    const bw = bind[3] * x + bind[7] * y + bind[11] * z + bind[15];
+    const i4 = i * 4;
+    let ax = 0;
+    let ay = 0;
+    let az = 0;
+    let aw = 0;
+    for (let k = 0; k < 4; k++) {
+      const wgt = wa[i4 + k];
+      if (!wgt) continue;
+      const b = ia[i4 + k] * 16;
+      ax += (bones[b] * bx + bones[b + 4] * by + bones[b + 8] * bz + bones[b + 12] * bw) * wgt;
+      ay += (bones[b + 1] * bx + bones[b + 5] * by + bones[b + 9] * bz + bones[b + 13] * bw) * wgt;
+      az += (bones[b + 2] * bx + bones[b + 6] * by + bones[b + 10] * bz + bones[b + 14] * bw) * wgt;
+      aw += (bones[b + 3] * bx + bones[b + 7] * by + bones[b + 11] * bz + bones[b + 15] * bw) * wgt;
+    }
+    out[i3] = inv[0] * ax + inv[4] * ay + inv[8] * az + inv[12] * aw;
+    out[i3 + 1] = inv[1] * ax + inv[5] * ay + inv[9] * az + inv[13] * aw;
+    out[i3 + 2] = inv[2] * ax + inv[6] * ay + inv[10] * az + inv[14] * aw;
+  }
+  dst.needsUpdate = true;
+}
+
+function showBodies(root: THREE.Object3D) {
+  const skinned: THREE.SkinnedMesh[] = [];
+  root.traverse((node) => {
+    const mesh = node as THREE.SkinnedMesh;
+    if (mesh.isSkinnedMesh) skinned.push(mesh);
+  });
+  const pairs: { src: THREE.SkinnedMesh; mesh: THREE.Mesh }[] = [];
+  for (const src of skinned) {
+    const geo = src.geometry.clone();
+    geo.deleteAttribute("skinIndex");
+    geo.deleteAttribute("skinWeight");
+    const mesh = new THREE.Mesh(geo, src.material);
+    mesh.name = src.name;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.frustumCulled = false;
+    mesh.visible = src.visible;
+    mesh.position.copy(src.position);
+    mesh.quaternion.copy(src.quaternion);
+    mesh.scale.copy(src.scale);
+    src.parent?.add(mesh);
+    src.visible = false;
+    pairs.push({ src, mesh });
+  }
+  root.userData.pose = () => {
+    root.updateMatrixWorld(true);
+    for (const pair of pairs) {
+      if (!pair.mesh.visible) continue;
+      bakeSkin(pair.src, pair.mesh.geometry.attributes.position as THREE.BufferAttribute);
+    }
+  };
+}
+
 export function raUnitUrl(type: PieceSymbol) {
   return RA_URL[type];
 }
@@ -209,6 +287,7 @@ export function RaPawn({
     obj.updateMatrixWorld(true);
     obj.position.y -= new THREE.Box3().setFromObject(obj).min.y;
     obj.userData.fit = obj.scale.x || 1;
+    showBodies(obj);
     return obj;
   }, [gltf.scene, headFile.scene, bladeFile.scene, url, team, role]);
   const anims = useGLTF(RA_ANIMS);
@@ -254,13 +333,21 @@ export function RaPawn({
     if (gait.current.fade < 0.995) scene.userData.faded = 1;
     const act = gait.current.act;
     const want = act === "attack" ? "attack" : act === "walk" || act === "charge" ? "walk" : act === "death" ? "death" : "idle";
-    if (want === mode.current) return;
-    mode.current = want;
-    seq.current = 0;
-    if (want === "attack") playNamed(RA_ATTACK[role][0], true);
-    else if (want === "walk") playNamed("Walk_Normal_Loop", false);
-    else if (want === "death") playNamed("Hit_Knockback", true);
-    else playNamed("Idle_Shield_Loop", false);
+    const moving = want === "walk" || want === "attack" || want === "death";
+    if (want !== mode.current) {
+      mode.current = want;
+      seq.current = 0;
+      scene.userData.hold = 0;
+      if (want === "attack") playNamed(RA_ATTACK[role][0], true);
+      else if (want === "walk") playNamed("Walk_Normal_Loop", false);
+      else if (want === "death") playNamed("Hit_Knockback", true);
+      else playNamed("Idle_Shield_Loop", false);
+    }
+    const pose = scene.userData.pose as (() => void) | undefined;
+    if (moving || (scene.userData.hold as number) < 3) {
+      pose?.();
+      scene.userData.hold = ((scene.userData.hold as number) || 0) + 1;
+    }
   });
   return <primitive object={scene} />;
 }

@@ -467,8 +467,8 @@ function KingTable({ crownId, team }: { crownId: string; team: "w" | "b" }) {
       </mesh>
       {squares}
       <group position={[0, 0.1, 0]}>
-        <SculptedPiece type="k" color={team} />
-        <group position={[0, 1.0, 0]}>
+        <SculptedPiece type="k" color={team} yaw={0} />
+        <group position={[0, 0.92, 0]}>
           <KingCrown id={crownId} team={team} />
         </group>
       </group>
