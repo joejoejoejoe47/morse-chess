@@ -60,7 +60,7 @@ final class Mores
             'respondChallenge', 'cancelChallenge', 'openGameLive', 'openGameChat', 'closeGameChat',
             'openGameCamera', 'closeGameCamera', 'sendGameChat', 'getGame', 'makeMove', 'claimTimeout',
             'resignGame', 'startBotGame', 'buyBoard', 'setEquippedBoard', 'listClubUsers', 'getChallengeInbox',
-            'getSandbox', 'buySandbox',
+            'getSandbox', 'buySandbox', 'hillTable', 'hillSync', 'hillMove', 'hillLeave',
         ] as $name) {
             Rpc::register($name, [self::class, $name]);
         }
@@ -1507,5 +1507,216 @@ final class Mores
             'fromUsername' => (string) $r['username'],
             'kind' => ($r['kind'] ?? null) === 'pull' ? 'pull' : 'named',
         ], $rows);
+    }
+
+    private const HILL_WAIT_MS = 180000;
+
+    /** @param array<string,mixed> $row
+     *  @return array{s:string,w:string,n:string,e:string}
+     */
+    private static function hillSeats(array $row): array
+    {
+        return [
+            's' => (string) $row['seat_s'],
+            'w' => (string) $row['seat_w'],
+            'n' => (string) $row['seat_n'],
+            'e' => (string) $row['seat_e'],
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function hillView(array $row, string $userId): array
+    {
+        $seats = self::hillSeats($row);
+        $my = 's';
+        foreach ($seats as $seat => $id) {
+            if ($id === $userId) {
+                $my = $seat;
+            }
+        }
+        $moves = json_decode((string) ($row['moves'] ?? '[]'), true);
+        if (!is_array($moves)) {
+            $moves = [];
+        }
+        $me = self::profileById($userId);
+        return [
+            'phase' => ((string) ($row['status'] ?? '')) === 'active' ? 'play' : 'done',
+            'gameId' => (string) $row['id'],
+            'myTeam' => $my,
+            'seats' => $seats,
+            'moves' => array_values($moves),
+            'revision' => self::toInt($row['revision'] ?? 0, 0),
+            'turn' => (string) ($row['turn_seat'] ?? 's'),
+            'coins' => $me['coins'] ?? 0,
+            'waiting' => 4,
+            'waitMs' => 0,
+        ];
+    }
+
+    /** @return array<string,mixed>|null */
+    private static function hillActive(string $userId): ?array
+    {
+        return Db::one(
+            "SELECT * FROM sandbox_games WHERE status = 'active' AND (seat_s = ? OR seat_w = ? OR seat_n = ? OR seat_e = ?) ORDER BY created_at DESC LIMIT 1",
+            [$userId, $userId, $userId, $userId]
+        );
+    }
+
+    /** @param list<string> $humans */
+    private static function hillStart(array $humans): void
+    {
+        $order = ['s', 'w', 'n', 'e'];
+        shuffle($order);
+        $assigned = ['s' => '', 'w' => '', 'n' => '', 'e' => ''];
+        foreach ($humans as $i => $uid) {
+            if ($i > 3) {
+                break;
+            }
+            $assigned[$order[$i]] = $uid;
+        }
+        foreach (['s', 'w', 'n', 'e'] as $seat) {
+            if ($assigned[$seat] === '') {
+                $assigned[$seat] = 'bot-hill-' . $seat;
+            }
+        }
+        Db::run(
+            'INSERT INTO sandbox_games (id, status, seat_s, seat_w, seat_n, seat_e, moves, turn_seat, revision, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [Util::uuid(), 'active', $assigned['s'], $assigned['w'], $assigned['n'], $assigned['e'], '[]', 's', 0, Db::now()]
+        );
+        foreach ($humans as $uid) {
+            Db::run('DELETE FROM sandbox_queue WHERE user_id = ?', [$uid]);
+        }
+    }
+
+    /** @return array<string,mixed>|null */
+    private static function hillTryMatch(string $userId): ?array
+    {
+        return Db::transaction(static function () use ($userId): ?array {
+            $rows = Db::all('SELECT user_id, joined_at FROM sandbox_queue ORDER BY joined_at ASC' . Db::forUpdate());
+            $ids = [];
+            $oldest = 0;
+            $now = Db::nowMs();
+            foreach ($rows as $row) {
+                $ids[] = (string) $row['user_id'];
+                $age = $now - Db::toMs($row['joined_at']);
+                if ($age > $oldest) {
+                    $oldest = $age;
+                }
+            }
+            $take = null;
+            if (count($ids) >= 4) {
+                $take = array_slice($ids, 0, 4);
+            } elseif (count($ids) > 0 && $oldest >= self::HILL_WAIT_MS) {
+                $take = array_slice($ids, 0, min(4, count($ids)));
+            }
+            if ($take !== null) {
+                self::hillStart($take);
+            }
+            $game = self::hillActive($userId);
+            return $game ? self::hillView($game, $userId) : null;
+        });
+    }
+
+    /** @param array<string,mixed> $data */
+    public static function hillTable(string $userId, array $data): mixed
+    {
+        $me = self::profileById($userId);
+        if ($me === null) {
+            throw new RpcError('Choose a club name first.');
+        }
+        if ((int) $me['sandbox_owned'] !== 1) {
+            throw new RpcError('Buy the sandbox first.');
+        }
+        $active = self::hillActive($userId);
+        if ($active !== null) {
+            return self::hillView($active, $userId);
+        }
+        Db::insertIgnore('sandbox_queue', ['user_id' => $userId, 'joined_at' => Db::now()]);
+        $matched = self::hillTryMatch($userId);
+        if ($matched !== null) {
+            return $matched;
+        }
+        $row = Db::one('SELECT joined_at FROM sandbox_queue WHERE user_id = ?', [$userId]);
+        $waiting = (int) Db::value('SELECT COUNT(*) FROM sandbox_queue');
+        $waitMs = $row ? max(0, Db::nowMs() - Db::toMs($row['joined_at'])) : 0;
+        return [
+            'phase' => 'wait',
+            'waiting' => $waiting,
+            'waitMs' => $waitMs,
+            'coins' => (int) $me['coins'],
+        ];
+    }
+
+    /** @param array<string,mixed> $data */
+    public static function hillSync(string $userId, array $data): mixed
+    {
+        $row = Db::one('SELECT * FROM sandbox_games WHERE id = ? LIMIT 1', [self::str($data, 'gameId')]);
+        if ($row === null || !in_array($userId, self::hillSeats($row), true)) {
+            throw new RpcError('That table is gone.');
+        }
+        return self::hillView($row, $userId);
+    }
+
+    /** @param array<string,mixed> $data */
+    public static function hillMove(string $userId, array $data): mixed
+    {
+        $gameId = self::str($data, 'gameId');
+        $revision = self::toInt($data['revision'] ?? null, -1);
+        $unitId = self::str($data, 'unitId');
+        $to = self::str($data, 'to');
+        $choice = self::str($data, 'choice');
+        $turn = self::str($data, 'turn');
+        $over = !empty($data['over']);
+        if (!in_array($turn, ['s', 'w', 'n', 'e'], true) || $unitId === '' || $to === '') {
+            throw new RpcError('Bad move.');
+        }
+        return Db::transaction(static function () use ($userId, $gameId, $revision, $unitId, $to, $choice, $turn, $over): array {
+            $row = Db::one("SELECT * FROM sandbox_games WHERE id = ? AND status = 'active' LIMIT 1" . Db::forUpdate(), [$gameId]);
+            if ($row === null) {
+                return ['ok' => false, 'revision' => 0, 'moves' => []];
+            }
+            $seats = self::hillSeats($row);
+            if (!in_array($userId, $seats, true)) {
+                throw new RpcError('You are not at this table.');
+            }
+            $actor = $seats[(string) $row['turn_seat']] ?? '';
+            $moves = json_decode((string) ($row['moves'] ?? '[]'), true);
+            if (!is_array($moves)) {
+                $moves = [];
+            }
+            $moves = array_values($moves);
+            $current = self::toInt($row['revision'] ?? 0, 0);
+            $bot = str_starts_with($actor, 'bot-hill');
+            if ((!$bot && $actor !== $userId) || $current !== $revision) {
+                return ['ok' => false, 'revision' => $current, 'moves' => $moves];
+            }
+            $entry = ['unitId' => $unitId, 'to' => $to];
+            if ($choice === 'dominate' || $choice === 'ally') {
+                $entry['choice'] = $choice;
+            }
+            $moves[] = $entry;
+            $next = $current + 1;
+            $changed = Db::run(
+                "UPDATE sandbox_games SET moves = ?, turn_seat = ?, revision = ?, status = ? WHERE id = ? AND revision = ? AND status = 'active'",
+                [json_encode($moves), $turn, $next, $over ? 'done' : 'active', $gameId, $revision]
+            );
+            if ($changed === 0) {
+                $fresh = Db::one('SELECT revision, moves FROM sandbox_games WHERE id = ?', [$gameId]);
+                $again = ($fresh !== null) ? json_decode((string) $fresh['moves'], true) : [];
+                return [
+                    'ok' => false,
+                    'revision' => $fresh !== null ? self::toInt($fresh['revision'] ?? 0, 0) : 0,
+                    'moves' => is_array($again) ? array_values($again) : [],
+                ];
+            }
+            return ['ok' => true, 'revision' => $next, 'moves' => $moves];
+        });
+    }
+
+    /** @param array<string,mixed> $data */
+    public static function hillLeave(string $userId, array $data): mixed
+    {
+        Db::run('DELETE FROM sandbox_queue WHERE user_id = ?', [$userId]);
+        return ['ok' => true];
     }
 }

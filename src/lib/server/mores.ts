@@ -86,3 +86,21 @@ export const listClubUsers = rpc("listClubUsers");
 export const getChallengeInbox = rpc("getChallengeInbox");
 export const getSandbox = rpc<{ owned: boolean; coins: number }>("getSandbox");
 export const buySandbox = rpc<{ ok: boolean; error?: string; coins: number; owned: boolean }>("buySandbox");
+
+export type HillTableResult = {
+  phase: "wait" | "play" | "done";
+  waiting: number;
+  waitMs: number;
+  coins: number;
+  gameId?: string;
+  myTeam?: "s" | "w" | "n" | "e";
+  seats?: Record<"s" | "w" | "n" | "e", string>;
+  moves?: { unitId: string; to: string; choice?: "dominate" | "ally" }[];
+  revision?: number;
+  turn?: "s" | "w" | "n" | "e";
+};
+
+export const hillTable = rpc<HillTableResult>("hillTable");
+export const hillSync = rpc<HillTableResult>("hillSync");
+export const hillMove = rpc<{ ok: boolean; revision: number; moves: { unitId: string; to: string; choice?: "dominate" | "ally" }[] }>("hillMove");
+export const hillLeave = rpc<{ ok: boolean }>("hillLeave");

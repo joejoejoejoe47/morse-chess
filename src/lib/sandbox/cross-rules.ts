@@ -78,6 +78,25 @@ export function worldOf(id: string): [number, number, number] {
   return [(p.x - 3.5) * PITCH, 0, (p.z - 3.5) * PITCH];
 }
 
+/** A smooth hillside. The cross is painted on it — the ground is never flattened. */
+export function groundY(x: number, z: number): number {
+  const slope = Math.sin(x * 0.05 + 0.55) * 0.92 + Math.cos(z * 0.042 - 0.25) * 0.7 + Math.sin((x * 0.62 + z) * 0.034) * 0.36;
+  const far = Math.max(0, Math.hypot(x, z) - 20);
+  return slope + far * far * 0.01 + Math.sin(x * 0.065 + z * 0.04) * far * 0.035;
+}
+
+/** Which painted square is under a point on the hill. */
+export function pickCell(wx: number, wz: number): string | null {
+  if (Math.abs(wx) <= PITCH * 0.98 && Math.abs(wz) <= PITCH * 0.98) return "forum";
+  const x = Math.round(wx / PITCH + 3.5);
+  const z = Math.round(wz / PITCH + 3.5);
+  const id = cellId(x, z);
+  if (!id || id === "forum") return null;
+  const [cx, , cz] = worldOf(id);
+  if (Math.abs(wx - cx) > PITCH * 0.5 || Math.abs(wz - cz) > PITCH * 0.5) return null;
+  return id;
+}
+
 export function boardCells(): string[] {
   const ids: string[] = [];
   for (let x = -8; x <= 15; x++) {

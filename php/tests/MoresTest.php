@@ -50,7 +50,7 @@ function human_game(string $a, string $b, string $nameB, string $mode = 'timed')
 $expected = ['usernameAvailable', 'claimUsername', 'getPurse', 'getHomeState', 'joinQueue', 'leaveQueue', 'sendChallenge',
     'respondChallenge', 'cancelChallenge', 'openGameLive', 'openGameChat', 'closeGameChat', 'openGameCamera',
     'closeGameCamera', 'sendGameChat', 'getGame', 'makeMove', 'claimTimeout', 'resignGame', 'startBotGame', 'buyBoard',
-    'setEquippedBoard', 'listClubUsers', 'getChallengeInbox', 'getSandbox', 'buySandbox'];
+    'setEquippedBoard', 'listClubUsers', 'getChallengeInbox', 'getSandbox', 'buySandbox', 'hillTable', 'hillSync', 'hillMove', 'hillLeave'];
 foreach ($expected as $n) {
     check(in_array($n, Rpc::names(), true), "rpc $n registered");
 }
@@ -381,5 +381,53 @@ check((int) Db::value("SELECT score FROM profiles WHERE user_id = 'old'") === 14
 
 // RPC registry round trip through the dispatcher's calling convention
 check(is_callable([Mores::class, 'getHomeState']), 'handlers callable');
+
+check(fails(call([Mores::class, 'hillTable'], 'ghost', []), 'Choose a club name first.'), 'hillTable needs profile');
+Db::run('UPDATE profiles SET sandbox_owned = 0 WHERE user_id = ?', ['bob']);
+check(fails(call([Mores::class, 'hillTable'], 'bob', []), 'Buy the sandbox first.'), 'hillTable needs the sandbox');
+$wait = Mores::hillTable('alice', []);
+check($wait['phase'] === 'wait' && (int) $wait['waiting'] === 1, 'hill waits for four');
+Mores::hillLeave('alice', []);
+check((int) Db::value('SELECT COUNT(*) FROM sandbox_queue WHERE user_id = ?', ['alice']) === 0, 'hillLeave drops the queue');
+Mores::hillTable('alice', []);
+Db::run('UPDATE sandbox_queue SET joined_at = ? WHERE user_id = ?', [Db::ts(Db::nowMs() - 181000), 'alice']);
+$game = Mores::hillTable('alice', []);
+check($game['phase'] === 'play', 'hill fills bots after 3 minutes');
+$bots = 0;
+foreach (['s', 'w', 'n', 'e'] as $seat) {
+    if (str_starts_with((string) $game['seats'][$seat], 'bot-hill')) {
+        $bots++;
+    }
+}
+check($bots === 3 && $game['seats'][$game['myTeam']] === 'alice', 'three hill bots and you have a seat');
+$moved = Mores::hillMove('alice', [
+    'gameId' => $game['gameId'], 'revision' => 0, 'unitId' => 'sp0', 'to' => '0,-6', 'turn' => 'w',
+]);
+check($moved['ok'] === true && $moved['revision'] === 1 && count($moved['moves']) === 1, 'hill move lands');
+check(fails(call([Mores::class, 'hillMove'], 'bob', [
+    'gameId' => $game['gameId'], 'revision' => 1, 'unitId' => 'sp1', 'to' => '1,-6', 'turn' => 'n',
+]), 'You are not at this table.'), 'outsider cannot move on the hill');
+$stale = Mores::hillMove('alice', [
+    'gameId' => $game['gameId'], 'revision' => 0, 'unitId' => 'sp1', 'to' => '1,-6', 'turn' => 'n',
+]);
+check($stale['ok'] === false && $stale['revision'] === 1, 'stale hill move rejected');
+$sync = Mores::hillSync('alice', ['gameId' => $game['gameId']]);
+check($sync['revision'] === 1 && $sync['phase'] === 'play', 'hillSync reads the table');
+$end = Mores::hillMove('alice', [
+    'gameId' => $game['gameId'], 'revision' => 1, 'unitId' => 'sp2', 'to' => '2,-6', 'turn' => 'n', 'over' => true,
+]);
+check($end['ok'] === true && Db::value('SELECT status FROM sandbox_games WHERE id = ?', [$game['gameId']]) === 'done', 'finished hill game closes');
+$again = Mores::hillTable('alice', []);
+check($again['phase'] === 'wait', 'a finished hill game does not resume');
+Db::run('UPDATE profiles SET sandbox_owned = 1 WHERE user_id = ?', ['bob']);
+Db::run('UPDATE profiles SET sandbox_owned = 1 WHERE user_id = ?', ['cara']);
+Db::run('UPDATE profiles SET sandbox_owned = 1 WHERE user_id = ?', ['gus']);
+check(Mores::hillTable('bob', [])['phase'] === 'wait', 'second army waits');
+check(Mores::hillTable('cara', [])['phase'] === 'wait', 'third army waits');
+$four = Mores::hillTable('gus', []);
+check($four['phase'] === 'play', 'four humans start at once');
+$got = array_values($four['seats']);
+sort($got);
+check($got === ['alice', 'bob', 'cara', 'gus'], 'four club members seated');
 
 finish();

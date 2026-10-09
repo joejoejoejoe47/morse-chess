@@ -214,6 +214,31 @@ ALTER TABLE `game_chat` ADD COLUMN `image` MEDIUMTEXT NULL;
 ALTER TABLE `chess_club_messages` ADD COLUMN `image` MEDIUMTEXT NULL;
 ALTER TABLE `profiles` ADD COLUMN `sandbox_owned` TINYINT(1) NOT NULL DEFAULT 0;
 
+CREATE TABLE IF NOT EXISTS `sandbox_queue` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `joined_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `sandbox_games` (
+  `id` VARCHAR(64) NOT NULL,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'active',
+  `seat_s` VARCHAR(64) NOT NULL,
+  `seat_w` VARCHAR(64) NOT NULL,
+  `seat_n` VARCHAR(64) NOT NULL,
+  `seat_e` VARCHAR(64) NOT NULL,
+  `moves` MEDIUMTEXT NOT NULL,
+  `turn_seat` VARCHAR(1) NOT NULL DEFAULT 's',
+  `revision` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `sandbox_games_status_idx` (`status`),
+  KEY `sandbox_games_s_idx` (`seat_s`),
+  KEY `sandbox_games_w_idx` (`seat_w`),
+  KEY `sandbox_games_n_idx` (`seat_n`),
+  KEY `sandbox_games_e_idx` (`seat_e`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `chess_club_events` (
   `id` VARCHAR(64) NOT NULL,
   `club_id` VARCHAR(64) NOT NULL,
