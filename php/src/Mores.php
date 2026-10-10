@@ -1281,6 +1281,13 @@ final class Mores
         if ($game['white_user_id'] !== $userId && $game['black_user_id'] !== $userId) {
             return null;
         }
+        if (Db::bool($game['pull'] ?? 0)) {
+            $allowed = ['WOW! Great Move!', 'NOOOOO!', 'Good Game!!!', 'Nice!'];
+            if (!in_array($text, $allowed, true)) {
+                $text = '';
+                $image = null;
+            }
+        }
         Db::run('UPDATE games SET chat_open = 1 WHERE id = ?', [$game['id']]);
         if ($text !== '' || $image !== null) {
             Db::run(

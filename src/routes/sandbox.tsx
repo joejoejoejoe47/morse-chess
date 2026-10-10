@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { MorseCrest } from "@/components/club-brand";
@@ -14,15 +14,40 @@ export const Route = createFileRoute("/sandbox")({
 
 type Gate = { owned: boolean; coins: number };
 type Seat = { gameId: string; myTeam: Team; seats: Record<Team, string>; coins: number };
+type Phase = "shelf" | "match" | "solo" | "table";
+
+class HillBoundary extends Component<{ children: ReactNode; onHome: () => void }, { error: string | null }> {
+  state = { error: null as string | null };
+
+  static getDerivedStateFromError(err: unknown) {
+    return { error: err instanceof Error ? err.message : "The hill could not open." };
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <main className="grid min-h-dvh place-items-center bg-[#14110e] px-6 text-center text-ivory">
+        <div>
+          <p className="font-display text-4xl">The hill stumbled</p>
+          <p className="mt-3 max-w-md text-sm text-white/70">{this.state.error}</p>
+          <button type="button" className="mt-5 rounded-xl bg-white px-4 py-3 text-sm font-medium text-black" onClick={this.props.onHome}>
+            Back to the shelf
+          </button>
+        </div>
+      </main>
+    );
+  }
+}
 
 function SandboxPage() {
   const door = useClubDoor();
   const navigate = useNavigate();
   const [gate, setGate] = useState<Gate | null>(null);
-  const [phase, setPhase] = useState<"gate" | "pick" | "match" | "play">("gate");
+  const [phase, setPhase] = useState<Phase>("shelf");
   const [seat, setSeat] = useState<Seat | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     if (door.status !== "in") return;
@@ -55,59 +80,49 @@ function SandboxPage() {
   if (door.status === "pending") return <SplashSkeleton />;
   if (door.status === "auth") return <AuthScreen />;
 
-  if (phase === "play" && seat && table) {
+  function home() {
+    setSeat(null);
+    setPhase("shelf");
+  }
+
+  if (phase === "solo" || (phase === "table" && seat && table)) {
     return (
-      <CrossGame
-        key={seat.gameId}
-        myTeam={seat.myTeam}
-        coins={seat.coins}
-        table={table}
-        onHome={() => void navigate({ to: "/" })}
-        onAgain={async () => {
-          const snap = await hillSync({ data: { gameId: seat.gameId } });
-          if (snap.phase === "play") return false;
-          setSeat(null);
-          setPhase("match");
-          return true;
-        }}
-      />
+      <HillBoundary onHome={home}>
+        <CrossGame
+          key={phase === "solo" ? `solo-${round}` : seat?.gameId}
+          myTeam={seat?.myTeam}
+          coins={seat?.coins ?? gate?.coins ?? 0}
+          table={phase === "table" ? table : null}
+          onHome={() => void navigate({ to: "/" })}
+          onAgain={async () => {
+            if (phase === "table" && seat) {
+              const snap = await hillSync({ data: { gameId: seat.gameId } });
+              if (snap.phase === "play") return false;
+              setSeat(null);
+              setPhase("match");
+              return true;
+            }
+            setRound((n) => n + 1);
+            return true;
+          }}
+        />
+      </HillBoundary>
     );
   }
 
   if (phase === "match") {
     return (
       <MatchScreen
-        onCancel={() => setPhase("pick")}
+        onCancel={() => setPhase("shelf")}
+        onSolo={() => {
+          setSeat(null);
+          setPhase("solo");
+        }}
         onReady={(next) => {
           setSeat(next);
-          setPhase("play");
+          setPhase("table");
         }}
       />
-    );
-  }
-
-  if (phase === "pick") {
-    return (
-      <main className="relative min-h-dvh bg-[#14110e] px-4 py-8 text-ivory">
-        <button type="button" onClick={() => setPhase("gate")} className="text-xs uppercase tracking-[0.2em] text-white/70">
-          Back
-        </button>
-        <h1 className="mt-4 font-display text-4xl">Sandbox games</h1>
-        <p className="mt-2 max-w-lg text-sm text-white/70">Scroll the shelf. Hill Cross is the first one.</p>
-        <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-6">
-          <button
-            type="button"
-            onClick={() => setPhase("match")}
-            className="w-[min(86vw,28rem)] shrink-0 snap-center overflow-hidden rounded-2xl border border-white/15 text-left"
-          >
-            <img src={asset("/sandbox/hill-cross.jpg")} alt="" className="h-56 w-full object-cover" />
-            <div className="p-4">
-              <p className="font-display text-2xl">Hill Cross</p>
-              <p className="mt-1 text-sm text-white/70">Four RA armies on a painted hill. Wait three minutes, or play the AI.</p>
-            </div>
-          </button>
-        </div>
-      </main>
     );
   }
 
@@ -122,43 +137,61 @@ function SandboxPage() {
         return;
       }
       setGate({ owned: true, coins: res.coins });
+      setSeat(null);
+      setPhase("solo");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not buy the sandbox.");
+      setError(err instanceof Error ? err.message : "Could not buy Hill Cross.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="relative min-h-dvh overflow-hidden text-ivory">
-      <img src={asset("/sandbox/hill-cross.jpg")} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/25" />
-      <div className="relative mx-auto flex min-h-dvh max-w-lg flex-col justify-end px-5 py-10">
-        <p className="text-xs uppercase tracking-[0.28em] text-white/75">Sandbox game</p>
-        <h1 className="mt-2 font-display text-5xl leading-none">Hill Cross</h1>
-        <p className="mt-3 text-sm text-white/80">
-          A smooth hill, four armies of RA rangers, and a colosseum you build in the center square.
-        </p>
-        {gate ? <p className="mt-3 text-sm text-[#f3e2a8]">{gate.coins.toLocaleString()} Morse coins</p> : null}
-        {error ? <p className="mt-3 text-sm text-[#ffb4a8]">{error}</p> : null}
-        {gate?.owned ? (
-          <button type="button" onClick={() => setPhase("pick")} className="mt-5 rounded-xl bg-white px-4 py-3 text-base font-medium text-black">
-            Play
-          </button>
-        ) : (
-          <button type="button" disabled={!gate || busy} onClick={() => void buy()} className="mt-5 rounded-xl bg-[#e6b422] px-4 py-3 text-base font-medium text-black disabled:opacity-60">
-            {busy ? "Buying…" : "Buy for 90 Morse coins"}
-          </button>
-        )}
-        <button type="button" onClick={() => void navigate({ to: "/" })} className="mt-3 text-sm text-white/75 underline-offset-4 hover:underline">
-          Return to the lounge
-        </button>
+    <main className="relative min-h-dvh bg-[#14110e] px-4 py-8 text-ivory">
+      <button type="button" onClick={() => void navigate({ to: "/" })} className="text-xs uppercase tracking-[0.2em] text-white/70">
+        Lounge
+      </button>
+      <p className="mt-4 text-xs uppercase tracking-[0.28em] text-[#f3e2a8]">Sandbox</p>
+      <h1 className="mt-2 font-display text-4xl">Sandbox games</h1>
+      <p className="mt-2 max-w-lg text-sm text-white/70">The shelf is free. Buy a game if you do not own it. Otherwise, play it.</p>
+      {gate ? <p className="mt-3 text-sm text-[#f3e2a8]">{gate.coins.toLocaleString()} Morse coins</p> : null}
+      {error ? <p className="mt-3 text-sm text-[#ffb4a8]">{error}</p> : null}
+      <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-6">
+        <article className="felt-inset w-[min(86vw,28rem)] shrink-0 snap-center overflow-hidden rounded-xl border border-line text-left">
+          <img src={asset("/sandbox/hill-cross.jpg")} alt="" className="h-56 w-full object-cover" />
+          <div className="p-4">
+            <p className="font-display text-2xl">Hill Cross</p>
+            <p className="mt-1 text-sm text-white/70">Four RA armies on a painted hill. Play the AI now, or wait three minutes for other players.</p>
+            {gate?.owned ? (
+              <div className="mt-4 flex flex-col gap-2">
+                <button type="button" className="rounded-xl bg-white px-4 py-3 text-sm font-medium text-black" onClick={() => { setSeat(null); setPhase("solo"); }}>
+                  Play
+                </button>
+                <button type="button" className="rounded-xl border border-white/30 px-4 py-3 text-sm text-white" onClick={() => setPhase("match")}>
+                  Find players
+                </button>
+              </div>
+            ) : (
+              <button type="button" disabled={!gate || busy} onClick={() => void buy()} className="mt-4 w-full rounded-xl bg-[#e6b422] px-4 py-3 text-sm font-medium text-black disabled:opacity-60">
+                {busy ? "Buying…" : "Buy for 90 Morse coins"}
+              </button>
+            )}
+          </div>
+        </article>
       </div>
     </main>
   );
 }
 
-function MatchScreen({ onCancel, onReady }: { onCancel: () => void; onReady: (seat: Seat) => void }) {
+function MatchScreen({
+  onCancel,
+  onReady,
+  onSolo,
+}: {
+  onCancel: () => void;
+  onReady: (seat: Seat) => void;
+  onSolo: () => void;
+}) {
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
   const [waiting, setWaiting] = useState(1);
@@ -241,8 +274,11 @@ function MatchScreen({ onCancel, onReady }: { onCancel: () => void; onReady: (se
         {m}:{s.toString().padStart(2, "0")}
       </p>
       <p className="mt-2 max-w-xs text-sm text-mist">{line}</p>
-      {error ? <p className="mt-3 text-sm text-[#ffb4a8]">{error}</p> : null}
-      <button type="button" onClick={onCancel} className="mt-8 text-sm text-white/75 underline-offset-4 hover:underline">
+      {error ? <p className="mt-3 max-w-xs text-sm text-[#ffb4a8]">{error}</p> : null}
+      <button type="button" onClick={onSolo} className="mt-6 rounded-xl bg-white px-4 py-3 text-sm font-medium text-black">
+        Play the AI now
+      </button>
+      <button type="button" onClick={onCancel} className="mt-4 text-sm text-white/75 underline-offset-4 hover:underline">
         Back to the shelf
       </button>
     </main>

@@ -52,6 +52,21 @@ type Shake = { ids: [string, string]; start: number; until: number };
 type Spot = { x: number; y: number; z: number; rot: number; s: number; color?: string };
 
 const FACE: Record<Team, number> = { s: 0, n: Math.PI, w: Math.PI / 2, e: -Math.PI / 2 };
+const SEAT_ANGLE: Record<Team, number> = { s: 0, w: 90, n: 180, e: 270 };
+const CAM: Record<Team, [number, number, number]> = {
+  s: [0, 14, -17],
+  n: [0, 14, 17],
+  w: [-17, 14, 0],
+  e: [17, 14, 0],
+};
+
+function screenEdge(team: Team, me: Team): "bottom" | "left" | "top" | "right" {
+  const rel = (SEAT_ANGLE[team] - SEAT_ANGLE[me] + 360) % 360;
+  if (rel === 90) return "left";
+  if (rel === 180) return "top";
+  if (rel === 270) return "right";
+  return "bottom";
+}
 
 function SlowSun() {
   const sun = useRef<THREE.DirectionalLight>(null);
@@ -330,24 +345,17 @@ function Field({
     const pine: Spot[] = [];
     const bush: Spot[] = [];
     const grass: Spot[] = [];
-    cells.forEach((id, i) => {
-      const [x, , z] = worldOf(id);
-      const flowers = ["#f2d0dc", "#f6e7a8", "#ffffff", "#e7b0c4", "#d7e4f6"];
-      grass.push({ x: x + 0.28, y: 0, z: z + 0.18, rot: i * 0.7, s: 0.28 });
-      const spot = { x: x - 0.34, y: 0, z: z - 0.22, rot: i * 1.3, s: id === "forum" ? 0.85 : 0.42, color: flowers[i % flowers.length] };
-      if (i % 5 === 0) tree.push({ ...spot, color: undefined, s: 0.7 });
-      else if (i % 5 === 1) pine.push({ ...spot, color: undefined, s: 0.62 });
-      else bush.push(spot);
-    });
-    for (let i = 0; i < 72; i++) {
-      const a = (i / 72) * Math.PI * 2 + (i % 5) * 0.17;
-      const rad = 18 + (i % 8) * 2.4;
+    for (let i = 0; i < 80; i++) {
+      const a = (i / 80) * Math.PI * 2 + (i % 5) * 0.17;
+      const rad = 17.5 + (i % 7) * 2.15;
       const x = Math.cos(a) * rad;
-      const z = Math.sin(a) * rad * 0.86;
+      const z = Math.sin(a) * rad * 0.88;
       if (onBoard(x, z)) continue;
-      const spot = { x, y: 0, z, rot: i, s: 2.8 + (i % 4) * 0.7 };
-      if (i % 2 === 0) tree.push(spot);
+      const spot = { x, y: 0, z, rot: i * 0.9, s: 2.4 + (i % 4) * 0.65 };
+      if (i % 3 === 0) bush.push({ ...spot, s: 0.55 });
+      else if (i % 2 === 0) tree.push(spot);
       else pine.push(spot);
+      grass.push({ x: x * 0.82, y: 0, z: z * 0.82, rot: i * 0.4, s: 0.32 });
     }
     const lift = (list: Spot[]) => list.map((spot) => ({ ...spot, y: groundY(spot.x, spot.z) }));
     return { tree: lift(tree), pine: lift(pine), bush: lift(bush), grass: lift(grass) };
@@ -422,7 +430,7 @@ function Portrait({ team, active, edge, mine, ai }: { team: Team; active: boolea
         }}
       />
       <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-white">
-        {mine ? "My turn" : ai ? "AI" : TEAM_NAME[team]}
+        {mine && active ? "My turn" : mine ? "You" : ai ? "AI" : TEAM_NAME[team]}
       </span>
     </div>
   );
@@ -465,6 +473,7 @@ export function CrossGame({
   const [slides, setSlides] = useState<Record<string, Slide>>({});
   const [shake, setShake] = useState<Shake | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const timer = useRef(0);
   const rev = useRef(0);
   const seen = useRef(0);
@@ -505,6 +514,8 @@ export function CrossGame({
   }
 
   applyRef.current = apply;
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
 
   useEffect(() => {
     if (!table) return;
@@ -549,8 +560,8 @@ export function CrossGame({
 
   useEffect(() => {
     if (busy || pending || state.winner) return;
-    const botSeat = table ? table.seats[state.turn].startsWith("bot-hill") : state.turn !== myTeam;
-    const host = table ? TEAMS.find((team) => !table.seats[team].startsWith("bot-hill")) : myTeam;
+    const botSeat = table ? Boolean(table.seats[state.turn]?.startsWith("bot-hill")) : state.turn !== myTeam;
+    const host = table ? TEAMS.find((team) => !table.seats[team]?.startsWith("bot-hill")) : myTeam;
     if (!botSeat || (table && host !== myTeam)) return;
     const id = window.setTimeout(() => {
       const move = botMove(state);
@@ -587,13 +598,13 @@ export function CrossGame({
   const need = holders >= 2 ? 9 : 10;
   const won = state.winner === myTeam;
   const lost = Boolean(state.winner && state.winner !== myTeam) || state.out.includes(myTeam);
-  const aiSeat = (team: Team) => Boolean(table?.seats[team]?.startsWith("bot-hill"));
+  const aiSeat = (team: Team) => (table ? Boolean(table.seats[team]?.startsWith("bot-hill")) : team !== myTeam);
   const aiCount = TEAMS.filter((team) => aiSeat(team)).length;
   const turnName = state.turn === myTeam ? "Your turn" : aiSeat(state.turn) ? "AI's turn" : `${TEAM_NAME[state.turn]}'s turn`;
 
   return (
     <div className="fixed inset-0 bg-[#102016] text-ivory">
-      <Canvas shadows camera={{ position: [0, 18, 15.5], fov: 28 }} dpr={[1, 1.5]}>
+      <Canvas shadows camera={{ position: CAM[myTeam], fov: 28 }} dpr={[1, 1.5]}>
         <Suspense fallback={null}>
           <Field state={state} slides={slides} shake={shake} selected={selected} moves={moves} onCell={onCell} onUnit={onUnit} />
         </Suspense>
@@ -611,10 +622,10 @@ export function CrossGame({
           )}
         </div>
       </div>
-      <Portrait team="n" edge="top" active={state.turn === "n"} mine={myTeam === "n"} ai={aiSeat("n")} />
-      <Portrait team="s" edge="bottom" active={state.turn === "s"} mine={myTeam === "s"} ai={aiSeat("s")} />
-      <Portrait team="w" edge="left" active={state.turn === "w"} mine={myTeam === "w"} ai={aiSeat("w")} />
-      <Portrait team="e" edge="right" active={state.turn === "e"} mine={myTeam === "e"} ai={aiSeat("e")} />
+      <Portrait team="n" edge={screenEdge("n", myTeam)} active={state.turn === "n"} mine={myTeam === "n"} ai={aiSeat("n")} />
+      <Portrait team="s" edge={screenEdge("s", myTeam)} active={state.turn === "s"} mine={myTeam === "s"} ai={aiSeat("s")} />
+      <Portrait team="w" edge={screenEdge("w", myTeam)} active={state.turn === "w"} mine={myTeam === "w"} ai={aiSeat("w")} />
+      <Portrait team="e" edge={screenEdge("e", myTeam)} active={state.turn === "e"} mine={myTeam === "e"} ai={aiSeat("e")} />
       <button type="button" onClick={onHome} className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-white backdrop-blur-sm">
         Lounge
       </button>

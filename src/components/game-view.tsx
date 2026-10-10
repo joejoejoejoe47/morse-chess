@@ -36,6 +36,8 @@ import { setPieceStyle } from "@/lib/server/avatar";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
 
+const PULL_LINES = ["WOW! Great Move!", "NOOOOO!", "Good Game!!!", "Nice!"] as const;
+
 const DARK_ROOM = "#0c0d0b";
 const LIGHT_ROOM = "#f6f1e4";
 
@@ -284,6 +286,7 @@ export function GameView({ gameId }: { gameId: string }) {
   const [view, setView] = useState<BoardView>(readBoardView);
   const [draft, setDraft] = useState("");
   const [dropOver, setDropOver] = useState(false);
+  const [seatVideo, setSeatVideo] = useState<HTMLVideoElement | null>(null);
   const picture = useRef<HTMLInputElement>(null);
   const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null);
   const [tuning, setTuning] = useState(false);
@@ -334,7 +337,7 @@ export function GameView({ gameId }: { gameId: string }) {
   }
 
   async function sendPicture(file: File | undefined) {
-    if (!file) return;
+    if (!file || game?.pull) return;
     try {
       const image = await shrinkChatImage(file);
       const snap = await sendGameChat({ data: { gameId, text: "", image } });
@@ -678,13 +681,13 @@ export function GameView({ gameId }: { gameId: string }) {
                 roomImage={roomImage}
                 roomScene={liveScene}
                 modelUrl={liveScene === "model" ? modelUrl : null}
-                tableSeat={null}
-                seatVideo={null}
                 people={view === "an"}
                 real={view === "ra"}
                 showTip={prefs.pieceTip}
                 fightZoom={(view === "an" || view === "ra") && prefs.fightZoom}
                 kings={{ w: game.whiteLook, b: game.blackLook }}
+                tableSeat={cameraOn && view !== "2d" ? "video" : null}
+                seatVideo={cameraOn && view !== "2d" ? seatVideo : null}
               />
           )}
         </div>
@@ -738,15 +741,28 @@ export function GameView({ gameId }: { gameId: string }) {
         ) : null}
         {over ? <ResultOverlay game={game} /> : null}
         {cameraOn && !vsBot ? (
-          <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
-            <LiveCall
-              gameId={game.id}
-              selfId={selfId}
-              name={myName}
-              audio={false}
-              video
-              showRemoteVideo
-            />
+          <div
+            className={
+              view === "2d"
+                ? "absolute left-1/2 top-3 z-20 w-32 -translate-x-1/2"
+                : "pointer-events-none absolute h-px w-px overflow-hidden opacity-0"
+            }
+          >
+            {view === "2d" ? (
+              <p className="mb-1 text-center text-[10px] uppercase tracking-[0.16em] text-ivory">{opp.username}</p>
+            ) : null}
+            <div className={view === "2d" ? "aspect-[3/4] overflow-hidden rounded-xl border border-white/25 bg-black shadow-xl" : undefined}>
+              <LiveCall
+                gameId={game.id}
+                selfId={selfId}
+                name={myName}
+                audio={false}
+                video
+                opponentOnly
+                hud={false}
+                onRemoteVideo={setSeatVideo}
+              />
+            </div>
           </div>
         ) : null}
         {game.chatOpen ? (
@@ -810,7 +826,9 @@ export function GameView({ gameId }: { gameId: string }) {
                 </div>
               ) : null}
               {(game.chat ?? []).length === 0 ? (
-                <p className="text-[13px] text-mist">Say something, or drop a picture. The user sees it on this same table.</p>
+                <p className="text-[13px] text-mist">
+                  {game.pull ? "Only four lines are allowed at a random pull-up." : "Say something, or drop a picture. The user sees it on this same table."}
+                </p>
               ) : (
                 (game.chat ?? []).map((m) => (
                   <div key={m.id} className="rounded-lg bg-panel px-3 py-2">
@@ -826,6 +844,7 @@ export function GameView({ gameId }: { gameId: string }) {
               className="flex items-center gap-2 border-t border-line p-2"
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (game.pull) return;
                 const text = draft.trim();
                 if (!text) return;
                 setDraft("");
@@ -833,6 +852,24 @@ export function GameView({ gameId }: { gameId: string }) {
                 if (snap) applySnap(snap, true);
               }}
             >
+              {game.pull ? (
+                <div className="grid w-full grid-cols-2 gap-2">
+                  {PULL_LINES.map((line) => (
+                    <button
+                      key={line}
+                      type="button"
+                      className="min-h-11 rounded-lg border border-line bg-panel px-2 text-sm text-ivory hover:border-gold-line"
+                      onClick={async () => {
+                        const snap = await sendGameChat({ data: { gameId, text: line } });
+                        if (snap) applySnap(snap, true);
+                      }}
+                    >
+                      {line}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <>
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -865,6 +902,8 @@ export function GameView({ gameId }: { gameId: string }) {
               >
                 <ImagePlus className="size-4" />
               </button>
+                </>
+              )}
             </form>
             </div>
             {game.liveOpen && !vsBot ? (

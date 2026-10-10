@@ -266,6 +266,15 @@ check(count($s['chat']) === 2 && $s['chatOpen'] === true, 'blank chat only opens
 check(Mores::sendGameChat('cara', ['gameId' => $gid, 'text' => 'hi']) === null && Mores::openGameChat('cara', ['gameId' => $gid]) === null, 'outsiders cannot chat');
 check(Mores::openGameChat('alice', ['gameId' => 'nope']) === null, 'chat on unknown game -> null');
 Mores::resignGame('alice', ['gameId' => $gid]);
+[$gid] = human_game('alice', 'bob', 'bob_bobby', 'breeze');
+Db::run('UPDATE games SET pull = 1 WHERE id = ?', [$gid]);
+$pull = Mores::sendGameChat('alice', ['gameId' => $gid, 'text' => 'hello there']);
+check(count($pull['chat']) === 0, 'random pull-up rejects free text');
+$pull = Mores::sendGameChat('bob', ['gameId' => $gid, 'text' => 'Nice!']);
+check($pull['chat'][0]['text'] === 'Nice!', 'random pull-up allows Nice!');
+$pull = Mores::sendGameChat('alice', ['gameId' => $gid, 'text' => 'WOW! Great Move!']);
+check($pull['chat'][1]['text'] === 'WOW! Great Move!', 'random pull-up allows WOW');
+Mores::resignGame('alice', ['gameId' => $gid]);
 
 // ── bot game: bot answers with a legal move in sane time ───────────────────
 foreach (['v1', 'v2'] as $kind) {

@@ -2,6 +2,7 @@ import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { ThemeProvider } from "@/components/theme";
 import { BellHost } from "@/components/bell-host";
+import { SoundtrackHost } from "@/components/soundtrack-host";
 import { StudioSplash } from "@/components/studio-splash";
 import { CoinDock } from "@/components/coin-dock";
 import { Toaster } from "sonner";
@@ -12,6 +13,7 @@ export const Route = createRootRoute({
       <AuthProvider>
         <ThemeProvider>
           <BellHost />
+          <SoundtrackHost />
           <Outlet />
         </ThemeProvider>
       </AuthProvider>

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { NamePlate } from "@/components/avatar/name-plate";
 import { defaultIceServers } from "@/lib/multiplayer";
 import { apiUrl } from "@/lib/base";
 
@@ -23,7 +22,6 @@ export function SeatCircle({
   quietIds?: string[];
 }) {
   const [videos, setVideos] = useState<Record<string, MediaStream>>({});
-  const [local, setLocal] = useState<MediaStream | null>(null);
   const loudRef = useRef(loudId);
   const quietRef = useRef(new Set(quietIds));
   loudRef.current = loudId;
@@ -146,7 +144,6 @@ export function SeatCircle({
           return;
         }
         stream = raw;
-        setLocal(raw);
         void audio.resume().catch(() => undefined);
         void poll();
       })
@@ -179,28 +176,34 @@ export function SeatCircle({
         const y = 46 + Math.sin(angle) * (seats.length < 5 ? 36 : 40);
         const peer = slug(seat.userId);
         const mine = seat.userId === selfId;
+        if (mine) return null;
         const hidden = quietIds.includes(seat.userId);
-        const stream = mine ? local : videos[peer];
+        const stream = videos[peer];
+        const yaw = Math.cos(angle) * 18;
         return (
           <div
             key={seat.userId}
             className="absolute w-28 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${x}%`, top: `${y}%` }}
+            style={{ left: `${x}%`, top: `${y}%`, perspective: "700px" }}
           >
-            <div className="mx-auto mb-1 size-16 overflow-hidden rounded-full border border-line bg-ink">
+            <div
+              className="mx-auto mb-1 aspect-[3/4] w-20 overflow-hidden rounded-md border border-white/30 bg-black shadow-[0_18px_30px_rgba(0,0,0,0.45)]"
+              style={{ transform: `rotateY(${yaw}deg) rotateX(8deg)` }}
+            >
               {stream && !hidden ? (
                 <video
                   autoPlay
                   playsInline
-                  muted={mine}
                   ref={(node) => {
                     if (node && node.srcObject !== stream) node.srcObject = stream;
                   }}
                   className="size-full object-cover"
                 />
-              ) : null}
+              ) : (
+                <div className="grid size-full place-items-center text-[10px] uppercase tracking-[0.14em] text-white/50">Camera</div>
+              )}
             </div>
-            <NamePlate name={seat.username} look={seat.look} />
+            <p className="truncate text-center text-[11px] font-medium uppercase tracking-[0.12em] text-ivory">{seat.username}</p>
           </div>
         );
       })}

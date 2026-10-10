@@ -287,9 +287,16 @@ export function ClubHome() {
       </section>
       <Link
         to="/sandbox"
-        className="relative mt-8 flex min-h-14 w-full items-center justify-center rounded-xl border border-[#e6b422]/70 bg-[#2a2418]/90 px-6 font-display text-2xl tracking-[0.22em] text-[#f3e2a8] shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-[#f3e2a8]"
+        className="felt-inset relative mt-4 block rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
       >
-        SANDBOX GAME
+        <div className="flex items-center gap-3">
+          <CheckTile />
+          <PieceMark kind="r" className="size-7 text-cream" />
+        </div>
+        <h2 className="mt-4 font-display text-2xl text-ivory">Sandbox game</h2>
+        <p className="mt-2 text-sm text-mist">
+          The shelf is free. Open it, then buy a game you do not own, or play one you already have.
+        </p>
       </Link>
       <Link
         to="/club"

@@ -20,6 +20,7 @@ export function LiveCall({
   video = false,
   showRemoteVideo = false,
   hud = true,
+  opponentOnly = false,
   onRemoteVideo,
 }: {
   gameId: string;
@@ -29,6 +30,7 @@ export function LiveCall({
   video?: boolean;
   showRemoteVideo?: boolean;
   hud?: boolean;
+  opponentOnly?: boolean;
   onRemoteVideo?: (el: HTMLVideoElement | null) => void;
 }) {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -196,6 +198,10 @@ export function LiveCall({
       }).catch(() => undefined);
     };
   }, [gameId, selfId, name, audio, video]);
+
+  if (video && opponentOnly) {
+    return <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />;
+  }
 
   if (video) {
     return (

@@ -144,6 +144,7 @@ function ClubGate({
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -236,6 +237,27 @@ function ClubGate({
           {busy ? "One moment…" : mode === "create" ? "Create" : mode === "join" ? "Ask to join" : "Enter"}
         </Button>
       </form>
+      <button
+        type="button"
+        className="mt-4 text-sm text-gold-line underline-offset-4 hover:underline"
+        onClick={() => setHelp((open) => !open)}
+      >
+        Need help with the chess club?
+      </button>
+      {help ? (
+        <div className="mt-3 w-full max-w-[26.5rem] rounded-[18px] border border-line bg-panel/90 p-5 text-sm leading-relaxed text-ivory">
+          <p>
+            If you create a chess club, you automatically become the host of the chess club, and you are the boss.
+            If you join a chess club, enter the name of the chess club you want. That sends a letter to the host.
+            The host can either decide not to let you enter, or welcome you into the chess club.
+          </p>
+          <p className="mt-3">
+            If you click Enter, type the club name and password of a chess club you already joined. You then enter
+            that chess club to have fun, hold tournaments with your own chess club, or challenge another chess club
+            to a battle. That battle is posted on the championship chart so everyone can see it.
+          </p>
+        </div>
+      ) : null}
     </main>
   );
 }

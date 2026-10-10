@@ -20,6 +20,7 @@ import {
   type BellSettings,
 } from "@/lib/bell";
 import { listClubUsers, type ClubUserRow } from "@/lib/server/mores";
+import { SoundtrackPanel } from "@/components/soundtrack-panel";
 
 // re-export type locally if missing
 type Watch = BellSettings["watches"][number];
@@ -175,6 +176,10 @@ export function BellDesk() {
           </div>
         </div>
       </Card>
+
+      <div className="relative mt-4">
+        <SoundtrackPanel accountId={accountId} />
+      </div>
 
       <Card className="relative mt-4 space-y-4">
         <div>
