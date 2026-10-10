@@ -1589,25 +1589,34 @@ final class Mores
     }
 
     /** @return array<string,mixed>|null */
-    private static function hillTryMatch(string $userId): ?array
+    private static function hillTryMatch(string $userId, bool $forceAi): ?array
     {
-        return Db::transaction(static function () use ($userId): ?array {
-            $rows = Db::all('SELECT user_id, joined_at FROM sandbox_queue ORDER BY joined_at ASC' . Db::forUpdate());
-            $ids = [];
-            $oldest = 0;
+        return Db::transaction(static function () use ($userId, $forceAi): ?array {
+            $rows = Db::all('SELECT user_id, joined_at, seen_at FROM sandbox_queue ORDER BY joined_at ASC' . Db::forUpdate());
+            $live = [];
+            $myAge = 0;
             $now = Db::nowMs();
             foreach ($rows as $row) {
-                $ids[] = (string) $row['user_id'];
-                $age = $now - Db::toMs($row['joined_at']);
-                if ($age > $oldest) {
-                    $oldest = $age;
+                $id = (string) $row['user_id'];
+                $seenRaw = $row['seen_at'] ?? null;
+                $seen = ($seenRaw !== null && $seenRaw !== '') ? Db::toMs($seenRaw) : 0;
+                // Someone who closed the spinner is not sitting at the table.
+                if ($id !== $userId && ($seen === 0 || $now - $seen > 20000)) {
+                    Db::run('DELETE FROM sandbox_queue WHERE user_id = ?', [$id]);
+                    continue;
                 }
+                $age = $now - Db::toMs($row['joined_at']);
+                if ($id === $userId) {
+                    $myAge = max(0, $age);
+                }
+                $live[] = $id;
             }
             $take = null;
-            if (count($ids) >= 4) {
-                $take = array_slice($ids, 0, 4);
-            } elseif (count($ids) > 0 && $oldest >= self::HILL_WAIT_MS) {
-                $take = array_slice($ids, 0, min(4, count($ids)));
+            if (count($live) >= 4) {
+                $take = array_slice($live, 0, 4);
+            } elseif (count($live) > 0 && ($myAge >= self::HILL_WAIT_MS || ($forceAi && $myAge >= self::HILL_WAIT_MS - 5000))) {
+                // Nobody filled the table. The empty armies are the AI.
+                $take = $live;
             }
             if ($take !== null) {
                 self::hillStart($take);
@@ -1631,8 +1640,13 @@ final class Mores
         if ($active !== null) {
             return self::hillView($active, $userId);
         }
-        Db::insertIgnore('sandbox_queue', ['user_id' => $userId, 'joined_at' => Db::now()]);
-        $matched = self::hillTryMatch($userId);
+        Db::insertIgnore('sandbox_queue', [
+            'user_id' => $userId,
+            'joined_at' => Db::now(),
+            'seen_at' => Db::now(),
+        ]);
+        Db::run('UPDATE sandbox_queue SET seen_at = ? WHERE user_id = ?', [Db::now(), $userId]);
+        $matched = self::hillTryMatch($userId, !empty($data['ai']));
         if ($matched !== null) {
             return $matched;
         }

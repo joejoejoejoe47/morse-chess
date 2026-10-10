@@ -103,7 +103,7 @@ function SandboxPage() {
             <img src={asset("/sandbox/hill-cross.jpg")} alt="" className="h-56 w-full object-cover" />
             <div className="p-4">
               <p className="font-display text-2xl">Hill Cross</p>
-              <p className="mt-1 text-sm text-white/70">Four RA armies on a painted hill. The table waits up to three minutes.</p>
+              <p className="mt-1 text-sm text-white/70">Four RA armies on a painted hill. Wait three minutes, or play the AI.</p>
             </div>
           </button>
         </div>
@@ -172,6 +172,20 @@ function MatchScreen({ onCancel, onReady }: { onCancel: () => void; onReady: (se
       try {
         const snap = await hillTable();
         if (!live || started) return;
+        if (snap.phase === "wait" && (snap.waitMs || 0) >= 175000) {
+          const filled = await hillTable({ data: { ai: true } });
+          if (!live || started) return;
+          if (filled.phase === "play" && filled.gameId && filled.myTeam && filled.seats) {
+            started = true;
+            readyRef.current({
+              gameId: filled.gameId,
+              myTeam: filled.myTeam,
+              seats: filled.seats,
+              coins: filled.coins,
+            });
+            return;
+          }
+        }
         if (snap.phase === "play" && snap.gameId && snap.myTeam && snap.seats) {
           started = true;
           readyRef.current({
@@ -201,7 +215,15 @@ function MatchScreen({ onCancel, onReady }: { onCancel: () => void; onReady: (se
   const m = Math.floor(left / 60000);
   const s = Math.floor((left % 60000) / 1000);
   const line =
-    waiting >= 4 ? "The cross is full." : waiting === 3 ? "One army is still out in the hills." : waiting === 2 ? "Two armies are on the hill." : "You are the first army on the hill.";
+    left === 0
+      ? "Nobody sat down. The AI is taking the field…"
+      : waiting >= 4
+        ? "The cross is full."
+        : waiting === 3
+          ? "One army is still out in the hills."
+          : waiting === 2
+            ? "Two armies are on the hill. Empty seats become the AI."
+            : "If nobody sits down, you play the AI.";
 
   return (
     <main className="auth-wood relative flex min-h-dvh flex-col items-center justify-center px-5 text-center">

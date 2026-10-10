@@ -430,4 +430,22 @@ $got = array_values($four['seats']);
 sort($got);
 check($got === ['alice', 'bob', 'cara', 'gus'], 'four club members seated');
 
+Db::run("UPDATE sandbox_games SET status = 'done'");
+Db::run('DELETE FROM sandbox_queue');
+$gone = Db::ts(Db::nowMs() - 600000);
+Db::run('INSERT INTO sandbox_queue (user_id, joined_at, seen_at) VALUES (?, ?, ?)', ['bob', $gone, $gone]);
+$solo = Mores::hillTable('alice', []);
+check($solo['phase'] === 'wait' && (int) $solo['waiting'] === 1, 'a player who left does not sit with you');
+check((int) Db::value('SELECT COUNT(*) FROM sandbox_queue WHERE user_id = ?', ['bob']) === 0, 'a quiet seat is dropped');
+Db::run('UPDATE sandbox_queue SET joined_at = ? WHERE user_id = ?', [Db::ts(Db::nowMs() - 181000), 'alice']);
+$ai = Mores::hillTable('alice', ['ai' => true]);
+check($ai['phase'] === 'play', 'when nobody answers you play the AI');
+$aiBots = 0;
+foreach (['s', 'w', 'n', 'e'] as $seat) {
+    if (str_starts_with((string) $ai['seats'][$seat], 'bot-hill')) {
+        $aiBots++;
+    }
+}
+check($aiBots === 3 && $ai['seats'][$ai['myTeam']] === 'alice', 'three AI armies take the empty seats');
+
 finish();

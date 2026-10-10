@@ -217,8 +217,11 @@ ALTER TABLE `profiles` ADD COLUMN `sandbox_owned` TINYINT(1) NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS `sandbox_queue` (
   `user_id` VARCHAR(64) NOT NULL,
   `joined_at` DATETIME(3) NOT NULL,
+  `seen_at` DATETIME(3) NULL,
   PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `sandbox_queue` ADD COLUMN `seen_at` DATETIME(3) NULL;
 
 CREATE TABLE IF NOT EXISTS `sandbox_games` (
   `id` VARCHAR(64) NOT NULL,

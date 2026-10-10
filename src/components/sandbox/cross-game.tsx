@@ -400,7 +400,7 @@ function Field({
   );
 }
 
-function Portrait({ team, active, edge, mine }: { team: Team; active: boolean; edge: "top" | "bottom" | "left" | "right"; mine: boolean }) {
+function Portrait({ team, active, edge, mine, ai }: { team: Team; active: boolean; edge: "top" | "bottom" | "left" | "right"; mine: boolean; ai?: boolean }) {
   const place =
     edge === "bottom"
       ? "bottom-4 left-1/2 -translate-x-1/2"
@@ -422,7 +422,7 @@ function Portrait({ team, active, edge, mine }: { team: Team; active: boolean; e
         }}
       />
       <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-white">
-        {mine ? "My turn" : TEAM_NAME[team]}
+        {mine ? "My turn" : ai ? "AI" : TEAM_NAME[team]}
       </span>
     </div>
   );
@@ -555,7 +555,7 @@ export function CrossGame({
     const id = window.setTimeout(() => {
       const move = botMove(state);
       if (move) applyRef.current(state, move, "dominate");
-    }, 640);
+    }, 520);
     return () => window.clearTimeout(id);
   }, [busy, pending, state, table, myTeam]);
 
@@ -587,6 +587,9 @@ export function CrossGame({
   const need = holders >= 2 ? 9 : 10;
   const won = state.winner === myTeam;
   const lost = Boolean(state.winner && state.winner !== myTeam) || state.out.includes(myTeam);
+  const aiSeat = (team: Team) => Boolean(table?.seats[team]?.startsWith("bot-hill"));
+  const aiCount = TEAMS.filter((team) => aiSeat(team)).length;
+  const turnName = state.turn === myTeam ? "Your turn" : aiSeat(state.turn) ? "AI's turn" : `${TEAM_NAME[state.turn]}'s turn`;
 
   return (
     <div className="fixed inset-0 bg-[#102016] text-ivory">
@@ -597,7 +600,8 @@ export function CrossGame({
       </Canvas>
       <div className="pointer-events-none absolute left-1/2 top-3 w-[min(68vw,18rem)] -translate-x-1/2">
         <div className="rounded-full bg-black/55 px-4 py-2 text-center text-sm text-white backdrop-blur-sm">
-          <span className="uppercase tracking-[0.18em]">{state.turn === myTeam ? "Your turn" : `${TEAM_NAME[state.turn]}'s turn`}</span>
+          <span className="uppercase tracking-[0.18em]">{turnName}</span>
+          {aiCount > 0 ? <span className="mt-0.5 block text-xs text-[#f3e2a8]">Playing the AI</span> : null}
           {state.forum.owner ? (
             <span className="mt-0.5 block text-xs text-white/80">
               Colosseum {state.forum.progress}/{need} · {TEAM_NAME[state.forum.owner]}
@@ -607,10 +611,10 @@ export function CrossGame({
           )}
         </div>
       </div>
-      <Portrait team="n" edge="top" active={state.turn === "n"} mine={myTeam === "n"} />
-      <Portrait team="s" edge="bottom" active={state.turn === "s"} mine={myTeam === "s"} />
-      <Portrait team="w" edge="left" active={state.turn === "w"} mine={myTeam === "w"} />
-      <Portrait team="e" edge="right" active={state.turn === "e"} mine={myTeam === "e"} />
+      <Portrait team="n" edge="top" active={state.turn === "n"} mine={myTeam === "n"} ai={aiSeat("n")} />
+      <Portrait team="s" edge="bottom" active={state.turn === "s"} mine={myTeam === "s"} ai={aiSeat("s")} />
+      <Portrait team="w" edge="left" active={state.turn === "w"} mine={myTeam === "w"} ai={aiSeat("w")} />
+      <Portrait team="e" edge="right" active={state.turn === "e"} mine={myTeam === "e"} ai={aiSeat("e")} />
       <button type="button" onClick={onHome} className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-white backdrop-blur-sm">
         Lounge
       </button>
