@@ -155,11 +155,13 @@ function forumExits(dx: number, dz: number): string[] {
   return exits;
 }
 
-function rayFrom(x: number, z: number, dx: number, dz: number, blocks: Set<string>): string[] {
+const SLIDE_MAX = 8;
+
+function rayFrom(x: number, z: number, dx: number, dz: number, blocks: Set<string>, max = SLIDE_MAX): string[] {
   const out: string[] = [];
   let cx = x;
   let cz = z;
-  for (let n = 0; n < 32; n++) {
+  for (let n = 0; n < max; n++) {
     const nx = cx + dx;
     const nz = cz + dz;
     if (inBlock(nx, nz)) {
@@ -194,13 +196,13 @@ function slide(from: string, dx: number, dz: number, blocks: Set<string>): strin
       if (!p) continue;
       out.push(exit);
       if (blocks.has(exit)) continue;
-      out.push(...rayFrom(p.x, p.z, dx, dz, blocks));
+      out.push(...rayFrom(p.x, p.z, dx, dz, blocks, SLIDE_MAX - 1));
     }
     return [...new Set(out)];
   }
   const p = parseCell(from);
   if (!p) return [];
-  return rayFrom(p.x, p.z, dx, dz, blocks);
+  return rayFrom(p.x, p.z, dx, dz, blocks, SLIDE_MAX);
 }
 
 function knightTargets(from: string): string[] {

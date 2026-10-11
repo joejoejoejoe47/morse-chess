@@ -4,8 +4,7 @@ import { OrbitControls, useGLTF, useTexture } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { asset } from "@/lib/base";
-import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
-import type { Gait } from "@/components/chess/stone-people";
+import { StonePerson, type Gait } from "@/components/chess/stone-people";
 import {
   PITCH,
   TEAM_COLOR,
@@ -54,10 +53,10 @@ type Spot = { x: number; y: number; z: number; rot: number; s: number; color?: s
 const FACE: Record<Team, number> = { s: 0, n: Math.PI, w: Math.PI / 2, e: -Math.PI / 2 };
 const SEAT_ANGLE: Record<Team, number> = { s: 0, w: 90, n: 180, e: 270 };
 const CAM: Record<Team, [number, number, number]> = {
-  s: [0, 14, -17],
-  n: [0, 14, 17],
-  w: [-17, 14, 0],
-  e: [17, 14, 0],
+  s: [0, 5.6, -16.6],
+  n: [0, 5.6, 16.6],
+  w: [-16.6, 5.6, 0],
+  e: [16.6, 5.6, 0],
 };
 
 function screenEdge(team: Team, me: Team): "bottom" | "left" | "top" | "right" {
@@ -120,15 +119,19 @@ function PaintedHill({ onCell }: { onCell: (id: string) => void }) {
       tex.repeat.set(28, 28);
     }
     maps.map.colorSpace = THREE.SRGBColorSpace;
-    const ground = new THREE.PlaneGeometry(110, 110, 160, 160);
+    const steps = 46;
+    const span = steps * PITCH;
+    const segs = steps * 2;
+    const ground = new THREE.PlaneGeometry(span * 2, span * 2, segs, segs);
     ground.rotateX(-Math.PI / 2);
     const pos = ground.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const wild = new THREE.Color("#ffffff");
-    const rock = new THREE.Color("#d7c4a4");
-    const light = new THREE.Color("#f4ead2");
-    const dark = new THREE.Color("#7ea85f");
-    const plaza = new THREE.Color("#f0e0bc");
+    const wild = new THREE.Color("#e7efd4");
+    const rock = new THREE.Color("#cbb89a");
+    const light = new THREE.Color("#f3ead4");
+    const dark = new THREE.Color("#6f9a52");
+    const plaza = new THREE.Color("#e7d3a4");
+    const gutter = new THREE.Color("#2c261c");
     const tint = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
@@ -136,13 +139,15 @@ function PaintedHill({ onCell }: { onCell: (id: string) => void }) {
       pos.setY(i, groundY(x, z));
       const cell = pickCell(x, z);
       tint.copy(wild);
-      if (cell === "forum") tint.copy(plaza);
-      else if (cell) {
+      if (cell === "forum") {
+        const edge = Math.max(Math.abs(x), Math.abs(z)) / (PITCH * 0.98);
+        tint.copy(edge > 0.9 ? gutter : plaza);
+      } else if (cell) {
         const [a, b] = cell.split(",").map(Number);
         tint.copy(((a ?? 0) + (b ?? 0)) % 2 === 0 ? light : dark);
         const [cx, , cz] = worldOf(cell);
         const edge = Math.max(Math.abs(x - cx), Math.abs(z - cz)) / (PITCH * 0.5);
-        tint.lerp(wild, THREE.MathUtils.smoothstep(edge, 0.86, 1));
+        if (edge > 0.9) tint.copy(gutter);
       } else {
         const rim = THREE.MathUtils.smoothstep(Math.hypot(x, z), 16, 34);
         tint.lerp(rock, rim);
@@ -179,6 +184,13 @@ function Scatter({ url, spots }: { url: string; spots: Spot[] }) {
     gltf.scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
+      const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of list) {
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          mat.roughness = Math.max(mat.roughness, 0.78);
+          mat.metalness = 0;
+        }
+      }
       const geo = mesh.geometry.clone();
       geo.applyMatrix4(mesh.matrixWorld);
       const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
@@ -311,12 +323,16 @@ function Ranger({
   });
   return (
     <group ref={ref} onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onPick(unit.id); }}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <circleGeometry args={[0.11, 12]} />
-        <meshBasicMaterial color={TEAM_COLOR[unit.team]} transparent opacity={0.9} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+        <circleGeometry args={[0.07, 12]} />
+        <meshBasicMaterial color={TEAM_COLOR[unit.team]} transparent opacity={0.95} />
       </mesh>
-      <group scale={0.2}>
-        <RaPawn gait={gait} url={raUnitUrl(unit.type)} team="blue" role={unit.type} tint={TEAM_COLOR[unit.team]} />
+      <mesh position={[0, 0.28, 0]}>
+        <cylinderGeometry args={[0.22, 0.22, 0.56, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <group scale={0.3}>
+        <StonePerson type={unit.type} white cast="stone" gait={gait} sword={false} />
       </group>
     </group>
   );
@@ -345,17 +361,31 @@ function Field({
     const pine: Spot[] = [];
     const bush: Spot[] = [];
     const grass: Spot[] = [];
+    for (const id of cells) {
+      if (id === "forum") continue;
+      const [x, , z] = worldOf(id);
+      const [a, b] = id.split(",").map(Number);
+      const spot = {
+        x: x + PITCH * 0.3,
+        y: 0,
+        z: z - PITCH * 0.3,
+        rot: ((a ?? 0) * 13 + (b ?? 0) * 7) * 0.2,
+        s: 0.46,
+      };
+      if (((a ?? 0) + (b ?? 0)) % 2 === 0) tree.push(spot);
+      else pine.push(spot);
+      grass.push({ x: x - PITCH * 0.3, y: 0, z: z + PITCH * 0.3, rot: (a ?? 0) + (b ?? 0), s: 0.14 });
+    }
     for (let i = 0; i < 80; i++) {
       const a = (i / 80) * Math.PI * 2 + (i % 5) * 0.17;
       const rad = 17.5 + (i % 7) * 2.15;
       const x = Math.cos(a) * rad;
       const z = Math.sin(a) * rad * 0.88;
       if (onBoard(x, z)) continue;
-      const spot = { x, y: 0, z, rot: i * 0.9, s: 2.4 + (i % 4) * 0.65 };
-      if (i % 3 === 0) bush.push({ ...spot, s: 0.55 });
+      const spot = { x, y: 0, z, rot: i * 0.9, s: 0.85 };
+      if (i % 3 === 0) bush.push({ ...spot, s: 0.28 });
       else if (i % 2 === 0) tree.push(spot);
       else pine.push(spot);
-      grass.push({ x: x * 0.82, y: 0, z: z * 0.82, rot: i * 0.4, s: 0.32 });
     }
     const lift = (list: Spot[]) => list.map((spot) => ({ ...spot, y: groundY(spot.x, spot.z) }));
     return { tree: lift(tree), pine: lift(pine), bush: lift(bush), grass: lift(grass) };
@@ -403,7 +433,7 @@ function Field({
           />
         );
       })}
-      <OrbitControls target={[0, 0.35, 0]} maxPolarAngle={1.15} minDistance={7} maxDistance={32} enablePan={false} />
+      <OrbitControls target={[0, 0.35, 0]} maxPolarAngle={1.2} minDistance={3.2} maxDistance={28} enablePan={false} />
     </>
   );
 }
@@ -604,7 +634,7 @@ export function CrossGame({
 
   return (
     <div className="fixed inset-0 bg-[#102016] text-ivory">
-      <Canvas shadows camera={{ position: CAM[myTeam], fov: 28 }} dpr={[1, 1.5]}>
+      <Canvas shadows camera={{ position: CAM[myTeam], fov: 30 }} dpr={[1, 1.5]}>
         <Suspense fallback={null}>
           <Field state={state} slides={slides} shake={shake} selected={selected} moves={moves} onCell={onCell} onUnit={onUnit} />
         </Suspense>
@@ -618,7 +648,7 @@ export function CrossGame({
               Colosseum {state.forum.progress}/{need} · {TEAM_NAME[state.forum.owner]}
             </span>
           ) : (
-            <span className="mt-0.5 block text-xs text-white/70">Hold the center square to raise the colosseum</span>
+            <span className="mt-0.5 block text-xs text-white/70">Hold the center. Sliders stop at 8 squares.</span>
           )}
         </div>
       </div>

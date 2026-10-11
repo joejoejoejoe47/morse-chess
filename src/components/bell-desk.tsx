@@ -20,7 +20,6 @@ import {
   type BellSettings,
 } from "@/lib/bell";
 import { listClubUsers, type ClubUserRow } from "@/lib/server/mores";
-import { SoundtrackPanel } from "@/components/soundtrack-panel";
 
 // re-export type locally if missing
 type Watch = BellSettings["watches"][number];
@@ -177,9 +176,21 @@ export function BellDesk() {
         </div>
       </Card>
 
-      <div className="relative mt-4">
-        <SoundtrackPanel accountId={accountId} />
-      </div>
+      <Link
+        to="/soundtrack"
+        className="relative mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-panel p-5 text-left transition-[border-color] hover:border-line-strong"
+      >
+        <div>
+          <h2 className="font-display text-2xl text-ivory">Soundtrack</h2>
+          <p className="mt-1 max-w-md text-sm text-mist">
+            Open the soundtrack page. Build a list, unmute it, and hear it in the game even when the other sound is on.
+          </p>
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ivory px-4 py-2 text-sm font-medium text-ink">
+          <Music2 className="size-4" />
+          Soundtrack
+        </span>
+      </Link>
 
       <Card className="relative mt-4 space-y-4">
         <div>

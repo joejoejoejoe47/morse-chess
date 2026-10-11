@@ -6,7 +6,8 @@ export function SoundtrackHost() {
   const { user, isPending } = useCurrentUserState();
 
   useEffect(() => {
-    if (isPending || !user) {
+    if (isPending) return;
+    if (!user) {
       stopSoundtrack();
       return;
     }

@@ -84,38 +84,46 @@ export async function removeSoundtrackSong(accountId: string, songId: string) {
   });
 }
 
-let ctx: AudioContext | null = null;
-let node: AudioBufferSourceNode | null = null;
+let music: HTMLAudioElement | null = null;
+let musicUrl = "";
 let playingKey = "";
 let token = 0;
 
-function audioCtx() {
-  if (!ctx) ctx = new AudioContext();
-  return ctx;
+function track() {
+  if (typeof Audio === "undefined") return null;
+  if (!music) {
+    music = new Audio();
+    music.preload = "auto";
+    music.setAttribute("playsinline", "true");
+  }
+  music.volume = 1;
+  return music;
 }
 
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+
+/** Call from a click so the song is allowed to keep playing in a game. */
 export function unlockSoundtrack() {
-  const ac = audioCtx();
-  if (ac.state === "suspended") void ac.resume();
+  const audio = track();
+  if (!audio || !audio.paused) return;
+  audio.volume = 1;
+  if (!audio.src) audio.src = SILENT;
+  const pending = audio.play();
+  if (pending) void pending.catch(() => undefined);
 }
 
 export function stopSoundtrack() {
   token += 1;
   playingKey = "";
-  if (!node) return;
-  node.onended = null;
-  try {
-    node.stop();
-  } catch {
-    /* already stopped */
-  }
-  node.disconnect();
-  node = null;
+  if (!music) return;
+  music.onended = null;
+  music.pause();
 }
 
 async function playAt(accountId: string, list: Soundtrack, index: number, hops: number, generation: number) {
+  const audio = track();
   const ids = list.songIds;
-  if (generation !== token || !ids.length || hops >= ids.length) {
+  if (!audio || generation !== token || !ids.length || hops >= ids.length) {
     if (generation === token && hops >= ids.length) stopSoundtrack();
     return;
   }
@@ -126,40 +134,13 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
     await playAt(accountId, list, index + 1, hops + 1, generation);
     return;
   }
-  const ac = audioCtx();
-  if (ac.state === "suspended") {
-    try {
-      await ac.resume();
-    } catch {
-      /* still locked until a click */
-    }
-  }
-  if (generation !== token) return;
-  if (ac.state === "suspended") return;
-  let buffer: AudioBuffer;
-  try {
-    buffer = await ac.decodeAudioData((await rec.blob.arrayBuffer()).slice(0));
-  } catch {
-    if (generation !== token) return;
-    await playAt(accountId, list, index + 1, hops + 1, generation);
-    return;
-  }
-  if (generation !== token) return;
-  if (node) {
-    node.onended = null;
-    try {
-      node.stop();
-    } catch {
-      /* already stopped */
-    }
-    node.disconnect();
-  }
-  const src = ac.createBufferSource();
-  src.buffer = buffer;
-  src.connect(ac.destination);
+  if (musicUrl) URL.revokeObjectURL(musicUrl);
+  musicUrl = URL.createObjectURL(rec.blob);
+  audio.src = musicUrl;
+  audio.volume = 1;
   const at = ((index % ids.length) + ids.length) % ids.length;
-  src.onended = () => {
-    if (generation !== token || node !== src) return;
+  audio.onended = () => {
+    if (generation !== token || music !== audio) return;
     const latest = loadSoundtrack(accountId);
     const next = latest.lists.find((item) => item.id === list.id);
     if (!latest.unmuted || !next) {
@@ -168,8 +149,11 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
     }
     void playAt(accountId, next, at + 1, 0, generation);
   };
-  node = src;
-  src.start();
+  try {
+    await audio.play();
+  } catch {
+    playingKey = "";
+  }
 }
 
 export async function syncSoundtrack(accountId: string) {
@@ -180,18 +164,13 @@ export async function syncSoundtrack(accountId: string) {
     return;
   }
   const key = `${list.id}:${list.songIds.join(",")}`;
-  if (node && playingKey === key) return;
+  const audio = track();
+  if (audio && !audio.paused && !audio.ended && playingKey === key && audio.volume === 1) return;
   playingKey = key;
   const generation = ++token;
-  if (node) {
-    node.onended = null;
-    try {
-      node.stop();
-    } catch {
-      /* already stopped */
-    }
-    node.disconnect();
-    node = null;
+  if (audio) {
+    audio.onended = null;
+    audio.pause();
   }
   await playAt(accountId, list, 0, 0, generation);
 }

@@ -15,8 +15,8 @@ import {
   type SoundtrackSettings,
 } from "@/lib/soundtrack";
 
-export function SoundtrackPanel({ accountId }: { accountId: string }) {
-  const [open, setOpen] = useState(false);
+export function SoundtrackPanel({ accountId, page = false }: { accountId: string; page?: boolean }) {
+  const [open, setOpen] = useState(page);
   const [settings, setSettings] = useState<SoundtrackSettings>(() => loadSoundtrack(accountId));
   const [name, setName] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
@@ -82,15 +82,19 @@ export function SoundtrackPanel({ accountId }: { accountId: string }) {
         <div>
           <h2 className="font-display text-2xl text-ivory">Soundtrack</h2>
           <p className="mt-1 text-sm text-mist">
-            {settings.unmuted ? "Your soundtrack is playing through the club." : "Muted until you unmute it."}
+            {settings.unmuted
+              ? "Playing in the club, at the table, and on the hill. Other sound can stay on."
+              : "Muted until you unmute it. Then it keeps playing in the game."}
           </p>
         </div>
-        <Button type="button" variant="solid" className="rounded-full" onClick={() => setOpen((value) => !value)}>
-          <Music2 className="size-4" />
-          Soundtrack
-        </Button>
+        {page ? null : (
+          <Button type="button" variant="solid" className="rounded-full" onClick={() => setOpen((value) => !value)}>
+            <Music2 className="size-4" />
+            Soundtrack
+          </Button>
+        )}
       </div>
-      {open ? (
+      {page || open ? (
         <div className="space-y-4">
           <Button
             type="button"
