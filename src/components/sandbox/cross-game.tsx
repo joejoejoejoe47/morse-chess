@@ -11,7 +11,6 @@ import {
   TEAM_NAME,
   TEAMS,
   YOU,
-  boardCells,
   botMove,
   canAlly,
   groundY,
@@ -53,10 +52,10 @@ type Spot = { x: number; y: number; z: number; rot: number; s: number; color?: s
 const FACE: Record<Team, number> = { s: 0, n: Math.PI, w: Math.PI / 2, e: -Math.PI / 2 };
 const SEAT_ANGLE: Record<Team, number> = { s: 0, w: 90, n: 180, e: 270 };
 const CAM: Record<Team, [number, number, number]> = {
-  s: [0, 5.6, -16.6],
-  n: [0, 5.6, 16.6],
-  w: [-16.6, 5.6, 0],
-  e: [16.6, 5.6, 0],
+  s: [0, 16, -20],
+  n: [0, 16, 20],
+  w: [-20, 16, 0],
+  e: [20, 16, 0],
 };
 
 function screenEdge(team: Team, me: Team): "bottom" | "left" | "top" | "right" {
@@ -70,38 +69,56 @@ function screenEdge(team: Team, me: Team): "bottom" | "left" | "top" | "right" {
 function SlowSun() {
   const sun = useRef<THREE.DirectionalLight>(null);
   const hemi = useRef<THREE.HemisphereLight>(null);
-  const dayC = useMemo(() => new THREE.Color("#9ec0e4"), []);
-  const nightC = useMemo(() => new THREE.Color("#12182c"), []);
-  const dawnC = useMemo(() => new THREE.Color("#e39258"), []);
-  const sky = useMemo(() => new THREE.Color("#9ec0e4"), []);
+  const rays = useRef<THREE.Group>(null);
+  const gold = useMemo(() => new THREE.Color("#f6c56b"), []);
+  const noon = useMemo(() => new THREE.Color("#f3e2b0"), []);
+  const dusk = useMemo(() => new THREE.Color("#c47a3a"), []);
+  const late = useMemo(() => new THREE.Color("#6a4030"), []);
+  const sky = useMemo(() => new THREE.Color("#f6c56b"), []);
   useFrame(({ clock, scene }) => {
-    // A full day is four minutes. Noon and midnight last the same stretch.
-    const ang = (clock.elapsedTime / 240) * Math.PI * 2 + Math.PI / 2;
-    const elev = Math.sin(ang);
-    const day = THREE.MathUtils.smoothstep(elev, -0.04, 0.04);
-    const glow = Math.exp(-((elev - 0.02) ** 2) * 28);
-    sky.copy(nightC).lerp(dayC, day);
-    sky.lerp(dawnC, glow * 0.8);
+    // A full day is four minutes, but the sun stays up. Night is a short warm dusk.
+    const ang = (clock.elapsedTime / 240) * Math.PI * 2 + 0.9;
+    const elev = Math.sin(ang) * 0.5 + 0.48;
+    const day = THREE.MathUtils.smoothstep(elev, 0.02, 0.22);
+    const glow = Math.exp(-((elev - 0.62) ** 2) * 10);
+    sky.copy(late).lerp(gold, day);
+    sky.lerp(noon, day * 0.35);
+    sky.lerp(dusk, glow * 0.55);
     if (scene.background instanceof THREE.Color) scene.background.copy(sky);
     if (scene.fog instanceof THREE.Fog) {
       scene.fog.color.copy(sky);
-      scene.fog.near = 48 + day * 10;
-      scene.fog.far = 120 + day * 20;
+      scene.fog.near = 28 + day * 18;
+      scene.fog.far = 70 + day * 50;
     }
+    const x = Math.cos(ang) * 18;
+    const y = 10 + Math.max(elev, 0.05) * 28;
+    const z = 16 + Math.sin(ang) * 6;
     if (sun.current) {
-      sun.current.position.set(Math.cos(ang) * 48, 6 + Math.max(elev, -0.15) * 36, Math.sin(ang) * 22);
-      sun.current.intensity = 0.08 + day * 2.05;
-      sun.current.color.set(glow > 0.25 ? "#ffb06a" : "#fff4d4");
+      sun.current.position.set(x, y, z);
+      sun.current.intensity = 0.55 + day * 1.85;
+      sun.current.color.set(glow > 0.2 ? "#ffd39a" : "#fff1cf");
     }
-    if (hemi.current) hemi.current.intensity = 0.18 + day * 0.45;
+    if (hemi.current) hemi.current.intensity = 0.35 + day * 0.4;
+    if (rays.current) {
+      rays.current.position.set(x * 0.35, y * 0.45, z * 0.35);
+      rays.current.visible = day > 0.35;
+    }
   });
   return (
     <>
-      <color attach="background" args={["#9ec0e4"]} />
-      <fog attach="fog" args={["#9ec0e4", 36, 84]} />
-      <hemisphereLight ref={hemi} args={["#d5e7f8", "#3d6a32", 0.45]} />
-      <ambientLight intensity={0.18} />
-      <directionalLight ref={sun} position={[20, 24, 8]} intensity={1.8} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-camera-far={80} shadow-camera-left={-24} shadow-camera-right={24} shadow-camera-top={24} shadow-camera-bottom={-24} />
+      <color attach="background" args={["#f6c56b"]} />
+      <fog attach="fog" args={["#f0c56a", 34, 92]} />
+      <hemisphereLight ref={hemi} args={["#ffe6b0", "#3f6a28", 0.55]} />
+      <ambientLight intensity={0.34} color="#ffe7c2" />
+      <directionalLight ref={sun} position={[12, 26, 16]} intensity={2.1} color="#ffe1a8" castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-camera-far={80} shadow-camera-left={-24} shadow-camera-right={24} shadow-camera-top={24} shadow-camera-bottom={-24} />
+      <group ref={rays}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <mesh key={i} position={[(i - 2.5) * 2.4, -6, i % 2]} rotation={[0.15, 0, (i - 2.5) * 0.08]} raycast={() => null}>
+            <planeGeometry args={[1.6, 34]} />
+            <meshBasicMaterial color="#ffe7b8" transparent opacity={0.07} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+      </group>
     </>
   );
 }
@@ -126,19 +143,31 @@ function PaintedHill({ onCell }: { onCell: (id: string) => void }) {
     ground.rotateX(-Math.PI / 2);
     const pos = ground.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const wild = new THREE.Color("#e7efd4");
-    const rock = new THREE.Color("#cbb89a");
-    const light = new THREE.Color("#f3ead4");
-    const dark = new THREE.Color("#6f9a52");
-    const plaza = new THREE.Color("#e7d3a4");
-    const gutter = new THREE.Color("#2c261c");
+    const wild = new THREE.Color("#7fbf4e");
+    const far = new THREE.Color("#c6b06a");
+    const light = new THREE.Color("#86c456");
+    const dark = new THREE.Color("#6eae46");
+    const plaza = new THREE.Color("#e4c98a");
+    const gutter = new THREE.Color("#3d5a28");
+    const pond = new THREE.Color("#8ecfc4");
     const tint = new THREE.Color();
+    const ponds = [
+      [18, 9],
+      [-18, 9],
+      [18, -9],
+      [-18, -9],
+      [11, 24],
+      [-11, 24],
+      [11, -24],
+      [-11, -24],
+    ];
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       pos.setY(i, groundY(x, z));
       const cell = pickCell(x, z);
       tint.copy(wild);
+      const wet = ponds.some(([px, pz]) => Math.hypot(x - px, z - pz) < 1.7);
       if (cell === "forum") {
         const edge = Math.max(Math.abs(x), Math.abs(z)) / (PITCH * 0.98);
         tint.copy(edge > 0.9 ? gutter : plaza);
@@ -147,10 +176,12 @@ function PaintedHill({ onCell }: { onCell: (id: string) => void }) {
         tint.copy(((a ?? 0) + (b ?? 0)) % 2 === 0 ? light : dark);
         const [cx, , cz] = worldOf(cell);
         const edge = Math.max(Math.abs(x - cx), Math.abs(z - cz)) / (PITCH * 0.5);
-        if (edge > 0.9) tint.copy(gutter);
+        if (edge > 0.93) tint.copy(gutter);
+      } else if (wet) {
+        tint.copy(pond);
       } else {
-        const rim = THREE.MathUtils.smoothstep(Math.hypot(x, z), 16, 34);
-        tint.lerp(rock, rim);
+        const rim = THREE.MathUtils.smoothstep(Math.hypot(x, z), 18, 40);
+        tint.lerp(far, rim * 0.55);
       }
       colors[i * 3] = tint.r;
       colors[i * 3 + 1] = tint.g;
@@ -361,35 +392,38 @@ function Field({
     const pine: Spot[] = [];
     const bush: Spot[] = [];
     const grass: Spot[] = [];
-    for (const id of cells) {
-      if (id === "forum") continue;
-      const [x, , z] = worldOf(id);
-      const [a, b] = id.split(",").map(Number);
-      const spot = {
-        x: x + PITCH * 0.3,
-        y: 0,
-        z: z - PITCH * 0.3,
-        rot: ((a ?? 0) * 13 + (b ?? 0) * 7) * 0.2,
-        s: 0.46,
-      };
-      if (((a ?? 0) + (b ?? 0)) % 2 === 0) tree.push(spot);
-      else pine.push(spot);
-      grass.push({ x: x - PITCH * 0.3, y: 0, z: z + PITCH * 0.3, rot: (a ?? 0) + (b ?? 0), s: 0.14 });
-    }
-    for (let i = 0; i < 80; i++) {
-      const a = (i / 80) * Math.PI * 2 + (i % 5) * 0.17;
-      const rad = 17.5 + (i % 7) * 2.15;
-      const x = Math.cos(a) * rad;
-      const z = Math.sin(a) * rad * 0.88;
-      if (onBoard(x, z)) continue;
-      const spot = { x, y: 0, z, rot: i * 0.9, s: 0.85 };
-      if (i % 3 === 0) bush.push({ ...spot, s: 0.28 });
-      else if (i % 2 === 0) tree.push(spot);
-      else pine.push(spot);
+    const seeds: [number, number, "tree" | "pine" | "bush", number][] = [
+      [10.5, 16.5, "pine", 1.15],
+      [15, 12.5, "tree", 1.45],
+      [18.5, 7, "pine", 0.95],
+      [22, 15, "tree", 1.7],
+      [13, 21, "pine", 1.2],
+      [24, 5.5, "tree", 1.25],
+      [8.5, 23, "bush", 0.42],
+      [26, 11, "pine", 1.05],
+      [19, 20, "tree", 1.55],
+      [28, 18, "pine", 0.9],
+      [16, 26, "tree", 1.35],
+      [23, 24, "bush", 0.38],
+    ];
+    for (const [sx, sz, kind, size] of seeds) {
+      for (const [mx, mz] of [
+        [sx, sz],
+        [-sx, sz],
+        [sx, -sz],
+        [-sx, -sz],
+      ]) {
+        if (onBoard(mx, mz)) continue;
+        const spot = { x: mx, y: 0, z: mz, rot: 0, s: size };
+        if (kind === "tree") tree.push(spot);
+        else if (kind === "pine") pine.push(spot);
+        else bush.push(spot);
+        grass.push({ x: mx + 0.8, y: 0, z: mz - 0.6, rot: 0.4, s: 0.22 });
+      }
     }
     const lift = (list: Spot[]) => list.map((spot) => ({ ...spot, y: groundY(spot.x, spot.z) }));
     return { tree: lift(tree), pine: lift(pine), bush: lift(bush), grass: lift(grass) };
-  }, [cells]);
+  }, []);
   const targets = new Set(moves.filter((move) => move.unitId === selected).map((move) => move.to));
   const holders = state.units.filter((unit) => unit.team === state.forum.owner && unit.cell === "forum").length;
   const need = holders >= 2 ? 9 : 10;
@@ -433,7 +467,7 @@ function Field({
           />
         );
       })}
-      <OrbitControls target={[0, 0.35, 0]} maxPolarAngle={1.2} minDistance={3.2} maxDistance={28} enablePan={false} />
+      <OrbitControls target={[0, 0.4, 0]} maxPolarAngle={1.15} minDistance={8} maxDistance={42} enablePan={false} />
     </>
   );
 }
@@ -482,6 +516,85 @@ function replayMoves(moves: HillMove[]) {
     if (result.state !== next) next = result.state;
   }
   return next;
+}
+
+function MeadowPanel({
+  coins,
+  state,
+  myTeam,
+  need,
+  onHome,
+}: {
+  coins: number;
+  state: CrossState;
+  myTeam: Team;
+  need: number;
+  onHome: () => void;
+}) {
+  const pct = state.forum.owner ? Math.min(100, Math.round((state.forum.progress / Math.max(need, 1)) * 100)) : 0;
+  const ally = state.ally[myTeam];
+  return (
+    <aside className="absolute left-3 top-3 z-10 w-[min(16rem,42vw)] space-y-2 text-[#efe6d2]">
+      <button
+        type="button"
+        onClick={onHome}
+        className="w-full rounded-md border border-[#6d5b3c] bg-[#241c14]/90 px-3 py-2 text-left text-[11px] font-medium uppercase tracking-[0.22em] shadow-lg"
+      >
+        Lounge
+      </button>
+      <section className="rounded-md border border-[#6d5b3c] bg-[#1c1712]/90 p-3 shadow-lg backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <span className="grid size-8 place-items-center rounded bg-[#2a2418] text-lg" aria-hidden>
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <path d="M8 13c.8 1 2 1.6 4 1.6s3.2-.6 4-1.6" />
+              <path d="M7 11.5 4.5 9l2-2 2.2 2.2M17 11.5 19.5 9l-2-2-2.2 2.2" />
+            </svg>
+          </span>
+          <h2 className="text-[11px] uppercase tracking-[0.2em]">Alliances</h2>
+        </div>
+        <ul className="mt-3 space-y-1.5">
+          {TEAMS.map((team) => {
+            const mine = team === myTeam;
+            const fallen = state.out.includes(team);
+            const friend = ally === team;
+            const note = mine ? "You" : fallen ? "Fallen" : friend ? "Allied" : "At war";
+            return (
+              <li key={team} className="flex items-center justify-between gap-2 rounded bg-black/25 px-2 py-1.5">
+                <span className="flex items-center gap-2 text-sm">
+                  <span className="size-2.5 rounded-sm" style={{ background: TEAM_COLOR[team] }} />
+                  {TEAM_NAME[team]}
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.14em] text-[#d9c7a2]">{note}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+      <section className="rounded-md border border-[#6d5b3c] bg-[#1c1712]/90 p-3 shadow-lg backdrop-blur-sm">
+        <h2 className="text-[11px] uppercase tracking-[0.18em]">Colosseum construction</h2>
+        <div className="mt-2 h-12 overflow-hidden rounded bg-[#c4a574]">
+          <div className="grid h-full place-items-center text-[10px] uppercase tracking-[0.16em] text-[#3a2a16]">
+            {state.forum.owner ? TEAM_NAME[state.forum.owner] : "The center square"}
+          </div>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/40">
+          <div className="h-full rounded-full bg-[#e6b422]" style={{ width: `${pct}%` }} />
+        </div>
+        <p className="mt-1 text-xs text-[#f3e2a8]">{pct}% complete</p>
+        <p className="text-[11px] text-[#cbbfaa]">{state.forum.owner ? `${state.forum.progress} of ${need} turns` : "Hold the center to begin"}</p>
+      </section>
+      <section className="rounded-md border border-[#6d5b3c] bg-[#1c1712]/90 p-3 shadow-lg backdrop-blur-sm">
+        <h2 className="text-[11px] uppercase tracking-[0.18em]">Overall score</h2>
+        <p className="mt-1 flex items-center gap-2 font-display text-2xl text-[#f6e27a]">
+          <img src={asset("/morse-coin.png")} alt="" className="size-6" />
+          {coins.toLocaleString()}
+        </p>
+        <svg viewBox="0 0 120 36" className="mt-1 h-8 w-full" aria-hidden>
+          <polyline points="0,30 18,26 36,28 54,18 72,20 90,10 120,6" fill="none" stroke="#e6b422" strokeWidth="2" />
+        </svg>
+      </section>
+    </aside>
+  );
 }
 
 export function CrossGame({
@@ -634,7 +747,7 @@ export function CrossGame({
 
   return (
     <div className="fixed inset-0 bg-[#102016] text-ivory">
-      <Canvas shadows camera={{ position: CAM[myTeam], fov: 30 }} dpr={[1, 1.5]}>
+      <Canvas shadows camera={{ position: CAM[myTeam], fov: 32 }} dpr={[1, 1.5]}>
         <Suspense fallback={null}>
           <Field state={state} slides={slides} shake={shake} selected={selected} moves={moves} onCell={onCell} onUnit={onUnit} />
         </Suspense>
@@ -656,13 +769,13 @@ export function CrossGame({
       <Portrait team="s" edge={screenEdge("s", myTeam)} active={state.turn === "s"} mine={myTeam === "s"} ai={aiSeat("s")} />
       <Portrait team="w" edge={screenEdge("w", myTeam)} active={state.turn === "w"} mine={myTeam === "w"} ai={aiSeat("w")} />
       <Portrait team="e" edge={screenEdge("e", myTeam)} active={state.turn === "e"} mine={myTeam === "e"} ai={aiSeat("e")} />
-      <button type="button" onClick={onHome} className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1.5 text-xs uppercase tracking-[0.16em] text-white backdrop-blur-sm">
-        Lounge
-      </button>
-      <div className="absolute right-4 top-4 flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 text-sm text-white backdrop-blur-sm">
-        <img src={asset("/morse-coin.png")} alt="" className="size-5" />
-        {coins.toLocaleString()}
-      </div>
+      <MeadowPanel
+        coins={coins}
+        state={state}
+        myTeam={myTeam}
+        need={need}
+        onHome={onHome}
+      />
       {pending ? (
         <div className="absolute inset-0 z-20 flex items-end justify-center bg-black/35 p-4 sm:items-center">
           <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#1a140c]/95 p-5 text-center shadow-2xl">
