@@ -196,6 +196,9 @@ check((int) Db::value("SELECT score FROM profiles WHERE user_id = ?", [$black]) 
 // ── resign (coins for the winner on the 3d piece style) ────────────────────
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
 $coinsBefore = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']);
+$aliceCoinsBefore = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['alice']);
+$bobPlayedBefore = (int) Db::value('SELECT games_played FROM profiles WHERE user_id = ?', ['bob']);
+Db::run("UPDATE profiles SET piece_style = 'an' WHERE user_id IN ('alice', 'bob')");
 $snap = Mores::resignGame('alice', ['gameId' => $gid]);
 check($snap['status'] === ($white === 'alice' ? 'black_win' : 'white_win') && $snap['winnerUserId'] === 'bob', 'resign hands the win to the other side');
 check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']) === $coinsBefore + 2, 'winner gets +2 Morse coins');
@@ -203,15 +206,17 @@ $bobSnap = Mores::getGame('bob', ['gameId' => $gid]);
 $aliceSnap = Mores::getGame('alice', ['gameId' => $gid]);
 check($bobSnap['coinAward'] === 2 && $aliceSnap['coinAward'] === 0, 'coinAward shown to winner only');
 check($bobSnap['coins'] === $coinsBefore + 2, 'snapshot carries purse');
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['alice']) === $aliceCoinsBefore + 2, 'loser also gets +2 Morse coins');
+check((int) Db::value('SELECT games_played FROM profiles WHERE user_id = ?', ['bob']) === $bobPlayedBefore + 1, 'finished game counts toward games played');
 check(Mores::resignGame('cara', ['gameId' => $gid]) === null, 'outsider resign -> null');
 check(Mores::resignGame('alice', ['gameId' => 'zzz']) === null, 'resign unknown -> null');
 
-// 2d piece style: no coin
+// 2d piece style: coins too (every finished game pays 2)
 Db::run("UPDATE profiles SET piece_style = '2d' WHERE user_id = 'bob'");
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
 $coinsBefore = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']);
 Mores::resignGame('alice', ['gameId' => $gid]);
-check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']) === $coinsBefore, 'no coin on non-3d style');
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']) === $coinsBefore + 2, '2d style also earns 2 coins');
 Db::run("UPDATE profiles SET piece_style = '3d' WHERE user_id = 'bob'");
 
 // ── timeout claim ──────────────────────────────────────────────────────────
@@ -456,5 +461,36 @@ foreach (['s', 'w', 'n', 'e'] as $seat) {
     }
 }
 check($aiBots === 3 && $ai['seats'][$ai['myTeam']] === 'alice', 'three AI armies take the empty seats');
+
+// ── Rocco's special cool board ─────────────────────────────────────────────
+$rocco = \Morse\Catalog::boardById('rocco');
+check($rocco['id'] === 'rocco' && $rocco['name'] === "Rocco's special cool board" && $rocco['coinCost'] === 10, 'rocco board sells for 10 coins');
+Mores::claimUsername('rooko', ['username' => 'rooko2014']);
+check(in_array('rocco', Mores::getHomeState('rooko', [])['ownedBoards'] ?? [], true) || str_contains((string) Db::value('SELECT owned_boards FROM profiles WHERE user_id = ?', ['rooko']), 'rocco'), 'Rooko2014 (any case) owns the rocco board free');
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['rooko']) === 0, 'Rooko2014 gift costs nothing');
+Db::run("UPDATE profiles SET owned_boards = '' WHERE user_id = 'rooko'");
+Mores::buyBoard('rooko', ['boardId' => 'lodge']);
+check(str_contains((string) Db::value('SELECT owned_boards FROM profiles WHERE user_id = ?', ['rooko']), 'rocco'), 'Rooko2014 gets the board back if it goes missing');
+Mores::claimUsername('dave', ['username' => 'dave_davey']);
+Db::run('UPDATE profiles SET coins = 12 WHERE user_id = ?', ['dave']);
+$buy = Mores::buyBoard('dave', ['boardId' => 'rocco']);
+check($buy['ok'] === true && $buy['coins'] === 2 && in_array('rocco', $buy['owned'], true), 'anyone can buy rocco for 10 coins');
+
+// ── RA free trial schedule ─────────────────────────────────────────────────
+$free = [];
+for ($n = 1; $n <= 110; $n++) {
+    if (\Morse\Catalog::raTrialGame($n)) {
+        $free[] = $n;
+    }
+}
+check($free === [17, 47, 77, 107], 'RA trial on game 17, then every 30 games');
+Db::run('UPDATE profiles SET games_played = 15, piece_style = ? WHERE user_id = ?', ['3d', 'dave']);
+check(\Morse\Avatar::getAvatar('dave', [])['raTrial'] === false, 'no RA trial on game 16');
+check(fails(call([\Morse\Avatar::class, 'setPieceStyle'], 'dave', ['style' => 'ra']), 'RA costs 200 Morse coins.'), 'RA locked outside the trial');
+Db::run('UPDATE profiles SET games_played = 16 WHERE user_id = ?', ['dave']);
+check(\Morse\Avatar::getAvatar('dave', [])['raTrial'] === true, 'RA trial on game 17');
+check(\Morse\Avatar::setPieceStyle('dave', ['style' => 'ra'])['style'] === 'ra', 'trial lets you pick RA');
+Mores::countFinishedGame('dave');
+check(Db::value('SELECT piece_style FROM profiles WHERE user_id = ?', ['dave']) === '3d', 'trial ends after one game');
 
 finish();

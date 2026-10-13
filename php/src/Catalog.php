@@ -26,6 +26,31 @@ final class Catalog
         return strtolower(trim($name)) === strtolower((string) Util::catalog()['boards']['masterUsername']);
     }
 
+    /**
+     * Boards handed out free to one named account (e.g. Rooko2014 -> rocco), case-insensitive.
+     * @return list<string>
+     */
+    public static function giftBoardsFor(string $username): array
+    {
+        $lc = strtolower(trim($username));
+        $out = [];
+        foreach (Util::catalog()['boards']['giftBoards'] ?? [] as $g) {
+            if (strtolower((string) $g['username']) === $lc) {
+                $out[] = (string) $g['boardId'];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * RA free trial: a player without RA may use it for their 17th game, then
+     * every 30th game after that (47th, 77th, ...). $gameNumber is 1-based.
+     */
+    public static function raTrialGame(int $gameNumber): bool
+    {
+        return $gameNumber === 17 || ($gameNumber > 17 && ($gameNumber - 17) % 30 === 0);
+    }
+
     /** @return array{id:string,cost:int,coinCost:int,sealed:bool} Unknown ids fall back to the first board, like the TS version. */
     public static function boardById(?string $id): array
     {

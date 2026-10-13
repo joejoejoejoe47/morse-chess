@@ -55,12 +55,17 @@ export function RaBuy({
   className,
   active,
   onView,
+  onLocked,
 }: {
   className?: string;
   active?: boolean;
   onView: () => void;
+  /** Called when RA is showing but the player neither owns it nor has a free trial game. */
+  onLocked?: () => void;
 }) {
   const [owned, setOwned] = useState(false);
+  const [trial, setTrial] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [coins, setCoins] = useState(0);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -70,19 +75,26 @@ export function RaBuy({
     void getAvatar()
       .then((row) => {
         setOwned(Boolean(row?.owned.includes("royal")));
+        setTrial(Boolean(row?.raTrial));
         setCoins(row?.coins ?? 0);
+        setLoaded(true);
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (loaded && active && !owned && !trial) onLocked?.();
+  }, [loaded, active, owned, trial, onLocked]);
 
   return (
     <>
       <button
         type="button"
         disabled={busy}
-        className={cn(className, active && owned && "bg-ivory text-ink")}
+        className={cn(className, active && (owned || trial) && "bg-ivory text-ink")}
+        title={!owned && trial ? "Free RA game: your 17th game, then every 30 games" : undefined}
         onClick={() => {
-          if (owned) {
+          if (owned || trial) {
             onView();
             return;
           }
@@ -90,7 +102,7 @@ export function RaBuy({
           setOpen(true);
         }}
       >
-        RA
+        {!owned && trial ? "RA free" : "RA"}
       </button>
       <RaShop
         open={open}

@@ -565,6 +565,7 @@ export function GameView({ gameId }: { gameId: string }) {
             <RaBuy
               active={view === "ra"}
               onView={() => setBoardView("ra")}
+              onLocked={() => setBoardView("3d")}
               className="min-h-11 min-w-11 px-4 py-2 text-sm font-medium text-mist hover:text-ivory sm:px-3 sm:py-1.5 sm:text-[13px]"
             />
           </div>

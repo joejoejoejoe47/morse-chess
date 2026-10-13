@@ -44,6 +44,14 @@ export const MASTER_USERNAME = "MasterGus";
 export const MASTER_SCORE = 9000;
 export const DEFAULT_BOARD_ID = "lodge";
 
+/** Boards given free to one named account (checked case-insensitively; the server grants them). */
+export const GIFT_BOARDS: { username: string; boardId: string }[] = [{ username: "Rooko2014", boardId: "rocco" }];
+
+export function giftBoardsFor(name: string | null | undefined) {
+  const lc = (name ?? "").trim().toLowerCase();
+  return GIFT_BOARDS.filter((g) => g.username.toLowerCase() === lc).map((g) => g.boardId);
+}
+
 export function isMasterUsername(name: string) {
   return name.trim().toLowerCase() === MASTER_USERNAME.toLowerCase();
 }
@@ -569,6 +577,32 @@ export const BOARD_CATALOG: BoardSkin[] = [
     ring: "#d7c4a2",
     collar: "#8a6840",
   },
+  {
+    ...BASE,
+    id: "rocco",
+    name: "Rocco's special cool board",
+    blurb: "Ten coins. A city at dusk, a painted grid, and modern dudes: red team vs black team. Queens backflip and draw a lightsaber, kings use the force, everyone else brings a gun.",
+    cost: 0,
+    coinCost: 10,
+    tableKind: "felt",
+    lightSq: "#e9e4dc",
+    darkSq: "#2b2b30",
+    table: "#1b1b1f",
+    felt: "#121215",
+    select: "#d8343c",
+    last: "#8c2a2f",
+    check: "#ff3b30",
+    dot: "#ffecec",
+    fillLight: "#ffd7c2",
+    whitePiece: "#c3161f",
+    blackPiece: "#161616",
+    whiteStroke: "#2a0608",
+    blackStroke: "#f2f2f2",
+    sqMetal: 0.2,
+    sqRough: 0.4,
+    ring: "#c3161f",
+    collar: "#161616",
+  },
 ];
 
 const BY_ID = new Map(BOARD_CATALOG.map((b) => [b.id, b]));
@@ -600,7 +634,7 @@ export function boardUnlocked(
   owned: string[] = [],
 ) {
   const b = typeof board === "string" ? boardById(board) : board;
-  if ((b.coinCost ?? 0) > 0) return owned.includes(b.id);
+  if ((b.coinCost ?? 0) > 0) return owned.includes(b.id) || giftBoardsFor(_username).includes(b.id);
   return (Number.isFinite(score) ? score : 0) >= b.cost;
 }
 

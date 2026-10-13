@@ -20,6 +20,7 @@ import { RaCorpse, RaPawn, raUnitUrl } from "@/components/chess/ra-men";
 import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
+import { ROCCO_BOARD_ID, RoccoArmy, RoccoWorld } from "@/components/chess/rocco-board";
 
 const INK_BOARDS = new Set([
   "lodge",
@@ -1508,6 +1509,7 @@ function Scene({
   const [riteDone, setRiteDone] = useState<string | null>(null);
   const cheerTimer = useRef<number | null>(null);
   const meadow = skin.id === "grassland" || skin.id === "castle";
+  const rocco = skin.id === ROCCO_BOARD_ID;
   const pitch = meadow ? GLADE_PITCH : 1;
 
   useEffect(() => {
@@ -1664,13 +1666,13 @@ function Scene({
           <color attach="background" args={["#9eb8cc"]} />
           <fog attach="fog" args={["#c5d4e4", 110, 240]} />
         </>
-      ) : cosmic ? (
+      ) : rocco ? null : cosmic ? (
         <color attach="background" args={["#05060c"]} />
       ) : (
         <RoomSky color={sky} image={roomImage} />
       )}
-      {!meadow && roomScene === "space" ? <SpaceSky /> : null}
-      {!meadow && roomScene === "model" && modelUrl ? (
+      {!meadow && !rocco && roomScene === "space" ? <SpaceSky /> : null}
+      {!meadow && !rocco && roomScene === "model" && modelUrl ? (
         <Suspense fallback={null}>
           <ModelSky url={modelUrl} />
         </Suspense>
@@ -1704,6 +1706,10 @@ function Scene({
       {plate ? (
         <Suspense fallback={null}>
           <PhotoPlate url={plate} />
+        </Suspense>
+      ) : rocco ? (
+        <Suspense fallback={null}>
+          <RoccoWorld />
         </Suspense>
       ) : skin.id === "grassland" ? (
         <Suspense fallback={null}>
@@ -1748,7 +1754,12 @@ function Scene({
         pitch={pitch}
       />
       <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
-      {pieces.map((p) =>
+      {rocco ? (
+        <Suspense fallback={null}>
+          <RoccoArmy fen={fen} lastMove={lastMove} real={real} pitch={pitch} onSquare={onSquare} />
+        </Suspense>
+      ) : null}
+      {rocco ? null : pieces.map((p) =>
         rite && p.sq === rite.to && p.color === rite.color ? null : (
         <AnimatedPiece
           key={`${p.color}${p.type}${p.sq}`}
@@ -1776,7 +1787,7 @@ function Scene({
           onClick={() => onSquare(p.sq)}
         />
       ))}
-      {maul ? (
+      {maul && !rocco ? (
         <DogCharge
           key={maul.id}
           from={maul.from}
@@ -1785,7 +1796,7 @@ function Scene({
           onDone={() => setMaul((cur) => (cur?.id === maul.id ? null : cur))}
         />
       ) : null}
-      {rite && people ? (
+      {rite && people && !rocco ? (
         <PromoMarch
           color={rite.color}
           type={rite.type}
@@ -1802,7 +1813,7 @@ function Scene({
           }}
         />
       ) : null}
-      {people || real || bodies.some((body) => body.knock)
+      {!rocco && (people || real || bodies.some((body) => body.knock))
         ? bodies.map((body) => {
             const corpse = real ? (
               <RaCorpse
@@ -1842,7 +1853,7 @@ function Scene({
             );
           })
         : null}
-      {duelAside && captureSq && duelAside !== captureSq ? (
+      {!rocco && duelAside && captureSq && duelAside !== captureSq ? (
         <SwordTing a={captureSq as Square} b={duelAside} pitch={pitch} />
       ) : null}
       <FightCam look={fightLook} />
