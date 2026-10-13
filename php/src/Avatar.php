@@ -56,11 +56,11 @@ final class Avatar
         ]);
     }
 
-    /** @return array{coins:int,username:string,owned:list<string>,loadout:array<string,string>}|null */
+    /** @return array{coins:int,username:string,owned:list<string>,loadout:array<string,string>,gamesPlayed:int,raTrial:bool}|null */
     private static function readRow(string $userId, bool $lock = false): ?array
     {
         $row = Db::one(
-            'SELECT avatar_json, piece_style, owned_gear, coins, username FROM profiles WHERE user_id = ? LIMIT 1' . ($lock ? Db::forUpdate() : ''),
+            'SELECT avatar_json, piece_style, owned_gear, coins, username, games_played FROM profiles WHERE user_id = ? LIMIT 1' . ($lock ? Db::forUpdate() : ''),
             [$userId]
         );
         if ($row === null) {
@@ -78,6 +78,8 @@ final class Avatar
             'username' => (string) $row['username'],
             'owned' => $owned,
             'loadout' => $loadout,
+            'gamesPlayed' => (int) ($row['games_played'] ?? 0),
+            'raTrial' => !in_array('royal', $owned, true) && Catalog::raTrialGame((int) ($row['games_played'] ?? 0) + 1),
         ];
     }
 
@@ -98,7 +100,7 @@ final class Avatar
             }
             $next = self::clampLoadout($wanted, $current['owned']);
             $style = $wanted['style'];
-            if ($style === 'ra' && !in_array('royal', $current['owned'], true)) {
+            if ($style === 'ra' && !in_array('royal', $current['owned'], true) && !$current['raTrial']) {
                 $style = $current['loadout']['style'] === 'ra' ? '3d' : $current['loadout']['style'];
             }
             $next['style'] = $style;
@@ -117,7 +119,7 @@ final class Avatar
         $style = in_array($style, ['2d', 'an', 'ra'], true) ? $style : '3d';
         if ($style === 'ra') {
             $current = self::readRow($userId);
-            if ($current === null || !in_array('royal', $current['owned'], true)) {
+            if ($current === null || (!in_array('royal', $current['owned'], true) && !$current['raTrial'])) {
                 throw new RpcError('RA costs 200 Morse coins.');
             }
         }

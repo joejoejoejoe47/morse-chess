@@ -186,6 +186,15 @@ final class Mores
         if ($row === null) {
             return null;
         }
+        $gifts = Catalog::giftBoardsFor((string) $row['username_lc']);
+        if ($gifts !== []) {
+            $have = self::ownedList($row['owned_boards']);
+            $missing = array_values(array_diff($gifts, $have));
+            if ($missing !== []) {
+                $row['owned_boards'] = implode(',', [...$have, ...$missing]);
+                Db::run('UPDATE profiles SET owned_boards = ? WHERE user_id = ?', [$row['owned_boards'], $row['user_id']]);
+            }
+        }
         $eq = (string) ($row['equipped_board'] ?? '');
         return [
             'user_id' => (string) $row['user_id'],
@@ -350,20 +359,42 @@ final class Mores
         }
     }
 
+    /**
+     * Every finished game pays each human player 2 Morse coins (any piece style),
+     * counts the game toward the RA free-trial schedule, and ends a used RA trial.
+     */
     private static function awardStyleCoin(array &$game, ?string $winnerUserId): void
     {
-        if ($winnerUserId === null || $winnerUserId === '' || Constants::isBotUserId($winnerUserId)) {
+        $mine = 0;
+        foreach ([(string) $game['white_user_id'], (string) $game['black_user_id']] as $uid) {
+            if ($uid === '' || Constants::isBotUserId($uid)) {
+                continue;
+            }
+            self::countFinishedGame($uid);
+            if ($uid === $winnerUserId) {
+                $mine = 2;
+            }
+        }
+        if ($mine === 0) {
             return;
         }
-        $row = Db::one('SELECT piece_style FROM profiles WHERE user_id = ? LIMIT 1' . Db::forUpdate(), [$winnerUserId]);
-        $style = (string) ($row['piece_style'] ?? '');
-        if (($style !== '' ? $style : '3d') !== '3d') {
-            return;
-        }
-        Db::run('UPDATE profiles SET coins = coins + 2 WHERE user_id = ?', [$winnerUserId]);
-        $next = self::toInt($game['coin_award'] ?? null, 0) + 2;
+        $next = self::toInt($game['coin_award'] ?? null, 0) + $mine;
         Db::run('UPDATE games SET coin_award = ? WHERE id = ?', [$next, $game['id']]);
         $game['coin_award'] = $next;
+    }
+
+    /** +2 coins, +1 game played; a player who used a free RA trial goes back to 3d. */
+    public static function countFinishedGame(string $userId): void
+    {
+        $row = Db::one('SELECT piece_style, owned_gear FROM profiles WHERE user_id = ? LIMIT 1' . Db::forUpdate(), [$userId]);
+        if ($row === null) {
+            return;
+        }
+        Db::run('UPDATE profiles SET coins = coins + 2, games_played = games_played + 1 WHERE user_id = ?', [$userId]);
+        $owned = self::ownedList($row['owned_gear'] ?? '');
+        if ((string) ($row['piece_style'] ?? '') === 'ra' && !in_array('royal', $owned, true)) {
+            Db::run("UPDATE profiles SET piece_style = '3d' WHERE user_id = ?", [$userId]);
+        }
     }
 
     // ── bot engine ─────────────────────────────────────────────────────────
@@ -915,9 +946,9 @@ final class Mores
         $now = Db::now();
         try {
             Db::run(
-                'INSERT INTO profiles (user_id, username, username_lc, score, last_seen, created_at, equipped_board, elo_scaled, coins, coins_ready)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)',
-                [$userId, $username, strtolower($username), $score, $now, $now, Catalog::defaultBoardId(), $coins, $coins > 0 ? 1 : 0]
+                'INSERT INTO profiles (user_id, username, username_lc, score, last_seen, created_at, equipped_board, elo_scaled, coins, coins_ready, owned_boards)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)',
+                [$userId, $username, strtolower($username), $score, $now, $now, Catalog::defaultBoardId(), $coins, $coins > 0 ? 1 : 0, implode(',', Catalog::giftBoardsFor($username))]
             );
         } catch (PDOException) {
             throw new RpcError('That club name is already taken.');

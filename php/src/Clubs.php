@@ -385,16 +385,21 @@ final class Clubs
             "UPDATE games SET status = ?, winner_user_id = ?, scored = 1 WHERE id = ? AND status = 'active'",
             [$status, $winnerUserId, $gameId]
         );
-        if ($changed === 0 || !$winnerUserId) {
+        if ($changed === 0) {
+            return;
+        }
+        // Every finished game pays both players 2 Morse coins, draws included.
+        foreach ([(string) $game['white_user_id'], (string) $game['black_user_id']] as $uid) {
+            if ($uid !== '' && !Constants::isBotUserId($uid)) {
+                Mores::countFinishedGame($uid);
+            }
+        }
+        if (!$winnerUserId) {
             return;
         }
         $loser = $winnerUserId === $game['white_user_id'] ? $game['black_user_id'] : $game['white_user_id'];
         Db::run('UPDATE profiles SET score = score + 8 WHERE user_id = ?', [$winnerUserId]);
         Db::run('UPDATE profiles SET score = CASE WHEN score - 8 < 100 THEN 100 ELSE score - 8 END WHERE user_id = ?', [$loser]);
-        $style = Db::value('SELECT piece_style FROM profiles WHERE user_id = ? LIMIT 1', [$winnerUserId]);
-        if (($style ?: '3d') === '3d') {
-            Db::run('UPDATE profiles SET coins = coins + 2 WHERE user_id = ?', [$winnerUserId]);
-        }
     }
 
     private static function seatName(array $queue, mixed $id): string

@@ -136,6 +136,19 @@
         "cost": 0,
         "coinCost": 80,
         "sealed": false
+      },
+      {
+        "id": "rocco",
+        "name": "Rocco's special cool board",
+        "cost": 0,
+        "coinCost": 10,
+        "sealed": false
+      }
+    ],
+    "giftBoards": [
+      {
+        "username": "Rooko2014",
+        "boardId": "rocco"
       }
     ]
   },

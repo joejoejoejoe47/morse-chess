@@ -63,6 +63,7 @@ function previewLoadout(base: AvatarLoadout, pins: string[]): AvatarLoadout {
 function AvatarStudio() {
   const [worn, setWorn] = useState<AvatarLoadout>(DEFAULT_LOADOUT);
   const [owned, setOwned] = useState<string[]>(["piece", "none", "poly-band", "plain", "march"]);
+  const [raTrial, setRaTrial] = useState(false);
   const [coins, setCoins] = useState(0);
   const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +90,7 @@ function AvatarStudio() {
         if (!live || !row) return;
         setWorn(row.loadout);
         setOwned(row.owned);
+        setRaTrial(Boolean(row.raTrial));
         setCoins(row.coins);
         setUsername(row.username || "");
         setReady(true);
@@ -281,7 +283,7 @@ function AvatarStudio() {
                 loadout.style === style ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
               )}
               onClick={() => {
-                if (style === "ra" && !owned.includes("royal")) {
+                if (style === "ra" && !owned.includes("royal") && !raTrial) {
                   setError(null);
                   setOffer(true);
                   return;
@@ -289,7 +291,7 @@ function AvatarStudio() {
                 void commit({ ...worn, style });
               }}
             >
-              {style === "ra" ? (ownsRoyal ? "RA" : "Buy RA") : style}
+              {style === "ra" ? (ownsRoyal ? "RA" : raTrial ? "RA (free game)" : "Buy RA") : style}
             </button>
           ))}
         </div>
