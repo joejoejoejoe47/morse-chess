@@ -60,7 +60,12 @@ const ease = (x: number) => {
   return u * u * (3 - 2 * u);
 };
 const span = (t: number, a: number, b: number) => clamp01((t - a) / (b - a));
-const v3 = (sq: string, pitch: number) => new THREE.Vector3(...squareToWorld(sq, pitch));
+/** Top surface of the painted squares (BoardSquares: box at y=0.08, 0.08 tall). Feet stand here. */
+export const BOARD_TOP = 0.12;
+const v3 = (sq: string, pitch: number) => {
+  const [x, , z] = squareToWorld(sq, pitch);
+  return new THREE.Vector3(x, BOARD_TOP, z);
+};
 const yawTo = (a: THREE.Vector3, b: THREE.Vector3) => Math.atan2(b.x - a.x, b.z - a.z);
 const restYaw = (color: Color) => (color === "w" ? Math.PI : 0);
 
@@ -133,20 +138,32 @@ function Dude({
       });
       mesh.material = Array.isArray(mesh.material) ? list : list[0];
     });
-    model.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(model);
-    const tall = Math.max(0.001, box.max.y - box.min.y);
-    const s = HEIGHT[type] / tall;
-    const holder = new THREE.Group();
-    model.scale.multiplyScalar(s);
-    model.position.y -= box.min.y * s;
-    model.rotation.y += def.face;
-    holder.add(model);
     const mixer = new THREE.AnimationMixer(model);
     const actions = new Map<Act, THREE.AnimationAction>();
     for (const [key, name] of Object.entries(def.clips) as [Act, string][]) {
       const c = gltf.animations.find((a) => a.name === name);
       if (c) actions.set(key, mixer.clipAction(c));
+    }
+    // Measure the feet in the idle pose (skinned vertices, after the armature
+    // root offset), scale to the piece height, then shift so min.y sits at 0.
+    // Parents place y=0 on BOARD_TOP.
+    const idle = actions.get("idle");
+    idle?.play();
+    mixer.update(0);
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model, true);
+    idle?.stop();
+    const tall = Math.max(0.001, box.max.y - box.min.y);
+    const s = HEIGHT[type] / tall;
+    model.scale.multiplyScalar(s);
+    model.position.y -= box.min.y * s;
+    model.rotation.y += def.face;
+    model.updateMatrixWorld(true);
+    const holder = new THREE.Group();
+    holder.add(model);
+    if (import.meta.env.DEV) {
+      const check = new THREE.Box3().setFromObject(model, true);
+      console.debug(`[rocco] ${rig} ${type} feet y=${check.min.y.toFixed(4)} head y=${check.max.y.toFixed(4)}`);
     }
     return { holder, mixer, actions, mats };
   }, [gltf, rig, type, color, def]);
@@ -367,7 +384,7 @@ function FightScene({ fight, rig, pitch }: { fight: Fight; rig: RoccoRig; pitch:
           if (flash.current) flash.current.visible = true;
           if (tracer.current && gun.current) {
             gun.current.getWorldPosition(tmp.a);
-            tmp.b.set(vic.x, HEIGHT[fight.victimType] * 0.62, vic.z);
+            tmp.b.set(vic.x, BOARD_TOP + HEIGHT[fight.victimType] * 0.62, vic.z);
             tracer.current.visible = true;
             tracer.current.position.copy(tmp.a).lerp(tmp.b, 0.5);
             tracer.current.lookAt(tmp.b);
@@ -377,13 +394,13 @@ function FightScene({ fight, rig, pitch }: { fight: Fight; rig: RoccoRig; pitch:
       }
       if (t >= 0.6 && t < 1.2) setV("hit");
       fall(1.2);
-      if (t > 2.1) V.position.y = -ease(span(t, 2.1, walkFrom)) * 0.9;
+      if (t > 2.1) V.position.y = BOARD_TOP - ease(span(t, 2.1, walkFrom)) * 0.9;
     }
 
     if (kind === "q") {
       // backflip in place
       const u = span(t, 0, 1.0);
-      A.position.y = Math.sin(Math.PI * u) * 1.05;
+      A.position.y = BOARD_TOP + Math.sin(Math.PI * u) * 1.05;
       A.rotation.x = -ease(u) * Math.PI * 2;
       if (t >= 1.0) setA("idle");
       const b = ease(span(t, 1.0, 1.35)) * (1 - ease(span(t, 2.7, 3.0)));
@@ -427,11 +444,11 @@ function FightScene({ fight, rig, pitch }: { fight: Fight; rig: RoccoRig; pitch:
       const lift = ease(span(t, 0.4, 1.3));
       const drop = span(t, 2.1, 2.4);
       const up = lift * 1.15 * (1 - drop * drop);
-      V.position.y = up + (t > 0.5 && t < 2.1 ? Math.sin(t * 47) * 0.015 : 0);
+      V.position.y = BOARD_TOP + up + (t > 0.5 && t < 2.1 ? Math.sin(t * 47) * 0.015 : 0);
       V.rotation.z = t > 0.5 && t < 2.1 ? Math.sin(t * 9) * 0.06 : 0;
       setV(t > 0.4 && t < 2.4 ? "hit" : "idle");
       fall(2.4);
-      if (t > 2.75) V.position.y = -ease(span(t, 2.75, walkFrom)) * 0.9;
+      if (t > 2.75) V.position.y = BOARD_TOP - ease(span(t, 2.75, walkFrom)) * 0.9;
       if (aura.current) {
         aura.current.visible = t > 0.35 && t < 2.15;
         aura.current.position.set(0, HEIGHT[fight.victimType] * 0.86, 0);
@@ -444,7 +461,7 @@ function FightScene({ fight, rig, pitch }: { fight: Fight; rig: RoccoRig; pitch:
     if (t >= walkFrom) {
       const w = ease(span(t, walkFrom, total));
       const startAt = kind === "q" ? from.clone().add(vic.clone().sub(from).setLength(Math.max(0, from.distanceTo(vic) - 0.55 * pitch))) : from;
-      A.position.set(THREE.MathUtils.lerp(startAt.x, dest.x, w), 0, THREE.MathUtils.lerp(startAt.z, dest.z, w));
+      A.position.set(THREE.MathUtils.lerp(startAt.x, dest.x, w), BOARD_TOP, THREE.MathUtils.lerp(startAt.z, dest.z, w));
       A.rotation.set(0, THREE.MathUtils.lerp(yawTo(startAt, dest) || face, restYaw(fight.color), ease(span(t, total - 0.15, total))), 0);
       setA("walk");
     }
