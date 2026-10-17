@@ -1,0 +1,594 @@
+.morse-battle {
+  --font-display: "Cinzel", "Palatino Linotype", Palatino, serif;
+  --font-sans: "Source Sans 3", "Segoe UI", sans-serif;
+  --color-ivory: #f3ead7;
+  --color-mist: #cbbfa6;
+  --color-gold: #e6c56a;
+  --color-orb: #3dce4a;
+  min-height: 100dvh;
+  background: #14110e;
+  color: var(--color-ivory);
+  font-family: var(--font-sans);
+}
+.morse-battle button { cursor: pointer; }
+.morse-battle .iron-btn.lounge { margin-top: 0.75rem; }
+
+.morse-battle .game {
+  min-height: 100dvh;
+  background: var(--color-iron);
+}
+
+.morse-battle .stage {
+  position: relative;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.morse-battle .valley {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.morse-battle .shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(12, 16, 18, 0.15), rgba(12, 16, 18, 0.28));
+}
+
+.morse-battle .hang {
+  position: relative;
+  z-index: 1;
+  width: min(42rem, calc(100vw - 1rem));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 0.5rem;
+}
+
+.morse-battle .crest {
+  width: min(34rem, 92%);
+  display: grid;
+  grid-template-columns: 1.1fr auto 1.1fr;
+  align-items: center;
+  color: #d5d0c6;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45));
+}
+
+.morse-battle .wing {
+  width: 100%;
+  height: 3.2rem;
+}
+
+.morse-battle .crest-beast {
+  position: absolute;
+  width: 3.2rem;
+  height: 3.2rem;
+  color: #c8c2b6;
+}
+
+.morse-battle .crest-beast.left {
+  left: 18%;
+  top: 0.2rem;
+}
+.morse-battle .crest-beast.right {
+  right: 18%;
+  top: 0.2rem;
+}
+.morse-battle .crest-beast svg,
+.morse-battle .wing {
+  display: block;
+}
+.morse-battle .crest-beast svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.morse-battle .wordmark {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  font-family: var(--font-display);
+  line-height: 0.85;
+  color: var(--color-gold);
+  text-shadow: 0 2px 0 #3a220c, 0 8px 16px rgba(0, 0, 0, 0.45);
+}
+.morse-battle .wordmark span {
+  display: block;
+  font-size: clamp(1.7rem, 5vw, 2.7rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.morse-battle .wordmark span:last-child {
+  font-size: clamp(1.35rem, 4vw, 2.15rem);
+}
+.morse-battle .wordmark i {
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  margin-left: 0.15em;
+  background: radial-gradient(circle at 35% 35%, #b7f5c0, #1f8a45 55%, #0c3);
+  transform: rotate(45deg);
+  vertical-align: 0.1em;
+  box-shadow: 0 0 8px #3dce4a;
+}
+
+.morse-battle .chain-row {
+  width: min(36rem, 100%);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1.1rem;
+  margin-top: -0.4rem;
+}
+
+.morse-battle .chain-wrap {
+  height: 3.4rem;
+  overflow: hidden;
+  transition: height 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.morse-battle .chain-wrap.long {
+  height: 70vh;
+}
+.morse-battle .chain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.morse-battle .link {
+  width: 1.05rem;
+  height: 1.55rem;
+  margin-top: -0.42rem;
+  border: 0.22rem solid #1a1a1e;
+  border-radius: 0.45rem;
+  background: linear-gradient(90deg, #8d8d94, #2a2a30 42%, #b5b5bc);
+  box-shadow: inset 0 0 0 1px #4a4a52;
+}
+
+.morse-battle .sign {
+  width: min(36rem, 100%);
+  margin-top: -0.35rem;
+}
+.morse-battle .sign-out {
+  animation: sign-drop 0.68s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.morse-battle .sign-in {
+  animation: sign-rise 0.75s cubic-bezier(0.16, 0.84, 0.32, 1) both;
+}
+@keyframes sign-drop {
+  to {
+    transform: translateY(115vh);
+  }
+}
+@keyframes sign-rise {
+  from {
+    transform: translateY(-70vh);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.morse-battle .sign-frame {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 18%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 7px),
+    linear-gradient(180deg, #7a4630, #5c301c 40%, #4a2616);
+  border: 3px solid #1a120e;
+  box-shadow:
+    0 18px 30px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 2px #8a623c,
+    inset 0 0 0 6px #2a160e;
+  padding: 0.35rem;
+}
+
+.morse-battle .bracket {
+  position: absolute;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid #c8c2b4;
+  z-index: 2;
+}
+.morse-battle .bracket.tl { top: 0.28rem; left: 0.28rem; border-right: 0; border-bottom: 0; }
+.morse-battle .bracket.tr { top: 0.28rem; right: 0.28rem; border-left: 0; border-bottom: 0; }
+.morse-battle .bracket.bl { bottom: 0.28rem; left: 0.28rem; border-right: 0; border-top: 0; }
+.morse-battle .bracket.br { bottom: 0.28rem; right: 0.28rem; border-left: 0; border-top: 0; }
+
+.morse-battle .plaque,
+.morse-battle .mode-line,
+.morse-battle .plank,
+.morse-battle .plank-half,
+.morse-battle .cond-name,
+.morse-battle .cond-cap,
+.morse-battle .deploy-labels,
+.morse-battle .preview-caps {
+  font-family: var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.morse-battle .plaque {
+  margin: 0.2rem 0.45rem 0.35rem;
+  text-align: center;
+  color: var(--color-mist);
+  font-size: 0.78rem;
+  background: linear-gradient(#2a241e, #161310);
+  border: 1px solid #0a0908;
+  padding: 0.35rem 0.5rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.morse-battle .mode-line {
+  margin: 0 0.7rem 0.15rem;
+  text-align: right;
+  color: var(--color-gold);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+}
+
+.morse-battle .plank,
+.morse-battle .cond,
+.morse-battle .deploy-labels,
+.morse-battle .preview {
+  margin: 0 0.45rem 0.28rem;
+}
+
+.morse-battle .plank,
+.morse-battle .plank-half {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3.15rem;
+  border: 0;
+  color: #d5dece;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 30%),
+    repeating-linear-gradient(#6e4128, #6e4128 2px, #5a321c 3px, #4e2b18 7px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 244, 220, 0.25),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.25);
+  font-size: clamp(1rem, 2.5vw, 1.35rem);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+.morse-battle .plank:hover,
+.morse-battle .plank-half:hover,
+.morse-battle .iron-btn:hover,
+.morse-battle .arrow:hover,
+.morse-battle .hud-bottom button:hover,
+.morse-battle .confirm button:hover {
+  filter: brightness(1.12);
+}
+.morse-battle .plank.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 2px;
+}
+.morse-battle .plank-half.mute {
+  pointer-events: none;
+}
+.morse-battle .plank-half.onward,
+.morse-battle .hud-bottom .onward {
+  color: #f3ead7;
+}
+.morse-battle .stud {
+  width: 0.85rem;
+  height: 0.85rem;
+  background: radial-gradient(circle at 35% 30%, #8a8a92, #1a1a1e 62%);
+  transform: rotate(45deg);
+  box-shadow: inset 0 0 0 1px #3a3a40;
+}
+
+.morse-battle .cond {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.8fr) 1.4fr;
+  gap: 0.6rem;
+  align-items: center;
+  min-height: 3.4rem;
+  padding: 0.35rem 0.7rem 0.45rem;
+  background:
+    repeating-linear-gradient(#6e4128, #6e4128 2px, #5a321c 3px, #4e2b18 7px);
+  box-shadow: inset 0 1px 0 rgba(255, 244, 220, 0.2);
+}
+.morse-battle .cond-name {
+  color: #d7e0d0;
+  font-size: clamp(0.72rem, 2vw, 0.95rem);
+}
+.morse-battle .cond-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.morse-battle .cond-cap {
+  text-align: center;
+  color: #efe6d2;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+}
+.morse-battle .cond-slider input {
+  width: 100%;
+  appearance: none;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(#120e0c, #050403);
+  border: 1px solid #000;
+  box-shadow: inset 0 2px 3px #000;
+}
+.morse-battle .cond-slider input::-webkit-slider-thumb {
+  appearance: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 2px solid #06210c;
+  background: radial-gradient(circle at 35% 32%, #d8ffd0, #2fce45 42%, #0d5a22 70%);
+  box-shadow: 0 0 10px var(--color-orb);
+}
+.morse-battle .cond-slider input::-moz-range-thumb {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 2px solid #06210c;
+  background: radial-gradient(circle at 35% 32%, #d8ffd0, #2fce45 42%, #0d5a22);
+}
+
+.morse-battle .deploy-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.15rem 0.4rem 0.35rem;
+  color: #d7e0d0;
+  font-size: 0.78rem;
+}
+.morse-battle .text-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.morse-battle .preview {
+  position: relative;
+  height: 11.5rem;
+  overflow: hidden;
+  border: 2px solid #1a120e;
+  box-shadow: inset 0 0 0 1px #8a623c;
+}
+.morse-battle .preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.morse-battle .portrait {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0;
+  width: 7.2rem;
+  height: 92%;
+  object-fit: cover;
+  object-position: top;
+  mask-image: linear-gradient(to top, #000 70%, transparent);
+}
+.morse-battle .portrait-hit {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 42%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.morse-battle .arrow {
+  position: absolute;
+  top: 38%;
+  z-index: 2;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 2px solid #c8c2b4;
+  background: radial-gradient(circle at 35% 30%, #4a4a52, #121214 70%);
+  color: var(--color-ivory);
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.morse-battle .arrow.right { right: 0.4rem; }
+.morse-battle .arrow:not(.right) { left: 0.4rem; }
+.morse-battle .preview-caps {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.35rem;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 0.7rem;
+  color: #f6f1e4;
+  font-size: 0.68rem;
+  text-shadow: 0 2px 4px #000;
+}
+.morse-battle .cost-pip {
+  position: absolute;
+  top: 0.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin: 0;
+  padding: 0.1rem 0.45rem;
+  background: rgba(12, 8, 6, 0.72);
+  color: var(--color-gold);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+}
+.morse-battle .coin {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff1b0, #e0a82a 45%, #8a5a10);
+  color: #3a2508;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.morse-battle .purse,
+.morse-battle .note {
+  position: relative;
+  z-index: 1;
+  margin: 0.55rem 0 0;
+  text-align: center;
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--color-gold);
+  text-shadow: 0 2px 6px #000;
+}
+.morse-battle .note { color: #ffd0c4; }
+
+.morse-battle .away {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 1.5rem;
+}
+.morse-battle .away h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 500;
+  margin: 0.4rem 0 1rem;
+}
+.morse-battle .eyebrow {
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  font-size: 0.75rem;
+}
+.morse-battle .iron-btn,
+.morse-battle .hud-bottom button,
+.morse-battle .confirm button,
+.morse-battle .hint {
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid #c8c2b4;
+  background: #1a140f;
+  color: var(--color-ivory);
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.morse-battle .hall {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.morse-battle .vignette {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.5));
+}
+.morse-battle .hud-top,
+.morse-battle .hud-status,
+.morse-battle .hud-bottom,
+.morse-battle .hint,
+.morse-battle .result,
+.morse-battle .confirm {
+  position: fixed;
+  z-index: 3;
+  font-family: var(--font-display);
+}
+.morse-battle .hud-top {
+  top: 0.6rem;
+  left: 0.7rem;
+  right: 0.7rem;
+  display: flex;
+  justify-content: space-between;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 6px #000;
+}
+.morse-battle .hud-top p { margin: 0; }
+.morse-battle .hud-status {
+  top: 2.4rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  margin: 0;
+  color: var(--color-gold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  text-shadow: 0 2px 6px #000;
+}
+.morse-battle .hint {
+  top: 4.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(28rem, calc(100% - 2rem));
+}
+.morse-battle .hud-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+}
+.morse-battle .hud-bottom span {
+  align-self: center;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+.morse-battle .result,
+.morse-battle .confirm {
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, calc(100% - 2rem));
+  padding: 1rem;
+  text-align: center;
+  background: rgba(20, 12, 8, 0.88);
+  border: 2px solid #8a623c;
+  letter-spacing: 0.06em;
+}
+.morse-battle .confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+.morse-battle .confirm p {
+  width: 100%;
+  margin: 0 0 0.4rem;
+}
+
+@media (max-width: 720px) {
+  .morse-battle .cond {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+  .morse-battle .preview { height: 10rem; }
+  .morse-battle .portrait { width: 5.5rem; }
+  .morse-battle .crest-beast { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .morse-battle .sign-out,
+.morse-battle .sign-in,
+.morse-battle .chain-wrap { animation: none; transition: none; }
+}
