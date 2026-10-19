@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { MorseApp } from "@/components/battle/app";
 import { SplashSkeleton } from "@/components/auth-screen";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { masterSandboxUrl } from "@/lib/master-sandbox";
+import { sandboxUrlFor } from "@/lib/master-sandbox";
 import { getHomeState } from "@/lib/server/mores";
 import "@/battle-gate.css";
 
@@ -14,7 +14,8 @@ export const Route = createFileRoute("/sandbox")({
 function SandboxPage() {
   const navigate = useNavigate();
   const { user, isPending } = useCurrentUserState();
-  // MasterGus is sent to his goblin project; everyone else gets the battle gate.
+  // Signed in: MasterGus goes to his goblin editor, everyone else plays his project.
+  // Signed out: the battle gate, as before.
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
@@ -26,15 +27,12 @@ function SandboxPage() {
     let live = true;
     void getHomeState()
       .then((home: { profile?: { username?: string } | null } | null) => {
-        const url = masterSandboxUrl(home?.profile?.username);
-        if (url) {
-          window.location.replace(url);
-          return;
-        }
-        if (live) setChecked(true);
+        if (!live) return;
+        window.location.replace(sandboxUrlFor(home?.profile?.username));
       })
       .catch(() => {
-        if (live) setChecked(true);
+        // Signed in but the club could not be read: still not MasterGus's editor.
+        if (live) window.location.replace(sandboxUrlFor(null));
       });
     return () => {
       live = false;
