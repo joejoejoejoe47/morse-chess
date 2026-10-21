@@ -143,6 +143,13 @@
         "cost": 0,
         "coinCost": 10,
         "sealed": false
+      },
+      {
+        "id": "sky-arena",
+        "name": "Sky Arena",
+        "cost": 0,
+        "coinCost": 0,
+        "sealed": false
       }
     ],
     "giftBoards": [

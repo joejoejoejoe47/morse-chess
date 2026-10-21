@@ -26,7 +26,8 @@ import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
-import { equippedSkin } from "@/lib/chess/board-skins";
+import { boardById, equippedSkin } from "@/lib/chess/board-skins";
+import { isSandboxGame, SANDBOX_BOARD_ID } from "@/lib/sandbox-board";
 import { roomBackdrop, saveLookPrefs, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { LoadingTitle } from "@/components/loading-title";
@@ -500,7 +501,8 @@ export function GameView({ gameId }: { gameId: string }) {
   const myClock = game.you === "w" ? clocks.w : clocks.b;
   const oppClock = game.you === "w" ? clocks.b : clocks.w;
   const over = game.status !== "active";
-  const skin = equippedSkin(game.myScore, game.myBoard, myName, game.ownedBoards);
+  // Sandbox games (goblin "End" -> /play-now) are always on the Sky Arena.
+  const skin = isSandboxGame(game.id) ? boardById(SANDBOX_BOARD_ID) : equippedSkin(game.myScore, game.myBoard, myName, game.ownedBoards);
   const vsBot = isBotUserId(opp.userId);
   const selfId = game.you === "w" ? game.white.userId : game.black.userId;
   const cameraOn = Boolean(game.cameraOpen) && !vsBot;
