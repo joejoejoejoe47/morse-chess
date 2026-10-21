@@ -15,6 +15,8 @@ export type GameSnapshot = {
   black: PlayerInfo;
   lastMove: { from: string; to: string; san: string } | null;
   remainingMs: number;
+  /** Starting clock of the game (time control), ms. */
+  clockMs?: number;
   whiteClockMs: number;
   blackClockMs: number;
   serverNow: number;
@@ -84,6 +86,35 @@ export const buyBoard = rpc("buyBoard");
 export const setEquippedBoard = rpc("setEquippedBoard");
 export const listClubUsers = rpc("listClubUsers");
 export const getChallengeInbox = rpc("getChallengeInbox");
+export type HistoryMove = { san: string; from: string; to: string };
+export type HistoryGame = {
+  id: string;
+  createdAt: number;
+  mode: GameMode;
+  /** Time control in minutes (timed games); null for untimed Breeze games. */
+  minutes: number | null;
+  status: GameStatus;
+  result: "win" | "loss" | "draw";
+  you: Side;
+  white: { username: string; bot: boolean };
+  black: { username: string; bot: boolean };
+  opponent: { username: string; bot: boolean };
+  /** Board and piece style the player used in that game. */
+  board: string;
+  style: "2d" | "3d" | "an" | "ra";
+  fen: string;
+  moves: HistoryMove[];
+  whiteLook?: string;
+  blackLook?: string;
+};
+export type HistoryFilter = "all" | 1 | 5 | 10;
+export type HistoryPage = {
+  games: HistoryGame[];
+  next: string | null;
+  counts?: Record<"all" | "1" | "5" | "10", number>;
+};
+export const listHistory = rpc<HistoryPage>("listHistory");
+export const historyGame = rpc<HistoryGame | null>("historyGame");
 export const getSandbox = rpc<{ owned: boolean; coins: number }>("getSandbox");
 export const buySandbox = rpc<{ ok: boolean; error?: string; coins: number; owned: boolean }>("buySandbox");
 

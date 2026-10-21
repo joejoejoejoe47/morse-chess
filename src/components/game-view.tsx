@@ -527,7 +527,7 @@ export function GameView({ gameId }: { gameId: string }) {
         <ClubBrand to="/" tone={backdropLight ? "dark" : "light"} />
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-[15px] text-mist md:inline">
-            {game.mode === "timed" ? "Timed · 1 min / turn" : "Breeze"}
+            {game.mode === "timed" ? `Timed · ${Math.max(1, Math.round((game.clockMs ?? 60_000) / 60_000))} min` : "Breeze"}
             {" · "}
             {over ? "Board closed" : myTurn ? "Your move" : "Waiting"}
             {" · "}

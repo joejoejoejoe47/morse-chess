@@ -35,6 +35,7 @@ type Flow =
 export function ClubHome() {
   const navigate = useNavigate();
   const { user, isPending } = useCurrentUserState();
+  const [botMinutes, setBotMinutes] = useState<1 | 5 | 10>(1);
   const [home, setHome] = useState<HomeState | null>(null);
   const [flow, setFlow] = useState<Flow>({ kind: "idle" });
   const [claim, setClaim] = useState("");
@@ -131,7 +132,7 @@ export function ClubHome() {
     try {
       if (flow.intent === "bot" || flow.intent === "bot-v2") {
         const { gameId } = await startBotGame({
-          data: { mode, bot: flow.intent === "bot-v2" ? "v2" : "v1" },
+          data: { mode, bot: flow.intent === "bot-v2" ? "v2" : "v1", minutes: botMinutes },
         });
         await navigate({ to: "/play/$gameId", params: { gameId } });
         return;
@@ -304,6 +305,13 @@ export function ClubHome() {
         className="relative mt-4 flex min-h-14 w-full items-center justify-center rounded-xl border border-gold-line/55 bg-walnut/90 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
       >
         CHESS CLUB
+      </Link>
+      <Link
+        to="/history"
+        data-history-button
+        className="relative mt-3 flex min-h-14 w-full items-center justify-center rounded-none border border-gold-line/55 bg-ink/80 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
+      >
+        HISTORY
       </Link>
       <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-2">
         <button
@@ -495,10 +503,32 @@ export function ClubHome() {
                   <span className="text-left">
                     <span className="block">Timed</span>
                     <span className="block text-xs font-normal text-ink/70">
-                      One minute each. Clock pauses when you move.
+                      {flow.intent === "bot" || flow.intent === "bot-v2"
+                        ? `${botMinutes === 1 ? "One minute" : `${botMinutes} minutes`} each. Clock pauses when you move.`
+                        : "One minute each. Clock pauses when you move."}
                     </span>
                   </span>
                 </Button>
+                {flow.intent === "bot" || flow.intent === "bot-v2" ? (
+                  <div className="flex items-center gap-2 text-sm text-mist" role="radiogroup" aria-label="Clock">
+                    <span>Clock</span>
+                    {([1, 5, 10] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        role="radio"
+                        aria-checked={botMinutes === m}
+                        className={
+                          "min-h-9 rounded-none border px-3 " +
+                          (botMinutes === m ? "border-gold-line bg-walnut text-ivory" : "border-line text-mist hover:text-ivory")
+                        }
+                        onClick={() => setBotMinutes(m)}
+                      >
+                        {m} min
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 <Button
                   variant="secondary"
                   size="lg"

@@ -30,7 +30,7 @@ function PlayNow() {
           setHome(true); // no club name yet: the club home asks for one
           return;
         }
-        const gameId = state.activeGameId ?? (await startBotGame({ data: { mode: "timed", bot: "v1" } })).gameId;
+        const gameId = state.activeGameId ?? (await startBotGame({ data: { mode: "timed", bot: "v1", source: "sandbox" } })).gameId;
         markSandboxGame(gameId);
         await navigate({ to: "/play/$gameId", params: { gameId }, replace: true });
       } catch {

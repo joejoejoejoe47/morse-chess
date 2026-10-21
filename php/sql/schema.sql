@@ -215,6 +215,14 @@ ALTER TABLE `game_chat` ADD COLUMN `image` MEDIUMTEXT NULL;
 ALTER TABLE `chess_club_messages` ADD COLUMN `image` MEDIUMTEXT NULL;
 ALTER TABLE `profiles` ADD COLUMN `sandbox_owned` TINYINT(1) NOT NULL DEFAULT 0;
 ALTER TABLE `profiles` ADD COLUMN `games_played` INT NOT NULL DEFAULT 0;
+-- Game history: the starting clock (time control), each player's board and piece style
+-- when the game began, and where it was started from ('sandbox' games stay out of History).
+ALTER TABLE `games` ADD COLUMN `clock_ms` INT NOT NULL DEFAULT 60000;
+ALTER TABLE `games` ADD COLUMN `white_board` VARCHAR(64) NULL;
+ALTER TABLE `games` ADD COLUMN `black_board` VARCHAR(64) NULL;
+ALTER TABLE `games` ADD COLUMN `white_style` VARCHAR(16) NULL;
+ALTER TABLE `games` ADD COLUMN `black_style` VARCHAR(16) NULL;
+ALTER TABLE `games` ADD COLUMN `source` VARCHAR(16) NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS `sandbox_queue` (
   `user_id` VARCHAR(64) NOT NULL,
