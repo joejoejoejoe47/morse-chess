@@ -476,6 +476,11 @@ Db::run('UPDATE profiles SET coins = 12 WHERE user_id = ?', ['dave']);
 $buy = Mores::buyBoard('dave', ['boardId' => 'rocco']);
 check($buy['ok'] === true && $buy['coins'] === 2 && in_array('rocco', $buy['owned'], true), 'anyone can buy rocco for 10 coins');
 
+// ── Sky Arena board ───────────────────────────────────────────────────────
+$sky = \Morse\Catalog::boardById('sky-arena');
+check($sky['id'] === 'sky-arena' && $sky['name'] === 'Sky Arena' && $sky['coinCost'] === 0 && $sky['cost'] === 0, 'sky arena is a free board');
+check(\Morse\Catalog::boardUnlocked(0, 'sky-arena', []) === true, 'sky arena is open to everyone from the start');
+
 // ── RA free trial schedule ─────────────────────────────────────────────────
 $free = [];
 for ($n = 1; $n <= 110; $n++) {

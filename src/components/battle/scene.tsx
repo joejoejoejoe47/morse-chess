@@ -1,10 +1,11 @@
-import { useMemo, useRef, type RefObject } from "react";
+import { Suspense, useMemo, useRef, type RefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Sky } from "@react-three/drei";
 import * as THREE from "three";
 import type { PieceSymbol, Square } from "chess.js";
 import { piecesFromFen, type Placed, type Side } from "@/game/engine";
 import type { GroundId } from "@/game/grounds";
+import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 
 export type Strike = {
   id: number;
@@ -47,6 +48,19 @@ function smooth(t: number) {
 }
 
 function Hall({ ground }: { ground: GroundId }) {
+  if (ground === "sky") {
+    // The deck (BoardDeck) is 0.28 tall under squares at y 0; the arena floor goes below it.
+    return (
+      <>
+        <color attach="background" args={["#b88f86"]} />
+        <ambientLight intensity={0.3} />
+        <directionalLight position={[7, 12, 6]} intensity={0.7} />
+        <Suspense fallback={null}>
+          <SkyArenaWorld squaresBottom={-0.08} plinth={false} />
+        </Suspense>
+      </>
+    );
+  }
   const outdoor = ground === "yard" || ground === "glade";
   const fog = outdoor ? "#b7c6c4" : ground === "keep" ? "#1a120e" : "#c4b39a";
   return (

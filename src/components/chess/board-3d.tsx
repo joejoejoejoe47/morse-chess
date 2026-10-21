@@ -21,6 +21,7 @@ import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 import { ROCCO_BOARD_ID, RoccoArmy, RoccoWorld } from "@/components/chess/rocco-board";
+import { SKY_ARENA_BOARD_ID, SKY_ARENA_CAMERA, SKY_ARENA_ZOOM, SkyArenaWorld } from "@/components/chess/sky-arena-board";
 
 const INK_BOARDS = new Set([
   "lodge",
@@ -1510,6 +1511,7 @@ function Scene({
   const cheerTimer = useRef<number | null>(null);
   const meadow = skin.id === "grassland" || skin.id === "castle";
   const rocco = skin.id === ROCCO_BOARD_ID;
+  const arena = skin.id === SKY_ARENA_BOARD_ID;
   const pitch = meadow ? GLADE_PITCH : 1;
 
   useEffect(() => {
@@ -1666,13 +1668,13 @@ function Scene({
           <color attach="background" args={["#9eb8cc"]} />
           <fog attach="fog" args={["#c5d4e4", 110, 240]} />
         </>
-      ) : rocco ? null : cosmic ? (
+      ) : rocco || arena ? null : cosmic ? (
         <color attach="background" args={["#05060c"]} />
       ) : (
         <RoomSky color={sky} image={roomImage} />
       )}
-      {!meadow && !rocco && roomScene === "space" ? <SpaceSky /> : null}
-      {!meadow && !rocco && roomScene === "model" && modelUrl ? (
+      {!meadow && !rocco && !arena && roomScene === "space" ? <SpaceSky /> : null}
+      {!meadow && !rocco && !arena && roomScene === "model" && modelUrl ? (
         <Suspense fallback={null}>
           <ModelSky url={modelUrl} />
         </Suspense>
@@ -1710,6 +1712,10 @@ function Scene({
       ) : rocco ? (
         <Suspense fallback={null}>
           <RoccoWorld />
+        </Suspense>
+      ) : arena ? (
+        <Suspense fallback={null}>
+          <SkyArenaWorld />
         </Suspense>
       ) : skin.id === "grassland" ? (
         <Suspense fallback={null}>
@@ -1864,8 +1870,8 @@ function Scene({
         enableZoom
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
-        minDistance={meadow ? 5 : 8}
-        maxDistance={meadow ? 160 : 22}
+        minDistance={meadow ? 5 : arena ? SKY_ARENA_ZOOM.min : 8}
+        maxDistance={meadow ? 160 : arena ? SKY_ARENA_ZOOM.max : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -2141,7 +2147,9 @@ export function ChessBoard3D({
       ? you === "w"
         ? [0.4, 42, 68]
         : [-0.4, 42, -68]
-      : you === "w"
+      : resolved.id === SKY_ARENA_BOARD_ID
+        ? SKY_ARENA_CAMERA[you === "w" ? "w" : "b"]
+        : you === "w"
         ? [0, 15.2, 11.2]
         : [0, 15.2, -11.2];
 

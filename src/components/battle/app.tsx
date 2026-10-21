@@ -1,3 +1,4 @@
+import { GROUNDS } from "@/game/grounds";
 import { useEffect, useRef, useState, Suspense } from "react";
 import { Chess, type Move, type Square } from "chess.js";
 import { MorseMenus, groundId, type Mode, type Screen } from "@/components/battle/menus";
@@ -87,7 +88,7 @@ export function MorseApp({ onLounge }: { onLounge?: () => void }) {
     const left = coinsRef.current;
     saveCoins(left);
     setCoins(left);
-    setGround((current) => (current + dir + 4) % 4);
+    setGround((current) => (current + dir + GROUNDS.length) % GROUNDS.length);
     setNote("10 Morse coins — the host marches to new ground.");
     playStep();
   }
