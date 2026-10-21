@@ -83,7 +83,7 @@ export function primeSfx() {
 }
 
 function urlFor(kind: SfxKind, n: number) {
-  return asset(`/history/sfx/${kind}-${n}.mp3`);
+  return asset(`/replay-sfx/${kind}-${n}.mp3`);
 }
 
 export async function playSfx(kind: SfxKind, delayMs = 0) {
