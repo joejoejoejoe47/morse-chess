@@ -1,3 +1,4 @@
+# Synthesizes the History replay sounds. Run from public/replay-sfx/ (writes <kind>-<n>.mp3 into the current directory).
 import numpy as np, wave, subprocess, os
 SR = 44100
 rng = np.random.default_rng(538)

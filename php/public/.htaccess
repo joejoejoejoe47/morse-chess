@@ -4,6 +4,8 @@ DirectoryIndex index.php index.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  # /history is an app page; never let a same-named folder from an older deploy answer it.
+  RewriteRule ^history/?$ index.php [L]
   # Real files (built JS/CSS, 3D models, textures, installer) are served directly.
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d

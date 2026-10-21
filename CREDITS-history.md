@@ -17,7 +17,7 @@ to grade replayed moves.
 
 ## Replay sounds
 
-`public/history/sfx/*.mp3` are original clips made for Morse Chess. They were
+`public/replay-sfx/*.mp3` are original clips made for Morse Chess. They were
 synthesized from scratch (sine/FM tones, filtered noise and envelopes; no
 samples) by `scripts/history-sfx.py`, and can be regenerated with it
 (numpy + ffmpeg). They are part of this project and carry no third-party terms.
