@@ -476,3 +476,57 @@ html.light .auth-wood {
   filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.45));
 }
 
+
+/* History replay: judgment emojis rising from the moved piece. */
+@keyframes morse-emoji-rise {
+  0% {
+    transform: translate(-50%, 0) scale(0.4);
+    opacity: 0;
+  }
+  12% {
+    transform: translate(-50%, -14px) scale(1.15);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--drift, 0px)), -150px) scale(0.9);
+    opacity: 0;
+  }
+}
+.morse-emoji {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  pointer-events: none;
+  user-select: none;
+  animation: morse-emoji-rise var(--dur, 1.7s) cubic-bezier(0.2, 0.7, 0.3, 1) var(--delay, 0s) both;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  line-height: 1;
+}
+@keyframes morse-verdict-pop {
+  0% {
+    transform: translate(-50%, 6px);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -18px);
+    opacity: 0;
+  }
+}
+.morse-verdict {
+  position: absolute;
+  left: 0;
+  bottom: 22px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: morse-verdict-pop 1.9s ease-out both;
+}

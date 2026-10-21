@@ -2074,6 +2074,7 @@ export function ChessBoard3D({
   kings,
   real = false,
   plate = null,
+  overlay = null,
 }: {
   fen: string;
   you: Side;
@@ -2096,6 +2097,8 @@ export function ChessBoard3D({
   fightZoom?: boolean;
   kings?: { w?: string; b?: string };
   plate?: string | null;
+  /** Extra 3D content rendered inside the board's canvas (History replay: camera director, emojis). */
+  overlay?: ReactNode;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -2201,6 +2204,7 @@ export function ChessBoard3D({
           kings={kings}
           plate={plate}
         />
+        {overlay}
       </Canvas>
     </div>
   );

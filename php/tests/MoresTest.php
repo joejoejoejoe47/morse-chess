@@ -50,7 +50,8 @@ function human_game(string $a, string $b, string $nameB, string $mode = 'timed')
 $expected = ['usernameAvailable', 'claimUsername', 'getPurse', 'getHomeState', 'joinQueue', 'leaveQueue', 'sendChallenge',
     'respondChallenge', 'cancelChallenge', 'openGameLive', 'openGameChat', 'closeGameChat', 'openGameCamera',
     'closeGameCamera', 'sendGameChat', 'getGame', 'makeMove', 'claimTimeout', 'resignGame', 'startBotGame', 'buyBoard',
-    'setEquippedBoard', 'listClubUsers', 'getChallengeInbox', 'getSandbox', 'buySandbox', 'hillTable', 'hillSync', 'hillMove', 'hillLeave'];
+    'setEquippedBoard', 'listClubUsers', 'getChallengeInbox', 'getSandbox', 'buySandbox', 'hillTable', 'hillSync', 'hillMove', 'hillLeave',
+    'listHistory', 'historyGame'];
 foreach ($expected as $n) {
     check(in_array($n, Rpc::names(), true), "rpc $n registered");
 }
@@ -497,5 +498,38 @@ check(\Morse\Avatar::getAvatar('dave', [])['raTrial'] === true, 'RA trial on gam
 check(\Morse\Avatar::setPieceStyle('dave', ['style' => 'ra'])['style'] === 'ra', 'trial lets you pick RA');
 Mores::countFinishedGame('dave');
 check(Db::value('SELECT piece_style FROM profiles WHERE user_id = ?', ['dave']) === '3d', 'trial ends after one game');
+
+// ── History ───────────────────────────────────────────────────────────────
+$hist = Mores::listHistory('alice', ['minutes' => 'all']);
+$fool = null;
+foreach ($hist['games'] as $hg) {
+    if (count($hg['moves']) === 4 && $hg['moves'][3]['san'] === 'Qh4#') {
+        $fool = $hg;
+    }
+}
+check($fool !== null && $fool['status'] !== 'active', 'history lists a finished game with its full move list');
+check($fool !== null && in_array($fool['result'], ['win', 'loss'], true) && $fool['opponent']['username'] === 'bob_bobby', 'history card has result and opponent');
+check(isset($hist['counts']['all'], $hist['counts']['1'], $hist['counts']['5'], $hist['counts']['10']), 'history returns counts per time control');
+$five = Mores::startBotGame('cara', ['mode' => 'timed', 'minutes' => 5]);
+check((int) Db::value('SELECT clock_ms FROM games WHERE id = ?', [$five['gameId']]) === 300000, 'bot game can start with a 5 minute clock');
+check(Mores::getGame('cara', ['gameId' => $five['gameId']])['clockMs'] === 300000, 'snapshot reports the starting clock');
+check((string) Db::value('SELECT white_style FROM games WHERE id = ?', [$five['gameId']]) !== '', 'game records the piece style it started with');
+Db::insertIgnore('game_moves', ['game_id' => $five['gameId'], 'ply' => 1, 'san' => 'e4', 'from_sq' => 'e2', 'to_sq' => 'e4', 'created_at' => Db::now()]);
+Mores::resignGame('cara', ['gameId' => $five['gameId']]);
+$box = Mores::startBotGame('cara', ['mode' => 'timed', 'source' => 'sandbox']);
+Db::insertIgnore('game_moves', ['game_id' => $box['gameId'], 'ply' => 1, 'san' => 'e4', 'from_sq' => 'e2', 'to_sq' => 'e4', 'created_at' => Db::now()]);
+Mores::resignGame('cara', ['gameId' => $box['gameId']]);
+$caraFive = Mores::listHistory('cara', ['minutes' => 5]);
+check(count($caraFive['games']) === 1 && $caraFive['games'][0]['minutes'] === 5 && $caraFive['games'][0]['result'] === 'loss', '5 minute filter finds the 5 minute game');
+$caraAll = array_column(Mores::listHistory('cara', ['minutes' => 'all'])['games'], 'id');
+check(!in_array($box['gameId'], $caraAll, true), 'sandbox games stay out of History');
+check(Mores::listHistory('cara', ['minutes' => 10])['games'] === [], 'empty 10 minute filter');
+check(Mores::historyGame('cara', ['gameId' => $fool['id'] ?? '']) === null, 'cannot open someone else\'s game');
+check(count(Mores::historyGame('alice', ['gameId' => $fool['id'] ?? ''])['moves'] ?? []) === 4, 'player opens their own game');
+$page = Mores::listHistory('alice', ['minutes' => 'all', 'limit' => 1]);
+if ($page['next'] !== null) {
+    $page2 = Mores::listHistory('alice', ['minutes' => 'all', 'limit' => 1, 'before' => $page['next']]);
+    check($page2['games'] !== [] && $page2['games'][0]['id'] !== $page['games'][0]['id'], 'history pages with a cursor');
+}
 
 finish();

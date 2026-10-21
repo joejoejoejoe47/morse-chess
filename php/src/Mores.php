@@ -61,6 +61,7 @@ final class Mores
             'openGameCamera', 'closeGameCamera', 'sendGameChat', 'getGame', 'makeMove', 'claimTimeout',
             'resignGame', 'startBotGame', 'buyBoard', 'setEquippedBoard', 'listClubUsers', 'getChallengeInbox',
             'getSandbox', 'buySandbox', 'hillTable', 'hillSync', 'hillMove', 'hillLeave',
+            'listHistory', 'historyGame',
         ] as $name) {
             Rpc::register($name, [self::class, $name]);
         }
@@ -217,7 +218,7 @@ final class Mores
 
     // ── games ──────────────────────────────────────────────────────────────
 
-    private static function insertGame(string $a, string $b, string $mode, bool $pull = false, int $clockMs = Constants::TURN_MS): string
+    private static function insertGame(string $a, string $b, string $mode, bool $pull = false, int $clockMs = Constants::TURN_MS, string $source = ''): string
     {
         $id = Util::uuid();
         $aWhite = Util::chance(0.5);
@@ -225,13 +226,33 @@ final class Mores
         $black = $aWhite ? $b : $a;
         $chess = new Chess();
         $now = Db::now();
+        // Remember each player's board and piece style as the game starts, so History replays it the same way.
+        $look = static function (string $uid): array {
+            $row = Db::one('SELECT equipped_board, piece_style FROM profiles WHERE user_id = ? LIMIT 1', [$uid]);
+            return [
+                $row !== null && (string) $row['equipped_board'] !== '' ? (string) $row['equipped_board'] : null,
+                $row !== null && (string) $row['piece_style'] !== '' ? (string) $row['piece_style'] : null,
+            ];
+        };
+        [$wBoard, $wStyle] = $look($white);
+        [$bBoard, $bStyle] = $look($black);
         Db::run(
             "INSERT INTO games (id, white_user_id, black_user_id, mode, fen, status, turn, turn_started_at, created_at,
-                                white_clock_ms, black_clock_ms, pull)
-             VALUES (?, ?, ?, ?, ?, 'active', 'w', ?, ?, ?, ?, ?)",
-            [$id, $white, $black, $mode, $chess->fen(), $now, $now, $clockMs, $clockMs, $pull ? 1 : 0]
+                                white_clock_ms, black_clock_ms, pull, clock_ms, white_board, black_board, white_style, black_style, source)
+             VALUES (?, ?, ?, ?, ?, 'active', 'w', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [$id, $white, $black, $mode, $chess->fen(), $now, $now, $clockMs, $clockMs, $pull ? 1 : 0,
+             $clockMs, $wBoard, $bBoard, $wStyle, $bStyle, $source]
         );
         return $id;
+    }
+
+    /** Time controls a game can start with, in minutes. */
+    public const CLOCK_MINUTES = [1, 5, 10];
+
+    private static function clockMsFrom(mixed $minutes): int
+    {
+        $m = is_numeric($minutes) ? (int) $minutes : 1;
+        return in_array($m, self::CLOCK_MINUTES, true) ? $m * 60000 : Constants::TURN_MS;
     }
 
     /** @return array<string,mixed>|null */
@@ -816,6 +837,7 @@ final class Mores
                 ? ['from' => (string) $fresh['last_move_from'], 'to' => (string) $fresh['last_move_to'], 'san' => (string) $fresh['last_move_san']]
                 : null,
             'remainingMs' => $remainingMs,
+            'clockMs' => self::toInt($fresh['clock_ms'] ?? null, Constants::TURN_MS),
             'whiteClockMs' => $clocks['w'],
             'blackClockMs' => $clocks['b'],
             'serverNow' => Db::nowMs(),
@@ -1420,7 +1442,133 @@ final class Mores
             return ['gameId' => $active];
         }
         $botId = $bot === 'v2' ? Constants::BOT_V2_USER_ID : Constants::BOT_USER_ID;
-        return ['gameId' => self::insertGame($userId, $botId, $mode)];
+        // 'sandbox' marks games started from the goblin Sandbox (they stay out of History).
+        $source = ($data['source'] ?? null) === 'sandbox' ? 'sandbox' : '';
+        return ['gameId' => self::insertGame($userId, $botId, $mode, false, self::clockMsFrom($data['minutes'] ?? null), $source)];
+    }
+
+    // ── history ────────────────────────────────────────────────────────────
+
+    /**
+     * Finished games for History, newest first. data: minutes ('all'|1|5|10),
+     * before (cursor from the previous page), limit (max 48).
+     * Sandbox games and games with no moves are left out.
+     * @param array<string,mixed> $data
+     */
+    public static function listHistory(string $userId, array $data): mixed
+    {
+        self::$people = [];
+        $limit = max(1, min(48, self::toInt($data['limit'] ?? null, 24)));
+        $minutes = $data['minutes'] ?? 'all';
+        $where = "(g.white_user_id = ? OR g.black_user_id = ?) AND g.status <> 'active' AND g.source <> 'sandbox'
+                  AND EXISTS (SELECT 1 FROM game_moves m WHERE m.game_id = g.id)";
+        $params = [$userId, $userId];
+        $base = $where;
+        $baseParams = $params;
+        if ($minutes !== 'all' && in_array((int) $minutes, self::CLOCK_MINUTES, true)) {
+            $where .= " AND g.mode = 'timed' AND g.clock_ms = ?";
+            $params[] = (int) $minutes * 60000;
+        }
+        $before = self::str($data, 'before');
+        if ($before !== '' && str_contains($before, '|')) {
+            [$ts, $bid] = explode('|', $before, 2);
+            $where .= ' AND (g.created_at < ? OR (g.created_at = ? AND g.id < ?))';
+            array_push($params, $ts, $ts, $bid);
+        }
+        $rows = Db::all(
+            "SELECT g.* FROM games g WHERE $where ORDER BY g.created_at DESC, g.id DESC LIMIT " . ($limit + 1),
+            $params
+        );
+        $more = count($rows) > $limit;
+        $rows = array_slice($rows, 0, $limit);
+        $games = array_map(static fn (array $g): array => self::historyCard($g, $userId), $rows);
+        $out = ['games' => $games, 'next' => $more && $rows !== [] ? (string) end($rows)['created_at'] . '|' . (string) end($rows)['id'] : null];
+        if ($before === '') {
+            $counts = ['all' => (int) Db::value("SELECT COUNT(*) FROM games g WHERE $base", $baseParams)];
+            foreach (self::CLOCK_MINUTES as $m) {
+                $counts[(string) $m] = (int) Db::value("SELECT COUNT(*) FROM games g WHERE $base AND g.mode = 'timed' AND g.clock_ms = ?", [...$baseParams, $m * 60000]);
+            }
+            $out['counts'] = $counts;
+        }
+        return $out;
+    }
+
+    /** One History game with everything the replay needs. @param array<string,mixed> $data */
+    public static function historyGame(string $userId, array $data): mixed
+    {
+        self::$people = [];
+        $g = self::loadGame(self::str($data, 'gameId'));
+        if ($g === null || ($g['white_user_id'] !== $userId && $g['black_user_id'] !== $userId)) {
+            return null;
+        }
+        $card = self::historyCard($g, $userId);
+        $white = self::historyPeople((string) $g['white_user_id']);
+        $black = self::historyPeople((string) $g['black_user_id']);
+        $card['whiteLook'] = ($white['avatar_json'] ?? '') ?: '';
+        $card['blackLook'] = ($black['avatar_json'] ?? '') ?: '';
+        return $card;
+    }
+
+    /** @var array<string,array<string,mixed>|null> profiles read while building one History answer */
+    private static array $people = [];
+
+    /** @return array{username:string,equipped_board:string,piece_style:string,avatar_json:string}|null */
+    private static function historyPeople(string $uid): ?array
+    {
+        if (!array_key_exists($uid, self::$people)) {
+            self::$people[$uid] = Db::one('SELECT username, equipped_board, piece_style, avatar_json FROM profiles WHERE user_id = ? LIMIT 1', [$uid]);
+        }
+        $row = self::$people[$uid];
+        if ($row === null) {
+            return null;
+        }
+        return [
+            'username' => (string) $row['username'],
+            'equipped_board' => (string) ($row['equipped_board'] ?: Catalog::defaultBoardId()),
+            'piece_style' => (string) ($row['piece_style'] ?: '3d'),
+            'avatar_json' => (string) ($row['avatar_json'] ?? ''),
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private static function historyCard(array $g, string $userId): array
+    {
+        $you = $g['white_user_id'] === $userId ? 'w' : 'b';
+        $oppId = (string) ($you === 'w' ? $g['black_user_id'] : $g['white_user_id']);
+        $opp = self::historyPeople($oppId);
+        $me = self::historyPeople($userId);
+        $status = (string) $g['status'];
+        $result = $status === 'draw' ? 'draw' : (($g['winner_user_id'] ?? null) === $userId ? 'win' : (($g['winner_user_id'] ?? null) === null ? 'draw' : 'loss'));
+        $moves = Db::all('SELECT san, from_sq, to_sq FROM game_moves WHERE game_id = ? ORDER BY ply ASC', [$g['id']]);
+        $whiteName = $you === 'w' ? ($me['username'] ?? 'You') : ($opp['username'] ?? 'White');
+        $blackName = $you === 'b' ? ($me['username'] ?? 'You') : ($opp['username'] ?? 'Black');
+        // Games from before History recorded the board/style use the player's current ones.
+        $board = (string) (($you === 'w' ? $g['white_board'] : $g['black_board']) ?? '');
+        $style = (string) (($you === 'w' ? $g['white_style'] : $g['black_style']) ?? '');
+        if ($board === '') {
+            $board = (string) ($me['equipped_board'] ?? Catalog::defaultBoardId());
+        }
+        if ($style === '') {
+            $style = (string) ($me['piece_style'] ?? '3d');
+        }
+        $mode = self::parseMode($g['mode']);
+        $clockMs = self::toInt($g['clock_ms'] ?? null, Constants::TURN_MS);
+        return [
+            'id' => (string) $g['id'],
+            'createdAt' => Db::toMs($g['created_at']),
+            'mode' => $mode,
+            'minutes' => $mode === 'timed' ? intdiv($clockMs, 60000) : null,
+            'status' => $status,
+            'result' => $result,
+            'you' => $you,
+            'white' => ['username' => $whiteName, 'bot' => Constants::isBotUserId((string) $g['white_user_id'])],
+            'black' => ['username' => $blackName, 'bot' => Constants::isBotUserId((string) $g['black_user_id'])],
+            'opponent' => ['username' => $opp['username'] ?? 'Opponent', 'bot' => Constants::isBotUserId($oppId)],
+            'board' => Catalog::boardById($board)['id'],
+            'style' => in_array($style, ['2d', '3d', 'an', 'ra'], true) ? $style : '3d',
+            'fen' => (string) $g['fen'],
+            'moves' => array_map(static fn (array $m): array => ['san' => (string) $m['san'], 'from' => (string) $m['from_sq'], 'to' => (string) $m['to_sq']], $moves),
+        ];
     }
 
     /** @param array<string,mixed> $data */
