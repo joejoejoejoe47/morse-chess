@@ -7,6 +7,10 @@ import { fetchMasterPopups, randomDelayMs } from "@/lib/master-popups";
 
 type Shown = { name: string; text: string; key: number };
 
+/** `?mgpopup=now` on any page: first pop-up after ~2.5 s (for live checks). Read once at
+ * load, because routes may tidy the query string before the host starts. */
+const DEMO_NOW = typeof window !== "undefined" && /[?&]mgpopup=now\b/.test(window.location.search);
+
 /**
  * "MasterGus says: ..." — every minSec..maxSec seconds (1-3 min by default) a random
  * message from MasterGus's goblin Pop-ups list appears for signed-in players on every
@@ -67,8 +71,7 @@ export function MasterPopupHost() {
         /* unknown -> treat as a regular player */
       }
       if (!live) return;
-      const demo = /[?&]mgpopup=now\b/.test(window.location.search); // quick live check
-      if (demo) return schedule(2500);
+      if (DEMO_NOW) return schedule(2500);
       const first = await fetchMasterPopups();
       if (!live || !first) return;
       schedule(randomDelayMs(first.settings));
@@ -92,7 +95,7 @@ export function MasterPopupHost() {
       role="status"
       aria-live="polite"
       data-master-popup
-      className="fixed top-3 inset-x-3 z-[90] sm:inset-x-auto sm:right-4 sm:w-[380px] border border-gold-line/55 bg-panel/95 text-ivory shadow-2xl backdrop-blur px-4 py-3 pr-10 font-[Outfit,sans-serif]"
+      className="fixed top-14 inset-x-3 z-[90] sm:inset-x-auto sm:right-3 sm:w-[380px] border border-gold-line/55 bg-panel/95 text-ivory shadow-2xl backdrop-blur px-4 py-3 pr-10 font-[Outfit,sans-serif]"
     >
       <div className="flex items-center gap-1.5 text-xs font-bold text-gold-line">
         <MessageSquareText className="h-3.5 w-3.5" aria-hidden />
