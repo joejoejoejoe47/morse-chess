@@ -988,12 +988,28 @@ final class Mores
         return ['coins' => $profile['coins']];
     }
 
+    /** Named (intended) challenges expire after this long; pull-ups have their own flow. */
+    public const NAMED_CHALLENGE_MS = 4 * 60 * 1000;
+
+    /**
+     * Milliseconds left before a named challenge lapses (null for pull-ups). Sent relative so the
+     * browser's clock skew doesn't matter.
+     * @param array<string,mixed> $r
+     */
+    private static function namedExpiry(array $r): ?int
+    {
+        if (($r['kind'] ?? null) === 'pull') {
+            return null;
+        }
+        return max(0, Db::toMs($r['created_at']) + self::NAMED_CHALLENGE_MS - Db::nowMs());
+    }
+
     private static function expireNamedChallenges(): void
     {
         Db::run(
             "UPDATE challenges SET status = 'cancelled'
              WHERE status = 'pending' AND (kind IS NULL OR kind <> 'pull') AND created_at < ?",
-            [Db::ts(Db::nowMs() - 5 * 60 * 1000)]
+            [Db::ts(Db::nowMs() - self::NAMED_CHALLENGE_MS)]
         );
     }
 
@@ -1050,7 +1066,7 @@ final class Mores
             [$userId]
         );
         $outRows = Db::all(
-            "SELECT c.id, c.mode, c.status, c.created_at, p.username
+            "SELECT c.id, c.mode, c.status, c.created_at, p.username, c.kind
              FROM challenges c JOIN profiles p ON p.user_id = c.to_user_id
              WHERE c.from_user_id = ? AND c.status IN ('pending', 'declined')
              ORDER BY c.created_at DESC LIMIT 8",
@@ -1086,6 +1102,7 @@ final class Mores
                 'status' => (string) $r['status'],
                 'createdAt' => Db::iso($r['created_at']),
                 'kind' => ($r['kind'] ?? null) === 'pull' ? 'pull' : 'named',
+                'expiresInMs' => self::namedExpiry($r),
             ], $inboxRows),
             'outgoing' => array_map(static fn (array $r): array => [
                 'id' => (string) $r['id'],
@@ -1095,6 +1112,7 @@ final class Mores
                 'status' => (string) $r['status'],
                 'createdAt' => Db::iso($r['created_at']),
                 'kind' => 'named',
+                'expiresInMs' => self::namedExpiry($r),
             ], $outRows),
             'activeGameId' => $matched ?? ($active !== null ? (string) $active['id'] : null),
             'queued' => $queued,
@@ -1684,7 +1702,7 @@ final class Mores
         self::touchProfile($userId);
         self::expireNamedChallenges();
         $rows = Db::all(
-            "SELECT c.id, p.username, c.kind FROM challenges c JOIN profiles p ON p.user_id = c.from_user_id
+            "SELECT c.id, p.username, c.kind, c.created_at FROM challenges c JOIN profiles p ON p.user_id = c.from_user_id
              WHERE c.to_user_id = ? AND c.status = 'pending' ORDER BY c.created_at DESC LIMIT 24",
             [$userId]
         );
@@ -1692,6 +1710,7 @@ final class Mores
             'id' => (string) $r['id'],
             'fromUsername' => (string) $r['username'],
             'kind' => ($r['kind'] ?? null) === 'pull' ? 'pull' : 'named',
+            'expiresInMs' => self::namedExpiry($r),
         ], $rows);
     }
 

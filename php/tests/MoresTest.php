@@ -547,4 +547,17 @@ if ($page['next'] !== null) {
     check($page2['games'] !== [] && $page2['games'][0]['id'] !== $page['games'][0]['id'], 'history pages with a cursor');
 }
 
+// Named invitations lapse after 4 minutes (pull-ups untouched).
+join_all('exp_a', 'expiry_aaa1');
+join_all('exp_b', 'expiry_bbb1');
+$ex = Mores::sendChallenge('exp_a', ['username' => 'expiry_bbb1', 'mode' => 'breeze']);
+$exIn = Mores::getChallengeInbox('exp_b', []);
+check(count($exIn) === 1 && $exIn[0]['expiresInMs'] > 235000 && $exIn[0]['expiresInMs'] <= 240000, 'named invite reports ~4 minutes left');
+Db::run('UPDATE challenges SET created_at = ? WHERE id = ?', [Db::ts(Db::nowMs() - 230000), $ex['challengeId']]);
+check(count(Mores::getChallengeInbox('exp_b', [])) === 1, 'invite still live at 3m50s');
+Db::run('UPDATE challenges SET created_at = ? WHERE id = ?', [Db::ts(Db::nowMs() - 241000), $ex['challengeId']]);
+check(Mores::getChallengeInbox('exp_b', []) === [], 'invite expires after 4 minutes');
+check(Db::value('SELECT status FROM challenges WHERE id = ?', [$ex['challengeId']]) === 'cancelled', 'expired invite is cancelled');
+
+
 finish();
