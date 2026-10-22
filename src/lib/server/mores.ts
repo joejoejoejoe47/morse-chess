@@ -101,7 +101,7 @@ export type HistoryGame = {
   opponent: { username: string; bot: boolean };
   /** Board and piece style the player used in that game. */
   board: string;
-  style: "2d" | "3d" | "an" | "ra";
+  style: "2d" | "3d" | "an" | "ra" | "lg";
   fen: string;
   moves: HistoryMove[];
   whiteLook?: string;

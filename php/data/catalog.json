@@ -150,12 +150,23 @@
         "cost": 0,
         "coinCost": 0,
         "sealed": false
+      },
+      {
+        "id": "lego-universe",
+        "name": "Lego Universe",
+        "cost": 0,
+        "coinCost": 60,
+        "sealed": false
       }
     ],
     "giftBoards": [
       {
         "username": "Rooko2014",
         "boardId": "rocco"
+      },
+      {
+        "username": "Rooko2014",
+        "boardId": "lego-universe"
       }
     ]
   },

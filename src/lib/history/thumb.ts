@@ -16,7 +16,7 @@ export type ThumbSpec = {
   fen: string;
   lastMove: { from: string; to: string } | null;
   skin: BoardSkin;
-  style: "2d" | "3d" | "an" | "ra";
+  style: "2d" | "3d" | "an" | "ra" | "lg";
   you: "w" | "b";
   mark?: string | null;
 };
@@ -24,7 +24,12 @@ export type ThumbSpec = {
 /** Sky behind the tilted board, per board. */
 function backdrop(g: CanvasRenderingContext2D, size: number, skin: BoardSkin) {
   const grad = g.createLinearGradient(0, 0, 0, size);
-  if (skin.id === "sky-arena") {
+  if (skin.id === "lego-universe") {
+    grad.addColorStop(0, "#121a47");
+    grad.addColorStop(0.45, "#5a4a8c");
+    grad.addColorStop(0.66, "#ff9a5a");
+    grad.addColorStop(1, "#2a2730");
+  } else if (skin.id === "sky-arena") {
     grad.addColorStop(0, "#2c3f8f");
     grad.addColorStop(0.45, "#d89aa8");
     grad.addColorStop(0.62, "#f3c48a");

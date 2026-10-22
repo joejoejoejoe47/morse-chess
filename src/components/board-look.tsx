@@ -13,6 +13,7 @@ import { roomBackdrop, roomColorFor, useLookPrefs } from "@/lib/chess/look-prefs
 import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
 import { cn } from "@/lib/utils";
+import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -53,7 +54,7 @@ export function BoardLook({
   const open = boardUnlocked(score, board, username, owned);
   const peek = boardCanPreview(score, board, username);
   const equipped = equippedBoard === board.id;
-  const [view, setView] = useState<"2d" | "3d" | "an" | "ra">("3d");
+  const [view, setView] = useState<"2d" | "3d" | "an" | "ra" | "lg">(boardId === LEGO_BOARD_ID ? "lg" : "3d");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tuning, setTuning] = useState(startTuning && open);
@@ -183,6 +184,18 @@ export function BoardLook({
             >
               AN
             </button>
+            {board.id === LEGO_BOARD_ID ? (
+              <button
+                type="button"
+                className={cn(
+                  "px-3 py-1.5 text-[13px] font-medium",
+                  view === "lg" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                )}
+                onClick={() => setView("lg")}
+              >
+                LG
+              </button>
+            ) : null}
             <RaBuy active={view === "ra"} onView={() => setView("ra")} className="px-3 py-1.5 text-[13px] font-medium text-mist hover:text-ivory" />
           </div>
           <ThemeToggle className="rounded-full" />
@@ -211,6 +224,7 @@ export function BoardLook({
                 modelUrl={modelUrl}
                 people={view === "an"}
                 real={view === "ra"}
+                lego={view === "lg"}
               />
           )}
         </div>

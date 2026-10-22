@@ -1565,7 +1565,7 @@ final class Mores
             'black' => ['username' => $blackName, 'bot' => Constants::isBotUserId((string) $g['black_user_id'])],
             'opponent' => ['username' => $opp['username'] ?? 'Opponent', 'bot' => Constants::isBotUserId($oppId)],
             'board' => Catalog::boardById($board)['id'],
-            'style' => in_array($style, ['2d', '3d', 'an', 'ra'], true) ? $style : '3d',
+            'style' => in_array($style, ['2d', '3d', 'an', 'ra', 'lg'], true) ? $style : '3d',
             'fen' => (string) $g['fen'],
             'moves' => array_map(static fn (array $m): array => ['san' => (string) $m['san'], 'from' => (string) $m['from_sq'], 'to' => (string) $m['to_sq']], $moves),
         ];

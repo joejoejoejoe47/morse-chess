@@ -26,6 +26,9 @@ final class Catalog
         return strtolower(trim($name)) === strtolower((string) Util::catalog()['boards']['masterUsername']);
     }
 
+    /** The board that comes with the LG (LEGO Marvel) piece style. */
+    public const LEGO_BOARD_ID = 'lego-universe';
+
     /**
      * Boards handed out free to one named account (e.g. Rooko2014 -> rocco), case-insensitive.
      * @return list<string>
@@ -122,7 +125,7 @@ final class Catalog
         $groups = Util::catalog()['avatar']['groups'];
         $legacy = Util::catalog()['avatar']['legacy'];
         $style = $src['style'] ?? null;
-        $style = in_array($style, ['2d', 'an', 'ra', '3d'], true) ? $style : '3d';
+        $style = in_array($style, ['2d', 'an', 'ra', 'lg', '3d'], true) ? $style : '3d';
         $team = ($src['team'] ?? null) === 'b' ? 'b' : 'w';
         $pick = static function (mixed $id, string $fallback, array $rows): string {
             if (is_string($id)) {

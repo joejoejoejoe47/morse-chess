@@ -5,6 +5,8 @@ import { ClubBrand, ClubHeaderActions } from "@/components/club-brand";
 import { Button } from "@/components/ui/button";
 import { BoardLook } from "@/components/board-look";
 import { cn } from "@/lib/utils";
+import { LegoShop, LegoTile } from "@/components/lego-shop";
+import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
 
 function MiniBoard({ light, dark }: { light: string; dark: string }) {
   return (
@@ -36,6 +38,7 @@ export function BoardGallery({
   const [equipped, setEquipped] = useState(equippedBoard);
   const [tune, setTune] = useState(false);
   const [purse, setPurse] = useState({ coins, owned: ownedBoards });
+  const [legoShop, setLegoShop] = useState(false);
   if (looking) {
     return (
       <BoardLook
@@ -58,6 +61,18 @@ export function BoardGallery({
   }
   return (
     <main className="relative mx-auto min-h-dvh w-full max-w-6xl px-5 py-6 sm:px-8">
+      {legoShop ? (
+        <LegoShop
+          coins={purse.coins}
+          owned={boardUnlocked(score, LEGO_BOARD_ID, username, purse.owned)}
+          onClose={() => setLegoShop(false)}
+          onLook={() => {
+            setLegoShop(false);
+            setLooking(LEGO_BOARD_ID);
+          }}
+          onBought={(next) => setPurse({ coins: next.coins, owned: next.owned })}
+        />
+      ) : null}
       <div className="check-wash pointer-events-none absolute inset-0" />
       <header className="relative flex flex-wrap items-center justify-between gap-4">
         <ClubBrand to="/" />
@@ -83,6 +98,10 @@ export function BoardGallery({
               type="button"
               onClick={() => {
                 if (!peek) return;
+                if (board.id === LEGO_BOARD_ID && !open) {
+                  setLegoShop(true);
+                  return;
+                }
                 setLooking(board.id);
               }}
               className={cn(
@@ -91,7 +110,9 @@ export function BoardGallery({
                 !peek ? "cursor-not-allowed hover:translate-y-0 hover:border-line" : "",
               )}
             >
-              {peek ? (
+              {board.id === LEGO_BOARD_ID ? (
+                <LegoTile />
+              ) : peek ? (
                 <MiniBoard light={board.lightSq} dark={board.darkSq} />
               ) : (
                 <div className="grid aspect-square w-full place-items-center overflow-hidden rounded-lg border border-black/40 bg-[#0a0a0c] text-mist">
