@@ -482,6 +482,21 @@ $sky = \Morse\Catalog::boardById('sky-arena');
 check($sky['id'] === 'sky-arena' && $sky['name'] === 'Sky Arena' && $sky['coinCost'] === 0 && $sky['cost'] === 0, 'sky arena is a free board');
 check(\Morse\Catalog::boardUnlocked(0, 'sky-arena', []) === true, 'sky arena is open to everyone from the start');
 
+// ── Lego Universe board + LG style ────────────────────────────────────────
+$lego = \Morse\Catalog::boardById('lego-universe');
+check($lego['id'] === 'lego-universe' && $lego['name'] === 'Lego Universe' && $lego['coinCost'] === 60, 'lego universe sells for 60 coins');
+check(str_contains((string) Db::value('SELECT owned_boards FROM profiles WHERE user_id = ?', ['rooko']), 'lego-universe'), 'Rooko2014 owns Lego Universe free');
+check(\Morse\Avatar::setPieceStyle('rooko', ['style' => 'lg'])['style'] === 'lg', 'Rooko2014 can play LG');
+check(\Morse\Avatar::getAvatar('rooko', [])['loadout']['style'] === 'lg', 'LG style is remembered');
+check(fails(call([\Morse\Avatar::class, 'setPieceStyle'], 'dave', ['style' => 'lg']), 'LG comes with the Lego Universe board (60 Morse coins).'), 'LG locked without the board');
+Db::run('UPDATE profiles SET coins = 59 WHERE user_id = ?', ['dave']);
+check(Mores::buyBoard('dave', ['boardId' => 'lego-universe'])['ok'] === false, '59 coins is not enough for Lego Universe');
+Db::run('UPDATE profiles SET coins = 61 WHERE user_id = ?', ['dave']);
+$legoBuy = Mores::buyBoard('dave', ['boardId' => 'lego-universe']);
+check($legoBuy['ok'] === true && $legoBuy['coins'] === 1 && in_array('lego-universe', $legoBuy['owned'], true), 'buying Lego Universe costs 60 coins');
+check(\Morse\Avatar::setPieceStyle('dave', ['style' => 'lg'])['style'] === 'lg', 'owning the board unlocks LG');
+Db::run('UPDATE profiles SET piece_style = ? WHERE user_id = ?', ['3d', 'dave']);
+
 // ── RA free trial schedule ─────────────────────────────────────────────────
 $free = [];
 for ($n = 1; $n <= 110; $n++) {

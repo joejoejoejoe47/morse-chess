@@ -21,6 +21,7 @@ import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 import { ROCCO_BOARD_ID, RoccoArmy, RoccoWorld } from "@/components/chess/rocco-board";
+import { LEGO_BOARD_ID, LEGO_CAMERA, LEGO_ZOOM, LegoArmy, LegoWorld } from "@/components/chess/lego-board";
 import { SKY_ARENA_BOARD_ID, SKY_ARENA_CAMERA, SKY_ARENA_ZOOM, SkyArenaWorld } from "@/components/chess/sky-arena-board";
 
 const INK_BOARDS = new Set([
@@ -1422,6 +1423,7 @@ function Scene({
   fightZoom,
   kings,
   plate = null,
+  lego = false,
 }: {
   fen: string;
   you: Side;
@@ -1446,6 +1448,8 @@ function Scene({
   fightZoom: boolean;
   kings?: { w?: string; b?: string };
   plate?: string | null;
+  /** LG style: LEGO Marvel figures on the Lego Universe balcony. */
+  lego?: boolean;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -1509,9 +1513,12 @@ function Scene({
   } | null>(null);
   const [riteDone, setRiteDone] = useState<string | null>(null);
   const cheerTimer = useRef<number | null>(null);
-  const meadow = skin.id === "grassland" || skin.id === "castle";
-  const rocco = skin.id === ROCCO_BOARD_ID;
-  const arena = skin.id === SKY_ARENA_BOARD_ID;
+  const meadow = !lego && (skin.id === "grassland" || skin.id === "castle");
+  const legoWorld = lego || skin.id === LEGO_BOARD_ID;
+  /** A board with its own army replaces the normal pieces and their fight effects. */
+  const rocco = !lego && skin.id === ROCCO_BOARD_ID;
+  const ownArmy = rocco || lego;
+  const arena = !legoWorld && skin.id === SKY_ARENA_BOARD_ID;
   const pitch = meadow ? GLADE_PITCH : 1;
 
   useEffect(() => {
@@ -1668,13 +1675,13 @@ function Scene({
           <color attach="background" args={["#9eb8cc"]} />
           <fog attach="fog" args={["#c5d4e4", 110, 240]} />
         </>
-      ) : rocco || arena ? null : cosmic ? (
+      ) : rocco || arena || legoWorld ? null : cosmic ? (
         <color attach="background" args={["#05060c"]} />
       ) : (
         <RoomSky color={sky} image={roomImage} />
       )}
-      {!meadow && !rocco && !arena && roomScene === "space" ? <SpaceSky /> : null}
-      {!meadow && !rocco && !arena && roomScene === "model" && modelUrl ? (
+      {!meadow && !rocco && !arena && !legoWorld && roomScene === "space" ? <SpaceSky /> : null}
+      {!meadow && !rocco && !arena && !legoWorld && roomScene === "model" && modelUrl ? (
         <Suspense fallback={null}>
           <ModelSky url={modelUrl} />
         </Suspense>
@@ -1708,6 +1715,10 @@ function Scene({
       {plate ? (
         <Suspense fallback={null}>
           <PhotoPlate url={plate} />
+        </Suspense>
+      ) : legoWorld ? (
+        <Suspense fallback={null}>
+          <LegoWorld />
         </Suspense>
       ) : rocco ? (
         <Suspense fallback={null}>
@@ -1765,7 +1776,12 @@ function Scene({
           <RoccoArmy fen={fen} lastMove={lastMove} real={real} pitch={pitch} onSquare={onSquare} />
         </Suspense>
       ) : null}
-      {rocco ? null : pieces.map((p) =>
+      {lego ? (
+        <Suspense fallback={null}>
+          <LegoArmy fen={fen} lastMove={lastMove} pitch={pitch} onSquare={onSquare} />
+        </Suspense>
+      ) : null}
+      {ownArmy ? null : pieces.map((p) =>
         rite && p.sq === rite.to && p.color === rite.color ? null : (
         <AnimatedPiece
           key={`${p.color}${p.type}${p.sq}`}
@@ -1793,7 +1809,7 @@ function Scene({
           onClick={() => onSquare(p.sq)}
         />
       ))}
-      {maul && !rocco ? (
+      {maul && !ownArmy ? (
         <DogCharge
           key={maul.id}
           from={maul.from}
@@ -1802,7 +1818,7 @@ function Scene({
           onDone={() => setMaul((cur) => (cur?.id === maul.id ? null : cur))}
         />
       ) : null}
-      {rite && people && !rocco ? (
+      {rite && people && !ownArmy ? (
         <PromoMarch
           color={rite.color}
           type={rite.type}
@@ -1819,7 +1835,7 @@ function Scene({
           }}
         />
       ) : null}
-      {!rocco && (people || real || bodies.some((body) => body.knock))
+      {!ownArmy && (people || real || bodies.some((body) => body.knock))
         ? bodies.map((body) => {
             const corpse = real ? (
               <RaCorpse
@@ -1859,7 +1875,7 @@ function Scene({
             );
           })
         : null}
-      {!rocco && duelAside && captureSq && duelAside !== captureSq ? (
+      {!ownArmy && duelAside && captureSq && duelAside !== captureSq ? (
         <SwordTing a={captureSq as Square} b={duelAside} pitch={pitch} />
       ) : null}
       <FightCam look={fightLook} />
@@ -1870,8 +1886,8 @@ function Scene({
         enableZoom
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
-        minDistance={meadow ? 5 : arena ? SKY_ARENA_ZOOM.min : 8}
-        maxDistance={meadow ? 160 : arena ? SKY_ARENA_ZOOM.max : 22}
+        minDistance={meadow ? 5 : arena ? SKY_ARENA_ZOOM.min : legoWorld ? LEGO_ZOOM.min : 8}
+        maxDistance={meadow ? 160 : arena ? SKY_ARENA_ZOOM.max : legoWorld ? LEGO_ZOOM.max : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -2075,6 +2091,7 @@ export function ChessBoard3D({
   real = false,
   plate = null,
   overlay = null,
+  lego = false,
 }: {
   fen: string;
   you: Side;
@@ -2099,6 +2116,8 @@ export function ChessBoard3D({
   plate?: string | null;
   /** Extra 3D content rendered inside the board's canvas (History replay: camera director, emojis). */
   overlay?: ReactNode;
+  /** LG piece style: LEGO Marvel figures on the Lego Universe balcony (needs the Lego Universe board). */
+  lego?: boolean;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -2144,9 +2163,12 @@ export function ChessBoard3D({
     setSelected(null);
   }
 
-  const resolved = skin ?? boardById("lodge");
+  // LG always plays on the Lego Universe balcony, whatever board is equipped.
+  const resolved = lego ? boardById(LEGO_BOARD_ID) : skin ?? boardById("lodge");
   const cam: [number, number, number] =
-    resolved.id === "grassland" || resolved.id === "castle"
+    lego || resolved.id === LEGO_BOARD_ID
+      ? LEGO_CAMERA[you === "w" ? "w" : "b"]
+      : resolved.id === "grassland" || resolved.id === "castle"
       ? you === "w"
         ? [0.4, 42, 68]
         : [-0.4, 42, -68]
@@ -2161,7 +2183,7 @@ export function ChessBoard3D({
       <Canvas
         shadows
         dpr={[1, 1.5]}
-        camera={{ position: cam, fov: resolved.id === "grassland" || resolved.id === "castle" ? 42 : 36, near: 0.1, far: 400 }}
+        camera={{ position: cam, fov: !lego && (resolved.id === "grassland" || resolved.id === "castle") ? 42 : 36, near: 0.1, far: 400 }}
         gl={{ antialias: true, alpha: false }}
         onPointerDown={() => {
           dragged.current = false;
@@ -2203,6 +2225,7 @@ export function ChessBoard3D({
           fightZoom={fightZoom}
           kings={kings}
           plate={plate}
+          lego={lego}
         />
         {overlay}
       </Canvas>

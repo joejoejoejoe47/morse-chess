@@ -45,7 +45,10 @@ export const MASTER_SCORE = 9000;
 export const DEFAULT_BOARD_ID = "lodge";
 
 /** Boards given free to one named account (checked case-insensitively; the server grants them). */
-export const GIFT_BOARDS: { username: string; boardId: string }[] = [{ username: "Rooko2014", boardId: "rocco" }];
+export const GIFT_BOARDS: { username: string; boardId: string }[] = [
+  { username: "Rooko2014", boardId: "rocco" },
+  { username: "Rooko2014", boardId: "lego-universe" },
+];
 
 export function giftBoardsFor(name: string | null | undefined) {
   const lc = (name ?? "").trim().toLowerCase();
@@ -636,7 +639,34 @@ export const BOARD_CATALOG: BoardSkin[] = [
     ring: "#3fd8ff",
     collar: "#141a2a",
   },
+  {
+    ...BASE,
+    id: "lego-universe",
+    name: "Lego Universe",
+    blurb: "60 coins. A LEGO board on the balcony of the Avengers tower at dusk. Unlocks LG mode: LEGO Marvel heroes (Hulk, Spider-Man, Iron Man...) against Doom's villains, all animated.",
+    cost: 0,
+    coinCost: 60,
+    tableKind: "felt",
+    lightSq: "#e9e6dc",
+    darkSq: "#4c6f96",
+    table: "#6c6e68",
+    felt: "#55585a",
+    select: "#f2cd37",
+    last: "#d67923",
+    check: "#c91a09",
+    dot: "#fff6d8",
+    fillLight: "#ffd2b0",
+    whitePiece: "#f4f4f4",
+    blackPiece: "#1b2a34",
+    whiteStroke: "#1e5aa8",
+    blackStroke: "#f2cd37",
+    sqMetal: 0.05,
+    sqRough: 0.32,
+    ring: "#f2cd37",
+    collar: "#6c6e68",
+  },
 ];
+
 
 const BY_ID = new Map(BOARD_CATALOG.map((b) => [b.id, b]));
 

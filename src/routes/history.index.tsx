@@ -246,7 +246,7 @@ function GameTile({ game }: { game: HistoryGame }) {
               key: `${game.id}:${ply}:${kind ?? ""}`,
               fen: fens[fens.length - 1],
               lastMove: last ? { from: last.from, to: last.to } : null,
-              skin: boardById(game.board),
+              skin: boardById(game.style === "lg" ? "lego-universe" : game.board),
               style: game.style,
               you: game.you,
               mark,

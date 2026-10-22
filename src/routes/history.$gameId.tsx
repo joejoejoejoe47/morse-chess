@@ -9,6 +9,7 @@ import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
 import { GLADE_PITCH } from "@/components/chess/glade-field";
 import { SKY_ARENA_CAMERA } from "@/components/chess/sky-arena-board";
+import { LEGO_BOARD_ID, LEGO_CAMERA } from "@/components/chess/lego-board";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { boardById } from "@/lib/chess/board-skins";
 import { squareToWorld } from "@/lib/chess/board-math";
@@ -196,7 +197,7 @@ function Replay({ game }: { game: HistoryGame }) {
 
   const overlay = (
     <>
-      <CameraDirector mode={cam} you={game.you} skinId={skin.id} onGrab={() => setCam("free")} />
+      <CameraDirector mode={cam} you={game.you} skinId={game.style === "lg" ? LEGO_BOARD_ID : skin.id} onGrab={() => setCam("free")} />
       {burst && burstMove && burstVerdict && burst.ply === ply ? (
         <EmojiBurst
           key={burst.key}
@@ -263,6 +264,7 @@ function Replay({ game }: { game: HistoryGame }) {
               skin={skin}
               people={game.style === "an"}
               real={game.style === "ra"}
+              lego={game.style === "lg"}
               showTip={false}
               kings={{ w: game.whiteLook, b: game.blackLook }}
               overlay={overlay}
@@ -661,6 +663,8 @@ function CameraDirector({
         ? new THREE.Vector3(0.4, 42, 68)
         : skinId === "sky-arena"
           ? new THREE.Vector3(...SKY_ARENA_CAMERA.w)
+          : skinId === LEGO_BOARD_ID
+            ? new THREE.Vector3(...LEGO_CAMERA.w)
           : new THREE.Vector3(0, 15.2, 11.2);
     const rel = start.clone().sub(new THREE.Vector3(0, 0.2, 0));
     base.current = {

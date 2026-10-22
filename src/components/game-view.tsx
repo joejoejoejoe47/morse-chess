@@ -26,7 +26,8 @@ import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
-import { boardById, equippedSkin } from "@/lib/chess/board-skins";
+import { boardById, boardUnlocked, equippedSkin } from "@/lib/chess/board-skins";
+import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
 import { isSandboxGame, SANDBOX_BOARD_ID } from "@/lib/sandbox-board";
 import { roomBackdrop, saveLookPrefs, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
@@ -83,12 +84,12 @@ function imageIsLight(src: string) {
   });
 }
 
-type BoardView = "2d" | "3d" | "an" | "ra";
+type BoardView = "2d" | "3d" | "an" | "ra" | "lg";
 
 function readBoardView(): BoardView {
   try {
     const saved = localStorage.getItem("morse-board-view");
-    if (saved === "2d" || saved === "an" || saved === "ra") return saved;
+    if (saved === "2d" || saved === "an" || saved === "ra" || saved === "lg") return saved;
     return "3d";
   } catch {
     return "3d";
@@ -503,6 +504,9 @@ export function GameView({ gameId }: { gameId: string }) {
   const over = game.status !== "active";
   // Sandbox games (goblin "End" -> /play-now) are always on the Sky Arena.
   const skin = isSandboxGame(game.id) ? boardById(SANDBOX_BOARD_ID) : equippedSkin(game.myScore, game.myBoard, myName, game.ownedBoards);
+  // LG (LEGO Marvel figures) comes with the Lego Universe board.
+  const ownsLego = boardUnlocked(game.myScore, LEGO_BOARD_ID, myName, game.ownedBoards);
+  const lgOn = view === "lg" && ownsLego;
   const vsBot = isBotUserId(opp.userId);
   const selfId = game.you === "w" ? game.white.userId : game.black.userId;
   const cameraOn = Boolean(game.cameraOpen) && !vsBot;
@@ -548,7 +552,7 @@ export function GameView({ gameId }: { gameId: string }) {
               type="button"
               className={cn(
                 "min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
-                view === "3d" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                view === "3d" || (view === "lg" && !ownsLego) ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
               )}
               onClick={() => setBoardView("3d")}
             >
@@ -564,6 +568,19 @@ export function GameView({ gameId }: { gameId: string }) {
             >
               AN
             </button>
+            {ownsLego ? (
+              <button
+                type="button"
+                title="LEGO Marvel figures (Lego Universe)"
+                className={cn(
+                  "min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+                  lgOn ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                )}
+                onClick={() => setBoardView("lg")}
+              >
+                LG
+              </button>
+            ) : null}
             <RaBuy
               active={view === "ra"}
               onView={() => setBoardView("ra")}
@@ -686,6 +703,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 modelUrl={liveScene === "model" ? modelUrl : null}
                 people={view === "an"}
                 real={view === "ra"}
+                lego={lgOn}
                 showTip={prefs.pieceTip}
                 fightZoom={(view === "an" || view === "ra") && prefs.fightZoom}
                 kings={{ w: game.whiteLook, b: game.blackLook }}
