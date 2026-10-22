@@ -21,9 +21,12 @@ export function MasterPopupHost() {
   const { user, isPending } = useCurrentUserState();
   const [shown, setShown] = useState<Shown | null>(null);
   const hideTimer = useRef<number | undefined>(undefined);
+  // The user object can be rebuilt on every render; key the effect on the id so showing
+  // a pop-up (a re-render) doesn't restart the schedule and close the pop-up again.
+  const userId = user?.id ?? null;
 
   useEffect(() => {
-    if (isPending || !user) return;
+    if (isPending || !userId) return;
     let live = true;
     let timer: number | undefined;
     let pointerDown = false;
@@ -86,7 +89,7 @@ export function MasterPopupHost() {
       upEvents.forEach((e) => window.removeEventListener(e, up, true));
       setShown(null);
     };
-  }, [user, isPending]);
+  }, [userId, isPending]);
 
   if (!shown) return null;
   return (
