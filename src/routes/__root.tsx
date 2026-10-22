@@ -5,6 +5,7 @@ import { BellHost } from "@/components/bell-host";
 import { SoundtrackHost } from "@/components/soundtrack-host";
 import { StudioSplash } from "@/components/studio-splash";
 import { CoinDock } from "@/components/coin-dock";
+import { MasterPopupHost } from "@/components/master-popup-host";
 import { Toaster } from "sonner";
 
 export const Route = createRootRoute({
@@ -14,6 +15,7 @@ export const Route = createRootRoute({
         <ThemeProvider>
           <BellHost />
           <SoundtrackHost />
+          <MasterPopupHost />
           <Outlet />
         </ThemeProvider>
       </AuthProvider>
