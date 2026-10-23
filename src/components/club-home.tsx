@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { SplashSkeleton } from "@/components/auth-screen";
 import { JoinSlips } from "@/components/club/join-slips";
+import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 
 type Flow =
   | { kind: "idle" }
@@ -44,6 +45,8 @@ export function ClubHome() {
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const seenInvite = useRef("");
+  const now = useNow();
+  const live = (c: { deadline?: number }) => c.deadline == null || c.deadline > now;
 
   useEffect(() => {
     if (claim) return;
@@ -56,6 +59,10 @@ export function ClubHome() {
     const tick = async () => {
       try {
         const next = await getHomeState();
+        const got = Date.now();
+        for (const c of [...next.inbox, ...next.outgoing]) {
+          if (c.expiresInMs != null) c.deadline = got + c.expiresInMs;
+        }
         if (!live) return;
         setHome(next);
         setLoadError(null);
@@ -87,6 +94,16 @@ export function ClubHome() {
     }
     if (seenInvite.current === flow.challengeId) setFlow({ kind: "idle" });
   }, [home, flow]);
+
+  // Sender side: the invitation lapsed (4 minutes) — clear the waiting state right away.
+  const waitingRow =
+    flow.kind === "waiting" && flow.challengeId ? home?.outgoing.find((c) => c.id === flow.challengeId) : undefined;
+  const waitingExpired = !!waitingRow?.deadline && waitingRow.status === "pending" && waitingRow.deadline <= now;
+  useEffect(() => {
+    if (!waitingExpired || flow.kind !== "waiting") return;
+    setFlow({ kind: "idle" });
+    setError(`Your invitation to ${flow.username} expired after 4 minutes.`);
+  }, [waitingExpired, flow]);
 
   if (isPending || !user) return <SplashSkeleton />;
   if (!home) {
@@ -341,10 +358,10 @@ export function ClubHome() {
           <p className="mt-1 text-sm text-mist">Slips land here the moment someone names you.</p>
           <JoinSlips />
           <div className="mt-5 space-y-3">
-            {home.inbox.length === 0 ? (
+            {home.inbox.filter(live).length === 0 ? (
               <p className="text-sm text-mist">No one is waiting on you right now.</p>
             ) : (
-              home.inbox.map((c) => (
+              home.inbox.filter(live).map((c) => (
                 <div
                   key={c.id}
                   className="flex flex-col gap-3 rounded-md border border-line bg-ink-soft p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -362,7 +379,8 @@ export function ClubHome() {
                       </>
                     )}
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    {c.deadline != null ? <ChallengeCountdown deadline={c.deadline} now={now} /> : null}
                     <Button
                       size="sm"
                       variant="solid"
@@ -387,7 +405,7 @@ export function ClubHome() {
               ))
             )}
             {home.outgoing
-              .filter((c) => c.status === "pending")
+              .filter((c) => c.status === "pending" && live(c))
               .map((c) => (
                 <div
                   key={c.id}
@@ -396,6 +414,7 @@ export function ClubHome() {
                   <p className="text-sm text-mist">
                     Waiting on {c.toUsername} for a {c.mode} game.
                   </p>
+                  {c.deadline != null ? <ChallengeCountdown deadline={c.deadline} now={now} /> : null}
                   <Button size="sm" variant="ghost" onClick={() => cancelChallenge({ data: { id: c.id } })}>
                     Cancel
                   </Button>
@@ -575,6 +594,11 @@ export function ClubHome() {
               <p className="mt-5 text-sm text-mist">
                 {home.profile.username} wants to battle {flow.username} in a {flow.mode} chess game. Waiting for
                 the user's yes.
+                {waitingRow?.deadline ? (
+                  <span className="mt-2 block">
+                    <ChallengeCountdown deadline={waitingRow.deadline} now={now} />
+                  </span>
+                ) : null}
               </p>
             ) : null}
 

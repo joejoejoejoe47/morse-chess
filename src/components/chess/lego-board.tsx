@@ -1,23 +1,28 @@
 /**
- * Lego Universe: the board on the balcony of a tall Avengers-style tower at dusk,
+ * Lego Universe: the board on the balcony of the Avengers Tower at dusk,
  * played with LEGO Marvel figures (heroes = white, villains = black).
  *
- * Every figure is an existing, free LEGO model made by someone else (Sketchfab CC-BY 4.0
- * and LDraw Official Model Repository CC BY 2.0). We only regrouped each model's own parts
- * (body / head / arms / legs) around joint pivots, stood seated legs up, normalised the size
- * and compressed it, so the figures can be animated procedurally here: idle bob and arm
- * swing, walking, character moves (Hulk smash, Spider-Man swing, Iron Man flight and
- * repulsors, Dr. Strange portals, Doom energy blasts, Thanos snap) and a fall on capture.
- * The city and tower are Kenney "City Kit (Commercial)" buildings (CC0).
+ * Every figure is an existing, free LEGO model made by someone else (Sketchfab CC-BY 4.0,
+ * LDraw Official Model Repository CC BY 2.0, Printables CC0, and the user's own Dr. Doom file).
+ * We only regrouped each model's own parts (body / head / arms / legs) around joint pivots,
+ * normalised the size (uniform scale) and compressed it, so the figures can be animated here by
+ * rotating those parts and moving the whole figure: idle sway, walking, and a real attack for
+ * every character (wind-up, then the strike lands exactly when the victim breaks apart).
+ * Figures never dip below the board: every frame the figure's bounding box is clamped to the
+ * board top. The tower is "Avenger Tower" by Sohan (Printables, CC BY-SA); the city is Kenney (CC0).
  * See public/lego/CREDITS.md for the full list.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { asset } from "@/lib/base";
 import { squareToWorld } from "@/lib/chess/board-math";
+import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
+import { activeLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
+import { playLegoBeam, playLegoExplode, playLegoHit, playLegoMagic, playLegoWhoosh } from "@/lib/lego-sfx";
 
 export const LEGO_BOARD_ID = "lego-universe";
 /** White's default camera: low enough to see the figures and the tower behind the board. */
@@ -25,22 +30,25 @@ export const LEGO_CAMERA = { w: [0, 8.4, 12.2] as [number, number, number], b: [
 export const LEGO_ZOOM = { min: 6.5, max: 20 } as const;
 
 const CITY_URL = asset("/lego/city.glb");
+const TOWER_URL = asset("/lego/avengers-tower.glb");
 
 // ── roster ─────────────────────────────────────────────────────────────────
 
-type Gait = "walk" | "stomp" | "hop" | "swing" | "fly" | "glide" | "portal";
-type Attack = "smash" | "web" | "repulsor" | "portal" | "blast" | "snap" | "lunge" | "punch" | "charge" | "zap";
+type Gait = "walk" | "stomp" | "swing" | "fly" | "glide" | "portal";
+type Attack = "smash" | "webkick" | "repulsor" | "spell" | "punch" | "pounce" | "blast" | "kick" | "whirl" | "skystrike" | "bomb";
+export type Trick = "flip" | "roll" | "spin";
 
 export type LegoCharId =
+  | "cap"
   | "hulk"
   | "spiderman"
   | "ironman"
-  | "cap"
+  | "panther"
   | "strange"
   | "agent"
   | "doom"
-  | "thanos"
-  | "venom"
+  | "widow"
+  | "skeleton"
   | "blacktron"
   | "goblin"
   | "doombot";
@@ -52,37 +60,33 @@ type CharSpec = {
   height: number;
   gait: Gait;
   attack: Attack;
-  /** Effect colour for beams / portals / blasts. */
+  /** Effect colour for beams / portals / blasts / trails. */
   fx: string;
 };
 
 export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   hulk: { file: "hulk.glb", role: "Hulk", height: 0.94, gait: "stomp", attack: "smash", fx: "#8cff6a" },
-  spiderman: { file: "spiderman.glb", role: "Spider-Man", height: 0.84, gait: "swing", attack: "web", fx: "#f4f4f4" },
+  spiderman: { file: "spiderman.glb", role: "Spider-Man", height: 0.84, gait: "swing", attack: "webkick", fx: "#f4f4f4" },
   ironman: { file: "ironman.glb", role: "Iron Man", height: 0.86, gait: "fly", attack: "repulsor", fx: "#9ef3ff" },
-  cap: { file: "captain-america-bh.glb", role: "Black Panther (stand-in: Captain America BrickHeadz)", height: 1.12, gait: "hop", attack: "charge", fx: "#7fb2ff" },
-  strange: { file: "wizard.glb", role: "Dr. Strange (stand-in: Wizard minifig)", height: 1.02, gait: "portal", attack: "portal", fx: "#ff9a2a" },
+  // the good king: kept as it was (Captain America BrickHeadz) while the owner decides on Black Panther
+  cap: { file: "captain-america-bh.glb", role: "Good king (Captain America BrickHeadz)", height: 1.12, gait: "walk", attack: "punch", fx: "#7fb2ff" },
+  panther: { file: "blackpanther.glb", role: "Black Panther", height: 0.96, gait: "walk", attack: "pounce", fx: "#b18cff" },
+  strange: { file: "wizard.glb", role: "Dr. Strange (stand-in: Wizard minifig)", height: 1.0, gait: "portal", attack: "spell", fx: "#ff9a2a" },
   agent: { file: "space-police.glb", role: "Hero pawn (Space Police officer)", height: 0.72, gait: "walk", attack: "punch", fx: "#7fb2ff" },
-  doom: { file: "black-knight.glb", role: "Dr. Doom (stand-in: Black Knight minifig)", height: 1.02, gait: "walk", attack: "blast", fx: "#5dff6a" },
-  thanos: { file: "thanos-bh.glb", role: "Thanos BrickHeadz", height: 1.1, gait: "hop", attack: "snap", fx: "#c77dff" },
-  venom: { file: "venom-bh.glb", role: "Venom BrickHeadz", height: 1.04, gait: "hop", attack: "lunge", fx: "#e8e8e8" },
-  blacktron: { file: "blacktron.glb", role: "Villain bishop (Blacktron minifig)", height: 0.86, gait: "walk", attack: "zap", fx: "#ff3b3b" },
-  goblin: { file: "insectoid.glb", role: "Green Goblin (stand-in: Insectoids minifig)", height: 0.86, gait: "glide", attack: "zap", fx: "#a6ff3b" },
+  doom: { file: "doom-bigbrick.glb", role: "Dr. Doom", height: 1.0, gait: "walk", attack: "blast", fx: "#5dff6a" },
+  widow: { file: "widow.glb", role: "Black Widow (villain queen minifig)", height: 0.86, gait: "walk", attack: "kick", fx: "#ff5a5a" },
+  skeleton: { file: "skeleton.glb", role: "Villain rook (Skeleton minifig)", height: 0.9, gait: "walk", attack: "whirl", fx: "#e8e8e8" },
+  blacktron: { file: "blacktron.glb", role: "Villain bishop (Blacktron minifig)", height: 0.86, gait: "walk", attack: "skystrike", fx: "#ff3b3b" },
+  goblin: { file: "insectoid.glb", role: "Green Goblin (stand-in: Insectoids minifig)", height: 0.86, gait: "glide", attack: "bomb", fx: "#a6ff3b" },
   doombot: { file: "gigabot.glb", role: "Doombot (stand-in: Insectoids Gigabot robot)", height: 0.72, gait: "walk", attack: "punch", fx: "#5dff6a" },
 };
 
 export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
   w: { k: "cap", q: "strange", r: "hulk", b: "ironman", n: "spiderman", p: "agent" },
-  b: { k: "doom", q: "thanos", r: "venom", b: "blacktron", n: "goblin", p: "doombot" },
+  b: { k: "doom", q: "widow", r: "skeleton", b: "blacktron", n: "goblin", p: "doombot" },
 };
 
 const charUrl = (id: LegoCharId) => asset(`/lego/chars/${LEGO_CHARS[id].file}`);
-
-/** Team plates under the figures: LEGO blue for the heroes, dark green/black for Doom's side. */
-const TEAM = {
-  w: { plate: "#1e5aa8", rim: "#f2cd37" },
-  b: { plate: "#1b2a24", rim: "#4b9f4a" },
-} as const;
 
 // ── math ───────────────────────────────────────────────────────────────────
 
@@ -91,11 +95,12 @@ const ease = (x: number) => {
   const u = clamp01(x);
   return u * u * (3 - 2 * u);
 };
+/** Fast start, soft stop (a strike). */
+const easeOut = (x: number) => 1 - (1 - clamp01(x)) ** 2;
 const span = (t: number, a: number, b: number) => clamp01((t - a) / (b - a));
-/** Top of the painted squares (BoardSquares: box at y=0.08, 0.08 tall). */
+/** Top of the painted squares (BoardSquares: box at y=0.08, 0.08 tall). Figures stand right on it. */
 const BOARD_TOP = 0.12;
-const PLATE_H = 0.05;
-const STAND = BOARD_TOP + PLATE_H;
+const STAND = BOARD_TOP;
 const v3 = (sq: string, pitch: number) => {
   const [x, , z] = squareToWorld(sq, pitch);
   return new THREE.Vector3(x, 0, z);
@@ -113,14 +118,9 @@ function noRaycast() {
 
 // ── figures ────────────────────────────────────────────────────────────────
 
-type Parts = {
-  body: THREE.Object3D | null;
-  head: THREE.Object3D | null;
-  armL: THREE.Object3D | null;
-  armR: THREE.Object3D | null;
-  legL: THREE.Object3D | null;
-  legR: THREE.Object3D | null;
-};
+const PART_NAMES = ["body", "head", "armL", "armR", "legL", "legR"] as const;
+type PartName = (typeof PART_NAMES)[number];
+type Parts = Record<PartName, THREE.Object3D | null>;
 
 type Pose = {
   legL?: number;
@@ -133,6 +133,7 @@ type Pose = {
   headX?: number;
   lean?: number;
   roll?: number;
+  twist?: number;
 };
 
 function applyPose(p: Parts, o: Pose) {
@@ -141,32 +142,112 @@ function applyPose(p: Parts, o: Pose) {
   p.armL?.rotation.set(o.armLx ?? 0, 0, o.armLz ?? 0);
   p.armR?.rotation.set(o.armRx ?? 0, 0, o.armRz ?? 0);
   p.head?.rotation.set(o.headX ?? 0, o.headY ?? 0, 0);
-  p.body?.rotation.set(o.lean ?? 0, 0, o.roll ?? 0);
+  p.body?.rotation.set(o.lean ?? 0, o.twist ?? 0, o.roll ?? 0);
 }
 
+/**
+ * Joint pivots. In the converted models a part's node pivot is not always at its joint: the "body"
+ * pivots on the floor at the figure's origin while the torso sits higher and a little behind it, and on
+ * a few figures a head, arm or leg node sits beside its own mesh. Rotating such a node about the wrong
+ * point slid that part off the figure (the torso scooting off the legs). Each part's pivot is moved to
+ * its real joint, worked out from its own mesh: the waist (bottom centre of the torso), the neck (bottom
+ * centre of the head), the hips (top centre of each leg) and the shoulders (near the top of each arm).
+ * The node's children are shifted back by the same amount, so at rest nothing moves and the geometry is
+ * untouched; only node positions change.
+ */
+function setJointPivots(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  const partNames = new Set<string>(PART_NAMES);
+  const box = new THREE.Box3();
+  const size = new THREE.Vector3();
+  const joint = new THREE.Vector3();
+  for (const n of PART_NAMES) {
+    const node = root.getObjectByName(n);
+    if (!node || !node.parent) continue;
+    box.makeEmpty();
+    for (const c of node.children) if (!partNames.has(c.name)) box.expandByObject(c);
+    if (box.isEmpty()) continue;
+    box.getCenter(joint);
+    box.getSize(size);
+    if (n === "body" || n === "head") joint.y = box.min.y;
+    else if (n === "legL" || n === "legR") joint.y = box.max.y;
+    else joint.y = box.max.y - size.y * 0.2;
+    // world -> the node's parent space, and the shift seen from inside the node
+    const inParent = node.parent.worldToLocal(joint.clone());
+    const shiftWorld = joint.clone().sub(node.getWorldPosition(new THREE.Vector3()));
+    const shiftLocal = node.worldToLocal(node.getWorldPosition(new THREE.Vector3()).add(shiftWorld));
+    node.position.copy(inParent);
+    for (const c of node.children) c.position.sub(shiftLocal);
+    root.updateMatrixWorld(true);
+  }
+}
+
+/** A figure's own copy: cloned nodes and materials (so a hit flash only lights this one). */
 function useFigure(id: LegoCharId) {
   const gltf = useGLTF(charUrl(id));
   return useMemo(() => {
     const root = gltf.scene.clone(true);
+    const mats: THREE.MeshStandardMaterial[] = [];
     root.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh) {
-        m.castShadow = true;
-        m.receiveShadow = true;
+      if (!m.isMesh) return;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      if (!Array.isArray(m.material)) {
+        const c = (m.material as THREE.MeshStandardMaterial).clone();
+        m.material = c;
+        mats.push(c);
       }
     });
+    setJointPivots(root);
+    // uniform scale only: the figure keeps its LEGO proportions
     root.scale.setScalar(LEGO_CHARS[id].height);
-    const get = (n: string) => root.getObjectByName(n) ?? null;
-    const parts: Parts = { body: get("body"), head: get("head"), armL: get("armL"), armR: get("armR"), legL: get("legL"), legR: get("legR") };
-    return { root, parts };
+    const parts = {} as Parts;
+    const rest = {} as Record<PartName, THREE.Vector3 | null>;
+    for (const n of PART_NAMES) {
+      parts[n] = root.getObjectByName(n) ?? null;
+      rest[n] = parts[n]?.position.clone() ?? null;
+    }
+    return { root, parts, rest, mats };
   }, [gltf, id]);
+}
+
+const _box = new THREE.Box3();
+const _va = new THREE.Vector3();
+const _vb = new THREE.Vector3();
+const _vs = new THREE.Vector3();
+
+/** The board top in world space, and the world scale of `space` (the army's parent group). */
+function floorOf(space: THREE.Object3D | null) {
+  if (!space) return { y: BOARD_TOP, s: 1 };
+  _va.set(0, BOARD_TOP, 0);
+  space.localToWorld(_va);
+  space.getWorldScale(_vs);
+  return { y: _va.y, s: _vs.y || 1 };
+}
+
+/**
+ * Never let a figure sink: lift `fig` so the lowest point of `root` (its world bounding box,
+ * after scale, pose and any spin) is on or above the board top. Runs every animation frame,
+ * so it also catches landing ease / bounce overshoot.
+ */
+function keepOnBoard(fig: THREE.Object3D, root: THREE.Object3D) {
+  const space = fig.parent?.parent ?? null;
+  fig.updateWorldMatrix(true, true);
+  _box.setFromObject(root);
+  if (_box.isEmpty()) return;
+  const f = floorOf(space);
+  const d = f.y - _box.min.y;
+  if (d > 1e-5) {
+    fig.position.y += d / f.s;
+    fig.updateWorldMatrix(false, true);
+  }
 }
 
 /** The standing pose loop. `t` in seconds, `seed` de-syncs neighbours. */
 function idlePose(gait: Gait, t: number, seed: number): { pose: Pose; y: number } {
   const w = t * 1.7 + seed * 6.28;
   const sway = Math.sin(w);
-  if (gait === "hop") return { pose: { roll: Math.sin(w * 0.5) * 0.05, armLz: 0.1 + sway * 0.12, armRz: -0.1 - sway * 0.12 }, y: Math.max(0, Math.sin(w)) * 0.012 };
   return {
     pose: {
       armLx: sway * 0.16,
@@ -190,11 +271,12 @@ function travel(gait: Gait, a: THREE.Vector3, b: THREE.Vector3, u: number, t: nu
   let scale = 1;
   const e = ease(u);
   if (gait === "portal") {
-    const sink = 1.15;
-    pos.copy(u < 0.5 ? a : b);
-    pos.y = u < 0.5 ? -sink * ease(u / 0.42) : -sink * (1 - ease((u - 0.58) / 0.42));
-    pose = { armLx: -2.6, armRx: -2.6, armLz: 0.35, armRz: -0.35, headX: -0.2 };
-    return { pos, pose, flip, scale, spin: u * 9 };
+    // steps into a standing portal, shrinking (uniformly) into it, and steps out of the other one
+    const out = u < 0.5;
+    pos.copy(out ? a : b);
+    scale = out ? 1 - ease(span(u, 0.12, 0.45)) : ease(span(u, 0.55, 0.88));
+    pose = { armLx: -2.2, armRx: -2.2, armLz: 0.35, armRz: -0.35, headX: -0.2 };
+    return { pos, pose, flip, scale, spin: (out ? span(u, 0.12, 0.45) : 1 - span(u, 0.55, 0.88)) * 6 };
   }
   pos.lerpVectors(a, b, gait === "fly" || gait === "glide" || gait === "swing" ? e : u);
   if (gait === "fly" || gait === "glide") {
@@ -205,11 +287,6 @@ function travel(gait: Gait, a: THREE.Vector3, b: THREE.Vector3, u: number, t: nu
     pos.y = Math.max(0, 4 * (0.7 + dist * 0.12) * u * (1 - u));
     flip = dist > 1.2 ? ease(span(u, 0.3, 0.75)) * Math.PI * 2 : 0;
     pose = { armRx: -2.9, armLx: -0.4, legL: -0.6 * Math.sin(u * Math.PI), legR: -0.2 };
-  } else if (gait === "hop") {
-    const hops = Math.max(1, Math.round(dist * 1.3));
-    pos.y = Math.abs(Math.sin(u * Math.PI * hops)) * 0.22;
-    pose = { lean: 0.12, armLz: 0.5, armRz: -0.5 };
-    scale = 1 + Math.sin(u * Math.PI * hops * 2) * 0.04;
   } else {
     const k = gait === "stomp" ? 7 : 11;
     const s = Math.sin(t * k);
@@ -228,44 +305,37 @@ function moveTime(gait: Gait, dist: number) {
   return Math.max(0.5, dist * 0.36);
 }
 
-function TeamPlate({ color }: { color: Color }) {
-  return (
-    <group raycast={noRaycast}>
-      <mesh position={[0, BOARD_TOP + PLATE_H / 2, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.38, 0.38, PLATE_H, 28]} />
-        <meshStandardMaterial color={TEAM[color].plate} roughness={0.35} />
-      </mesh>
-      <mesh position={[0, BOARD_TOP + PLATE_H - 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.33, 0.37, 32]} />
-        <meshStandardMaterial color={TEAM[color].rim} emissive={TEAM[color].rim} emissiveIntensity={0.25} roughness={0.4} />
-      </mesh>
-    </group>
-  );
-}
-
-/** A portal ring (Dr. Strange) lying on the board. */
-function Portal({ at, open, color }: { at: THREE.Vector3; open: number; color: string }) {
+/** A standing portal ring (Dr. Strange), facing `yaw`. Opens and closes smoothly. */
+function VPortal({ at, yaw, open, color }: { at: THREE.Vector3; yaw: number; open: number; color: string }) {
   const ref = useRef<THREE.Group>(null);
+  const spin = useRef<THREE.Group>(null);
+  const cur = useRef(0);
   useFrame((_, dt) => {
-    if (ref.current) ref.current.rotation.y += dt * 3;
+    cur.current += (open - cur.current) * (1 - Math.exp(-10 * dt));
+    const g = ref.current;
+    if (!g) return;
+    g.visible = cur.current > 0.01;
+    g.scale.setScalar(Math.max(0.001, cur.current));
+    if (spin.current) spin.current.rotation.z += dt * 3;
   });
-  if (open <= 0.001) return null;
   return (
-    <group ref={ref} position={[at.x, BOARD_TOP + 0.02, at.z]} scale={open} raycast={noRaycast}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.42, 0.035, 8, 40]} />
-        <meshBasicMaterial color={color} toneMapped={false} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.26, 0.4, 40, 1]} />
-        <meshBasicMaterial color={color} transparent opacity={0.45} toneMapped={false} side={THREE.DoubleSide} />
-      </mesh>
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <mesh key={i} position={[Math.cos(i) * 0.45, 0.04, Math.sin(i) * 0.45]}>
-          <sphereGeometry args={[0.035, 6, 6]} />
-          <meshBasicMaterial color="#ffe1a8" toneMapped={false} />
+    <group ref={ref} position={[at.x, BOARD_TOP + 0.47, at.z]} rotation={[0, yaw, 0]} raycast={noRaycast} visible={false}>
+      <group ref={spin}>
+        <mesh>
+          <torusGeometry args={[0.42, 0.035, 8, 40]} />
+          <meshBasicMaterial color={color} toneMapped={false} />
         </mesh>
-      ))}
+        <mesh>
+          <ringGeometry args={[0.26, 0.4, 40, 1]} />
+          <meshBasicMaterial color={color} transparent opacity={0.45} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <mesh key={i} position={[Math.cos(i) * 0.45, Math.sin(i) * 0.45, 0]}>
+            <sphereGeometry args={[0.035, 6, 6]} />
+            <meshBasicMaterial color="#ffe1a8" toneMapped={false} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -297,6 +367,11 @@ function SquareFigure({
   const start = useRef<number | null>(null);
   const seed = useMemo(() => hash(`${color}${sq}${id}`), [color, sq, id]);
   const [portal, setPortal] = useState(0);
+  // flips turn round the figure's middle, not its feet
+  const mid = spec.height * 0.45;
+  useEffect(() => {
+    root.position.y = -mid;
+  }, [root, mid]);
   useFrame((state) => {
     const g = outer.current;
     const f = fig.current;
@@ -307,20 +382,26 @@ function SquareFigure({
     if (u < 1) {
       const m = travel(spec.gait, a, b, u, now);
       g.position.set(m.pos.x, 0, m.pos.z);
-      f.position.y = STAND + m.pos.y;
+      f.position.y = STAND + mid + m.pos.y;
       f.rotation.set(m.flip, (spec.gait === "portal" ? m.spin : 0) + yawTo(a, b), 0);
-      f.scale.setScalar(m.scale);
+      f.scale.setScalar(Math.max(0.001, m.scale));
+      f.visible = m.scale > 0.01;
       applyPose(parts, m.pose);
-      if (spec.gait === "portal") setPortal(Math.sin(u * Math.PI) > 0.05 ? 1 : 0);
+      if (spec.gait === "portal") {
+        const open = u > 0.03 && u < 0.95 ? 1 : 0;
+        if (open !== portal) setPortal(open);
+      }
     } else {
       const idle = idlePose(spec.gait, now, seed);
       g.position.set(b.x, 0, b.z);
-      f.position.y = STAND + idle.y;
+      f.position.y = STAND + mid + idle.y;
       f.rotation.set(0, restYaw(color), 0);
       f.scale.setScalar(1);
+      f.visible = true;
       applyPose(parts, idle.pose);
       if (portal) setPortal(0);
     }
+    keepOnBoard(f, root);
   });
   return (
     <>
@@ -331,15 +412,14 @@ function SquareFigure({
           onClick();
         }}
       >
-        <TeamPlate color={color} />
         <group ref={fig}>
           <primitive object={root} />
         </group>
       </group>
       {spec.gait === "portal" && moving ? (
         <>
-          <Portal at={a} open={portal} color={spec.fx} />
-          <Portal at={b} open={portal} color={spec.fx} />
+          <VPortal at={a} yaw={yawTo(a, b)} open={portal} color={spec.fx} />
+          <VPortal at={b} yaw={yawTo(a, b)} open={portal} color={spec.fx} />
         </>
       ) : null}
     </>
@@ -348,7 +428,7 @@ function SquareFigure({
 
 // ── captures ───────────────────────────────────────────────────────────────
 
-type Fight = {
+export type Fight = {
   id: string;
   type: PieceSymbol;
   color: Color;
@@ -356,139 +436,434 @@ type Fight = {
   to: Square;
   victimType: PieceSymbol;
   victimSq: Square;
+  /** The black bishop's aerial tricks after a capture: always 1 or 2, never 3. */
+  tricks: Trick[];
 };
 
-const RANGED: Attack[] = ["repulsor", "portal", "blast", "snap", "zap", "web"];
+/** Per attack: wind-up and strike seconds, ranged or not, and how far the strike lunges. */
+const MOVES: Record<Attack, { wind: number; strike: number; ranged: boolean; lunge: number; shake: number }> = {
+  punch: { wind: 0.32, strike: 0.16, ranged: false, lunge: 0.28, shake: 0.05 },
+  smash: { wind: 0.42, strike: 0.42, ranged: false, lunge: 0.35, shake: 0.16 },
+  webkick: { wind: 0.5, strike: 0.38, ranged: true, lunge: 0, shake: 0.07 },
+  repulsor: { wind: 0.5, strike: 0.22, ranged: true, lunge: 0, shake: 0.06 },
+  spell: { wind: 0.75, strike: 0.22, ranged: true, lunge: 0, shake: 0.07 },
+  pounce: { wind: 0.36, strike: 0.34, ranged: false, lunge: 0.42, shake: 0.09 },
+  blast: { wind: 0.7, strike: 0.2, ranged: true, lunge: 0, shake: 0.13 },
+  kick: { wind: 0.36, strike: 0.2, ranged: false, lunge: 0.3, shake: 0.06 },
+  whirl: { wind: 0.32, strike: 0.45, ranged: false, lunge: 0.38, shake: 0.07 },
+  skystrike: { wind: 0.32, strike: 0.18, ranged: false, lunge: 0.2, shake: 0.06 },
+  bomb: { wind: 0.38, strike: 0.6, ranged: true, lunge: 0, shake: 0.11 },
+};
 
-function fightTiming(attack: Attack, gait: Gait, dist: number) {
-  const ranged = RANGED.includes(attack);
-  const approach = ranged ? 0.35 : moveTime(gait, Math.max(0.2, dist - 0.62));
-  const strike = attack === "portal" || attack === "snap" ? 1.1 : 0.85;
-  const fall = 1.0;
-  const finish = moveTime(gait, ranged ? dist : 0.62) * (gait === "portal" ? 1 : 0.8);
-  return { approach, strike, fall, finish, total: approach + strike + fall * 0.6 + finish };
+const RECOVER = 0.4;
+const BREAK = 1.5;
+const trickTime = (n: number) => (n >= 2 ? 2.7 : 2.15);
+
+/** Everything about a capture that does not change frame to frame. */
+function fightPlan(f: Fight, pitch: number) {
+  const atkId = LEGO_ROSTER[f.color][f.type];
+  const atk = LEGO_CHARS[atkId];
+  const mv = MOVES[atk.attack];
+  const from = v3(f.from, pitch);
+  const vic = v3(f.victimSq, pitch);
+  const dest = v3(f.to, pitch);
+  const d = vic.clone().sub(from);
+  const dist = d.length();
+  const dir = dist > 1e-4 ? d.clone().divideScalar(dist) : new THREE.Vector3(0, 0, 1);
+  let near = from.clone();
+  let lunge = 0;
+  if (atk.attack === "webkick") {
+    if (dist > 0.6) near = from.clone().addScaledVector(dir, dist - 0.55);
+  } else if (!mv.ranged) {
+    const gap = dist - 0.6 - mv.lunge;
+    if (gap > 0) near = from.clone().addScaledVector(dir, gap);
+    lunge = Math.min(mv.lunge, Math.max(0, near.distanceTo(vic) - 0.56));
+  }
+  const spot = near.clone().addScaledVector(dir, lunge);
+  const approach = !mv.ranged && near.distanceTo(from) > 0.05 ? moveTime(atk.gait === "portal" ? "walk" : atk.gait, near.distanceTo(from)) : 0.3;
+  const impact = approach + mv.wind + mv.strike;
+  const flight = atk.attack === "skystrike";
+  const finish = flight ? trickTime(f.tricks.length) : spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
+  const total = Math.max(impact + RECOVER + finish, impact + BREAK + 0.1);
+  return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total };
 }
 
-export const LEGO_FIGHT_SECONDS = (attackerId: LegoCharId, dist: number) => {
-  const s = LEGO_CHARS[attackerId];
-  return fightTiming(s.attack, s.gait, dist).total;
-};
+export const LEGO_FIGHT_SECONDS = (f: Fight, pitch: number) => fightPlan(f, pitch).total;
 
-/** A thin glowing beam from a to b. */
-function Beam({ from, to, color, width = 0.05 }: { from: THREE.Vector3; to: THREE.Vector3; color: string; width?: number }) {
-  const mid = useMemo(() => from.clone().add(to).multiplyScalar(0.5), [from, to]);
-  const q = useMemo(() => {
-    const dir = to.clone().sub(from).normalize();
-    return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  }, [from, to]);
-  const len = from.distanceTo(to);
+type Frame = { pose: Pose; lunge: number; y: number; spin: number };
+const ZERO: Frame = { pose: {}, lunge: 0, y: 0, spin: 0 };
+
+/**
+ * The attacker's body during an attack. `ph` is the wind-up, the strike (which ends on impact)
+ * or the recovery; `u` runs 0..1 through it. `lunge` is a fraction of the attack's lunge distance.
+ */
+function attackFrame(a: Attack, ph: "wind" | "strike", u: number): Frame {
+  const w = ease(u);
+  const k = easeOut(u);
+  const arc = Math.sin(Math.PI * clamp01(u));
+  if (ph === "wind") {
+    switch (a) {
+      case "smash":
+        return { pose: { armLx: -2.9 * w, armRx: -2.9 * w, armLz: 0.3 * w, armRz: -0.3 * w, lean: -0.25 * w, legL: 0.25 * w, legR: 0.25 * w, headX: -0.2 * w }, lunge: 0, y: 0, spin: 0 };
+      case "webkick":
+        return { pose: { armRx: -2.1 * w, armLx: -0.3 * w, lean: -0.1 * w, legL: -0.2 * w }, lunge: 0, y: 0, spin: 0 };
+      case "repulsor":
+        return { pose: { armRx: -1.57 * w, armLx: 0.45 * w, armLz: 0.2 * w, lean: -0.08 * w, legL: -0.2 * w, legR: 0.1 * w }, lunge: 0, y: 0.3 * w, spin: 0 };
+      case "spell": {
+        const ang = u * Math.PI * 3;
+        return {
+          pose: { armLx: w * (-1.3 + 0.35 * Math.sin(ang)), armRx: w * (-1.3 + 0.35 * Math.sin(ang + Math.PI)), armLz: 0.45 * w, armRz: -0.45 * w, headX: -0.1 * w },
+          lunge: 0,
+          y: 0.06 * w,
+          spin: 0,
+        };
+      }
+      case "pounce":
+        return { pose: { lean: 0.45 * w, armLx: 0.7 * w, armRx: 0.7 * w, legL: -0.3 * w, legR: 0.3 * w, headX: -0.3 * w }, lunge: 0, y: 0, spin: 0 };
+      case "blast":
+        return { pose: { armLx: -1.45 * w, armRx: -1.45 * w, armLz: -0.15 * w, armRz: 0.15 * w, lean: -0.12 * w, headX: 0.1 * w }, lunge: 0, y: 0, spin: 0 };
+      case "kick":
+        return { pose: { lean: -0.2 * w, legR: 0.6 * w, armLx: -0.9 * w, armRx: 0.5 * w, twist: 0.25 * w }, lunge: 0, y: 0.05 * w, spin: 0 };
+      case "whirl":
+        return { pose: { armLz: 1.35 * w, armRz: -1.35 * w, lean: 0.1 * w, twist: -0.6 * w }, lunge: 0, y: 0, spin: 0 };
+      case "bomb":
+        return { pose: { armRx: 1.0 * w, armLx: -0.6 * w, lean: -0.15 * w, twist: 0.3 * w }, lunge: 0, y: 0, spin: 0 };
+      default: // punch, skystrike
+        return { pose: { armRx: 0.75 * w, armLx: -1.0 * w, armLz: 0.15 * w, lean: -0.12 * w, twist: 0.35 * w, legL: -0.25 * w, legR: 0.2 * w }, lunge: 0, y: 0, spin: 0 };
+    }
+  }
+  switch (a) {
+    case "smash": {
+      const down = ease(span(u, 0.55, 1));
+      return {
+        pose: { armLx: -2.9 + 2.5 * down, armRx: -2.9 + 2.5 * down, armLz: 0.3, armRz: -0.3, lean: -0.25 + 0.75 * down, legL: -0.4 * arc, legR: -0.4 * arc },
+        lunge: k,
+        y: 0.45 * arc,
+        spin: 0,
+      };
+    }
+    case "webkick":
+      return { pose: { armRx: -2.6, armLx: 0.6 * k, legR: -1.55 * k, legL: 0.5 * k, lean: -0.35 * k }, lunge: 0, y: 0, spin: 0 };
+    case "repulsor":
+      return { pose: { armRx: -1.57, armLx: 0.45, armLz: 0.2, lean: -0.08 - 0.14 * arc, legL: -0.2, legR: 0.1 }, lunge: 0, y: 0.3, spin: 0 };
+    case "spell":
+      return { pose: { armLx: -1.3 - 0.35 * k, armRx: -1.3 - 0.35 * k, armLz: 0.45 - 0.3 * k, armRz: -0.45 + 0.3 * k, lean: 0.18 * k }, lunge: 0, y: 0.06, spin: 0 };
+    case "pounce": {
+      const up = ease(span(u, 0, 0.5));
+      const down = ease(span(u, 0.5, 1));
+      return {
+        pose: { armLx: 0.7 - 3.3 * up + 2.4 * down, armRx: 0.7 - 3.3 * up + 2.4 * down, armLz: 0.4 * down, armRz: -0.4 * down, lean: 0.45 - 0.2 * up + 0.3 * down, legL: -0.5 * arc, legR: -0.5 * arc },
+        lunge: k,
+        y: 0.38 * arc,
+        spin: 0,
+      };
+    }
+    case "blast":
+      return { pose: { armLx: -1.45, armRx: -1.45, armLz: -0.15, armRz: 0.15, lean: -0.12 - 0.15 * arc }, lunge: 0, y: 0, spin: 0 };
+    case "kick":
+      return { pose: { lean: -0.2 - 0.2 * k, legR: 0.6 - 2.3 * k, armLx: -0.9, armRx: 0.5 - 0.3 * k, twist: 0.25 - 0.5 * k }, lunge: k, y: 0.05 + 0.08 * arc, spin: 0 };
+    case "whirl":
+      return { pose: { armLz: 1.35, armRz: -1.35, lean: 0.1, twist: -0.6 + 0.6 * k, legL: 0.3 * Math.sin(u * 12), legR: -0.3 * Math.sin(u * 12) }, lunge: k, y: 0.1 * arc, spin: Math.PI * 4 * k };
+    case "bomb": {
+      const t = easeOut(span(u, 0, 0.3));
+      return { pose: { armRx: 1.0 - 3.4 * t, armLx: -0.6, lean: -0.15 + 0.35 * t, twist: 0.3 - 0.6 * t }, lunge: 0, y: 0, spin: 0 };
+    }
+    case "skystrike":
+      return { pose: { armRx: 0.75 - 3.35 * k, armLx: -1.0 + 0.5 * k, lean: -0.12 + 0.3 * k, twist: 0.35 - 0.6 * k, legL: -0.4 * k }, lunge: k, y: 0.1 * arc, spin: 0 };
+    default: // punch
+      return { pose: { armRx: 0.75 - 2.45 * k, armLx: -1.0 + 0.5 * k, lean: -0.12 + 0.42 * k, twist: 0.35 - 0.7 * k, legL: -0.45 * k, legR: 0.35 * k }, lunge: k, y: 0, spin: 0 };
+  }
+}
+
+/** Ease from the end of the strike back to a relaxed stance (the lunge distance is kept). */
+function recoverFrame(a: Attack, u: number): Frame {
+  const end = attackFrame(a, "strike", 1);
+  const k = 1 - ease(u);
+  const pose: Pose = {};
+  for (const [key, val] of Object.entries(end.pose)) pose[key as keyof Pose] = (val ?? 0) * k;
+  return { pose, lunge: end.lunge, y: end.y * k, spin: end.spin };
+}
+
+/** Stud pitch of the debris: real LEGO proportions (8 mm pitch, 9.6 mm brick, 3.2 mm plate, 4.8 mm studs). */
+const STUD = 0.08;
+/** [width, depth, plate?] in studs: standard bricks and plates. */
+const DEBRIS_KINDS: [number, number, boolean][] = [
+  [1, 2, false],
+  [2, 2, false],
+  [2, 4, false],
+  [1, 1, false],
+  [1, 2, true],
+  [2, 2, true],
+  [1, 4, true],
+  [2, 3, true],
+];
+const debrisH = (plate: boolean) => (plate ? STUD * 0.4 : STUD * 1.2);
+let debrisGeos: THREE.BufferGeometry[] | null = null;
+/** Standard LEGO bricks (1x1, 1x2, 2x2, 2x4) and plates (1x2, 2x2, 1x4, 2x3), studs on top. */
+function debrisGeometry() {
+  if (!debrisGeos) {
+    debrisGeos = DEBRIS_KINDS.map(([w, d, plate]) => {
+      const h = debrisH(plate);
+      const parts: THREE.BufferGeometry[] = [new THREE.BoxGeometry(w * STUD - 0.002, h, d * STUD - 0.002)];
+      for (let i = 0; i < w; i++) {
+        for (let j = 0; j < d; j++) {
+          const s = new THREE.CylinderGeometry(STUD * 0.3, STUD * 0.3, STUD * 0.18, 14);
+          s.translate((i - (w - 1) / 2) * STUD, h / 2 + STUD * 0.09, (j - (d - 1) / 2) * STUD);
+          parts.push(s);
+        }
+      }
+      const g = mergeGeometries(parts) ?? parts[0];
+      g.computeBoundingBox();
+      return g;
+    });
+  }
+  return debrisGeos;
+}
+
+function rng(seed: number) {
+  let s = Math.floor(seed * 2147483646) + 1;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return s / 2147483647;
+  };
+}
+
+/** A character's own colours, most-used first (by triangle count), near-duplicates merged. */
+function useCharColors(id: LegoCharId) {
+  const gltf = useGLTF(charUrl(id));
+  return useMemo(() => {
+    const weight = new Map<string, number>();
+    gltf.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || Array.isArray(m.material)) return;
+      const c = (m.material as THREE.MeshStandardMaterial).color;
+      if (!c) return;
+      const n = m.geometry.index ? m.geometry.index.count : (m.geometry.getAttribute("position")?.count ?? 0);
+      const hex = `#${c.getHexString()}`;
+      weight.set(hex, (weight.get(hex) ?? 0) + n);
+    });
+    const sorted = [...weight.entries()].sort((x, y) => y[1] - x[1]);
+    const out: { color: string; w: number }[] = [];
+    const tmp = new THREE.Color();
+    const tmp2 = new THREE.Color();
+    for (const [hex, w] of sorted) {
+      tmp.set(hex);
+      const twin = out.find((o) => {
+        tmp2.set(o.color);
+        return Math.abs(tmp.r - tmp2.r) + Math.abs(tmp.g - tmp2.g) + Math.abs(tmp.b - tmp2.b) < 0.12;
+      });
+      if (twin) twin.w += w;
+      else if (out.length < 6) out.push({ color: hex, w });
+    }
+    return out.length ? out : [{ color: "#888888", w: 1 }];
+  }, [gltf]);
+}
+
+const BURST_PIECES = 64;
+const BURST_LIFE = 2.9;
+
+export type Burst = { id: string; victim: LegoCharId; at: THREE.Vector3; dir: THREE.Vector3; seed: number; delay: number; limit: number };
+
+/**
+ * The captured figure blows apart into a big burst of real studded LEGO bricks and plates in its
+ * own colours: they fly out and up, spin, bounce on the board (never through it), settle flat and
+ * fade after a couple of seconds. A white flash, a shockwave ring and a brick clatter go with it.
+ */
+function BrickBurst({ burst }: { burst: Burst }) {
+  const { at, dir, seed, delay, limit } = burst;
+  const height = LEGO_CHARS[burst.victim].height;
+  const colors = useCharColors(burst.victim);
+  const geos = debrisGeometry();
+  const refs = useRef<(THREE.Mesh | null)[]>([]);
+  const group = useRef<THREE.Group>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const light = useRef<THREE.PointLight>(null);
+  const start = useRef<number | null>(null);
+  const boomed = useRef(false);
+  const bits = useMemo(() => {
+    const r = rng(seed);
+    const total = colors.reduce((n, c) => n + c.w, 0);
+    const pick = () => {
+      let x = r() * total;
+      for (const c of colors) if ((x -= c.w) <= 0) return c.color;
+      return colors[0].color;
+    };
+    return Array.from({ length: BURST_PIECES }, (_, i) => {
+      const a = (i / BURST_PIECES) * Math.PI * 2 * 3 + r() * 0.9;
+      const sp = 0.7 + r() * 1.6;
+      const kind = Math.floor(r() * DEBRIS_KINDS.length);
+      const [w, d, plate] = DEBRIS_KINDS[kind];
+      const hy = r();
+      return {
+        geo: kind,
+        // the figure's dominant colours are the ones you see most, like its own bricks
+        color: i < colors.length ? colors[i].color : pick(),
+        pos: new THREE.Vector3(at.x + Math.cos(a) * 0.08 * r(), STAND + 0.05 + hy * height * 0.9, at.z + Math.sin(a) * 0.08 * r()),
+        vel: new THREE.Vector3(Math.cos(a) * sp + dir.x * 0.9, 1.6 + r() * 2.8 + hy * 0.8, Math.sin(a) * sp + dir.z * 0.9),
+        rot: new THREE.Euler(r() * 6, r() * 6, r() * 6),
+        ang: new THREE.Vector3((r() - 0.5) * 18, (r() - 0.5) * 12, (r() - 0.5) * 18),
+        half: new THREE.Vector3((w * STUD) / 2, debrisH(plate) / 2 + STUD * 0.18, (d * STUD) / 2),
+        resting: false,
+      };
+    });
+  }, [colors, seed, dir, at, height]);
+  const mats = useMemo(() => bits.map((b) => new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.32, transparent: true })), [bits]);
+  useEffect(() => () => mats.forEach((m) => m.dispose()), [mats]);
+  useFrame((state, dt) => {
+    if (start.current === null) start.current = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime - start.current - delay;
+    if (group.current) group.current.visible = t >= 0;
+    if (t < 0) return;
+    if (!boomed.current) {
+      boomed.current = true;
+      playLegoExplode();
+    }
+    if (light.current) light.current.intensity = 16 * (1 - span(t, 0, 0.35));
+    if (ring.current) {
+      const k = span(t, 0, 0.5);
+      ring.current.visible = k < 1;
+      ring.current.scale.setScalar(0.2 + k * 2.6);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.85;
+    }
+    const step = Math.min(dt, 1 / 30);
+    const fade = 1 - span(t, BURST_LIFE - 0.7, BURST_LIFE);
+    bits.forEach((b, i) => {
+      const m = refs.current[i];
+      if (!m) return;
+      if (!b.resting) {
+        b.vel.y -= 9.8 * step;
+        b.pos.addScaledVector(b.vel, step);
+        b.rot.x += b.ang.x * step;
+        b.rot.y += b.ang.y * step;
+        b.rot.z += b.ang.z * step;
+      } else {
+        // lying on the board: settle flat on a face, no more spinning
+        const flat = (x: number) => Math.round(x / (Math.PI / 2)) * (Math.PI / 2);
+        b.rot.x += (flat(b.rot.x) - b.rot.x) * Math.min(1, step * 14);
+        b.rot.z += (flat(b.rot.z) - b.rot.z) * Math.min(1, step * 14);
+        b.vel.multiplyScalar(Math.max(0, 1 - step * 8));
+        b.pos.x += b.vel.x * step;
+        b.pos.z += b.vel.z * step;
+      }
+      // stay over the board, bouncing back off its edge
+      for (const ax of ["x", "z"] as const) {
+        if (Math.abs(b.pos[ax]) > limit) {
+          b.pos[ax] = Math.sign(b.pos[ax]) * limit;
+          b.vel[ax] *= -0.4;
+        }
+      }
+      m.position.copy(b.pos);
+      m.rotation.copy(b.rot);
+      m.updateMatrix();
+      const e = m.matrix.elements;
+      const ext = Math.abs(e[1]) * b.half.x + Math.abs(e[5]) * b.half.y + Math.abs(e[9]) * b.half.z;
+      if (b.pos.y - ext < BOARD_TOP) {
+        b.pos.y = BOARD_TOP + ext;
+        m.position.y = b.pos.y;
+        if (b.vel.y < 0) {
+          b.vel.y = -b.vel.y * 0.38;
+          b.vel.x *= 0.65;
+          b.vel.z *= 0.65;
+          b.ang.multiplyScalar(0.55);
+          if (b.vel.y < 0.35) {
+            b.vel.y = 0;
+            b.resting = true;
+          }
+        }
+      }
+      // fade out without shrinking (the bricks keep their shape)
+      mats[i].opacity = fade;
+      m.visible = fade > 0.01;
+    });
+  });
   return (
-    <group position={mid} quaternion={q} raycast={noRaycast}>
+    <group ref={group} raycast={noRaycast} visible={false}>
+      {bits.map((b, i) => (
+        <mesh key={i} ref={(m) => (refs.current[i] = m)} geometry={geos[b.geo]} material={mats[i]} castShadow raycast={noRaycast} />
+      ))}
+      <mesh ref={ring} position={[at.x, BOARD_TOP + 0.01, at.z]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
+        <ringGeometry args={[0.36, 0.46, 48]} />
+        <meshBasicMaterial color="#fff4d6" transparent opacity={0.85} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <pointLight ref={light} position={[at.x, STAND + height * 0.5, at.z]} color="#fff1cf" intensity={0} distance={5} />
+    </group>
+  );
+}
+
+/** Points a unit beam group (two open cylinders, height 1) from a to b. */
+const _up = new THREE.Vector3(0, 1, 0);
+const _dir = new THREE.Vector3();
+function aimBeam(g: THREE.Object3D, a: THREE.Vector3, b: THREE.Vector3, width: number) {
+  _dir.copy(b).sub(a);
+  const len = Math.max(0.001, _dir.length());
+  g.position.copy(a).add(b).multiplyScalar(0.5);
+  g.quaternion.setFromUnitVectors(_up, _dir.divideScalar(len));
+  g.scale.set(width, len, width);
+}
+
+function BeamMesh({ color, innerRef }: { color: string; innerRef: React.RefObject<THREE.Group | null> }) {
+  return (
+    <group ref={innerRef} visible={false} raycast={noRaycast}>
       <mesh>
-        <cylinderGeometry args={[width, width, len, 8, 1, true]} />
+        <cylinderGeometry args={[1, 1, 1, 10, 1, true]} />
         <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
       <mesh>
-        <cylinderGeometry args={[width * 2.6, width * 2.6, len, 10, 1, true]} />
+        <cylinderGeometry args={[2.6, 2.6, 1, 12, 1, true]} />
         <meshBasicMaterial color={color} transparent opacity={0.28} toneMapped={false} depthWrite={false} />
       </mesh>
     </group>
   );
 }
 
-/** LEGO bricks popping off a captured figure. */
-function BrickBurst({ at, colors, seed }: { at: THREE.Vector3; colors: string[]; seed: number }) {
-  const refs = useRef<(THREE.Mesh | null)[]>([]);
-  const start = useRef<number | null>(null);
-  const bits = useMemo(
-    () =>
-      Array.from({ length: 14 }, (_, i) => {
-        const a = (i / 14) * Math.PI * 2 + seed * 3;
-        const sp = 1.1 + ((i * 37) % 10) / 9;
-        return { vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: 2.2 + ((i * 53) % 10) / 6, spin: 4 + (i % 5), color: colors[i % colors.length], big: i % 3 === 0 };
-      }),
-    [colors, seed],
-  );
-  useFrame((state) => {
-    if (start.current === null) start.current = state.clock.elapsedTime;
-    const t = state.clock.elapsedTime - start.current;
-    bits.forEach((b, i) => {
-      const m = refs.current[i];
-      if (!m) return;
-      const y = Math.max(BOARD_TOP + 0.03, at.y + b.vy * t - 4.9 * t * t);
-      m.position.set(at.x + b.vx * t * 0.45, y, at.z + b.vz * t * 0.45);
-      m.rotation.set(t * b.spin, t * b.spin * 0.7, 0);
-      const fade = 1 - span(t, 1.0, 1.5);
-      m.scale.setScalar(Math.max(0.001, fade));
-    });
-  });
-  return (
-    <group raycast={noRaycast}>
-      {bits.map((b, i) => (
-        <mesh key={i} ref={(m) => (refs.current[i] = m)} castShadow>
-          <boxGeometry args={b.big ? [0.12, 0.07, 0.06] : [0.06, 0.05, 0.06]} />
-          <meshStandardMaterial color={b.color} roughness={0.3} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function Shockwave({ at, t }: { at: THREE.Vector3; t: number }) {
-  if (t <= 0 || t >= 1) return null;
-  return (
-    <mesh position={[at.x, BOARD_TOP + 0.02, at.z]} rotation={[-Math.PI / 2, 0, 0]} scale={0.2 + t * 1.8} raycast={noRaycast}>
-      <ringGeometry args={[0.36, 0.44, 40]} />
-      <meshBasicMaterial color="#d8ffd0" transparent opacity={(1 - t) * 0.8} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
-    </mesh>
-  );
-}
+const TRAIL = 30;
 
 function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
-  const atkId = LEGO_ROSTER[fight.color][fight.type];
+  const P = useMemo(() => fightPlan(fight, pitch), [fight, pitch]);
+  const { atk, mv, from, vic, dest, dir, near, spot } = P;
+  const move = atk.attack;
   const victimColor: Color = fight.color === "w" ? "b" : "w";
   const vicId = LEGO_ROSTER[victimColor][fight.victimType];
-  const atk = LEGO_CHARS[atkId];
-  const A = useFigure(atkId);
+  const vSpec = LEGO_CHARS[vicId];
+  const A = useFigure(P.atkId);
   const V = useFigure(vicId);
-  const from = useMemo(() => v3(fight.from, pitch), [fight.from, pitch]);
-  const vic = useMemo(() => v3(fight.victimSq, pitch), [fight.victimSq, pitch]);
-  const dest = useMemo(() => v3(fight.to, pitch), [fight.to, pitch]);
-  const ranged = RANGED.includes(atk.attack);
-  const near = useMemo(() => {
-    if (ranged) return from.clone();
-    const d = vic.clone().sub(from);
-    const len = d.length();
-    return len < 0.7 ? from.clone() : from.clone().add(d.multiplyScalar((len - 0.62) / len));
-  }, [from, vic, ranged]);
-  const T = useMemo(() => fightTiming(atk.attack, atk.gait, from.distanceTo(vic)), [atk, from, vic]);
-  const hitAt = T.approach + T.strike * 0.55;
-  const start = useRef<number | null>(null);
+  const camera = useThree((s) => s.camera);
+  const aMid = atk.height * 0.45;
+
   const aOuter = useRef<THREE.Group>(null);
   const aFig = useRef<THREE.Group>(null);
   const vOuter = useRef<THREE.Group>(null);
   const vFig = useRef<THREE.Group>(null);
-  const [fx, setFx] = useState({ beam: false, portal: 0, shock: 0, burst: false, gone: false, vPortal: 0 });
-  const seed = useMemo(() => hash(fight.id), [fight.id]);
-  const vicColors = useMemo(() => {
-    const out: string[] = [];
-    V.root.traverse((o) => {
-      const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-      if (m && m.color && out.length < 6) out.push(`#${m.color.getHexString()}`);
-    });
-    return out.length ? out : ["#888888"];
-  }, [V.root]);
-  const hand = useMemo(() => {
-    const face = yawTo(near, vic);
-    const h = near.clone();
-    h.y = STAND + atk.height * (atk.attack === "repulsor" ? 1.05 : 0.6);
-    h.x += Math.sin(face) * 0.22;
-    h.z += Math.cos(face) * 0.22;
-    return h;
-  }, [near, vic, atk]);
-  const target = useMemo(() => new THREE.Vector3(vic.x, STAND + 0.32, vic.z), [vic]);
+  const beam = useRef<THREE.Group>(null);
+  const orb = useRef<THREE.Mesh>(null);
+  const mandala = useRef<THREE.Group>(null);
+  const shock = useRef<THREE.Mesh>(null);
+  const flash = useRef<THREE.PointLight>(null);
+  const trail = useRef<THREE.InstancedMesh>(null);
+  const start = useRef<number | null>(null);
+  const fired = useRef(new Set<string>());
+  const shake = useRef({ amp: 0, off: new THREE.Vector3() });
+  const trailPts = useRef<THREE.Vector3[]>([]);
+  const [portalOpen, setPortalOpen] = useState(0);
 
-  useFrame((state) => {
+  const seed = useMemo(() => hash(fight.id), [fight.id]);
+  const faceYaw = yawTo(from, vic);
+  const side = useMemo(() => new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(seed < 0.5 ? 1 : -1), [dir, seed]);
+  const portalAt = useMemo(() => vic.clone().addScaledVector(dir, 0.55), [vic, dir]);
+
+  useEffect(() => {
+    A.root.position.y = -aMid;
+  }, [A.root, aMid]);
+  // take the shake back off the camera if the fight ends mid-shake
+  useEffect(
+    () => () => {
+      camera.position.sub(shake.current.off);
+      shake.current.off.set(0, 0, 0);
+    },
+    [camera],
+  );
+
+  useFrame((state, dt) => {
     const now = state.clock.elapsedTime;
     if (start.current === null) start.current = now;
     const t = now - start.current;
@@ -497,202 +872,350 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
     const vg = vOuter.current;
     const vf = vFig.current;
     if (!ag || !af || !vg || !vf) return;
-    const face = yawTo(near, vic);
-    const next = { ...fx };
-    // attacker
-    if (t < T.approach) {
-      const u = t / T.approach;
-      if (ranged) {
-        ag.position.set(from.x, 0, from.z);
-        af.position.y = STAND;
-        af.rotation.set(0, restYaw(fight.color) + (face - restYaw(fight.color)) * ease(u), 0);
-        applyPose(A.parts, idlePose(atk.gait, now, seed).pose);
-      } else {
+    const space = ag.parent;
+    const once = (k: string, fn: () => void) => {
+      if (!fired.current.has(k)) {
+        fired.current.add(k);
+        fn();
+      }
+    };
+    const tWind = P.approach;
+    const tStrike = tWind + mv.wind;
+    const tHit = P.impact;
+    const tFinish = tHit + RECOVER;
+    let flying = false;
+
+    // ── attacker ──
+    let yaw = faceYaw;
+    let pitchX = 0;
+    let roll = 0;
+    let fr: Frame = ZERO;
+    let pos = from;
+    if (t < tWind) {
+      const u = t / tWind;
+      if (near.distanceTo(from) > 0.05 && !mv.ranged) {
         const m = travel(atk.gait === "portal" ? "walk" : atk.gait, from, near, u, now);
-        ag.position.set(m.pos.x, 0, m.pos.z);
-        af.position.y = STAND + m.pos.y;
-        af.rotation.set(m.flip, yawTo(from, near), 0);
-        af.scale.setScalar(m.scale);
-        applyPose(A.parts, m.pose);
-      }
-    } else if (t < T.approach + T.strike) {
-      const u = (t - T.approach) / T.strike;
-      ag.position.set(near.x, 0, near.z);
-      af.rotation.set(0, face, 0);
-      af.scale.setScalar(1);
-      let y = 0;
-      let pose: Pose = {};
-      switch (atk.attack) {
-        case "smash": {
-          const up = ease(span(u, 0, 0.45));
-          const down = ease(span(u, 0.45, 0.6));
-          const lift = up - down;
-          pose = { armLx: -2.9 * up + 2.3 * down, armRx: -2.9 * up + 2.3 * down, lean: -0.2 * up + 0.55 * down, legL: -0.3 * lift, legR: -0.3 * lift };
-          y = Math.sin(span(u, 0.1, 0.55) * Math.PI) * 0.35;
-          next.shock = span(u, 0.55, 1);
-          break;
-        }
-        case "web": {
-          pose = { armRx: -1.55, armLx: -0.3, lean: 0.1 };
-          next.beam = u > 0.1 && u < 0.7;
-          y = u > 0.6 ? Math.sin(span(u, 0.6, 1) * Math.PI) * 0.35 : 0;
-          break;
-        }
-        case "repulsor": {
-          y = 0.35 * ease(span(u, 0, 0.3));
-          pose = { armRx: -1.57, armLx: 0.35, lean: -0.08 };
-          next.beam = u > 0.35 && u < 0.85;
-          break;
-        }
-        case "portal": {
-          pose = { armLx: -2.2, armRx: -2.2, armLz: 0.5, armRz: -0.5, headX: -0.25 };
-          next.vPortal = ease(span(u, 0.05, 0.35));
-          break;
-        }
-        case "blast": {
-          const charge = span(u, 0, 0.4);
-          pose = { armRx: -1.57 * ease(charge), armLx: -1.2 * ease(charge), lean: -0.05 };
-          next.beam = u > 0.42 && u < 0.85;
-          break;
-        }
-        case "snap": {
-          pose = { armRx: -2.8 * ease(span(u, 0, 0.4)), headX: -0.15 };
-          next.beam = false;
-          next.shock = u > 0.5 ? span(u, 0.5, 1) : 0;
-          break;
-        }
-        case "lunge": {
-          const l = Math.sin(span(u, 0.15, 0.7) * Math.PI);
-          ag.position.lerpVectors(near, vic, l * 0.45);
-          y = l * 0.25;
-          pose = { lean: 0.5 * l, armLz: 0.9 * l, armRz: -0.9 * l };
-          break;
-        }
-        case "charge": {
-          const l = Math.sin(span(u, 0.2, 0.65) * Math.PI);
-          ag.position.lerpVectors(near, vic, l * 0.4);
-          y = l * 0.18;
-          pose = { lean: 0.35 * l, armLz: 0.6, armRz: -0.6 };
-          break;
-        }
-        case "zap": {
-          pose = { armRx: -1.57 * ease(span(u, 0, 0.3)), lean: -0.05 };
-          next.beam = u > 0.32 && u < 0.75;
-          break;
-        }
-        default: {
-          const jab = Math.sin(span(u, 0.3, 0.7) * Math.PI);
-          pose = { armRx: -0.6 - 1.2 * jab, armLx: 0.4 * jab, lean: 0.25 * jab, legL: -0.4 * jab, legR: 0.3 * jab };
-          ag.position.lerpVectors(near, vic, jab * 0.15);
-        }
-      }
-      af.position.y = STAND + y;
-      applyPose(A.parts, pose);
-    } else {
-      next.beam = false;
-      const tf = t - T.approach - T.strike;
-      const startFinish = T.fall * 0.6;
-      if (tf < startFinish) {
-        ag.position.set(near.x, 0, near.z);
-        af.position.y = STAND;
-        af.rotation.set(0, face, 0);
-        applyPose(A.parts, idlePose(atk.gait, now, seed).pose);
+        pos = m.pos.clone().setY(0);
+        yaw = yawTo(from, near);
+        fr = { pose: m.pose, lunge: 0, y: m.pos.y, spin: 0 };
+        pitchX = m.flip;
       } else {
-        const u = clamp01((tf - startFinish) / T.finish);
-        const m = travel(atk.gait, near, dest, u, now);
-        ag.position.set(m.pos.x, 0, m.pos.z);
-        af.position.y = STAND + m.pos.y;
-        af.rotation.set(m.flip, near.distanceTo(dest) > 0.05 ? yawTo(near, dest) + (atk.gait === "portal" ? m.spin : 0) : face, 0);
-        af.scale.setScalar(m.scale);
-        applyPose(A.parts, near.distanceTo(dest) > 0.05 ? m.pose : idlePose(atk.gait, now, seed).pose);
-        next.portal = atk.gait === "portal" && near.distanceTo(dest) > 0.05 ? (Math.sin(u * Math.PI) > 0.05 ? 1 : 0) : 0;
+        yaw = restYaw(fight.color) + (((faceYaw - restYaw(fight.color) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * ease(u);
+        fr = { ...idlePose(atk.gait, now, seed), lunge: 0, spin: 0 };
+        pos = near;
       }
-      if (atk.attack === "portal") next.vPortal = 1 - span(tf, 0.7, 1.0);
-    }
-    // victim
-    vg.position.set(vic.x, 0, vic.z);
-    const dt = t - hitAt;
-    const away = yawTo(near, vic);
-    if (dt < 0) {
-      vf.position.set(0, STAND, 0);
-      vf.rotation.set(0, restYaw(victimColor) + (yawTo(vic, near) - restYaw(victimColor)) * ease(t / Math.max(0.3, hitAt)), 0);
-      applyPose(V.parts, { armLx: -0.4, armRx: -0.4, headX: -0.1 });
-    } else if (atk.attack === "portal") {
-      const u = span(dt, 0, 0.9);
-      vf.position.set(0, STAND - u * 1.25, 0);
-      vf.rotation.set(0, yawTo(vic, near) + u * 10, 0);
-      applyPose(V.parts, { armLx: -2.8, armRx: -2.8, armLz: 0.4, armRz: -0.4 });
-      if (u >= 1) next.gone = true;
-    } else if (atk.attack === "snap") {
-      const u = span(dt, 0, 0.8);
-      vf.position.set(0, STAND, 0);
-      vf.scale.set(1 - u * 0.9, 1 - u, 1 - u * 0.9);
-      vf.rotation.set(0, yawTo(vic, near) + u * 2, 0);
-      next.burst = dt > 0.05;
-      if (u >= 1) next.gone = true;
+    } else if (t < tStrike) {
+      fr = attackFrame(move, "wind", (t - tWind) / mv.wind);
+      pos = near;
+    } else if (t < tHit) {
+      const u = (t - tStrike) / mv.strike;
+      fr = attackFrame(move, "strike", u);
+      pos = near;
+      if (move === "webkick" && near.distanceTo(from) > 0.05) {
+        // zip along the web line into a flying kick
+        const k = ease(u);
+        pos = from.clone().lerp(near, k);
+        fr = { ...fr, y: Math.sin(Math.PI * k) * (0.35 + from.distanceTo(near) * 0.08) };
+        pitchX = -0.25 * Math.sin(Math.PI * k);
+      }
+    } else if (t < tFinish || P.finish <= 0) {
+      fr = recoverFrame(move, span(t, tHit, tFinish));
+      pos = near;
+      if (t >= tFinish) fr = { ...idlePose(atk.gait, now, seed), lunge: fr.lunge, spin: 0 };
+    } else if (P.flight) {
+      // black bishop: up into the sky, 1 or 2 tricks with trails, swoop down onto the square
+      flying = true;
+      const u = clamp01((t - tFinish) / P.finish);
+      const H = 3.2;
+      const up = easeOut(span(u, 0.04, 0.32));
+      const down = ease(span(u, 0.72, 0.97));
+      const along = ease(span(u, 0.12, 0.95));
+      const p = spot.clone().lerp(dest, along).addScaledVector(side, Math.sin(Math.PI * span(u, 0.1, 0.95)) * 1.4);
+      p.y = H * (up - down);
+      const u2 = Math.min(1, u + 0.01);
+      const q = spot.clone().lerp(dest, ease(span(u2, 0.12, 0.95))).addScaledVector(side, Math.sin(Math.PI * span(u2, 0.1, 0.95)) * 1.4);
+      yaw = q.distanceTo(p.clone().setY(0)) > 1e-4 ? Math.atan2(q.x - p.x, q.z - p.z) : yawTo(spot, dest);
+      if (u > 0.97) yaw = yawTo(spot, dest);
+      pos = p.clone().setY(0);
+      const cruise = Math.sin(Math.PI * span(u, 0.06, 0.94));
+      pitchX = 0.9 * cruise;
+      const land = span(u, 0.94, 1);
+      fr = {
+        pose: u < 0.05 ? { lean: 0.3, armLx: 0.6, armRx: 0.6, legL: -0.3, legR: -0.3 } : { armLx: -2.9 * cruise, armRx: -2.9 * cruise, legL: 0.25 * cruise + 0.3 * Math.sin(Math.PI * land), legR: 0.15 * cruise, lean: 0.2 * Math.sin(Math.PI * land) },
+        lunge: 0,
+        y: p.y,
+        spin: 0,
+      };
+      const n = fight.tricks.length;
+      fight.tricks.forEach((trick, i) => {
+        const a0 = 0.34 + (0.36 / n) * i;
+        const k = ease(span(u, a0, a0 + 0.36 / n - 0.02));
+        if (k > 0 && k < 1) once(`trick${i}`, () => playLegoWhoosh());
+        if (trick === "flip") pitchX += Math.PI * 2 * k;
+        else if (trick === "roll") roll += Math.PI * 2 * k;
+        else yaw += Math.PI * 2 * k;
+      });
+      once("takeoff", () => playLegoWhoosh(true));
+      if (u >= 0.97) once("land", () => {
+        playLegoHit();
+        shake.current.amp = Math.max(shake.current.amp, 0.06);
+      });
     } else {
-      // knocked back, tips over away from the attacker, bounces, then pops into bricks
-      const u = span(dt, 0, 0.45);
-      const back = ease(span(dt, 0, 0.35)) * 0.42;
-      const dir = new THREE.Vector3(Math.sin(away), 0, Math.cos(away));
-      vg.position.set(vic.x + dir.x * back, 0, vic.z + dir.z * back);
-      const hop = Math.sin(span(dt, 0, 0.3) * Math.PI) * (atk.attack === "smash" ? 0.45 : 0.18);
-      const bounce = dt > 0.45 ? Math.abs(Math.sin(span(dt, 0.45, 0.65) * Math.PI)) * 0.06 : 0;
-      vf.position.set(0, STAND + hop + bounce - u * 0.02, 0);
-      // rotate in the victim's facing frame: tip backward (it faces the attacker)
-      vf.rotation.set(0, yawTo(vic, near), 0);
-      vf.rotateX(-ease(u) * (Math.PI / 2));
-      applyPose(V.parts, { armLx: -2.4 * ease(u), armRx: -2.1 * ease(u), legL: 0.3 * u, legR: -0.2 * u, headX: -0.3 });
-      next.burst = dt > 0.62;
-      const pop = span(dt, 0.62, 0.8);
-      vf.scale.setScalar(Math.max(0.001, 1 - pop));
-      if (pop >= 1) next.gone = true;
+      const u = clamp01((t - tFinish) / P.finish);
+      const m = travel(atk.gait, spot, dest, u, now);
+      pos = m.pos.clone().setY(0);
+      yaw = yawTo(spot, dest) + (atk.gait === "portal" ? m.spin : 0);
+      pitchX = m.flip;
+      fr = { pose: m.pose, lunge: 0, y: m.pos.y, spin: 0 };
+      af.scale.setScalar(Math.max(0.001, m.scale));
+      af.visible = m.scale > 0.01;
+      const open = atk.gait === "portal" && u > 0.03 && u < 0.95 ? 1 : 0;
+      if (open !== portalOpen) setPortalOpen(open);
     }
-    if (
-      next.beam !== fx.beam ||
-      Math.abs(next.portal - fx.portal) > 0.01 ||
-      Math.abs(next.vPortal - fx.vPortal) > 0.02 ||
-      Math.abs(next.shock - fx.shock) > 0.02 ||
-      next.burst !== fx.burst ||
-      next.gone !== fx.gone
-    )
-      setFx(next);
+    if (t < tFinish || P.flight || P.finish <= 0) {
+      af.scale.setScalar(1);
+      af.visible = true;
+    }
+    ag.position.set(pos.x, 0, pos.z).addScaledVector(dir, fr.lunge * P.lunge);
+    af.position.set(0, STAND + aMid + fr.y, 0);
+    af.rotation.set(0, yaw + fr.spin, 0);
+    if (pitchX) af.rotateX(pitchX);
+    if (roll) af.rotateZ(roll);
+    applyPose(A.parts, fr.pose);
+    keepOnBoard(af, A.root);
+
+    // hand position (end of the right arm) in the army's space
+    const hand = _hand;
+    if (A.parts.armR) {
+      hand.set(0, -0.3, 0.06);
+      A.parts.armR.localToWorld(hand);
+      if (space) space.worldToLocal(hand);
+    } else hand.set(ag.position.x + dir.x * 0.25, STAND + atk.height * 0.6, ag.position.z + dir.z * 0.25);
+    const target = _target.set(vic.x, STAND + vSpec.height * 0.45, vic.z);
+
+    // ── effects ──
+    const wU = span(t, tStrike - mv.wind, tStrike);
+    const sU = span(t, tStrike, tHit);
+    let beamOn = false;
+    let beamW = 0.04;
+    if (move === "webkick" && t > tWind + mv.wind * 0.35 && t < tHit) {
+      beamOn = true;
+      beamW = 0.012;
+    }
+    if ((move === "repulsor" || move === "blast") && t >= tStrike && t < tHit + 0.18) {
+      beamOn = true;
+      beamW = move === "blast" ? 0.075 : 0.04;
+    }
+    if (move === "spell" && t >= tStrike && t < tHit + 0.12) {
+      beamOn = true;
+      beamW = 0.03;
+    }
+    if (beam.current) {
+      beam.current.visible = beamOn;
+      if (beamOn) aimBeam(beam.current, hand, target, beamW);
+    }
+    if (orb.current) {
+      // charge ball in the hands (Iron Man, Doom), the pumpkin bomb (Goblin), the zap (Blacktron)
+      let s = 0;
+      const o = orb.current;
+      o.position.copy(hand);
+      if ((move === "repulsor" || move === "blast") && t >= tWind && t < tHit + 0.1) {
+        s = (move === "blast" ? 0.16 : 0.08) * ease(wU) * (1 + 0.15 * Math.sin(now * 40));
+        if (move === "blast" && A.parts.armL) {
+          // between both hands
+          _va.set(0, -0.3, 0.06);
+          A.parts.armL.localToWorld(_va);
+          if (space) space.worldToLocal(_va);
+          o.position.lerp(_va, 0.5);
+        }
+      } else if (move === "bomb" && t >= tStrike && t < tHit) {
+        const k = span(sU, 0.2, 1);
+        if (k > 0) {
+          o.position.lerpVectors(hand, target, k);
+          o.position.y += Math.sin(Math.PI * k) * 0.7;
+          s = 0.07;
+        } else s = sU > 0 ? 0.07 : 0;
+      } else if (move === "skystrike" && t >= tHit - 0.06 && t < tHit + 0.12) s = 0.1;
+      o.visible = s > 0.001;
+      o.scale.setScalar(Math.max(0.001, s));
+    }
+    if (mandala.current) {
+      const m = mandala.current;
+      const open = move === "spell" ? ease(span(t, tWind, tWind + 0.3)) * (1 - span(t, tHit + 0.15, tHit + 0.45)) : 0;
+      m.visible = open > 0.01;
+      m.scale.setScalar(Math.max(0.001, open));
+      m.position.set(ag.position.x + dir.x * 0.32, STAND + atk.height * 0.55, ag.position.z + dir.z * 0.32);
+      m.rotation.set(0, faceYaw, now * 2.5);
+    }
+    if (move === "spell") {
+      const open = t > tWind && t < tHit + 1.2 ? 1 : 0;
+      if (open !== portalOpen && (t < tFinish || atk.gait !== "portal")) setPortalOpen(open);
+    }
+    const hitT = t - tHit;
+    if (shock.current) {
+      const k = span(hitT, 0, 0.5);
+      const on = (move === "smash" || move === "blast" || move === "bomb" || move === "pounce") && hitT > 0 && k < 1;
+      shock.current.visible = on;
+      shock.current.position.set(vic.x, BOARD_TOP + 0.015, vic.z);
+      shock.current.scale.setScalar(0.2 + k * 1.8);
+      (shock.current.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.8;
+    }
+    if (flash.current) {
+      flash.current.position.copy(target);
+      flash.current.intensity = hitT > 0 ? 9 * (1 - span(hitT, 0, 0.3)) : 0;
+    }
+
+    // ── sounds and the hit ──
+    if (t >= tStrike) {
+      once("swing", () => {
+        if (move === "repulsor" || move === "blast") playLegoBeam(move === "blast");
+        else if (move === "spell") playLegoMagic();
+        else playLegoWhoosh(move === "smash" || move === "pounce");
+      });
+    }
+    if (move === "spell" && t >= tWind) once("chant", () => playLegoMagic());
+    if (hitT >= 0) {
+      once("hit", () => {
+        playLegoHit(mv.shake > 0.1);
+        shake.current.amp = Math.max(shake.current.amp, mv.shake);
+      });
+    }
+
+    // ── victim ──
+    const vYaw = yawTo(vic, from);
+    if (hitT < 0) {
+      vg.position.set(vic.x, 0, vic.z);
+      const turn = ease(t / Math.max(0.3, Math.min(tStrike, 0.8)));
+      vf.position.set(0, STAND, 0);
+      vf.rotation.set(0, restYaw(victimColor) + (((vYaw - restYaw(victimColor) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * turn, 0);
+      const k = ease(span(t, tStrike - 0.15, tHit));
+      applyPose(V.parts, { armLx: -1.2 * k, armRx: -1.2 * k, armLz: 0.2 * k, armRz: -0.2 * k, headX: 0.15 * k, lean: -0.1 * k });
+      for (const n of PART_NAMES) if (V.parts[n] && V.rest[n]) V.parts[n]!.position.copy(V.rest[n]!);
+      keepOnBoard(vf, V.root);
+    } else {
+      // the strike lands: the figure is gone that very frame; its BrickBurst takes its place
+      vf.visible = false;
+    }
+    // hit flash on the victim
+    const glow = hitT < 0 ? span(t, tHit - 0.14, tHit) : 0;
+    for (const m of V.mats) {
+      if (!m.emissive) continue;
+      m.emissive.setRGB(glow, glow, glow);
+      m.emissiveIntensity = glow > 0 ? 1.2 : 1;
+    }
+
+    // ── trail behind the flying bishop ──
+    const pts = trailPts.current;
+    if (flying) {
+      af.getWorldPosition(_va);
+      if (space) space.worldToLocal(_va);
+      pts.unshift(_va.clone());
+    } else if (pts.length) pts.pop();
+    if (pts.length > TRAIL) pts.length = TRAIL;
+    if (trail.current) {
+      const o = _obj;
+      for (let i = 0; i < TRAIL; i++) {
+        const p = pts[i];
+        if (p) {
+          o.position.copy(p);
+          o.scale.setScalar(0.09 * (1 - i / TRAIL));
+        } else {
+          o.position.set(0, -50, 0);
+          o.scale.setScalar(0.001);
+        }
+        o.updateMatrix();
+        trail.current.setMatrixAt(i, o.matrix);
+      }
+      trail.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // ── camera shake (added on top of wherever the camera is, then taken back off) ──
+    const sh = shake.current;
+    camera.position.sub(sh.off);
+    sh.off.set(0, 0, 0);
+    if (sh.amp > 0.002) {
+      sh.off.set((Math.random() - 0.5) * 2 * sh.amp, (Math.random() - 0.5) * 2 * sh.amp, (Math.random() - 0.5) * 2 * sh.amp);
+      camera.position.add(sh.off);
+      sh.amp *= Math.exp(-dt * 9);
+    } else sh.amp = 0;
   });
 
-  const beamColor = atk.fx;
+  const portalYaw = yawTo(from, dest);
   return (
     <>
       <group ref={aOuter}>
-        <TeamPlate color={fight.color} />
         <group ref={aFig}>
           <primitive object={A.root} />
         </group>
       </group>
-      {fx.gone ? null : (
-        <group ref={vOuter}>
-          <group ref={vFig}>
-            <primitive object={V.root} />
-          </group>
+      <group ref={vOuter}>
+        <group ref={vFig}>
+          <primitive object={V.root} />
         </group>
-      )}
-      {fx.beam ? <Beam from={hand} to={target} color={beamColor} width={atk.attack === "web" ? 0.015 : 0.04} /> : null}
-      {fx.beam && atk.attack !== "web" ? <pointLight position={hand} color={beamColor} intensity={3} distance={3} /> : null}
-      {atk.attack === "portal" ? <Portal at={vic} open={fx.vPortal} color={atk.fx} /> : null}
-      {atk.gait === "portal" ? (
+      </group>
+      <BeamMesh color={atk.fx} innerRef={beam} />
+      <mesh ref={orb} visible={false} raycast={noRaycast}>
+        <sphereGeometry args={[1, 16, 12]} />
+        <meshBasicMaterial color={move === "bomb" ? "#ff8a1f" : atk.fx} toneMapped={false} />
+      </mesh>
+      {move === "spell" ? (
+        <group ref={mandala} visible={false} raycast={noRaycast}>
+          <mesh>
+            <torusGeometry args={[0.22, 0.012, 6, 40]} />
+            <meshBasicMaterial color={atk.fx} toneMapped={false} />
+          </mesh>
+          <mesh>
+            <torusGeometry args={[0.15, 0.01, 6, 36]} />
+            <meshBasicMaterial color="#ffd27a" toneMapped={false} />
+          </mesh>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <mesh key={i} rotation={[0, 0, (i * Math.PI) / 3]}>
+              <boxGeometry args={[0.44, 0.008, 0.008]} />
+              <meshBasicMaterial color={atk.fx} toneMapped={false} />
+            </mesh>
+          ))}
+        </group>
+      ) : null}
+      {move === "spell" ? <VPortal at={portalAt} yaw={faceYaw} open={portalOpen} color={atk.fx} /> : null}
+      {atk.gait === "portal" && spot.distanceTo(dest) > 0.05 ? (
         <>
-          <Portal at={near} open={fx.portal} color={atk.fx} />
-          <Portal at={dest} open={fx.portal} color={atk.fx} />
+          <VPortal at={spot} yaw={portalYaw} open={portalOpen} color={atk.fx} />
+          <VPortal at={dest} yaw={portalYaw} open={portalOpen} color={atk.fx} />
         </>
       ) : null}
-      {atk.attack === "smash" || atk.attack === "snap" ? <Shockwave at={atk.attack === "smash" ? vic : near} t={fx.shock} /> : null}
-      {fx.burst ? <BrickBurst at={new THREE.Vector3(vic.x, STAND + 0.2, vic.z)} colors={vicColors} seed={seed} /> : null}
+      <mesh ref={shock} rotation={[-Math.PI / 2, 0, 0]} visible={false} raycast={noRaycast}>
+        <ringGeometry args={[0.36, 0.44, 40]} />
+        <meshBasicMaterial color={move === "smash" ? "#d8ffd0" : atk.fx} transparent opacity={0.8} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <pointLight ref={flash} color={atk.fx} intensity={0} distance={3.5} />
+      {P.flight ? (
+        <instancedMesh ref={trail} args={[undefined, undefined, TRAIL]} raycast={noRaycast} frustumCulled={false}>
+          <sphereGeometry args={[1, 10, 8]} />
+          <meshBasicMaterial color={atk.fx} transparent opacity={0.55} toneMapped={false} depthWrite={false} />
+        </instancedMesh>
+      ) : null}
     </>
   );
 }
+const _hand = new THREE.Vector3();
+const _target = new THREE.Vector3();
+const _obj = new THREE.Object3D();
 
 // ── the army ───────────────────────────────────────────────────────────────
 
 type P = { sq: Square; type: PieceSymbol; color: Color };
+
+/** A random 1 OR 2 aerial tricks for the black bishop's capture flight (never 3). */
+function pickTricks(): Trick[] {
+  const all: Trick[] = ["flip", "roll", "spin"];
+  const n = Math.random() < 0.5 ? 1 : 2;
+  const out: Trick[] = [];
+  while (out.length < n) {
+    const t = all[Math.floor(Math.random() * all.length)];
+    if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
 
 export function LegoArmy({
   fen,
@@ -718,6 +1241,7 @@ export function LegoArmy({
   const seen = useRef("");
   const [fight, setFight] = useState<Fight | null>(null);
   const [fought, setFought] = useState("");
+  const [bursts, setBursts] = useState<Burst[]>([]);
   const moveKey = lastMove ? `${fen}|${lastMove.from}${lastMove.to}` : "";
   const timer = useRef<number | null>(null);
   useEffect(
@@ -744,7 +1268,10 @@ export function LegoArmy({
     if (!mover) return;
     // only a real move forward (the mover stood on `from`), not a jump back in History
     const was = before.find((p) => p.sq === lastMove.from && p.color === mover.color);
-    if (!was) return;
+    if (!was) {
+      setBursts([]);
+      return;
+    }
     let victim = before.find((p) => p.sq === lastMove.to && p.color !== mover.color);
     if (!victim && mover.type === "p" && lastMove.from[0] !== lastMove.to[0]) {
       const beside = `${lastMove.to[0]}${lastMove.from[1]}` as Square;
@@ -760,11 +1287,22 @@ export function LegoArmy({
       to: lastMove.to as Square,
       victimType: victim.type,
       victimSq: victim.sq,
+      tricks: pickTricks(),
     };
     setFight(f);
-    const a = v3(f.from, pitch);
-    const b = v3(f.victimSq, pitch);
-    const secs = LEGO_FIGHT_SECONDS(LEGO_ROSTER[f.color][f.type], a.distanceTo(b));
+    const plan = fightPlan(f, pitch);
+    const burst: Burst = {
+      id: f.id,
+      victim: LEGO_ROSTER[victim.color][victim.type],
+      at: plan.vic.clone(),
+      dir: plan.dir.clone(),
+      seed: hash(f.id),
+      delay: plan.impact,
+      limit: pitch * 4 + 0.15,
+    };
+    setBursts((list) => [...list.filter((x) => x.id !== burst.id), burst]);
+    window.setTimeout(() => setBursts((list) => list.filter((x) => x !== burst)), (plan.impact + BURST_LIFE + 0.5) * 1000);
+    const secs = plan.total;
     timer.current = window.setTimeout(() => {
       timer.current = null;
       setFought(f.id);
@@ -788,6 +1326,9 @@ export function LegoArmy({
         ),
       )}
       {fight ? <FightScene key={fight.id} fight={fight} pitch={pitch} /> : null}
+      {bursts.map((b) => (
+        <BrickBurst key={b.id} burst={b} />
+      ))}
     </>
   );
 }
@@ -828,12 +1369,17 @@ function DuskSky() {
   );
 }
 
-/** The tower stands beside the board (to white's left), so neither player's camera is inside it. */
-const TOWER_X = -16;
-const TOWER_SCALE = 14;
+/**
+ * The Avengers Tower ("Avenger Tower" by Sohan, Printables, CC BY-SA) stands beside the board
+ * (to white's left), its landing deck reaching out under the balcony. The GLB is already in
+ * world units (uniform scale 0.6 of the original), feet at y=0.
+ */
 const STREET_Y = -56;
-const TOWER = "building-skyscraper-d";
-
+/** World units per builder stud (a LEGO stud on this board is 0.25). */
+const BUILD_WORLD_SCALE = 0.25;
+/** The tower stands behind the board on white's left; its landing deck points at the balcony. */
+const TOWER_YAW = -1.222;
+const TOWER_POS: [number, number, number] = [-16.1, STREET_Y, -44.3];
 const tinted = new Map<THREE.Material, THREE.Material>();
 function duskTint(m: THREE.MeshStandardMaterial) {
   let t = tinted.get(m);
@@ -896,48 +1442,88 @@ function StudFrame() {
   return <instancedMesh ref={ref} args={[geo, mat, spots.length]} castShadow receiveShadow raycast={noRaycast} />;
 }
 
-/** A big glowing "A" on the tower face. Simple bars, like a sign. */
-function TowerSign() {
+function useAvengersTower() {
+  const gltf = useGLTF(TOWER_URL);
+  return useMemo(() => {
+    const t = gltf.scene.clone(true);
+    t.position.set(...TOWER_POS);
+    t.rotation.y = TOWER_YAW;
+    t.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) {
+        m.receiveShadow = true;
+        m.raycast = noRaycast;
+      }
+    });
+    return t;
+  }, [gltf]);
+}
+
+/**
+ * The player's own "Create Lego board" build, when one is in use: it replaces the balcony, the
+ * tower and the city round the board (builder units are studs; a stud is 0.25 world units here).
+ */
+function useActiveBuild(): { build: LegoBuild; items: PaletteItem[] } | null {
+  const [state, setState] = useState<{ build: LegoBuild; items: PaletteItem[] } | null>(null);
+  useEffect(() => {
+    let live = true;
+    activeLegoBuild({ data: {} })
+      .then(async (b) => {
+        if (!live || !b || !b.pieces?.length) return;
+        const items = await loadPaletteMeta();
+        if (live) setState({ build: b, items });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  return state;
+}
+
+export function LegoWorld() {
+  const custom = useActiveBuild();
+  if (custom) return <CustomLegoWorld build={custom.build} items={custom.items} />;
+  return <TowerLegoWorld />;
+}
+
+/** Sky, lights and the board's own baseplate: shared by the tower world and a custom build. */
+function LegoWorldBase() {
   return (
-    <group position={[TOWER_X + 9.85, 3.4, 0]} rotation={[0, Math.PI / 2, 0]} scale={0.5} raycast={noRaycast}>
-      <mesh position={[-1.15, 0, 0]} rotation={[0, 0, -0.38]}>
-        <boxGeometry args={[0.7, 6.4, 0.3]} />
-        <meshBasicMaterial color="#d8ecff" toneMapped={false} />
+    <>
+      <DuskSky />
+      <fog attach="fog" args={["#6a5a7a", 70, 260]} />
+      <hemisphereLight args={["#ffd2b0", "#2b2440", 0.35]} />
+      <directionalLight position={[10, 9, 24]} intensity={0.8} color="#ffb184" />
+      {/* the board's LEGO baseplate */}
+      <mesh position={[0, 0.02, 0]} receiveShadow castShadow raycast={noRaycast}>
+        <boxGeometry args={[9.1, 0.08, 9.1]} />
+        <meshStandardMaterial color="#6c6e68" roughness={0.4} />
       </mesh>
-      <mesh position={[1.15, 0, 0]} rotation={[0, 0, 0.38]}>
-        <boxGeometry args={[0.7, 6.4, 0.3]} />
-        <meshBasicMaterial color="#d8ecff" toneMapped={false} />
-      </mesh>
-      <mesh position={[0, -0.6, 0]}>
-        <boxGeometry args={[2.6, 0.6, 0.3]} />
-        <meshBasicMaterial color="#d8ecff" toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 0, -0.1]}>
-        <torusGeometry args={[4.3, 0.28, 8, 48]} />
-        <meshBasicMaterial color="#9fd0ff" toneMapped={false} />
-      </mesh>
-      <pointLight position={[0, 0, 3]} color="#bfe0ff" intensity={14} distance={14} />
+      <StudFrame />
+    </>
+  );
+}
+
+function CustomLegoWorld({ build, items }: { build: LegoBuild; items: PaletteItem[] }) {
+  return (
+    <group>
+      <LegoWorldBase />
+      <Suspense fallback={null}>
+        <group position={[0, -0.001, 0]}>
+          <BuildBaseplate scale={BUILD_WORLD_SCALE} />
+          <BuiltLego pieces={build.pieces} items={items} scale={BUILD_WORLD_SCALE} />
+        </group>
+      </Suspense>
     </group>
   );
 }
 
-export function LegoWorld() {
+function TowerLegoWorld() {
   const city = useCityPieces();
-  const tower = useMemo(() => {
-    const src = city[TOWER];
-    if (!src) return null;
-    const t = src.clone(true);
-    t.scale.setScalar(TOWER_SCALE);
-    t.position.set(TOWER_X, STREET_Y, 0);
-    t.rotation.y = Math.PI / 2;
-    t.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh) m.receiveShadow = true;
-    });
-    return t;
-  }, [city]);
+  const tower = useAvengersTower();
   const blocks = useMemo(() => {
-    const kinds = Object.keys(city).filter((k) => k !== TOWER);
+    const kinds = Object.keys(city).filter((k) => k !== "building-skyscraper-d");
     if (!kinds.length) return [];
     const out: THREE.Object3D[] = [];
     let seed = 7;
@@ -950,7 +1536,7 @@ export function LegoWorld() {
       const r = 34 + rnd() * 120;
       const x = Math.cos(ang) * r;
       const z = Math.sin(ang) * r;
-      if (Math.abs(z) < 24 && x < 10 && x > -44) continue;
+      if (Math.hypot(x + 20, z + 55) < 24) continue; // keep clear of the tower
       const kind = kinds[Math.floor(rnd() * kinds.length)];
       const sky = kind.includes("skyscraper");
       const o = city[kind].clone(true);
@@ -971,16 +1557,7 @@ export function LegoWorld() {
   }, [city]);
   return (
     <group>
-      <DuskSky />
-      <fog attach="fog" args={["#6a5a7a", 70, 260]} />
-      <hemisphereLight args={["#ffd2b0", "#2b2440", 0.35]} />
-      <directionalLight position={[10, 9, 24]} intensity={0.8} color="#ffb184" />
-      {/* the board's LEGO baseplate */}
-      <mesh position={[0, 0.02, 0]} receiveShadow castShadow raycast={noRaycast}>
-        <boxGeometry args={[9.1, 0.08, 9.1]} />
-        <meshStandardMaterial color="#6c6e68" roughness={0.4} />
-      </mesh>
-      <StudFrame />
+      <LegoWorldBase />
       {/* the balcony: a deck jutting out of the tower, glass rail all round */}
       <mesh position={[-0.75, -0.25, 0]} receiveShadow raycast={noRaycast}>
         <boxGeometry args={[14.5, 0.5, 13]} />
@@ -1013,8 +1590,9 @@ export function LegoWorld() {
           <meshBasicMaterial color="#ffd27a" toneMapped={false} />
         </mesh>
       ))}
-      {tower ? <primitive object={tower} /> : null}
-      <TowerSign />
+      <primitive object={tower} />
+      {/* soft light from the tower windows onto the balcony */}
+      <pointLight position={[-8.5, 4, 0]} color="#bfe0ff" intensity={10} distance={16} />
       {blocks.map((o, i) => (
         <primitive key={i} object={o} />
       ))}

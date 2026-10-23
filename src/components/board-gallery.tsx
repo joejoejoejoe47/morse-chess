@@ -153,6 +153,21 @@ export function BoardGallery({
         })}
       </div>
 
+      {(() => {
+        const lego = BOARD_CATALOG.find((b) => b.id === LEGO_BOARD_ID);
+        return lego && boardUnlocked(score, lego, username, purse.owned) ? (
+          <div className="relative mt-6 flex justify-center">
+            <Link
+              to="/lego-builder"
+              data-lego-create
+              className="rounded-full bg-[#f2cd37] px-5 py-2.5 text-sm font-medium text-[#1a140f] shadow hover:brightness-105"
+            >
+              Create Lego board
+            </Link>
+          </div>
+        ) : null;
+      })()}
+
       <div className="relative mt-10 flex justify-center pb-10">
         <Button asChild variant="outline" className="rounded-full">
           <Link to="/">Back</Link>

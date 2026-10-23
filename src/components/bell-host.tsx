@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { getChallengeInbox } from "@/lib/server/mores";
+import { getChallengeInbox, NAMED_CHALLENGE_MS } from "@/lib/server/mores";
 import {
   loadSeenIds,
   playChallengeSound,
@@ -16,6 +16,7 @@ import { tapPermissionBell } from "@/lib/avatar/bell-tone";
 export function BellHost() {
   const { user, isPending } = useCurrentUserState();
   const primed = useRef(false);
+  const shown = useRef(new Set<string>());
 
   useEffect(() => {
     stopBellSound();
@@ -26,7 +27,7 @@ export function BellHost() {
 
     const tick = async () => {
       try {
-        const inbox = await getChallengeInbox();
+        const inbox = (await getChallengeInbox()) as { id: string; fromUsername: string; kind: string; expiresInMs?: number | null }[];
         if (!live) return;
         const seen = loadSeenIds(accountId);
         if (!primed.current) {
@@ -35,15 +36,30 @@ export function BellHost() {
           primed.current = true;
           return;
         }
+        // Invitation lapsed (or was answered elsewhere): take its pop-up down for the receiver.
+        const liveIds = new Set(inbox.map((c) => c.id));
+        for (const id of [...shown.current]) {
+          if (!liveIds.has(id)) {
+            toast.dismiss(id);
+            shown.current.delete(id);
+          }
+        }
         const settings = loadBellSettings(accountId);
         for (const card of inbox) {
           if (seen.has(card.id)) continue;
           seen.add(card.id);
           if (shouldRingFor(settings, card.fromUsername)) {
             void playChallengeSound(accountId, card.fromUsername);
+            const left = card.expiresInMs;
             toast(`${card.fromUsername} wants to sit down and play chess.`, {
-              description: card.kind === "pull" ? "Random pull-up" : "Intended pull-up",
+              id: card.id,
+              description:
+                card.kind === "pull"
+                  ? "Random pull-up"
+                  : `Intended pull-up · expires at ${new Date(Date.now() + (left ?? NAMED_CHALLENGE_MS)).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`,
+              duration: left != null ? Math.max(1000, left) : undefined,
             });
+            shown.current.add(card.id);
           }
         }
         saveSeenIds(accountId, seen);
@@ -70,6 +86,8 @@ export function BellHost() {
       live = false;
       window.clearInterval(id);
       stopBellSound();
+      shown.current.forEach((t) => toast.dismiss(t));
+      shown.current.clear();
     };
   }, [user, isPending]);
 

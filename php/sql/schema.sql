@@ -306,3 +306,25 @@ VALUES ('bot-mores', 'MorseBot', 'morsebot', 1840, '2026-01-01 00:00:00.000', '2
 
 INSERT IGNORE INTO `profiles` (`user_id`, `username`, `username_lc`, `score`, `last_seen`, `created_at`)
 VALUES ('bot-mores-v2', 'MorseBotv2', 'morsebotv2', 2200, '2026-01-01 00:00:00.000', '2026-01-01 00:00:00.000');
+
+-- ── Lego board builder: bought palette pieces and saved builds ─────────────
+
+CREATE TABLE IF NOT EXISTS `lego_parts_owned` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `part_id` VARCHAR(64) NOT NULL,
+  `bought_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`, `part_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `lego_builds` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `name` VARCHAR(64) NOT NULL,
+  `pieces` MEDIUMTEXT NOT NULL,
+  `piece_count` INT NOT NULL DEFAULT 0,
+  `active` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL,
+  `updated_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `lego_builds_user_idx` (`user_id`, `updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

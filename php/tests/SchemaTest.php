@@ -10,7 +10,7 @@ test_db();
 $tables = array_column(Db::all("SELECT name FROM sqlite_master WHERE type='table'"), 'name');
 foreach (['user', 'session', 'account', 'profiles', 'games', 'game_moves', 'game_chat', 'challenges', 'match_queue',
           'chess_clubs', 'chess_club_members', 'chess_club_requests', 'chess_club_messages', 'chess_club_events',
-          'chess_club_calls', 'club_bracket', 'webrtc_peers', 'webrtc_signals', 'auth_throttle'] as $t) {
+          'chess_club_calls', 'club_bracket', 'webrtc_peers', 'webrtc_signals', 'auth_throttle', 'lego_parts_owned', 'lego_builds'] as $t) {
     check(in_array($t, $tables, true), "table $t exists");
 }
 check(Db::value("SELECT COUNT(*) FROM profiles WHERE user_id IN ('bot-mores','bot-mores-v2')") == 2, 'bot profiles seeded');

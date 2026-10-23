@@ -46,7 +46,14 @@ export type ChallengeCard = {
   status: string;
   createdAt: string;
   kind: "named" | "pull";
+  /** Ms left before a named challenge lapses (null for pull-ups), relative to when the server answered. */
+  expiresInMs?: number | null;
+  /** Client-only: local Date.now() deadline derived from expiresInMs. */
+  deadline?: number;
 };
+
+/** Named (intended) challenges expire after 4 minutes (server: Mores::NAMED_CHALLENGE_MS). */
+export const NAMED_CHALLENGE_MS = 4 * 60 * 1000;
 
 export type HomeState = {
   profile: { username: string; score: number; equippedBoard: string; coins: number; ownedBoards: string[] } | null;
