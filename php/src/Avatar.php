@@ -53,6 +53,7 @@ final class Avatar
             'mountId' => $keep($loadout['mountId'], 'none'),
             'frameId' => $keep($loadout['frameId'], 'plain'),
             'attackId' => $keep($loadout['attackId'], 'march'),
+            'finishId' => $keep($loadout['finishId'] ?? 'king-onyx', 'king-onyx'),
         ]);
     }
 

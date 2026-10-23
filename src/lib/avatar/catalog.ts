@@ -13,6 +13,8 @@ export type AvatarLoadout = {
   mountId: string;
   frameId: string;
   attackId: string;
+  /** Colour finish of the 3D king piece (AV "King pieces" grid). */
+  finishId: string;
 };
 
 export type GearItem = {
@@ -177,7 +179,7 @@ export const MOUNTS: (GearItem & { url?: string; kind?: ModelKind; height?: numb
 
 export const FRAMES: GearItem[] = [
   { id: "plain", name: "Plain", price: 0, portrait: "", blurb: "Just the name." },
-  { id: "gold", name: "Gold ring", price: 3, portrait: "", blurb: "A bright rim." },
+  { id: "king-gold", name: "Gold ring", price: 3, portrait: "", blurb: "A bright rim." },
   { id: "laurel", name: "Laurel", price: 3, portrait: "", blurb: "Leaves around the name." },
   { id: "night", name: "Night", price: 4, portrait: "", blurb: "Blue fire on the letters." },
   { id: "check", name: "Check", price: 2, portrait: "", blurb: "A boarder of squares." },
@@ -187,6 +189,30 @@ export const FRAMES: GearItem[] = [
 export const ATTACKS: GearItem[] = [
   { id: "march", name: "Normal", price: 0, portrait: "", blurb: "The king stands ready." },
   { id: "chop", name: "Chop", price: 4, portrait: "", blurb: "One clean cut with the blade." },
+];
+
+export type KingFinish = GearItem & {
+  /** Body lacquer, trim bands and crown metal of the AV pedestal king. */
+  body: string;
+  trim: string;
+  crown: string;
+  /** 0 = matte lacquer, 1 = polished metal. */
+  metal: number;
+  legendary?: boolean;
+};
+
+/** The nine king pieces in the AV grid, then the locked legendary one. */
+export const FINISHES: KingFinish[] = [
+  { id: "king-gold", name: "Gold King", price: 0, portrait: "", blurb: "Gilded from base to cross.", body: "#b8872f", trim: "#e6c25a", crown: "#e6c25a", metal: 0.9 },
+  { id: "king-gunmetal", name: "Gunmetal King", price: 0, portrait: "", blurb: "Grey steel with a gold crown.", body: "#55565a", trim: "#c9a24a", crown: "#d8b252", metal: 0.85 },
+  { id: "king-amethyst", name: "Amethyst King", price: 0, portrait: "", blurb: "Deep purple lacquer.", body: "#2f1d45", trim: "#c9a24a", crown: "#d8b252", metal: 0.45 },
+  { id: "king-navy", name: "Navy King", price: 0, portrait: "", blurb: "Midnight blue with silver.", body: "#1b2238", trim: "#a9adb5", crown: "#b9bdc4", metal: 0.45 },
+  { id: "king-crimson", name: "Crimson King", price: 0, portrait: "", blurb: "Oxblood red and gold.", body: "#6b2117", trim: "#c9a24a", crown: "#d8b252", metal: 0.45 },
+  { id: "king-ivory", name: "Ivory King", price: 0, portrait: "", blurb: "White with a silver crown.", body: "#dcd8cf", trim: "#bfc2c7", crown: "#d6d8dc", metal: 0.35 },
+  { id: "king-onyx", name: "Onyx King", price: 0, portrait: "", blurb: "Black and gold. The house king.", body: "#121110", trim: "#d1a740", crown: "#e2b84e", metal: 0.4 },
+  { id: "king-sun", name: "Sun King", price: 0, portrait: "", blurb: "Bright polished gold.", body: "#d9a93c", trim: "#f2d27a", crown: "#f2d27a", metal: 1 },
+  { id: "king-iron", name: "Iron King", price: 0, portrait: "", blurb: "Dark iron and silver.", body: "#2e3034", trim: "#8d9198", crown: "#a3a7ad", metal: 0.8 },
+  { id: "king-royal-legacy", name: "Royal Legacy King", price: 25000, portrait: "", blurb: "Legendary. Gold, onyx and a ruby cross.", body: "#0b0a09", trim: "#f0c75a", crown: "#ffd66b", metal: 1, legendary: true },
 ];
 
 export const STARTER_IDS = ["piece", "knight", "none", "poly-band", "plain", "march"];
@@ -201,6 +227,7 @@ export const DEFAULT_LOADOUT: AvatarLoadout = {
   mountId: "none",
   frameId: "plain",
   attackId: "march",
+  finishId: "king-onyx",
 };
 
 const byId = <T extends { id: string }>(rows: T[]) => new Map(rows.map((row) => [row.id, row]));
@@ -210,6 +237,7 @@ export const swordById = (id: string) => byId(SWORDS).get(id) ?? SWORDS[0];
 export const crownById = (id: string) => byId(CROWNS).get(id) ?? CROWNS[0];
 export const mountById = (id: string) => byId(MOUNTS).get(id) ?? MOUNTS[0];
 export const frameById = (id: string) => byId(FRAMES).get(id) ?? FRAMES[0];
+export const finishById = (id: string) => byId(FINISHES).get(id) ?? FINISHES.find((f) => f.id === "king-onyx")!;
 export const attackById = (id: string) => byId(ATTACKS).get(id) ?? ATTACKS[0];
 
 export function crownArt(id: string, team: TeamView) {
@@ -234,7 +262,7 @@ export function skeletonFor(id: string) {
 }
 
 export function allGear() {
-  return [...CHARACTERS, ...SWORDS, ...CROWNS, ...MOUNTS, ...FRAMES, ...ATTACKS];
+  return [...CHARACTERS, ...SWORDS, ...CROWNS, ...MOUNTS, ...FRAMES, ...ATTACKS, ...FINISHES];
 }
 
 export function gearPrice(id: string) {
@@ -267,6 +295,7 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     mountId: pick(src.mountId, "none", MOUNTS),
     frameId: pick(src.frameId, "plain", FRAMES),
     attackId: pick(attackRaw, "march", ATTACKS),
+    finishId: pick(src.finishId, "king-onyx", FINISHES),
   };
 }
 
@@ -279,6 +308,7 @@ export function loadoutNeeds(loadout: AvatarLoadout) {
     loadout.mountId,
     loadout.frameId,
     loadout.attackId,
+    loadout.finishId,
   ];
 }
 

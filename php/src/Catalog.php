@@ -150,6 +150,7 @@ final class Catalog
             'mountId' => $pick($src['mountId'] ?? null, 'none', $groups['mounts']),
             'frameId' => $pick($src['frameId'] ?? null, 'plain', $groups['frames']),
             'attackId' => $pick($attackRaw, 'march', $groups['attacks']),
+            'finishId' => $pick($src['finishId'] ?? null, 'king-onyx', $groups['finishes'] ?? []),
         ];
     }
 }

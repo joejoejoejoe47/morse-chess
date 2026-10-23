@@ -560,4 +560,15 @@ check(Mores::getChallengeInbox('exp_b', []) === [], 'invite expires after 4 minu
 check(Db::value('SELECT status FROM challenges WHERE id = ?', [$ex['challengeId']]) === 'cancelled', 'expired invite is cancelled');
 
 
+// ── AV king pieces (finishId) ─────────────────────────────────────────────
+check(\Morse\Catalog::parseLoadout([])['finishId'] === 'king-onyx', 'king piece defaults to onyx');
+check(\Morse\Catalog::parseLoadout(['finishId' => 'nope'])['finishId'] === 'king-onyx', 'unknown king piece falls back to onyx');
+$avGold = \Morse\Avatar::saveAvatar('dave', ['loadout' => ['style' => '3d', 'finishId' => 'king-gold']]);
+check($avGold['loadout']['finishId'] === 'king-gold', 'free king piece saves');
+check(\Morse\Avatar::getAvatar('dave', [])['loadout']['finishId'] === 'king-gold', 'king piece is remembered');
+$avLegacy = \Morse\Avatar::saveAvatar('dave', ['loadout' => ['style' => '3d', 'finishId' => 'king-royal-legacy']]);
+check($avLegacy['loadout']['finishId'] === 'king-onyx', 'Royal Legacy King stays locked until bought');
+check(\Morse\Catalog::gearPrice('king-royal-legacy') === 25000, 'Royal Legacy King costs 25,000 coins');
+
+
 finish();

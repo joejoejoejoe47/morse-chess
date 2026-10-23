@@ -188,7 +188,8 @@
       "crownId": "poly-band",
       "mountId": "none",
       "frameId": "plain",
-      "attackId": "march"
+      "attackId": "march",
+      "finishId": "king-onyx"
     },
     "groups": {
       "characters": [
@@ -301,6 +302,48 @@
         {
           "id": "chop",
           "price": 4
+        }
+      ],
+      "finishes": [
+        {
+          "id": "king-gold",
+          "price": 0
+        },
+        {
+          "id": "king-gunmetal",
+          "price": 0
+        },
+        {
+          "id": "king-amethyst",
+          "price": 0
+        },
+        {
+          "id": "king-navy",
+          "price": 0
+        },
+        {
+          "id": "king-crimson",
+          "price": 0
+        },
+        {
+          "id": "king-ivory",
+          "price": 0
+        },
+        {
+          "id": "king-onyx",
+          "price": 0
+        },
+        {
+          "id": "king-sun",
+          "price": 0
+        },
+        {
+          "id": "king-iron",
+          "price": 0
+        },
+        {
+          "id": "king-royal-legacy",
+          "price": 25000
         }
       ]
     },
