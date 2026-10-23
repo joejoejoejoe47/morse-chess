@@ -38,14 +38,22 @@ A real Dr. Strange normal minifig that is free to redistribute was not found. We
 
 ## Setting
 
-- **avengers-tower.glb**
+- **sky/helicarrier.glb** (the heroes' base, behind white)
+  - Source: "76042 - The SHIELD Helicarrier" by Marc Giraudet [Mad_Marc], LDraw Official Model Repository, https://library.ldraw.org/omr/sets/1202, licence CC BY 2.0.
+  - Uses LDraw library parts (LDraw.org, CC BY 2.0).
+  - Changes: converted to glTF with three.js LDrawLoader (main ship only; the minifigs and display stand are left out), merged per colour, simplified, normals dropped (flat shading) and meshopt-compressed.
+- **sky/black-monarch-castle.glb** (Dr. Doom's castle, behind black)
+  - Source: "6085 - Black Monarch's Castle" by Stefan Frenz [smf], LDraw Official Model Repository, https://library.ldraw.org/omr/sets/1305, licence CC BY 2.0.
+  - Uses LDraw library parts (LDraw.org, CC BY 2.0).
+  - Changes: converted to glTF with three.js LDrawLoader (castle only; the minifigs and horses are left out), merged per colour, simplified, normals dropped (flat shading) and meshopt-compressed.
+- **avengers-tower.glb** (no longer shown; kept for older links)
   - Source: "Avenger Tower" by Sohan (Sohan_4213645), https://www.printables.com/model/1691934, licence CC BY-SA 4.0.
   - Changes: converted from STL to glTF, scaled uniformly (0.6) and given one material.
   - This derived file is shared under the same CC BY-SA licence.
 - **city.glb**
-  - Source: the city blocks below the tower are from Kenney's "City Kit (Commercial)" 2.1, https://kenney.nl/assets/city-kit-commercial, licence CC0.
+  - Source: the city blocks far below the floating board are from Kenney's "City Kit (Commercial)" 2.1, https://kenney.nl/assets/city-kit-commercial, licence CC0.
 - **Drawn in code:**
-  - The balcony, glass rail, studded baseplate, dusk sky and effects (beams, standing portals, shockwaves).
+  - The floating deck, studded baseplate, dusk sky and effects (beams, standing portals, shockwaves).
   - The capture debris. These are real LEGO brick and plate shapes (1x2, 2x2 and 2x4 bricks, 1x2 and 2x2 plates, all with studs on top, standard LEGO proportions) drawn in code, in the colours of the figure that was captured.
 
 ## Create Lego board (builder pieces)

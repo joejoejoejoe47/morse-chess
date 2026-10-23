@@ -9,7 +9,7 @@
  * rotating those parts and moving the whole figure: idle sway, walking, and a real attack for
  * every character (wind-up, then the strike lands exactly when the victim breaks apart).
  * Figures never dip below the board: every frame the figure's bounding box is clamped to the
- * board top. The tower is "Avenger Tower" by Sohan (Printables, CC BY-SA); the city is Kenney (CC0).
+ * board top. In the sky: the SHIELD Helicarrier and Black Monarch's Castle (LDraw OMR, CC BY 2.0); the city is Kenney (CC0).
  * See public/lego/CREDITS.md for the full list.
  */
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -31,7 +31,9 @@ export const LEGO_CAMERA = { w: [0, 8.4, 12.2] as [number, number, number], b: [
 export const LEGO_ZOOM = { min: 6.5, max: 20 } as const;
 
 const CITY_URL = asset("/lego/city.glb");
-const TOWER_URL = asset("/lego/avengers-tower.glb");
+/** Sky backdrops (LDraw OMR, CC BY 2.0; see public/lego/CREDITS.md). */
+const HERO_BASE_URL = asset("/lego/sky/helicarrier.glb");
+const DOOM_CASTLE_URL = asset("/lego/sky/black-monarch-castle.glb");
 
 // ── roster ─────────────────────────────────────────────────────────────────
 
@@ -1496,7 +1498,7 @@ export function LegoArmy({
   );
 }
 
-// ── the world: balcony of the tower, city at dusk ─────────────────────────
+// ── the world: the board floating in the dusk sky, the city far below ─────
 
 function DuskSky() {
   const mat = useMemo(
@@ -1532,17 +1534,8 @@ function DuskSky() {
   );
 }
 
-/**
- * The Avengers Tower ("Avenger Tower" by Sohan, Printables, CC BY-SA) stands beside the board
- * (to white's left), its landing deck reaching out under the balcony. The GLB is already in
- * world units (uniform scale 0.6 of the original), feet at y=0.
- */
-const STREET_Y = -56;
 /** World units per builder stud (a LEGO stud on this board is 0.25). */
 const BUILD_WORLD_SCALE = 0.25;
-/** The tower stands behind the board on white's left; its landing deck points at the balcony. */
-const TOWER_YAW = -1.222;
-const TOWER_POS: [number, number, number] = [-16.1, STREET_Y, -44.3];
 const tinted = new Map<THREE.Material, THREE.Material>();
 function duskTint(m: THREE.MeshStandardMaterial) {
   let t = tinted.get(m);
@@ -1605,20 +1598,25 @@ function StudFrame() {
   return <instancedMesh ref={ref} args={[geo, mat, spots.length]} castShadow receiveShadow raycast={noRaycast} />;
 }
 
-function useAvengersTower() {
-  const gltf = useResilientGLTF(TOWER_URL);
+/**
+ * A whole LDraw set placed in the sky as a backdrop (LDU, y up, feet at y=0 in the file).
+ * The files carry no normals (they were simplified for size), so the loader shades them flat,
+ * which is how LEGO plastic looks anyway.
+ */
+function useBackdrop(url: string, pos: [number, number, number], yaw: number, scale: number) {
+  const gltf = useResilientGLTF(url);
   return useMemo(() => {
     const t = gltf.scene.clone(true);
-    t.position.set(...TOWER_POS);
-    t.rotation.y = TOWER_YAW;
+    t.position.set(...pos);
+    t.rotation.y = yaw;
+    t.scale.setScalar(scale);
     t.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh) {
-        m.receiveShadow = true;
-        m.raycast = noRaycast;
-      }
+      if (m.isMesh) m.raycast = noRaycast;
     });
     return t;
+    // pos/yaw/scale are module constants
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gltf]);
 }
 
@@ -1692,9 +1690,38 @@ function CustomLegoWorld({ build, items }: { build: LegoBuild; items: PaletteIte
   );
 }
 
+/** The board floats high over the city at dusk. */
+const SKY_STREET_Y = -150;
+/** Behind white (the heroes, +z): the SHIELD Helicarrier, broadside on, hanging in the sky. */
+const HERO_BASE: { pos: [number, number, number]; yaw: number; scale: number } = { pos: [4.6, -20, 58], yaw: Math.PI / 2, scale: 0.022 };
+/** Behind black (Dr. Doom's side, -z): Black Monarch's Castle on its own floating plate, gate toward the board. */
+const DOOM_CASTLE: { pos: [number, number, number]; yaw: number; scale: number } = { pos: [0.4, -26, -52], yaw: -Math.PI / 2, scale: 0.028 };
+
+/** The heroes' Helicarrier behind white and Dr. Doom's castle behind black, both in the sky well clear of the board. */
+function SkyBackdrops() {
+  // own guard and Suspense: a slow or missing backdrop never holds up or replaces the rest of the world
+  return (
+    <LoadGuard fallback={null} loading={null}>
+      <SkyBackdropModels />
+    </LoadGuard>
+  );
+}
+
+function SkyBackdropModels() {
+  const hero = useBackdrop(HERO_BASE_URL, HERO_BASE.pos, HERO_BASE.yaw, HERO_BASE.scale);
+  const castle = useBackdrop(DOOM_CASTLE_URL, DOOM_CASTLE.pos, DOOM_CASTLE.yaw, DOOM_CASTLE.scale);
+  return (
+    <>
+      <primitive object={hero} />
+      <primitive object={castle} />
+      {/* fill light so the faces of the backdrops that look at the board are not black */}
+      <directionalLight position={[0, 20, 0]} intensity={0.55} color="#e6dcff" />
+    </>
+  );
+}
+
 function TowerLegoWorld() {
   const city = useCityPieces();
-  const tower = useAvengersTower();
   const blocks = useMemo(() => {
     const kinds = Object.keys(city).filter((k) => k !== "building-skyscraper-d");
     if (!kinds.length) return [];
@@ -1706,24 +1733,19 @@ function TowerLegoWorld() {
     };
     for (let i = 0; i < 70; i++) {
       const ang = rnd() * Math.PI * 2;
-      const r = 34 + rnd() * 120;
+      const r = 45 + rnd() * 140;
       const x = Math.cos(ang) * r;
       const z = Math.sin(ang) * r;
-      if (Math.hypot(x + 20, z + 55) < 24) continue; // keep clear of the tower
       const kind = kinds[Math.floor(rnd() * kinds.length)];
-      const sky = kind.includes("skyscraper");
       const o = city[kind].clone(true);
-      // most of the city sits well below the balcony; a few towers rise to about its height
-      o.scale.setScalar(sky ? 5 + rnd() * 6 : 7 + rnd() * 5);
-      o.position.set(x, STREET_Y, z);
+      o.scale.setScalar(kind.includes("skyscraper") ? 5 + rnd() * 6 : 7 + rnd() * 5);
+      o.position.set(x, SKY_STREET_Y, z);
       o.rotation.y = Math.floor(rnd() * 4) * (Math.PI / 2);
-      if (!sky) {
-        // the plain low-detail blocks get a dusk tint so they sit back in the haze
-        o.traverse((m) => {
-          const mesh = m as THREE.Mesh;
-          if (mesh.isMesh) mesh.material = duskTint(mesh.material as THREE.MeshStandardMaterial);
-        });
-      }
+      // far below in the haze: everything gets the dusk tint
+      o.traverse((m) => {
+        const mesh = m as THREE.Mesh;
+        if (mesh.isMesh) mesh.material = duskTint(mesh.material as THREE.MeshStandardMaterial);
+      });
       out.push(o);
     }
     return out;
@@ -1731,45 +1753,20 @@ function TowerLegoWorld() {
   return (
     <group>
       <LegoWorldBase />
-      {/* the balcony: a deck jutting out of the tower, glass rail all round */}
-      <mesh position={[-0.75, -0.25, 0]} receiveShadow raycast={noRaycast}>
-        <boxGeometry args={[14.5, 0.5, 13]} />
+      {/* the board's floating deck */}
+      <mesh position={[0, -0.25, 0]} receiveShadow raycast={noRaycast}>
+        <boxGeometry args={[11, 0.5, 11]} />
         <meshStandardMaterial color="#4a4f5a" roughness={0.5} metalness={0.35} />
       </mesh>
-      <mesh position={[-0.75, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow raycast={noRaycast}>
-        <planeGeometry args={[14.1, 12.6]} />
+      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow raycast={noRaycast}>
+        <planeGeometry args={[10.6, 10.6]} />
         <meshStandardMaterial color="#343944" roughness={0.45} metalness={0.4} />
       </mesh>
-      {[
-        [-0.75, 0.55, 6.45, 14.5, 1.1, 0.06],
-        [-0.75, 0.55, -6.45, 14.5, 1.1, 0.06],
-        [6.45, 0.55, 0, 0.06, 1.1, 13],
-      ].map(([x, y, z, w, h, d], i) => (
-        <group key={i}>
-          <mesh position={[x, y, z]} raycast={noRaycast}>
-            <boxGeometry args={[w, h, d]} />
-            <meshStandardMaterial color="#9fd8ff" transparent opacity={0.18} roughness={0.05} metalness={0.3} depthWrite={false} />
-          </mesh>
-          <mesh position={[x, y + h / 2 + 0.03, z]} raycast={noRaycast}>
-            <boxGeometry args={[Math.max(w, 0.1), 0.06, Math.max(d, 0.1)]} />
-            <meshStandardMaterial color="#d8dde4" metalness={0.7} roughness={0.25} />
-          </mesh>
-        </group>
-      ))}
-      {/* landing lights on the deck edge */}
-      {Array.from({ length: 9 }, (_, i) => (
-        <mesh key={i} position={[6.0, 0.02, -5.6 + i * 1.4]} raycast={noRaycast}>
-          <cylinderGeometry args={[0.09, 0.09, 0.04, 10]} />
-          <meshBasicMaterial color="#ffd27a" toneMapped={false} />
-        </mesh>
-      ))}
-      <primitive object={tower} />
-      {/* soft light from the tower windows onto the balcony */}
-      <pointLight position={[-8.5, 4, 0]} color="#bfe0ff" intensity={10} distance={16} />
+      <SkyBackdrops />
       {blocks.map((o, i) => (
         <primitive key={i} object={o} />
       ))}
-      <mesh position={[0, STREET_Y, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
+      <mesh position={[0, SKY_STREET_Y, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={noRaycast}>
         <circleGeometry args={[300, 48]} />
         <meshStandardMaterial color="#2a2730" roughness={0.9} />
       </mesh>
