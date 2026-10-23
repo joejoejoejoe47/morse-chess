@@ -642,7 +642,7 @@ export const BOARD_CATALOG: BoardSkin[] = [
   {
     ...BASE,
     id: "lego-universe",
-    name: "Brick Heroes",
+    name: "Brick Verse",
     blurb: "60 coins. A brick board on the balcony of the Hero Tower at dusk. Unlocks LG mode: brick heroes (Smash Giant, Web Slinger, Iron Flyer...) against the Iron Tyrant's villains, all animated.",
     cost: 0,
     coinCost: 60,

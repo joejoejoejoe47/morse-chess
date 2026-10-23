@@ -53,7 +53,7 @@ final class LegoBuilder
     private static function requireAllowed(string $userId): void
     {
         if (!self::allowed($userId)) {
-            throw new RpcError('Create Brick board comes with the Brick Heroes board.', 403);
+            throw new RpcError('Create Brick board comes with the Brick Verse board.', 403);
         }
     }
 
