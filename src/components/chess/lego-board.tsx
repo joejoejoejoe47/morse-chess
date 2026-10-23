@@ -9,7 +9,8 @@
  * rotating those parts and moving the whole figure: idle sway, walking, and a real attack for
  * every character (wind-up, then the strike lands exactly when the victim breaks apart).
  * Figures never dip below the board: every frame the figure's bounding box is clamped to the
- * board top. In the sky: the SHIELD Helicarrier and Black Monarch's Castle (LDraw OMR, CC BY 2.0); the city is Kenney (CC0).
+ * board top. In the sky: the SHIELD Helicarrier (LDraw OMR, CC BY 2.0) and Dr. Doom's tower (Sohan's tower, CC BY-SA 4.0,
+ * recoloured); the city is Kenney (CC0).
  * See public/lego/CREDITS.md for the full list.
  */
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -31,9 +32,9 @@ export const LEGO_CAMERA = { w: [0, 8.4, 12.2] as [number, number, number], b: [
 export const LEGO_ZOOM = { min: 6.5, max: 20 } as const;
 
 const CITY_URL = asset("/lego/city.glb");
-/** Sky backdrops (LDraw OMR, CC BY 2.0; see public/lego/CREDITS.md). */
+/** Sky backdrops (credited models; see public/lego/CREDITS.md). */
 const HERO_BASE_URL = asset("/lego/sky/helicarrier.glb");
-const DOOM_CASTLE_URL = asset("/lego/sky/black-monarch-castle.glb");
+const DOOM_TOWER_URL = asset("/lego/sky/doom-tower.glb");
 
 // ── roster ─────────────────────────────────────────────────────────────────
 
@@ -1694,10 +1695,13 @@ function CustomLegoWorld({ build, items }: { build: LegoBuild; items: PaletteIte
 const SKY_STREET_Y = -150;
 /** Behind white (the heroes, +z): the SHIELD Helicarrier, broadside on, hanging in the sky. */
 const HERO_BASE: { pos: [number, number, number]; yaw: number; scale: number } = { pos: [4.6, -20, 58], yaw: Math.PI / 2, scale: 0.022 };
-/** Behind black (Dr. Doom's side, -z): Black Monarch's Castle on its own floating plate, gate toward the board. */
-const DOOM_CASTLE: { pos: [number, number, number]; yaw: number; scale: number } = { pos: [0.4, -26, -52], yaw: -Math.PI / 2, scale: 0.028 };
+/**
+ * Behind black (Dr. Doom's side, -z): Dr. Doom's tower, Sohan's tower model recoloured in Doom's green and
+ * steel (see CREDITS.md), turned three-quarters so its landing deck reaches toward the board.
+ */
+const DOOM_TOWER: { pos: [number, number, number]; yaw: number; scale: number } = { pos: [-6, -36, -70], yaw: -0.5, scale: 0.35 };
 
-/** The heroes' Helicarrier behind white and Dr. Doom's castle behind black, both in the sky well clear of the board. */
+/** The heroes' Helicarrier behind white and Dr. Doom's tower behind black, both in the sky well clear of the board. */
 function SkyBackdrops() {
   // own guard and Suspense: a slow or missing backdrop never holds up or replaces the rest of the world
   return (
@@ -1709,11 +1713,11 @@ function SkyBackdrops() {
 
 function SkyBackdropModels() {
   const hero = useBackdrop(HERO_BASE_URL, HERO_BASE.pos, HERO_BASE.yaw, HERO_BASE.scale);
-  const castle = useBackdrop(DOOM_CASTLE_URL, DOOM_CASTLE.pos, DOOM_CASTLE.yaw, DOOM_CASTLE.scale);
+  const tower = useBackdrop(DOOM_TOWER_URL, DOOM_TOWER.pos, DOOM_TOWER.yaw, DOOM_TOWER.scale);
   return (
     <>
       <primitive object={hero} />
-      <primitive object={castle} />
+      <primitive object={tower} />
       {/* fill light so the faces of the backdrops that look at the board are not black */}
       <directionalLight position={[0, 20, 0]} intensity={0.55} color="#e6dcff" />
     </>
