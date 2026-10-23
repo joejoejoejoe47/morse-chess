@@ -21,6 +21,7 @@ import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 import { ROCCO_BOARD_ID, RoccoArmy, RoccoWorld } from "@/components/chess/rocco-board";
+import { ModelSlot, LoadGuard } from "@/components/chess/load-guard";
 import { LEGO_BOARD_ID, LEGO_CAMERA, LEGO_ZOOM, LegoArmy, LegoWorld } from "@/components/chess/lego-board";
 import { SKY_ARENA_BOARD_ID, SKY_ARENA_CAMERA, SKY_ARENA_ZOOM, SkyArenaWorld } from "@/components/chess/sky-arena-board";
 
@@ -602,6 +603,10 @@ function AnimatedPiece({
           </span>
         </Html>
       ) : null}
+      <ModelSlot
+        standInWhileLoading
+        fallback={<PieceMesh type={type} color={color} geometries={geometries} ivory={ivory} ebony={ebony} skin={skin} outlineOn={outlineOn} />}
+      >
       {real ? (
         <group>
           <group scale={type === "p" ? 0.9 : type === "k" || type === "q" ? 1.08 : 1}>
@@ -658,6 +663,7 @@ function AnimatedPiece({
           ) : null}
         </>
       )}
+      </ModelSlot>
     </group>
   );
 }
@@ -1682,9 +1688,9 @@ function Scene({
       )}
       {!meadow && !rocco && !arena && !legoWorld && roomScene === "space" ? <SpaceSky /> : null}
       {!meadow && !rocco && !arena && !legoWorld && roomScene === "model" && modelUrl ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <ModelSky url={modelUrl} />
-        </Suspense>
+        </ModelSlot>
       ) : null}
       {meadow ? <MeadowDay /> : null}
       {meadow ? null : (
@@ -1713,29 +1719,29 @@ function Scene({
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
       {plate ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <PhotoPlate url={plate} />
-        </Suspense>
+        </ModelSlot>
       ) : legoWorld ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <LegoWorld />
-        </Suspense>
+        </ModelSlot>
       ) : rocco ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <RoccoWorld />
-        </Suspense>
+        </ModelSlot>
       ) : arena ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <SkyArenaWorld />
-        </Suspense>
+        </ModelSlot>
       ) : skin.id === "grassland" ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <MeadowField cheer={cheer} />
-        </Suspense>
+        </ModelSlot>
       ) : skin.id === "castle" ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <CastleYard />
-        </Suspense>
+        </ModelSlot>
       ) : skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
       ) : skin.tableKind === "studio" ? (
@@ -1772,12 +1778,12 @@ function Scene({
       />
       <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
       {rocco ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <RoccoArmy fen={fen} lastMove={lastMove} real={real} pitch={pitch} onSquare={onSquare} />
-        </Suspense>
+        </ModelSlot>
       ) : null}
       {lego ? (
-        <Suspense fallback={null}>
+        <ModelSlot>
           <LegoArmy
             fen={fen}
             lastMove={lastMove}
@@ -1787,7 +1793,7 @@ function Scene({
               <PieceMesh type={type} color={color} geometries={geometries} ivory={ivory} ebony={ebony} skin={skin} outlineOn={outlineOn} />
             )}
           />
-        </Suspense>
+        </ModelSlot>
       ) : null}
       {ownArmy ? null : pieces.map((p) =>
         rite && p.sq === rite.to && p.color === rite.color ? null : (
@@ -1818,6 +1824,7 @@ function Scene({
         />
       ))}
       {maul && !ownArmy ? (
+        <ModelSlot key={maul.id}>
         <DogCharge
           key={maul.id}
           from={maul.from}
@@ -1825,8 +1832,10 @@ function Scene({
           pitch={pitch}
           onDone={() => setMaul((cur) => (cur?.id === maul.id ? null : cur))}
         />
+        </ModelSlot>
       ) : null}
       {rite && people && !ownArmy ? (
+        <ModelSlot>
         <PromoMarch
           color={rite.color}
           type={rite.type}
@@ -1842,6 +1851,7 @@ function Scene({
             setCheer(null);
           }}
         />
+        </ModelSlot>
       ) : null}
       {!ownArmy && (people || real || bodies.some((body) => body.knock))
         ? bodies.map((body) => {
@@ -1867,7 +1877,7 @@ function Scene({
             if (body.aside !== body.sq) {
               return (
                 <DuelShift key={body.id} from={body.sq} to={body.aside} face={(lastMove?.to ?? body.sq) as Square} pitch={pitch} knock={body.knock}>
-                  {corpse}
+                  <ModelSlot>{corpse}</ModelSlot>
                 </DuelShift>
               );
             }
@@ -1878,7 +1888,7 @@ function Scene({
                 position={[spot[0], 0.08 + (pitch > 1 ? gladeHeight(spot[0], spot[2]) : 0), spot[2]]}
                 rotation={[0, body.color === "w" ? Math.PI : 0, 0]}
               >
-                {corpse}
+                <ModelSlot>{corpse}</ModelSlot>
               </group>
             );
           })
@@ -2209,6 +2219,7 @@ export function ChessBoard3D({
           gl.localClippingEnabled = true;
         }}
       >
+        <LoadGuard fallback={null}>
         <Scene
           fen={fen}
           you={you}
@@ -2235,6 +2246,7 @@ export function ChessBoard3D({
           plate={plate}
           lego={lego}
         />
+        </LoadGuard>
         {overlay}
       </Canvas>
     </div>
