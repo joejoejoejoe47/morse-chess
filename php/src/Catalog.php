@@ -125,7 +125,7 @@ final class Catalog
         $groups = Util::catalog()['avatar']['groups'];
         $legacy = Util::catalog()['avatar']['legacy'];
         $style = $src['style'] ?? null;
-        $style = in_array($style, ['2d', 'an', 'ra', 'lg', '3d'], true) ? $style : '3d';
+        $style = in_array($style, ['2d', 'an', 'ra', 'lg', 'cl', 'pa', '3d'], true) ? $style : '3d';
         $team = ($src['team'] ?? null) === 'b' ? 'b' : 'w';
         $pick = static function (mixed $id, string $fallback, array $rows): string {
             if (is_string($id)) {

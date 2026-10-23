@@ -16,7 +16,7 @@ export type ThumbSpec = {
   fen: string;
   lastMove: { from: string; to: string } | null;
   skin: BoardSkin;
-  style: "2d" | "3d" | "an" | "ra" | "lg";
+  style: "2d" | "3d" | "an" | "ra" | "lg" | "cl" | "pa";
   you: "w" | "b";
   mark?: string | null;
 };

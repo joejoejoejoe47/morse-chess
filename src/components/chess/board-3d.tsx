@@ -24,6 +24,7 @@ import { ROCCO_BOARD_ID, RoccoArmy, RoccoWorld } from "@/components/chess/rocco-
 import { ModelSlot, LoadGuard } from "@/components/chess/load-guard";
 import { LEGO_BOARD_ID, LEGO_CAMERA, LEGO_ZOOM, LegoArmy, LegoWorld } from "@/components/chess/lego-board";
 import { SKY_ARENA_BOARD_ID, SKY_ARENA_CAMERA, SKY_ARENA_ZOOM, SkyArenaWorld } from "@/components/chess/sky-arena-board";
+import { HEIRLOOM, HeirloomArmy, HeirloomWorld, type HeirloomId } from "@/components/chess/heirloom-sets";
 
 const INK_BOARDS = new Set([
   "lodge",
@@ -1430,6 +1431,7 @@ function Scene({
   kings,
   plate = null,
   lego = false,
+  heirloom = null,
 }: {
   fen: string;
   you: Side;
@@ -1456,6 +1458,8 @@ function Scene({
   plate?: string | null;
   /** LG style: LEGO Marvel figures on the Lego Universe balcony. */
   lego?: boolean;
+  /** Classic / Parlor: a real chess set model with its own board (replaces the equipped board). */
+  heirloom?: HeirloomId | null;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -1519,12 +1523,13 @@ function Scene({
   } | null>(null);
   const [riteDone, setRiteDone] = useState<string | null>(null);
   const cheerTimer = useRef<number | null>(null);
-  const meadow = !lego && (skin.id === "grassland" || skin.id === "castle");
-  const legoWorld = lego || skin.id === LEGO_BOARD_ID;
+  const set = lego ? null : heirloom;
+  const meadow = !lego && !set && (skin.id === "grassland" || skin.id === "castle");
+  const legoWorld = lego || (!set && skin.id === LEGO_BOARD_ID);
   /** A board with its own army replaces the normal pieces and their fight effects. */
-  const rocco = !lego && skin.id === ROCCO_BOARD_ID;
-  const ownArmy = rocco || lego;
-  const arena = !legoWorld && skin.id === SKY_ARENA_BOARD_ID;
+  const rocco = !lego && !set && skin.id === ROCCO_BOARD_ID;
+  const ownArmy = rocco || lego || Boolean(set);
+  const arena = !legoWorld && !set && skin.id === SKY_ARENA_BOARD_ID;
   const pitch = meadow ? GLADE_PITCH : 1;
 
   useEffect(() => {
@@ -1681,13 +1686,13 @@ function Scene({
           <color attach="background" args={["#9eb8cc"]} />
           <fog attach="fog" args={["#c5d4e4", 110, 240]} />
         </>
-      ) : rocco || arena || legoWorld ? null : cosmic ? (
+      ) : rocco || arena || legoWorld || set ? null : cosmic ? (
         <color attach="background" args={["#05060c"]} />
       ) : (
         <RoomSky color={sky} image={roomImage} />
       )}
-      {!meadow && !rocco && !arena && !legoWorld && roomScene === "space" ? <SpaceSky /> : null}
-      {!meadow && !rocco && !arena && !legoWorld && roomScene === "model" && modelUrl ? (
+      {!meadow && !rocco && !arena && !legoWorld && !set && roomScene === "space" ? <SpaceSky /> : null}
+      {!meadow && !rocco && !arena && !legoWorld && !set && roomScene === "model" && modelUrl ? (
         <ModelSlot>
           <ModelSky url={modelUrl} />
         </ModelSlot>
@@ -1715,12 +1720,16 @@ function Scene({
           <directionalLight position={[-6, 8, -8]} intensity={lightRoom ? 0.45 : 0.7} color={skin.fillLight} />
         </>
       )}
-      {skin.tableKind === "legend" ? (
+      {skin.tableKind === "legend" && !set ? (
         <pointLight position={[0, 4.2, 0]} intensity={1.4} distance={18} color={skin.fillLight} />
       ) : null}
       {plate ? (
         <ModelSlot>
           <PhotoPlate url={plate} />
+        </ModelSlot>
+      ) : set ? (
+        <ModelSlot>
+          <HeirloomWorld id={set} />
         </ModelSlot>
       ) : legoWorld ? (
         <ModelSlot>
@@ -1773,7 +1782,7 @@ function Scene({
         lightMap={wood?.light}
         darkMap={wood?.dark}
         meadow={meadow}
-        ghost={Boolean(plate)}
+        ghost={Boolean(plate || set)}
         pitch={pitch}
       />
       <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
@@ -1794,6 +1803,18 @@ function Scene({
             )}
           />
         </ModelSlot>
+      ) : null}
+      {set ? (
+        <HeirloomArmy
+          id={set}
+          fen={fen}
+          lastMove={lastMove}
+          selected={selected}
+          onSquare={onSquare}
+          standIn={(type, color) => (
+            <PieceMesh type={type} color={color} geometries={geometries} ivory={ivory} ebony={ebony} skin={skin} outlineOn={outlineOn} />
+          )}
+        />
       ) : null}
       {ownArmy ? null : pieces.map((p) =>
         rite && p.sq === rite.to && p.color === rite.color ? null : (
@@ -1904,8 +1925,8 @@ function Scene({
         enableZoom
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
-        minDistance={meadow ? 5 : arena ? SKY_ARENA_ZOOM.min : legoWorld ? LEGO_ZOOM.min : 8}
-        maxDistance={meadow ? 160 : arena ? SKY_ARENA_ZOOM.max : legoWorld ? LEGO_ZOOM.max : 22}
+        minDistance={meadow ? 5 : set ? HEIRLOOM[set].zoom.min : arena ? SKY_ARENA_ZOOM.min : legoWorld ? LEGO_ZOOM.min : 8}
+        maxDistance={meadow ? 160 : set ? HEIRLOOM[set].zoom.max : arena ? SKY_ARENA_ZOOM.max : legoWorld ? LEGO_ZOOM.max : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -2110,6 +2131,7 @@ export function ChessBoard3D({
   plate = null,
   overlay = null,
   lego = false,
+  heirloom = null,
 }: {
   fen: string;
   you: Side;
@@ -2136,6 +2158,8 @@ export function ChessBoard3D({
   overlay?: ReactNode;
   /** LG piece style: LEGO Marvel figures on the Lego Universe balcony (needs the Lego Universe board). */
   lego?: boolean;
+  /** Classic / Parlor piece style: a free real chess set with its own board. */
+  heirloom?: HeirloomId | null;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -2183,8 +2207,10 @@ export function ChessBoard3D({
 
   // LG always plays on the Lego Universe balcony, whatever board is equipped.
   const resolved = lego ? boardById(LEGO_BOARD_ID) : skin ?? boardById("lodge");
-  const cam: [number, number, number] =
-    lego || resolved.id === LEGO_BOARD_ID
+  const set = lego ? null : heirloom;
+  const cam: [number, number, number] = set
+    ? HEIRLOOM[set].camera[you === "w" ? "w" : "b"]
+    : lego || resolved.id === LEGO_BOARD_ID
       ? LEGO_CAMERA[you === "w" ? "w" : "b"]
       : resolved.id === "grassland" || resolved.id === "castle"
       ? you === "w"
@@ -2201,7 +2227,7 @@ export function ChessBoard3D({
       <Canvas
         shadows
         dpr={[1, 1.5]}
-        camera={{ position: cam, fov: !lego && (resolved.id === "grassland" || resolved.id === "castle") ? 42 : 36, near: 0.1, far: 400 }}
+        camera={{ position: cam, fov: !lego && !set && (resolved.id === "grassland" || resolved.id === "castle") ? 42 : 36, near: 0.1, far: 400 }}
         gl={{ antialias: true, alpha: false }}
         onPointerDown={() => {
           dragged.current = false;
@@ -2245,6 +2271,7 @@ export function ChessBoard3D({
           kings={kings}
           plate={plate}
           lego={lego}
+          heirloom={set}
         />
         </LoadGuard>
         {overlay}

@@ -10,6 +10,7 @@ import { ChessBoard3D } from "@/components/chess/board-3d";
 import { GLADE_PITCH } from "@/components/chess/glade-field";
 import { SKY_ARENA_CAMERA } from "@/components/chess/sky-arena-board";
 import { LEGO_BOARD_ID, LEGO_CAMERA } from "@/components/chess/lego-board";
+import { HEIRLOOM } from "@/components/chess/heirloom-sets";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { boardById } from "@/lib/chess/board-skins";
 import { squareToWorld } from "@/lib/chess/board-math";
@@ -190,7 +191,8 @@ function Replay({ game }: { game: HistoryGame }) {
   const lastMove = last ? { from: last.from, to: last.to } : null;
   const current = verdictAt(ply);
   const judgedCount = judged?.verdicts.length ?? 0;
-  const pitch = skin.id === "grassland" || skin.id === "castle" ? GLADE_PITCH : 1;
+  const heirloom = game.style === "cl" || game.style === "pa" ? game.style : null;
+  const pitch = !heirloom && (skin.id === "grassland" || skin.id === "castle") ? GLADE_PITCH : 1;
   const burstMove = burst ? played[burst.ply - 1] : null;
   const burstVerdict = burst ? verdictAt(burst.ply) : undefined;
   const resultText =
@@ -198,7 +200,7 @@ function Replay({ game }: { game: HistoryGame }) {
 
   const overlay = (
     <>
-      <CameraDirector mode={cam} you={game.you} skinId={game.style === "lg" ? LEGO_BOARD_ID : skin.id} onGrab={() => setCam("free")} />
+      <CameraDirector mode={cam} you={game.you} skinId={game.style === "lg" ? LEGO_BOARD_ID : heirloom ? `heirloom-${heirloom}` : skin.id} onGrab={() => setCam("free")} />
       {burst && burstMove && burstVerdict && burst.ply === ply ? (
         <EmojiBurst
           key={burst.key}
@@ -266,6 +268,7 @@ function Replay({ game }: { game: HistoryGame }) {
               people={game.style === "an"}
               real={game.style === "ra"}
               lego={game.style === "lg"}
+              heirloom={heirloom}
               showTip={false}
               kings={{ w: game.whiteLook, b: game.blackLook }}
               overlay={overlay}
@@ -660,7 +663,9 @@ function CameraDirector({
   useEffect(() => {
     if (!controls || base.current) return;
     const start =
-      skinId === "grassland" || skinId === "castle"
+      skinId === "heirloom-cl" || skinId === "heirloom-pa"
+        ? new THREE.Vector3(...HEIRLOOM[skinId === "heirloom-cl" ? "cl" : "pa"].camera.w)
+        : skinId === "grassland" || skinId === "castle"
         ? new THREE.Vector3(0.4, 42, 68)
         : skinId === "sky-arena"
           ? new THREE.Vector3(...SKY_ARENA_CAMERA.w)

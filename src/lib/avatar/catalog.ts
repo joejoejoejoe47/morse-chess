@@ -1,5 +1,5 @@
 import { asset } from "@/lib/base";
-export type PieceStyle = "2d" | "3d" | "an" | "ra" | "lg";
+export type PieceStyle = "2d" | "3d" | "an" | "ra" | "lg" | "cl" | "pa";
 export type TeamView = "w" | "b";
 export type ModelKind = "glb" | "fbx";
 
@@ -275,7 +275,7 @@ export function isKnownGear(id: string) {
 
 export function parseLoadout(raw: unknown): AvatarLoadout {
   const src = raw && typeof raw === "object" ? (raw as Partial<AvatarLoadout>) : {};
-  const style: PieceStyle = src.style === "2d" || src.style === "an" || src.style === "ra" || src.style === "lg" || src.style === "3d" ? src.style : "3d";
+  const style: PieceStyle = src.style === "2d" || src.style === "an" || src.style === "ra" || src.style === "lg" || src.style === "cl" || src.style === "pa" || src.style === "3d" ? src.style : "3d";
   const team: TeamView = src.team === "b" ? "b" : "w";
   const pick = (id: unknown, fallback: string, rows: { id: string }[]) =>
     typeof id === "string" && rows.some((row) => row.id === id) ? id : fallback;
