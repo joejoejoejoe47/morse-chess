@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import { BASE } from "@/lib/base";
+import { forgetFailedLoad, isModelLoadError } from "@/lib/resilient-gltf";
 
 const FALLBACK_MESSAGE = "An unexpected error occurred. Try reloading the page.";
 
@@ -18,6 +19,19 @@ function staleChunk(message: string) {
 export function AppErrorComponent({ error, reset }: ErrorComponentProps) {
   const message = errorMessage(error);
   const once = useRef(false);
+  const model = isModelLoadError(message);
+  const modelTries = useRef(0);
+
+  // A model that could not be fetched should never leave the page broken: drop the failed load
+  // and render again (the loaders retry it). Backstop only; the scenes guard each model.
+  useEffect(() => {
+    if (!model || modelTries.current >= 6) return;
+    const wait = [1500, 4000, 8000, 15000, 30000, 60000][modelTries.current];
+    modelTries.current += 1;
+    forgetFailedLoad(error);
+    const timer = window.setTimeout(() => reset(), wait);
+    return () => window.clearTimeout(timer);
+  }, [model, error, reset]);
 
   useEffect(() => {
     if (!staleChunk(message) || once.current) return;
@@ -47,8 +61,10 @@ export function AppErrorComponent({ error, reset }: ErrorComponentProps) {
       <span className="text-red-500" aria-hidden="true">
         <TriangleAlert className="size-10" strokeWidth={2} />
       </span>
-      <h1 className="text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">{message}</p>
+      <h1 className="text-lg font-semibold">{model ? "Loading the 3D pieces…" : "Something went wrong"}</h1>
+      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">
+        {model ? "The connection dropped while a model was downloading. Trying again…" : message}
+      </p>
     </main>
   );
 }

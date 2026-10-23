@@ -1,4 +1,5 @@
-import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ModelSlot } from "@/components/chess/load-guard";
 import * as THREE from "three";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Canvas } from "@react-three/fiber";
@@ -284,9 +285,9 @@ function AvatarStudio() {
           >
             <color attach="background" args={["#0f0c0a"]} />
             <fog attach="fog" args={["#0f0c0a", 7, 16]} />
-            <Suspense fallback={null}>
+            <ModelSlot>
               <PedestalStage finish={finish} crownId={loadout.crownId} team={loadout.team} board={board} spin={strike} />
-            </Suspense>
+            </ModelSlot>
             <OrbitControls
               ref={controls as never}
               enablePan
@@ -299,18 +300,18 @@ function AvatarStudio() {
         ) : loadout.style === "ra" ? (
           <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows onCreated={({ gl }) => keepWebGL(gl)}>
             <color attach="background" args={["#9eb8cc"]} />
-            <Suspense fallback={null}>
+            <ModelSlot>
               <FieldStage />
               <group position={[0, 0, 1.2]}>
                 <RaPreview team={loadout.team} crownId={loadout.crownId} dog={loadout.mountId === "dog"} />
               </group>
-            </Suspense>
+            </ModelSlot>
             <OrbitControls ref={controls as never} enablePan target={[0, 1.1, 1.2]} minDistance={3} maxDistance={12} maxPolarAngle={1.35} />
           </Canvas>
         ) : (
           <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows onCreated={({ gl }) => keepWebGL(gl)}>
             <color attach="background" args={["#9eb8cc"]} />
-            <Suspense fallback={null}>
+            <ModelSlot>
               <FieldStage />
               <group position={[0, 0, 1.2]}>
                 {loadout.anId === "knight" && loadout.swordId === "rook" ? (
@@ -330,7 +331,7 @@ function AvatarStudio() {
                   />
                 )}
               </group>
-            </Suspense>
+            </ModelSlot>
             <OrbitControls
               ref={controls as never}
               enablePan

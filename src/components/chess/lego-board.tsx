@@ -23,7 +23,7 @@ import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/
 import { activeLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
 import { playLegoBeam, playLegoExplode, playLegoHit, playLegoMagic, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
 import { useResilientGLTF } from "@/lib/resilient-gltf";
-import { LoadGuard } from "@/components/chess/load-guard";
+import { LoadGuard, Later } from "@/components/chess/load-guard";
 
 export const LEGO_BOARD_ID = "lego-universe";
 /** White's default camera: low enough to see the figures and the tower behind the board. */
@@ -1469,9 +1469,8 @@ export function LegoArmy({
           <LoadGuard
             key={`${p.color}${p.type}${p.sq}`}
             fallback={<StandIn type={p.type} color={p.color} sq={p.sq} pitch={pitch} onClick={() => onSquare(p.sq)} render={standIn} />}
-            onFail={() => useResilientGLTF.clear(charUrl(LEGO_ROSTER[p.color][p.type]))}
+            loading={<Later><StandIn type={p.type} color={p.color} sq={p.sq} pitch={pitch} onClick={() => onSquare(p.sq)} render={standIn} /></Later>}
           >
-            <Suspense fallback={null}>
               <SquareFigure
                 id={LEGO_ROSTER[p.color][p.type]}
                 color={p.color}
@@ -1480,15 +1479,12 @@ export function LegoArmy({
                 pitch={pitch}
                 onClick={() => onSquare(p.sq)}
               />
-            </Suspense>
           </LoadGuard>
         ),
       )}
       {fight ? (
-        <LoadGuard key={fight.id} fallback={<StandIn type={fight.type} color={fight.color} sq={fight.to} pitch={pitch} render={standIn} />}>
-          <Suspense fallback={null}>
-            <FightScene fight={fight} pitch={pitch} />
-          </Suspense>
+        <LoadGuard key={fight.id} fallback={<StandIn type={fight.type} color={fight.color} sq={fight.to} pitch={pitch} render={standIn} />} loading={null}>
+          <FightScene fight={fight} pitch={pitch} />
         </LoadGuard>
       ) : null}
       {bursts.map((b) => (
