@@ -91,7 +91,7 @@ export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   agent: { file: "space-police.glb", role: "Hero pawn (Space Police officer)", height: 0.72, gait: "walk", attack: "punch", fx: "#7fb2ff",
     // the hand pushed the shoulder joint forward, off the body; take the arm pivot from the sleeve only
     rig: { jointMat: { armL: "Black", armR: "Black" } } },
-  doom: { file: "doom-bigbrick.glb", role: "Iron Tyrant", height: 1.0, gait: "walk", attack: "blast", fx: "#5dff6a" },
+  doom: { file: "doom-bigbrick.glb?v=81e5b3ee", role: "Iron Tyrant", height: 1.0, gait: "walk", attack: "blast", fx: "#5dff6a" },
   widow: { file: "widow.glb", role: "Spy Queen (villain queen minifig)", height: 0.86, gait: "walk", attack: "kick", fx: "#ff5a5a",
     // the pistol stretched the right arm's box, pulling its shoulder up and forward off the body;
     // the shoulder now mirrors the clean left one
