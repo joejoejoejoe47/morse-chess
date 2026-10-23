@@ -28,10 +28,10 @@ $throws = static function (callable $f): bool {
 
 $prices = LegoBuilder::prices();
 check(count($prices) > 250, 'palette prices load (big piece box)');
-foreach (['brick-2x4', 'plate-4x8', 'tile-2x2', 'slope-45-2x2', 'arch-1x4', 'window-1x2x2', 'window-round', 'bay-window', 'castle-door', 'door-4-panes', 'fence-picket', 'barrel'] as $plain) {
+foreach (['brick-2x4', 'plate-4x8', 'tile-2x2', 'slope-45-2x2', 'arch-1x4', 'window-1x2x2', 'window-round', 'bay-window', 'castle-door', 'door-4-panes', 'fence-picket', 'barrel', 'tree', 'tree-pine', 'bush', 'flowers', 'roses', 'fern', 'rock'] as $plain) {
     check(($prices[$plain] ?? -1) === 0, "plain piece $plain is free");
 }
-foreach (['tree', 'palm-tree', 'lamppost', 'pirate-flag', 'treasure-chest', 'crystal-5', 'statuette', 'tile-map', 'horse', 'car-base', 'portcullis', 'rocket-tail'] as $cool) {
+foreach (['palm-tree', 'tree-tall', 'tree-stump', 'lamppost', 'pirate-flag', 'treasure-chest', 'crystal-5', 'statuette', 'tile-map', 'horse', 'car-base', 'portcullis', 'rocket-tail'] as $cool) {
     check(($prices[$cool] ?? 0) >= 1, "cool piece $cool costs coins");
 }
 $paid = array_keys(array_filter($prices, static fn ($p) => $p > 0));
@@ -41,13 +41,14 @@ check(LegoBuilder::legoBuilderState('u-own', [])['allowed'] === true, 'board own
 check(LegoBuilder::legoBuilderState('u-gift', [])['allowed'] === true, 'Rooko2014 may build');
 check(LegoBuilder::legoBuilderState('u-no', [])['allowed'] === false, 'others may not');
 check($throws(static fn () => LegoBuilder::saveLegoBuild('u-no', ['pieces' => []])), 'non-owner cannot save');
-check($throws(static fn () => LegoBuilder::buyLegoPart('u-no', ['id' => 'tree'])), 'non-owner cannot buy');
+check($throws(static fn () => LegoBuilder::buyLegoPart('u-no', ['id' => 'palm-tree'])), 'non-owner cannot buy');
 
 // buying deducts coins once
-$r = LegoBuilder::buyLegoPart('u-own', ['id' => 'tree']);
-check($r['coins'] === 10 - $prices['tree'] && in_array('tree', $r['owned'], true), 'buying a piece deducts coins');
-$r = LegoBuilder::buyLegoPart('u-own', ['id' => 'tree']);
-check($r['coins'] === 10 - $prices['tree'], 'buying again is free');
+$r = LegoBuilder::buyLegoPart('u-own', ['id' => 'palm-tree']);
+check($r['coins'] === 10 - $prices['palm-tree'] && in_array('palm-tree', $r['owned'], true), 'buying a piece deducts coins');
+$r = LegoBuilder::buyLegoPart('u-own', ['id' => 'palm-tree']);
+check($r['coins'] === 10 - $prices['palm-tree'], 'buying again is free');
+check(count(array_filter(['tree','tree-pine','tree-pine-small','bush','leaves','leaves-big','leaves-small','fern','flowers','flower-2x2','flower-big','roses','vine','sea-grass','rock','rock-panel'], static fn ($id) => $prices[$id] !== 0)) === 0, 'plain nature is free');
 check($throws(static fn () => LegoBuilder::buyLegoPart('u-gift', ['id' => 'gold-bar'])), 'cannot buy without coins');
 check($throws(static fn () => LegoBuilder::buyLegoPart('u-own', ['id' => 'nope'])), 'unknown piece rejected');
 
