@@ -23,6 +23,7 @@ const groups = {
   mounts: avatar.MOUNTS,
   frames: avatar.FRAMES,
   attacks: avatar.ATTACKS,
+  finishes: avatar.FINISHES,
 };
 
 const out = {
