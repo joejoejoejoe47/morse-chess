@@ -11,7 +11,11 @@ const NET_BACKOFF_MS = [400, 1200, 2500];
  * else (reads, and saves/claims that are safe to repeat) is.
  */
 const ONCE_ONLY = /^(buy|send|start|create|place|respond|resign|join|enter|seat|crown|delete|use|cancel)|^(makeMove|hillMove|claimTimeout|hillLeave|leaveQueue|joinQueue)$/;
-const SAFE_TO_REPEAT = (name: string) => !ONCE_ONLY.test(name);
+/** Once-only by name, but the server makes them safe to repeat (buying a piece you own charges nothing). */
+const IDEMPOTENT = new Set(["buyLegoPart"]);
+const SAFE_TO_REPEAT = (name: string) => IDEMPOTENT.has(name) || !ONCE_ONLY.test(name);
+/** Host/proxy hiccups (database busy, Cloudflare could not reach the origin): worth one more try. */
+const RETRY_STATUS = new Set([500, 502, 503, 504, 520, 521, 522, 523, 524]);
 
 /**
  * Client for the PHP backend. Replaces TanStack Start's createServerFn:
@@ -24,7 +28,7 @@ export function rpc<T = any>(name: string): (opts?: RpcOptions) => Promise<T> {
     const body = JSON.stringify({ data: opts?.data ?? {} });
     const tries = SAFE_TO_REPEAT(name) ? NET_BACKOFF_MS.length + 1 : 1;
     let res: Response | null = null;
-    for (let attempt = 0; attempt < tries && !res; attempt++) {
+    for (let attempt = 0; attempt < tries; attempt++) {
       if (attempt > 0) await new Promise((r) => window.setTimeout(r, NET_BACKOFF_MS[attempt - 1]));
       try {
         res = await fetch(apiUrl(`/api/rpc/${name}`), {
@@ -35,7 +39,10 @@ export function rpc<T = any>(name: string): (opts?: RpcOptions) => Promise<T> {
         });
       } catch {
         if (attempt + 1 < tries) console.warn(`[rpc] ${name}: network error, retry ${attempt + 1}/${tries - 1}`);
+        continue;
       }
+      if (!RETRY_STATUS.has(res.status) || attempt + 1 >= tries) break;
+      console.warn(`[rpc] ${name}: server busy (${res.status}), retry ${attempt + 1}/${tries - 1}`);
     }
     if (!res) throw new Error("Could not reach the club. Check your connection and try again.");
     const reply = (await res.json().catch(() => null)) as

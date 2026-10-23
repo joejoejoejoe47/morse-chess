@@ -497,6 +497,19 @@ check($legoBuy['ok'] === true && $legoBuy['coins'] === 1 && in_array('lego-unive
 check(\Morse\Avatar::setPieceStyle('dave', ['style' => 'lg'])['style'] === 'lg', 'owning the board unlocks LG');
 Db::run('UPDATE profiles SET piece_style = ? WHERE user_id = ?', ['3d', 'dave']);
 
+// ── Brick builder purchases ───────────────────────────────────────────────
+$lp = \Morse\LegoBuilder::prices();
+check($lp['palm-tree'] === 1 && $lp['tree'] === 0 && $lp['bush'] === 0 && $lp['rock'] === 0, 'most nature is free, cool nature costs 1');
+Db::run('UPDATE profiles SET coins = 6 WHERE user_id = ?', ['dave']);
+$b1 = \Morse\LegoBuilder::buyLegoPart('dave', ['id' => 'palm-tree']);
+check($b1['coins'] === 5 && in_array('palm-tree', $b1['owned'], true), 'buying a piece takes its coins and unlocks it');
+$b2 = \Morse\LegoBuilder::buyLegoPart('dave', ['id' => 'palm-tree']);
+check($b2['coins'] === 5 && in_array('palm-tree', $b2['owned'], true), 'buying it again (retry, double click) charges nothing');
+check(\Morse\LegoBuilder::buyLegoPart('dave', ['id' => 'tree'])['coins'] === 5, 'free pieces cost nothing');
+Db::run('UPDATE profiles SET coins = 2 WHERE user_id = ?', ['dave']);
+check(fails(call([\Morse\LegoBuilder::class, 'buyLegoPart'], 'dave', ['id' => 't-rex']), 'That piece costs 5 Morse coins.'), 'not enough coins is refused');
+check(!in_array('t-rex', \Morse\LegoBuilder::legoBuilderState('dave', [])['owned'], true) && (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['dave']) === 2, 'a refused buy neither unlocks nor charges');
+
 // ── RA free trial schedule ─────────────────────────────────────────────────
 $free = [];
 for ($n = 1; $n <= 110; $n++) {

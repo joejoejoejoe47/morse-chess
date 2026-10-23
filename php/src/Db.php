@@ -69,12 +69,26 @@ final class Db
                     Config::get('DB_PORT', '3306'),
                     Config::get('DB_NAME', 'morse_chess')
                 );
-            $pdo = new PDO($dsn, Config::get('DB_USER', 'root'), Config::get('DB_PASS', ''), [
+            $opts = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
                 PDO::ATTR_STRINGIFY_FETCHES => false,
-            ]);
+            ];
+            // The shared host caps connections per user (1203 max_user_connections, 1040 too many
+            // connections) and drops one now and then (2002/2006); wait a moment and try again.
+            for ($try = 0; ; $try++) {
+                try {
+                    $pdo = new PDO($dsn, Config::get('DB_USER', 'root'), Config::get('DB_PASS', ''), $opts);
+                    break;
+                } catch (\PDOException $e) {
+                    $code = (int) ($e->errorInfo[1] ?? $e->getCode());
+                    if ($try >= 3 || !in_array($code, [1040, 1203, 2002, 2006, 2013], true)) {
+                        throw $e;
+                    }
+                    usleep([250000, 600000, 1200000][$try]);
+                }
+            }
             // All timestamps are UTC strings; keep the session consistent.
             $pdo->exec("SET time_zone = '+00:00'");
             self::$driver = 'mysql';

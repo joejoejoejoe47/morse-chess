@@ -202,6 +202,7 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [buying, setBuying] = useState<PaletteItem | null>(null);
+  const [buyError, setBuyError] = useState("");
   const [inUse, setInUse] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [cat, setCat] = useState<string>("all");
@@ -260,21 +261,46 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
   const pick = (it: PaletteItem) => {
     setMode("place");
     if (usable(it.id)) setSelected(it.id);
-    else setBuying(it);
+    else {
+      setBuyError("");
+      setBuying(it);
+    }
   };
 
+  const buyingNow = useRef(false);
   const buy = async (it: PaletteItem) => {
+    if (buyingNow.current) return; // one purchase at a time, even on a double click
+    buyingNow.current = true;
     setBusy(true);
+    setBuyError("");
     try {
       const r = await buyLegoPart({ data: { id: it.id } });
       setCoins(r.coins);
       setOwned(new Set(r.owned));
+      if (!r.owned.includes(it.id)) throw new Error("The piece did not unlock. Your coins were not taken; try again.");
       setSelected(it.id);
+      setMode("place");
       setBuying(null);
-      setStatus(`${it.name} is yours. Build away!`);
+      setStatus(`${it.name} is yours. Click the board to place it!`);
     } catch (e) {
-      setStatus((e as Error).message);
+      // The buy may have gone through before the connection dropped: check what the server has.
+      try {
+        const s = await legoBuilderState();
+        setCoins(s.coins);
+        setOwned(new Set(s.owned));
+        if (s.owned.includes(it.id)) {
+          setSelected(it.id);
+          setMode("place");
+          setBuying(null);
+          setStatus(`${it.name} is yours. Click the board to place it!`);
+          return;
+        }
+      } catch {
+        /* keep the first error */
+      }
+      setBuyError((e as Error).message || "That did not go through. Try again.");
     } finally {
+      buyingNow.current = false;
       setBusy(false);
     }
   };
@@ -612,8 +638,16 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
                   </p>
                   <p className="mt-1 text-[13px] text-mist">You keep it for every build.</p>
                   {coins < priceOf(buying.id) ? <p className="mt-2 text-sm text-danger">You have {coins} Morse coins.</p> : null}
+                  {buyError ? (
+                    <p className="mt-2 text-sm text-danger" role="alert" data-testid="buy-error">
+                      {buyError}
+                    </p>
+                  ) : null}
                   <div className="mt-5 flex gap-2">
-                    <button type="button" className={`${pillGhost} flex-1`} onClick={() => setBuying(null)}>
+                    <button type="button" className={`${pillGhost} flex-1`} onClick={() => {
+                        setBuying(null);
+                        setBuyError("");
+                      }}>
                       Not now
                     </button>
                     <button

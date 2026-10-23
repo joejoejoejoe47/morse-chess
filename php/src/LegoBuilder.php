@@ -98,14 +98,17 @@ final class LegoBuilder
         }
         $price = $prices[$id];
         return Db::transaction(static function () use ($userId, $id, $price): array {
-            $have = in_array($id, self::owned($userId), true);
-            if (!$have && $price > 0) {
-                // Conditional update: two parallel purchases cannot both spend the same coins.
-                $changed = Db::run('UPDATE profiles SET coins = coins - ? WHERE user_id = ? AND coins >= ?', [$price, $userId, $price]);
-                if ($changed === 0) {
-                    throw new RpcError("That piece costs {$price} Morse coins.");
+            if ($price > 0) {
+                // Unlock first: the primary key lets only one request add the piece, and only that
+                // request pays. A repeat (double click, network retry) finds it owned and pays nothing.
+                $added = Db::insertIgnore('lego_parts_owned', ['user_id' => $userId, 'part_id' => $id, 'bought_at' => Db::now()]);
+                if ($added > 0) {
+                    // Conditional update: two parallel purchases cannot both spend the same coins.
+                    $changed = Db::run('UPDATE profiles SET coins = coins - ? WHERE user_id = ? AND coins >= ?', [$price, $userId, $price]);
+                    if ($changed === 0) {
+                        throw new RpcError("That piece costs {$price} Morse coins."); // rolls the unlock back
+                    }
                 }
-                Db::insertIgnore('lego_parts_owned', ['user_id' => $userId, 'part_id' => $id, 'bought_at' => Db::now()]);
             }
             return [
                 'coins' => (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', [$userId]),
