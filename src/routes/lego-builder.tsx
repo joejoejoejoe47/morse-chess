@@ -2,22 +2,23 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import * as THREE from "three";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
+import { MorseCrest } from "@/components/club-brand";
+import { asset } from "@/lib/base";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { keepWebGL } from "@/lib/gl-quiet";
 import {
   BUILD_AREA,
   BuildBaseplate,
   LEGO_COLORS,
-  PALETTE_URL,
   RESERVED,
   blocked,
   buildInstances,
   footprint,
   heightMap,
   loadPaletteMeta,
+  loadPaletteNodes,
   pieceMatrix,
   pieceMaterial,
   restLevel,
@@ -40,15 +41,38 @@ export const Route = createFileRoute("/lego-builder")({
 });
 
 const MAX_PIECES = 2500;
-const CATS: { id: string; label: string }[] = [
-  { id: "Cool Pieces", label: "Cool pieces" },
+/** Plain building pieces first (all free), then the themed sets where the cool, paid pieces live. */
+const CATS: { id: string; label: string; cool?: boolean }[] = [
   { id: "Bricks", label: "Bricks" },
   { id: "Plates", label: "Plates" },
   { id: "Tiles", label: "Tiles" },
+  { id: "Slopes", label: "Slopes" },
   { id: "Curves & Arches", label: "Curves & arches" },
   { id: "Round", label: "Round" },
   { id: "Walls & Windows", label: "Walls & windows" },
+  { id: "Doors & Fences", label: "Doors & fences" },
+  { id: "Nature", label: "Nature", cool: true },
+  { id: "Animals", label: "Animals", cool: true },
+  { id: "Treasure & Crystals", label: "Treasure & crystals", cool: true },
+  { id: "Castle", label: "Castle", cool: true },
+  { id: "Town", label: "Town & signs", cool: true },
+  { id: "Vehicles", label: "Vehicles", cool: true },
+  { id: "Space & Rockets", label: "Space & rockets", cool: true },
 ];
+
+const pillWalnut =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-gold-line/55 bg-walnut px-5 text-[15px] font-medium text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition hover:border-gold-line hover:text-ivory disabled:opacity-45";
+const pillGhost =
+  "felt-inset inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-line px-5 text-[15px] text-cream transition hover:border-line-strong hover:text-ivory disabled:opacity-45";
+
+function CoinPill({ coins }: { coins: number }) {
+  return (
+    <span className="flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5" data-testid="coins" title="Morse coins">
+      <img src={asset("/morse-coin.png")} alt="Morse coins" className="size-7 shrink-0" />
+      <span className="font-display text-lg leading-none tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
+    </span>
+  );
+}
 
 function LegoBuilderRoute() {
   const door = useClubDoor();
@@ -58,17 +82,6 @@ function LegoBuilderRoute() {
 }
 
 type Palette = { items: PaletteItem[]; nodes: Map<string, THREE.Object3D> };
-let paletteScene: Promise<Map<string, THREE.Object3D>> | null = null;
-function loadPaletteNodes(): Promise<Map<string, THREE.Object3D>> {
-  paletteScene ??= new GLTFLoader().loadAsync(PALETTE_URL).then((g) => {
-    const m = new Map<string, THREE.Object3D>();
-    const root = g.scene.children[0]?.name === "palette" ? g.scene.children[0] : g.scene;
-    for (const c of root.children) m.set(c.name, c);
-    return m;
-  });
-  return paletteScene;
-}
-
 function BuilderGate() {
   const [state, setState] = useState<LegoBuilderState | null>(null);
   const [palette, setPalette] = useState<Palette | null>(null);
@@ -95,13 +108,17 @@ function BuilderGate() {
 
 function Notice({ text, link }: { text: string; link?: boolean }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#11162a] p-6 text-center text-[#f4f1e8]">
-      <p className="max-w-md text-base">{text}</p>
-      {link ? (
-        <Link to="/" className="rounded-xl bg-[#f2cd37] px-4 py-2 text-sm font-medium text-[#1a140f]">
-          Back to the club
-        </Link>
-      ) : null}
+    <div className="flex min-h-screen items-center justify-center bg-ink p-6 text-center text-ivory">
+      <div className="felt-inset flex max-w-md flex-col items-center gap-4 rounded-xl border border-line p-8">
+        <MorseCrest className="size-14 text-2xl" />
+        <h1 className="font-display text-3xl text-ivory">Brick Builder</h1>
+        <p className="text-[15px] leading-relaxed text-mist">{text}</p>
+        {link ? (
+          <Link to="/" className={pillWalnut}>
+            Back to the club
+          </Link>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -140,7 +157,7 @@ function useThumbnails(palette: Palette): Record<string, string> {
         obj.position.set(0, 0, 0);
         obj.traverse((o) => {
           const m = o as THREE.Mesh;
-          if (m.isMesh) m.material = pieceMaterial(m.material as THREE.Material, "#c91a09");
+          if (m.isMesh) m.material = pieceMaterial(m.material as THREE.Material, "#b8743f");
         });
         scene.add(obj);
         const box = new THREE.Box3().setFromObject(obj);
@@ -187,6 +204,8 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
   const [buying, setBuying] = useState<PaletteItem | null>(null);
   const [inUse, setInUse] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [cat, setCat] = useState<string>("all");
+  const [query, setQuery] = useState("");
 
   const priceOf = useCallback((id: string) => prices[id] ?? items.get(id)?.price ?? 0, [prices, items]);
   const usable = useCallback((id: string) => priceOf(id) === 0 || owned.has(id), [priceOf, owned]);
@@ -354,30 +373,76 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
   };
 
   const sel = items.get(selected);
+  const q = query.trim().toLowerCase();
+  const shown = CATS.filter((c) => cat === "all" || c.id === cat)
+    .map((c) => ({ ...c, list: palette.items.filter((i) => i.cat === c.id && (!q || i.name.toLowerCase().includes(q))) }))
+    .filter((c) => c.list.length);
+  const paidCount = palette.items.filter((i) => priceOf(i.id) > 0).length;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#11162a] text-[#f4f1e8]">
-      {/* The big piece box on the left */}
-      <aside className="flex h-full w-[360px] shrink-0 flex-col border-r border-white/10 bg-[#171d36]">
-        <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
-          <Link to="/" className="text-sm text-[#cfd6ea] hover:text-white">
-            ← Club
-          </Link>
-          <span className="rounded-full bg-[#f2cd37] px-3 py-1 text-xs font-semibold text-[#1a140f]" data-testid="coins">
-            {coins.toLocaleString()} Morse coins
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-ink font-sans text-ivory">
+      {/* Header, like the rest of the club */}
+      <header className="flex items-center gap-3 border-b border-line bg-ink px-4 py-2.5">
+        <Link to="/" className="flex items-center gap-3" aria-label="Back to the club">
+          <MorseCrest />
+          <span className="hidden flex-col leading-tight sm:flex">
+            <span className="font-display text-2xl text-ivory">Brick Builder</span>
+            <span className="text-xs uppercase tracking-[0.18em] text-mist">Morse Chess · Brick Heroes</span>
           </span>
+        </Link>
+        <Link to="/" className={`${pillGhost} ml-2 hidden md:inline-flex`}>
+          ← Club
+        </Link>
+        <div className="ml-auto">
+          <CoinPill coins={coins} />
         </div>
-        <h1 className="px-4 pt-3 text-lg font-semibold">Brick pieces</h1>
-        <p className="px-4 pb-2 text-xs text-[#aab3cf]">Most pieces are free. The coolest ones cost a few Morse coins, once.</p>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4" data-testid="palette">
-          {CATS.map((cat) => {
-            const list = palette.items.filter((i) => i.cat === cat.id);
-            if (!list.length) return null;
-            return (
-              <section key={cat.id} className="mt-3">
-                <h2 className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-[#f2cd37]">{cat.label}</h2>
+      </header>
+
+      <div className="flex min-h-0 flex-1">
+        {/* The big piece box on the left */}
+        <aside className="flex h-full w-[372px] shrink-0 flex-col border-r border-line bg-ink-soft">
+          <div className="px-4 pt-4">
+            <h1 className="font-display text-3xl leading-none text-ivory">Brick pieces</h1>
+            <p className="mt-1.5 text-[13px] leading-snug text-mist">
+              {palette.items.length} official pieces. Plain pieces are free; {paidCount} cool ones cost a few Morse coins, once.
+            </p>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search pieces…"
+              aria-label="Search pieces"
+              className="mt-3 w-full rounded-full border border-line bg-panel px-4 text-[15px] text-ivory placeholder:text-mist/70 focus:border-gold-line focus:outline-none"
+            />
+            <div className="-mx-1 mt-3 flex flex-wrap gap-1.5 pb-2" data-testid="categories">
+              {[{ id: "all", label: "All" }, ...CATS].map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCat(c.id)}
+                  className={`min-h-0 min-w-0 rounded-full border px-3 py-1 text-[12.5px] transition ${
+                    cat === c.id
+                      ? "border-gold-line bg-walnut text-ivory"
+                      : "border-line bg-panel text-cream hover:border-line-strong"
+                  }`}
+                >
+                  {"cool" in c && c.cool ? <span className="mr-1 text-[#f6e7b2]">✦</span> : null}
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto border-t border-line px-3 pb-6" data-testid="palette">
+            {shown.length ? null : <p className="px-2 pt-6 text-sm text-mist">No pieces match “{query}”.</p>}
+            {shown.map((c) => (
+              <section key={c.id} className="mt-4">
+                <h2 className="flex items-baseline gap-2 px-1 pb-2 font-display text-xl text-cream">
+                  {c.label}
+                  <span className="font-sans text-[11px] uppercase tracking-[0.14em] text-mist">
+                    {c.cool ? "cool pieces" : "free"}
+                  </span>
+                </h2>
                 <div className="grid grid-cols-3 gap-2">
-                  {list.map((it) => {
+                  {c.list.map((it) => {
                     const price = priceOf(it.id);
                     const have = usable(it.id);
                     const on = selected === it.id && mode === "place";
@@ -387,23 +452,30 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
                         type="button"
                         title={it.name}
                         onClick={() => pick(it)}
-                        className={`relative flex flex-col items-center rounded-xl border p-1 text-[10px] leading-tight transition ${
-                          on ? "border-[#f2cd37] bg-[#2a3360]" : "border-white/10 bg-[#1f2646] hover:border-white/30"
+                        className={`felt-inset relative flex flex-col items-center rounded-xl border p-1.5 text-[10.5px] leading-tight text-cream transition ${
+                          on ? "border-gold-line ring-1 ring-gold-line/60" : "border-line hover:border-line-strong"
                         }`}
                       >
                         {thumbs[it.id] ? (
-                          <img src={thumbs[it.id]} alt="" className={`h-20 w-20 object-contain ${have ? "" : "opacity-70"}`} />
+                          <img src={thumbs[it.id]} alt="" className={`h-20 w-20 object-contain ${have ? "" : "opacity-75"}`} />
                         ) : (
                           <div className="h-20 w-20 animate-pulse rounded-lg bg-white/5" />
                         )}
                         <span className="mt-0.5 line-clamp-2 text-center">{it.name}</span>
                         {price > 0 ? (
                           <span
-                            className={`absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
-                              have ? "bg-[#237841] text-white" : "bg-[#f2cd37] text-[#1a140f]"
+                            className={`absolute right-1 top-1 flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
+                              have ? "border-forest bg-forest/80 text-ivory" : "border-[#6d5a32] bg-black/70 text-[#f6e7b2]"
                             }`}
                           >
-                            {have ? "Owned" : `${price} 🪙`}
+                            {have ? (
+                              "Owned"
+                            ) : (
+                              <>
+                                <img src={asset("/morse-coin.png")} alt="" className="size-3.5" />
+                                {price}
+                              </>
+                            )}
                           </span>
                         ) : null}
                       </button>
@@ -411,141 +483,154 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
                   })}
                 </div>
               </section>
-            );
-          })}
-        </div>
-      </aside>
-
-      <main className="relative flex min-w-0 flex-1 flex-col">
-        {/* Top bar: name, save, builds, use */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#171d36] py-2 pl-3 pr-28">
-          <input
-            value={name}
-            maxLength={40}
-            onChange={(e) => {
-              setName(e.target.value);
-              setDirty(true);
-            }}
-            className="w-48 rounded-lg border border-white/15 bg-[#11162a] px-2 py-1.5 text-sm"
-            aria-label="Build name"
-          />
-          <button type="button" disabled={busy} onClick={() => void save()} className="rounded-lg bg-[#36aebf] px-3 py-1.5 text-sm font-medium text-[#0b1020] disabled:opacity-50">
-            Save
-          </button>
-          <button type="button" disabled={busy} onClick={() => void use()} className="rounded-lg bg-[#f2cd37] px-3 py-1.5 text-sm font-semibold text-[#1a140f] disabled:opacity-50">
-            Use
-          </button>
-          <select
-            value={buildId ?? ""}
-            onChange={(e) => (e.target.value ? void load(e.target.value) : fresh())}
-            className="rounded-lg border border-white/15 bg-[#11162a] px-2 py-1.5 text-sm"
-            aria-label="My builds"
-          >
-            <option value="">+ New build</option>
-            {builds.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name} ({b.count}){b.active ? " ★ in use" : ""}
-              </option>
             ))}
-          </select>
-          {buildId ? (
-            <button type="button" disabled={busy} onClick={() => void remove()} className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-[#f4d2c8]">
-              Delete
-            </button>
-          ) : null}
-          <span className="ml-auto text-xs text-[#aab3cf]">
-            {pieces.length} / {MAX_PIECES} pieces{dirty ? " · not saved" : ""}
-          </span>
-        </div>
-
-        <div className="relative min-h-0 flex-1">
-          <Canvas
-            shadows
-            camera={{ position: [0, 46, 70], fov: 40, near: 0.5, far: 1200 }}
-            onCreated={({ gl }) => keepWebGL(gl)}
-            data-testid="builder-canvas"
-          >
-            <BuilderScene
-              pieces={pieces}
-              items={items}
-              nodes={palette.nodes}
-              selected={sel}
-              color={color}
-              rot={rot}
-              mode={mode}
-              onPlace={place}
-              onErase={erase}
-            />
-          </Canvas>
-
-          {/* Tool bar */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-3">
-            {status ? <div className="pointer-events-auto rounded-lg bg-black/60 px-3 py-1.5 text-sm">{status}</div> : null}
-            {inUse ? (
-              <Link to="/" className="pointer-events-auto rounded-lg bg-[#237841] px-3 py-1.5 text-sm font-medium text-white">
-                Play chess on it →
-              </Link>
-            ) : null}
-            <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-2xl bg-[#171d36]/90 p-2 shadow-xl">
-              <div className="flex flex-wrap gap-1" aria-label="Colours">
-                {LEGO_COLORS.map((c) => (
-                  <button
-                    key={c.hex}
-                    type="button"
-                    title={c.name}
-                    onClick={() => {
-                      setColor(c.hex);
-                      setMode("place");
-                    }}
-                    className={`h-6 w-6 rounded-md border-2 ${color === c.hex ? "border-white" : "border-transparent"}`}
-                    style={{ background: c.hex }}
-                  />
-                ))}
-              </div>
-              <span className="mx-1 h-6 w-px bg-white/15" />
-              <ToolButton label="Rotate (R)" onClick={() => setRot((r) => (r + 1) % 4)} />
-              <ToolButton label={mode === "erase" ? "Erasing (E)" : "Erase (E)"} active={mode === "erase"} onClick={() => setMode((m) => (m === "erase" ? "place" : "erase"))} />
-              <ToolButton label="Undo" onClick={undo} />
-              <ToolButton label="Redo" onClick={redo} />
-              <ToolButton
-                label="Clear"
-                onClick={() => {
-                  if (pieces.length && window.confirm("Take every piece off?")) commit([]);
-                }}
-              />
-            </div>
-            <p className="text-[11px] text-white/60">
-              Click to place {sel ? `"${sel.name}"` : "a piece"} · drag to look around · scroll to zoom · the chess board sits in the middle
+            <p className="mt-6 px-1 text-[11px] leading-snug text-mist/80">
+              Pieces are official LDraw parts (ldraw.org, CC BY 4.0).
             </p>
           </div>
+        </aside>
 
-          {buying ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <div className="w-80 rounded-2xl bg-[#1f2646] p-5 text-center shadow-2xl">
-                {thumbs[buying.id] ? <img src={thumbs[buying.id]} alt="" className="mx-auto h-24 w-24" /> : null}
-                <h3 className="mt-2 text-lg font-semibold">{buying.name}</h3>
-                <p className="mt-1 text-sm text-[#cfd6ea]">
-                  Buy it for {priceOf(buying.id)} Morse coins? You keep it for every build.
-                </p>
-                {coins < priceOf(buying.id) ? <p className="mt-1 text-sm text-[#f4d2c8]">You have {coins} Morse coins.</p> : null}
-                <div className="mt-4 flex gap-2">
-                  <button type="button" className="flex-1 rounded-xl border border-white/15 py-2 text-sm" onClick={() => setBuying(null)}>
-                    Not now
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy || coins < priceOf(buying.id)}
-                    className="flex-1 rounded-xl bg-[#f2cd37] py-2 text-sm font-semibold text-[#1a140f] disabled:opacity-40"
-                    onClick={() => void buy(buying)}
-                  >
-                    {busy ? "Buying…" : `Buy (${priceOf(buying.id)} 🪙)`}
-                  </button>
+        <main className="relative flex min-w-0 flex-1 flex-col">
+          {/* Build bar: name, save, builds, use */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-line bg-ink-soft px-3 py-2">
+            <input
+              value={name}
+              maxLength={40}
+              onChange={(e) => {
+                setName(e.target.value);
+                setDirty(true);
+              }}
+              className="w-52 rounded-full border border-line bg-panel px-4 font-display text-lg text-ivory focus:border-gold-line focus:outline-none"
+              aria-label="Build name"
+            />
+            <button type="button" disabled={busy} onClick={() => void save()} className={pillGhost}>
+              Save
+            </button>
+            <button type="button" disabled={busy} onClick={() => void use()} className={pillWalnut}>
+              Use on my board
+            </button>
+            <select
+              value={buildId ?? ""}
+              onChange={(e) => (e.target.value ? void load(e.target.value) : fresh())}
+              className="rounded-full border border-line bg-panel px-4 text-[15px] text-cream"
+              aria-label="My builds"
+            >
+              <option value="">+ New build</option>
+              {builds.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.count}){b.active ? " ★ in use" : ""}
+                </option>
+              ))}
+            </select>
+            {buildId ? (
+              <button type="button" disabled={busy} onClick={() => void remove()} className={`${pillGhost} text-danger`}>
+                Delete
+              </button>
+            ) : null}
+            <span className="ml-auto text-[13px] tabular-nums text-mist">
+              {pieces.length} / {MAX_PIECES} pieces{dirty ? " · not saved" : ""}
+            </span>
+          </div>
+
+          <div className="relative min-h-0 flex-1">
+            <Canvas
+              shadows
+              camera={{ position: [0, 46, 70], fov: 40, near: 0.5, far: 1200 }}
+              onCreated={({ gl }) => keepWebGL(gl)}
+              data-testid="builder-canvas"
+            >
+              <BuilderScene
+                pieces={pieces}
+                items={items}
+                nodes={palette.nodes}
+                selected={sel}
+                color={color}
+                rot={rot}
+                mode={mode}
+                onPlace={place}
+                onErase={erase}
+              />
+            </Canvas>
+
+            {/* Tool bar */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 p-3">
+              {status ? (
+                <div className="felt-inset pointer-events-auto rounded-full border border-line px-4 py-1.5 text-sm text-cream">{status}</div>
+              ) : null}
+              {inUse ? (
+                <Link to="/" className={`${pillWalnut} pointer-events-auto`}>
+                  Play chess on it →
+                </Link>
+              ) : null}
+              <div className="felt-inset pointer-events-auto flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-line px-3 py-2 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+                <div className="flex max-w-[520px] flex-wrap justify-center gap-1.5" aria-label="Colours">
+                  {LEGO_COLORS.map((c) => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      title={c.name}
+                      aria-label={c.name}
+                      onClick={() => {
+                        setColor(c.hex);
+                        setMode("place");
+                      }}
+                      className={`size-7 min-h-0 min-w-0 rounded-full border transition ${
+                        color === c.hex ? "border-ivory ring-2 ring-gold-line ring-offset-2 ring-offset-panel" : "border-black/40 hover:scale-110"
+                      }`}
+                      style={{ background: c.hex }}
+                    />
+                  ))}
+                </div>
+                <span className="mx-1 h-8 w-px bg-line" />
+                <ToolButton label="Rotate (R)" onClick={() => setRot((r) => (r + 1) % 4)} />
+                <ToolButton label={mode === "erase" ? "Erasing (E)" : "Erase (E)"} active={mode === "erase"} onClick={() => setMode((m) => (m === "erase" ? "place" : "erase"))} />
+                <ToolButton label="Undo" onClick={undo} />
+                <ToolButton label="Redo" onClick={redo} />
+                <ToolButton
+                  label="Clear"
+                  onClick={() => {
+                    if (pieces.length && window.confirm("Take every piece off?")) commit([]);
+                  }}
+                />
+              </div>
+              <p className="text-[12px] text-mist">
+                Click to place {sel ? `"${sel.name}"` : "a piece"} · drag to look around · scroll to zoom · the chess board sits in the middle
+              </p>
+            </div>
+
+            {buying ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[2px]">
+                <div className="felt-inset w-[22rem] rounded-xl border border-line-strong p-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]" data-testid="buy-modal">
+                  {thumbs[buying.id] ? <img src={thumbs[buying.id]} alt="" className="mx-auto h-28 w-28" /> : null}
+                  <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-mist">Cool piece</p>
+                  <h3 className="font-display text-3xl text-ivory">{buying.name}</h3>
+                  <p className="mt-2 flex items-center justify-center gap-1.5 text-[15px] text-cream">
+                    Buy it for
+                    <img src={asset("/morse-coin.png")} alt="" className="size-5" />
+                    <span className="font-display text-xl text-[#f6e7b2]">{priceOf(buying.id)}</span>
+                    Morse coins?
+                  </p>
+                  <p className="mt-1 text-[13px] text-mist">You keep it for every build.</p>
+                  {coins < priceOf(buying.id) ? <p className="mt-2 text-sm text-danger">You have {coins} Morse coins.</p> : null}
+                  <div className="mt-5 flex gap-2">
+                    <button type="button" className={`${pillGhost} flex-1`} onClick={() => setBuying(null)}>
+                      Not now
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || coins < priceOf(buying.id)}
+                      className={`${pillWalnut} flex-1`}
+                      onClick={() => void buy(buying)}
+                    >
+                      {busy ? "Buying…" : `Buy for ${priceOf(buying.id)}`}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : null}
-        </div>
-      </main>
+            ) : null}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
@@ -555,7 +640,9 @@ function ToolButton({ label, onClick, active }: { label: string; onClick: () => 
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg px-3 py-1.5 text-sm ${active ? "bg-[#c91a09] text-white" : "bg-[#2a3360] text-[#f4f1e8] hover:bg-[#34407a]"}`}
+      className={`inline-flex min-h-10 items-center rounded-full border px-4 text-sm transition ${
+        active ? "border-gold-line bg-walnut text-ivory" : "border-line bg-panel-2 text-cream hover:border-line-strong hover:text-ivory"
+      }`}
     >
       {label}
     </button>
@@ -666,8 +753,8 @@ function BuilderScene({ pieces, items, nodes, selected, color, rot, mode, onPlac
 
   return (
     <>
-      <color attach="background" args={["#9fc8ef"]} />
-      <fog attach="fog" args={["#9fc8ef", 140, 320]} />
+      <color attach="background" args={["#14160f"]} />
+      <fog attach="fog" args={["#14160f", 150, 340]} />
       <hemisphereLight args={["#ffffff", "#5a6a50", 1.6]} />
       <directionalLight
         position={[40, 80, 30]}
@@ -708,7 +795,7 @@ function ChessBoardStandIn() {
     const g = c.getContext("2d")!;
     for (let i = 0; i < 8; i++)
       for (let j = 0; j < 8; j++) {
-        g.fillStyle = (i + j) % 2 ? "#6a8bb8" : "#e9eef5";
+        g.fillStyle = (i + j) % 2 ? "#6b4f3a" : "#e8dcc4";
         g.fillRect(i * 32, j * 32, 32, 32);
       }
     const t = new THREE.CanvasTexture(c);
@@ -720,7 +807,7 @@ function ChessBoardStandIn() {
     <group raycast={() => {}}>
       <mesh position={[0, 0.3, 0]} receiveShadow raycast={() => {}}>
         <boxGeometry args={[RESERVED * 2, 0.6, RESERVED * 2]} />
-        <meshStandardMaterial color="#8a9099" roughness={0.6} />
+        <meshStandardMaterial color="#3a2d22" roughness={0.6} />
       </mesh>
       <mesh position={[0, 0.62, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
         <planeGeometry args={[32, 32]} />

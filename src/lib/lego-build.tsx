@@ -7,11 +7,15 @@
  */
 import { useEffect, useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as THREE from "three";
 import { asset } from "@/lib/base";
 
-export const PALETTE_URL = asset("/lego/builder/palette.glb");
-export const PALETTE_META_URL = asset("/lego/builder/palette.json");
+/** Bump with every palette rebuild so browsers do not keep an old GLB. */
+const PALETTE_V = "b972114d";
+export const PALETTE_URL = asset(`/lego/builder/palette.glb?v=${PALETTE_V}`);
+export const PALETTE_META_URL = asset(`/lego/builder/palette.json?v=${PALETTE_V}`);
 
 export type PaletteItem = { id: string; name: string; cat: string; price: number; tint: boolean; w: number; d: number; h: number };
 export type LegoPiece = { p: string; x: number; y: number; z: number; r: number; c: string };
@@ -45,6 +49,20 @@ export const LEGO_COLORS: { name: string; hex: string }[] = [
   { name: "Bright Pink", hex: "#e4adc8" },
   { name: "Pearl Gold", hex: "#aa7f2e" },
 ];
+
+let nodesCache: Promise<Map<string, THREE.Object3D>> | null = null;
+/** Palette item nodes without React (the builder loads them up front). */
+export function loadPaletteNodes(): Promise<Map<string, THREE.Object3D>> {
+  nodesCache ??= new GLTFLoader()
+    .setMeshoptDecoder(MeshoptDecoder)
+    .loadAsync(PALETTE_URL)
+    .then((g) => bakePaletteNodes(g.scene))
+    .catch((e) => {
+      nodesCache = null;
+      throw e;
+    });
+  return nodesCache;
+}
 
 let metaCache: Promise<PaletteItem[]> | null = null;
 export function loadPaletteMeta(): Promise<PaletteItem[]> {
@@ -97,15 +115,63 @@ export function pieceMatrix(pc: LegoPiece, it: PaletteItem, out = new THREE.Matr
   return out.compose(new THREE.Vector3(pc.x + fw / 2, pc.y * PLATE, pc.z + fd / 2), q, new THREE.Vector3(1, 1, 1));
 }
 
+function plainAttr(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): THREE.BufferAttribute {
+  if (!(a as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute && a.array instanceof Float32Array && !a.normalized)
+    return a as THREE.BufferAttribute;
+  const n = a.count;
+  const s = a.itemSize;
+  const f = new Float32Array(n * s);
+  for (let i = 0; i < n; i++) {
+    f[i * s] = a.getX(i);
+    if (s > 1) f[i * s + 1] = a.getY(i);
+    if (s > 2) f[i * s + 2] = a.getZ(i);
+    if (s > 3) f[i * s + 3] = a.getW(i);
+  }
+  return new THREE.BufferAttribute(f, s);
+}
+
+/**
+ * The palette GLB is meshopt-compressed and quantised, which leaves a small scale/offset on each mesh node.
+ * Bake that into plain float geometry once so every mesh sits in its item's own space (instancing uses the
+ * geometry alone).
+ */
+export function bakePaletteNodes(scene: THREE.Object3D): Map<string, THREE.Object3D> {
+  const root = scene.children[0]?.name === "palette" ? scene.children[0] : scene;
+  const m = new Map<string, THREE.Object3D>();
+  for (const item of root.children) {
+    m.set(item.name, item);
+    if (item.userData.baked) continue;
+    item.userData.baked = true;
+    item.position.set(0, 0, 0);
+    item.updateMatrixWorld(true);
+    const inv = item.matrixWorld.clone().invert();
+    const meshes: THREE.Mesh[] = [];
+    item.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+    });
+    for (const mesh of meshes) {
+      const rel = inv.clone().multiply(mesh.matrixWorld);
+      const g = new THREE.BufferGeometry();
+      for (const [k, a] of Object.entries(mesh.geometry.attributes)) g.setAttribute(k, plainAttr(a));
+      if (mesh.geometry.index) g.setIndex(mesh.geometry.index);
+      g.applyMatrix4(rel);
+      g.computeBoundingBox();
+      g.computeBoundingSphere();
+      mesh.geometry = g;
+      if (mesh.parent !== item) item.add(mesh);
+      mesh.position.set(0, 0, 0);
+      mesh.quaternion.identity();
+      mesh.scale.set(1, 1, 1);
+    }
+    item.updateMatrixWorld(true);
+  }
+  return m;
+}
+
 /** The palette GLB's item nodes by id. */
 export function usePaletteNodes(): Map<string, THREE.Object3D> {
   const gltf = useGLTF(PALETTE_URL);
-  return useMemo(() => {
-    const m = new Map<string, THREE.Object3D>();
-    gltf.scene.updateMatrixWorld(true);
-    for (const c of gltf.scene.children[0]?.name === "palette" ? gltf.scene.children[0].children : gltf.scene.children) m.set(c.name, c);
-    return m;
-  }, [gltf]);
+  return useMemo(() => bakePaletteNodes(gltf.scene), [gltf]);
 }
 
 const tintCache = new Map<string, THREE.MeshStandardMaterial>();

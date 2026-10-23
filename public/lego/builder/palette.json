@@ -452,7 +452,7 @@
  {
   "id": "fence-1x4",
   "name": "Lattice Fence 1x4",
-  "cat": "Walls & Windows",
+  "cat": "Doors & Fences",
   "price": 0,
   "tint": true,
   "w": 4,
@@ -462,7 +462,7 @@
  {
   "id": "fence-1x4x2",
   "name": "Tall Lattice Fence",
-  "cat": "Walls & Windows",
+  "cat": "Doors & Fences",
   "price": 0,
   "tint": true,
   "w": 4,
@@ -472,7 +472,7 @@
  {
   "id": "fence-spindle",
   "name": "Spindle Fence",
-  "cat": "Walls & Windows",
+  "cat": "Doors & Fences",
   "price": 0,
   "tint": true,
   "w": 4,
@@ -523,7 +523,7 @@
   "id": "window-round",
   "name": "Round-top Window",
   "cat": "Walls & Windows",
-  "price": 1,
+  "price": 0,
   "tint": true,
   "w": 2,
   "d": 1,
@@ -532,7 +532,7 @@
  {
   "id": "door-frame",
   "name": "Door Frame 1x4x6",
-  "cat": "Walls & Windows",
+  "cat": "Doors & Fences",
   "price": 0,
   "tint": true,
   "w": 4,
@@ -542,8 +542,8 @@
  {
   "id": "castle-door",
   "name": "Castle Door",
-  "cat": "Cool Pieces",
-  "price": 2,
+  "cat": "Doors & Fences",
+  "price": 0,
   "tint": true,
   "w": 1,
   "d": 4,
@@ -552,8 +552,8 @@
  {
   "id": "bay-window",
   "name": "Bay Window 3x8x6",
-  "cat": "Cool Pieces",
-  "price": 3,
+  "cat": "Walls & Windows",
+  "price": 0,
   "tint": true,
   "w": 8,
   "d": 3,
@@ -562,7 +562,7 @@
  {
   "id": "lamppost",
   "name": "Lamppost",
-  "cat": "Cool Pieces",
+  "cat": "Town",
   "price": 2,
   "tint": false,
   "w": 2,
@@ -572,7 +572,7 @@
  {
   "id": "tree",
   "name": "Oval Tree",
-  "cat": "Cool Pieces",
+  "cat": "Nature",
   "price": 2,
   "tint": false,
   "w": 4,
@@ -582,7 +582,7 @@
  {
   "id": "flowers",
   "name": "Flowers",
-  "cat": "Cool Pieces",
+  "cat": "Nature",
   "price": 1,
   "tint": false,
   "w": 3,
@@ -592,7 +592,7 @@
  {
   "id": "leaves",
   "name": "Leafy Plant",
-  "cat": "Cool Pieces",
+  "cat": "Nature",
   "price": 1,
   "tint": false,
   "w": 5,
@@ -602,8 +602,8 @@
  {
   "id": "barrel",
   "name": "Barrel",
-  "cat": "Cool Pieces",
-  "price": 1,
+  "cat": "Town",
+  "price": 0,
   "tint": false,
   "w": 2,
   "d": 2,
@@ -612,7 +612,7 @@
  {
   "id": "treasure-chest",
   "name": "Treasure Chest",
-  "cat": "Cool Pieces",
+  "cat": "Treasure & Crystals",
   "price": 3,
   "tint": false,
   "w": 5,
@@ -622,7 +622,7 @@
  {
   "id": "gold-bar",
   "name": "Gold Bar",
-  "cat": "Cool Pieces",
+  "cat": "Treasure & Crystals",
   "price": 5,
   "tint": false,
   "w": 2,
@@ -632,7 +632,7 @@
  {
   "id": "pirate-flag",
   "name": "Pirate Flag",
-  "cat": "Cool Pieces",
+  "cat": "Castle",
   "price": 2,
   "tint": false,
   "w": 1,
@@ -642,7 +642,7 @@
  {
   "id": "control-tile",
   "name": "Control Panel Tile",
-  "cat": "Cool Pieces",
+  "cat": "Town",
   "price": 1,
   "tint": false,
   "w": 2,
@@ -652,7 +652,7 @@
  {
   "id": "steering-wheel",
   "name": "Steering Wheel",
-  "cat": "Cool Pieces",
+  "cat": "Vehicles",
   "price": 2,
   "tint": false,
   "w": 2,
@@ -662,7 +662,7 @@
  {
   "id": "cat",
   "name": "Cat",
-  "cat": "Cool Pieces",
+  "cat": "Animals",
   "price": 3,
   "tint": false,
   "w": 2,
@@ -672,7 +672,7 @@
  {
   "id": "parrot",
   "name": "Parrot",
-  "cat": "Cool Pieces",
+  "cat": "Animals",
   "price": 3,
   "tint": false,
   "w": 1,
@@ -682,7 +682,7 @@
  {
   "id": "dolphin",
   "name": "Dolphin",
-  "cat": "Cool Pieces",
+  "cat": "Animals",
   "price": 4,
   "tint": false,
   "w": 4,
@@ -692,7 +692,7 @@
  {
   "id": "sea-turtle",
   "name": "Sea Turtle",
-  "cat": "Cool Pieces",
+  "cat": "Animals",
   "price": 4,
   "tint": false,
   "w": 6,
@@ -702,11 +702,2121 @@
  {
   "id": "frog",
   "name": "Frog",
-  "cat": "Cool Pieces",
+  "cat": "Animals",
   "price": 2,
   "tint": false,
   "w": 1,
   "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-1x10",
+  "name": "Brick 1x10",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 10,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-1x12",
+  "name": "Brick 1x12",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 12,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-1x16",
+  "name": "Brick 1x16",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 16,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-2x10",
+  "name": "Brick 2x10",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 10,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "brick-4x6",
+  "name": "Brick 4x6",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 4,
+  "h": 3
+ },
+ {
+  "id": "brick-4x10",
+  "name": "Brick 4x10",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 10,
+  "d": 4,
+  "h": 3
+ },
+ {
+  "id": "brick-2x2-corner",
+  "name": "Brick 2x2 Corner",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "brick-2x2x3",
+  "name": "Brick 2x2x3",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 9
+ },
+ {
+  "id": "brick-2x6x3",
+  "name": "Brick 2x6x3",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 2,
+  "h": 9
+ },
+ {
+  "id": "brick-1x6x5",
+  "name": "Brick 1x6x5",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 1,
+  "h": 15
+ },
+ {
+  "id": "brick-1x2x2",
+  "name": "Brick 1x2x2",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "brick-1x2x3",
+  "name": "Brick 1x2x3",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 9
+ },
+ {
+  "id": "brick-masonry-1x2",
+  "name": "Masonry Brick 1x2",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-log-1x2",
+  "name": "Log Brick 1x2",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-log-1x4",
+  "name": "Log Brick 1x4",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-headlight",
+  "name": "Headlight Brick 1x1",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-side-stud",
+  "name": "Brick 1x1 Side Stud",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-1x2-side-studs",
+  "name": "Brick 1x2 Side Studs",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-1x2-no-stud",
+  "name": "Brick 1x2 Smooth Top",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "brick-shutter",
+  "name": "Brick 1x1x2 Shutter Holder",
+  "cat": "Bricks",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "plate-1x3",
+  "name": "Plate 1x3",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "plate-1x8",
+  "name": "Plate 1x8",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 8,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "plate-1x10",
+  "name": "Plate 1x10",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 10,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "plate-1x12",
+  "name": "Plate 1x12",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 12,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "plate-2x8",
+  "name": "Plate 2x8",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 8,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "plate-2x12",
+  "name": "Plate 2x12",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 12,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "plate-4x4",
+  "name": "Plate 4x4",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "plate-4x6",
+  "name": "Plate 4x6",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "plate-4x8",
+  "name": "Plate 4x8",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 8,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "plate-4x10",
+  "name": "Plate 4x10",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 10,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "plate-4x12",
+  "name": "Plate 4x12",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 12,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "plate-6x10",
+  "name": "Plate 6x10",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 10,
+  "d": 6,
+  "h": 1
+ },
+ {
+  "id": "plate-6x12",
+  "name": "Plate 6x12",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 12,
+  "d": 6,
+  "h": 1
+ },
+ {
+  "id": "plate-6x14",
+  "name": "Plate 6x14",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 14,
+  "d": 6,
+  "h": 1
+ },
+ {
+  "id": "plate-8x16",
+  "name": "Plate 8x16",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 16,
+  "d": 8,
+  "h": 1
+ },
+ {
+  "id": "plate-corner-2x2",
+  "name": "Plate 2x2 Corner",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "plate-corner-cut-3x3",
+  "name": "Plate 3x3 Cut Corner",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 3,
+  "h": 1
+ },
+ {
+  "id": "plate-jumper-1x2",
+  "name": "Jumper Plate 1x2",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "plate-jumper-2x2",
+  "name": "Jumper Plate 2x2",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "wedge-plate-2x3-r",
+  "name": "Wedge Plate 2x3 Right",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 3,
+  "h": 1
+ },
+ {
+  "id": "wedge-plate-2x3-l",
+  "name": "Wedge Plate 2x3 Left",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 3,
+  "h": 1
+ },
+ {
+  "id": "wedge-plate-2x4",
+  "name": "Wedge Plate 2x4",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "wedge-plate-4x2-r",
+  "name": "Wedge Plate 4x2 Right",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "wedge-plate-4x2-l",
+  "name": "Wedge Plate 4x2 Left",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "round-plate-2x2",
+  "name": "Round Plate 2x2",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "round-plate-4x4",
+  "name": "Round Plate 4x4",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "round-plate-6x6",
+  "name": "Round Plate 6x6",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 6,
+  "h": 1
+ },
+ {
+  "id": "tile-1x3",
+  "name": "Tile 1x3",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "tile-1x6",
+  "name": "Tile 1x6",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "tile-2x3",
+  "name": "Tile 2x3",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "tile-2x6",
+  "name": "Tile 2x6",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "tile-4x4",
+  "name": "Tile 4x4",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "tile-corner-2x2",
+  "name": "Tile 2x2 Corner",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "tile-round-1x1",
+  "name": "Round Tile 1x1",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "tile-quarter-1x1",
+  "name": "Quarter Round Tile 1x1",
+  "cat": "Tiles",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "plate-round-ends",
+  "name": "Plate 1x2 Round Ends",
+  "cat": "Plates",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "slope-45-2x1",
+  "name": "Slope 45 2x1",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-45-2x2",
+  "name": "Slope 45 2x2",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-45-2x3",
+  "name": "Slope 45 2x3",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-45-2x4",
+  "name": "Slope 45 2x4",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-45-2x2-double",
+  "name": "Slope 45 2x2 Double",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-45-2x4-double",
+  "name": "Slope 45 2x4 Double",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-45-2x2-convex",
+  "name": "Slope 45 2x2 Convex",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-45-2x2-concave",
+  "name": "Slope 45 2x2 Concave",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-inv-2x1",
+  "name": "Inverted Slope 2x1",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-inv-2x2",
+  "name": "Inverted Slope 2x2",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "slope-33-3x1",
+  "name": "Slope 33 3x1",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 3,
+  "h": 3
+ },
+ {
+  "id": "slope-33-3x2",
+  "name": "Slope 33 3x2",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 3,
+  "h": 3
+ },
+ {
+  "id": "slope-33-3x4",
+  "name": "Slope 33 3x4",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 3,
+  "h": 3
+ },
+ {
+  "id": "slope-65-2x2x2",
+  "name": "Slope 65 2x2x2",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 6
+ },
+ {
+  "id": "slope-75-2x1x3",
+  "name": "Slope 75 2x1x3",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 2,
+  "h": 9
+ },
+ {
+  "id": "slope-75-2x2x3",
+  "name": "Slope 75 2x2x3",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 9
+ },
+ {
+  "id": "slope-30-1x1",
+  "name": "Cheese Slope 1x1",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 1,
+  "h": 2
+ },
+ {
+  "id": "slope-30-1x2",
+  "name": "Slope 30 1x2",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 2
+ },
+ {
+  "id": "slope-18-2x4",
+  "name": "Slope 18 2x4",
+  "cat": "Slopes",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 4,
+  "h": 3
+ },
+ {
+  "id": "curve-4x1",
+  "name": "Curved Slope 4x1",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 4,
+  "h": 3
+ },
+ {
+  "id": "curve-4x1-double",
+  "name": "Curved Slope 4x1 Double",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 4,
+  "h": 2
+ },
+ {
+  "id": "curve-3x1",
+  "name": "Curved Slope 3x1",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 3,
+  "h": 3
+ },
+ {
+  "id": "arch-1x3",
+  "name": "Arch 1x3",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "arch-1x8x2",
+  "name": "Arch 1x8x2",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 8,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "arch-1x5x4",
+  "name": "Arch 1x5x4",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 5,
+  "h": 12
+ },
+ {
+  "id": "arch-1x12x3",
+  "name": "Arch 1x12x3",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 12,
+  "d": 1,
+  "h": 9
+ },
+ {
+  "id": "arch-1x6-raised",
+  "name": "Arch 1x6 Raised",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 6,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "arch-1x3x2",
+  "name": "Arch 1x3x2",
+  "cat": "Curves & Arches",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 3,
+  "h": 6
+ },
+ {
+  "id": "cone-1x1",
+  "name": "Cone 1x1",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "cone-2x2x2",
+  "name": "Cone 2x2x2",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 6
+ },
+ {
+  "id": "cone-4x4x2",
+  "name": "Cone 4x4x2",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 4,
+  "h": 6
+ },
+ {
+  "id": "cone-3x3x2",
+  "name": "Cone 3x3x2",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 3,
+  "h": 6
+ },
+ {
+  "id": "dish-2x2",
+  "name": "Dish 2x2",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "dish-4x4",
+  "name": "Dish 4x4",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 4,
+  "h": 2
+ },
+ {
+  "id": "cylinder-half-2x4x4",
+  "name": "Half Cylinder 2x4x4",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 2,
+  "h": 12
+ },
+ {
+  "id": "dome-2x2",
+  "name": "Dome 2x2",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "macaroni-2x2",
+  "name": "Round Corner 2x2",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "round-corner-4x4",
+  "name": "Round Corner Brick 4x4",
+  "cat": "Round",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 4,
+  "h": 3
+ },
+ {
+  "id": "panel-1x2x1",
+  "name": "Panel 1x2x1",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "panel-1x4x1",
+  "name": "Panel 1x4x1",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "panel-1x2x3",
+  "name": "Panel 1x2x3",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 9
+ },
+ {
+  "id": "panel-1x4x3",
+  "name": "Panel 1x4x3",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 1,
+  "h": 9
+ },
+ {
+  "id": "panel-corner",
+  "name": "Panel 3x3x6 Corner Wall",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 3,
+  "h": 18
+ },
+ {
+  "id": "window-1x4x6",
+  "name": "Window 1x4x6",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 1,
+  "h": 18
+ },
+ {
+  "id": "window-1x2x2-flat",
+  "name": "Window 1x2x2 Flat Front",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "window-1x4x5",
+  "name": "Window 1x4x5",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 1,
+  "h": 15
+ },
+ {
+  "id": "window-shutters",
+  "name": "Window Shutter 1x2x3",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": true,
+  "w": 1,
+  "d": 2,
+  "h": 8
+ },
+ {
+  "id": "glass-1x4x6",
+  "name": "Glass Wall 1x4x6",
+  "cat": "Walls & Windows",
+  "price": 0,
+  "tint": false,
+  "w": 4,
+  "d": 1,
+  "h": 17
+ },
+ {
+  "id": "door-4-panes",
+  "name": "Door 1x4x6 with 4 Panes",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 1,
+  "h": 17
+ },
+ {
+  "id": "door-stud-handle",
+  "name": "Door 1x4x6 Stud Handle",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 3,
+  "d": 1,
+  "h": 17
+ },
+ {
+  "id": "door-frame-flat",
+  "name": "Door Frame 1x4x6 Flat",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 1,
+  "h": 18
+ },
+ {
+  "id": "garage-door",
+  "name": "Garage Roller Door",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 8,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "fence-picket",
+  "name": "Picket Fence 1x4x2",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "railing-quarter",
+  "name": "Quarter Round Railing",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 4,
+  "h": 6
+ },
+ {
+  "id": "ladder",
+  "name": "Ladder 1x2",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "stairs",
+  "name": "Stairs 7x4x6",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 4,
+  "d": 7,
+  "h": 18
+ },
+ {
+  "id": "bars-1x4x3",
+  "name": "Bars 1x4x3",
+  "cat": "Doors & Fences",
+  "price": 0,
+  "tint": true,
+  "w": 2,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "tree-pine",
+  "name": "Pine Tree",
+  "cat": "Nature",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 20
+ },
+ {
+  "id": "tree-pine-small",
+  "name": "Small Pine Tree",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 3,
+  "d": 3,
+  "h": 12
+ },
+ {
+  "id": "tree-tall",
+  "name": "Tall Tree",
+  "cat": "Nature",
+  "price": 3,
+  "tint": false,
+  "w": 5,
+  "d": 5,
+  "h": 35
+ },
+ {
+  "id": "palm-tree",
+  "name": "Palm Tree",
+  "cat": "Nature",
+  "price": 4,
+  "tint": false,
+  "w": 18,
+  "d": 16,
+  "h": 38
+ },
+ {
+  "id": "tree-stump",
+  "name": "Hollow Stump",
+  "cat": "Nature",
+  "price": 2,
+  "tint": false,
+  "w": 5,
+  "d": 6,
+  "h": 11
+ },
+ {
+  "id": "bush",
+  "name": "Bush",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 14
+ },
+ {
+  "id": "leaves-big",
+  "name": "Big Leaves",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 5,
+  "d": 6,
+  "h": 1
+ },
+ {
+  "id": "leaves-small",
+  "name": "Small Leaves",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 3,
+  "d": 4,
+  "h": 1
+ },
+ {
+  "id": "fern",
+  "name": "Fern",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 6,
+  "d": 6,
+  "h": 4
+ },
+ {
+  "id": "roses",
+  "name": "Roses",
+  "cat": "Nature",
+  "price": 2,
+  "tint": false,
+  "w": 3,
+  "d": 3,
+  "h": 7
+ },
+ {
+  "id": "flower-2x2",
+  "name": "Flower 2x2",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "flower-big",
+  "name": "Big Flower",
+  "cat": "Nature",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 2
+ },
+ {
+  "id": "vine",
+  "name": "Vine",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 16,
+  "d": 3,
+  "h": 2
+ },
+ {
+  "id": "sea-grass",
+  "name": "Sea Grass",
+  "cat": "Nature",
+  "price": 1,
+  "tint": false,
+  "w": 4,
+  "d": 1,
+  "h": 14
+ },
+ {
+  "id": "rock",
+  "name": "Rock Boulder",
+  "cat": "Nature",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 9
+ },
+ {
+  "id": "rock-panel",
+  "name": "Rock Wall",
+  "cat": "Nature",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 2,
+  "h": 12
+ },
+ {
+  "id": "horse",
+  "name": "Horse",
+  "cat": "Animals",
+  "price": 4,
+  "tint": false,
+  "w": 2,
+  "d": 9,
+  "h": 18
+ },
+ {
+  "id": "cow",
+  "name": "Cow",
+  "cat": "Animals",
+  "price": 4,
+  "tint": false,
+  "w": 2,
+  "d": 8,
+  "h": 11
+ },
+ {
+  "id": "pig",
+  "name": "Pig",
+  "cat": "Animals",
+  "price": 3,
+  "tint": false,
+  "w": 2,
+  "d": 5,
+  "h": 5
+ },
+ {
+  "id": "goat",
+  "name": "Goat",
+  "cat": "Animals",
+  "price": 3,
+  "tint": false,
+  "w": 1,
+  "d": 4,
+  "h": 9
+ },
+ {
+  "id": "chicken",
+  "name": "Chicken",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 1,
+  "d": 2,
+  "h": 5
+ },
+ {
+  "id": "dog",
+  "name": "Dog",
+  "cat": "Animals",
+  "price": 3,
+  "tint": false,
+  "w": 1,
+  "d": 4,
+  "h": 9
+ },
+ {
+  "id": "puppy",
+  "name": "Puppy",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 6
+ },
+ {
+  "id": "rabbit",
+  "name": "Rabbit",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 3,
+  "h": 11
+ },
+ {
+  "id": "mouse",
+  "name": "Mouse",
+  "cat": "Animals",
+  "price": 1,
+  "tint": false,
+  "w": 1,
+  "d": 4,
+  "h": 2
+ },
+ {
+  "id": "owl",
+  "name": "Owl",
+  "cat": "Animals",
+  "price": 3,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 7
+ },
+ {
+  "id": "seagull",
+  "name": "Seagull",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 3,
+  "d": 3,
+  "h": 6
+ },
+ {
+  "id": "penguin",
+  "name": "Penguin",
+  "cat": "Animals",
+  "price": 3,
+  "tint": false,
+  "w": 2,
+  "d": 1,
+  "h": 6
+ },
+ {
+  "id": "monkey",
+  "name": "Monkey",
+  "cat": "Animals",
+  "price": 3,
+  "tint": false,
+  "w": 2,
+  "d": 5,
+  "h": 7
+ },
+ {
+  "id": "crocodile",
+  "name": "Crocodile",
+  "cat": "Animals",
+  "price": 4,
+  "tint": false,
+  "w": 3,
+  "d": 13,
+  "h": 5
+ },
+ {
+  "id": "snake",
+  "name": "Snake",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 1,
+  "d": 5,
+  "h": 1
+ },
+ {
+  "id": "spider",
+  "name": "Spider",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 3,
+  "d": 2,
+  "h": 2
+ },
+ {
+  "id": "bat",
+  "name": "Bat",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 3,
+  "d": 1,
+  "h": 5
+ },
+ {
+  "id": "scorpion",
+  "name": "Scorpion",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 3,
+  "h": 5
+ },
+ {
+  "id": "crab",
+  "name": "Crab",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 3,
+  "d": 2,
+  "h": 2
+ },
+ {
+  "id": "starfish",
+  "name": "Starfish",
+  "cat": "Animals",
+  "price": 1,
+  "tint": false,
+  "w": 3,
+  "d": 2,
+  "h": 2
+ },
+ {
+  "id": "octopus",
+  "name": "Octopus",
+  "cat": "Animals",
+  "price": 3,
+  "tint": false,
+  "w": 6,
+  "d": 8,
+  "h": 6
+ },
+ {
+  "id": "shark",
+  "name": "Shark",
+  "cat": "Animals",
+  "price": 5,
+  "tint": false,
+  "w": 5,
+  "d": 10,
+  "h": 7
+ },
+ {
+  "id": "fish",
+  "name": "Fish",
+  "cat": "Animals",
+  "price": 1,
+  "tint": false,
+  "w": 1,
+  "d": 3,
+  "h": 3
+ },
+ {
+  "id": "wolf",
+  "name": "Wolf",
+  "cat": "Animals",
+  "price": 4,
+  "tint": false,
+  "w": 1,
+  "d": 4,
+  "h": 9
+ },
+ {
+  "id": "camel",
+  "name": "Camel",
+  "cat": "Animals",
+  "price": 4,
+  "tint": false,
+  "w": 2,
+  "d": 10,
+  "h": 18
+ },
+ {
+  "id": "t-rex",
+  "name": "T. rex",
+  "cat": "Animals",
+  "price": 5,
+  "tint": false,
+  "w": 4,
+  "d": 18,
+  "h": 22
+ },
+ {
+  "id": "butterfly",
+  "name": "Butterfly",
+  "cat": "Animals",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 1,
+  "h": 2
+ },
+ {
+  "id": "crystal-5",
+  "name": "Crystal",
+  "cat": "Treasure & Crystals",
+  "price": 3,
+  "tint": false,
+  "w": 1,
+  "d": 1,
+  "h": 5
+ },
+ {
+  "id": "crystal-4",
+  "name": "Crystal Small",
+  "cat": "Treasure & Crystals",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "crystal-cluster",
+  "name": "Crystal Cluster",
+  "cat": "Treasure & Crystals",
+  "price": 4,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 3
+ },
+ {
+  "id": "crystal-rock",
+  "name": "Crystal Rock",
+  "cat": "Treasure & Crystals",
+  "price": 5,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 7
+ },
+ {
+  "id": "gem",
+  "name": "Gem",
+  "cat": "Treasure & Crystals",
+  "price": 3,
+  "tint": false,
+  "w": 1,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "heart-gem",
+  "name": "Heart Gem",
+  "cat": "Treasure & Crystals",
+  "price": 3,
+  "tint": false,
+  "w": 1,
+  "d": 1,
+  "h": 4
+ },
+ {
+  "id": "goblet",
+  "name": "Golden Goblet",
+  "cat": "Treasure & Crystals",
+  "price": 2,
+  "tint": false,
+  "w": 1,
+  "d": 1,
+  "h": 5
+ },
+ {
+  "id": "crown",
+  "name": "Crown",
+  "cat": "Treasure & Crystals",
+  "price": 4,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 5
+ },
+ {
+  "id": "coins",
+  "name": "Gold Coins",
+  "cat": "Treasure & Crystals",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 3,
+  "h": 1
+ },
+ {
+  "id": "trophy",
+  "name": "Trophy Cup",
+  "cat": "Treasure & Crystals",
+  "price": 3,
+  "tint": false,
+  "w": 3,
+  "d": 2,
+  "h": 9
+ },
+ {
+  "id": "statuette",
+  "name": "Golden Statue",
+  "cat": "Treasure & Crystals",
+  "price": 5,
+  "tint": false,
+  "w": 1,
+  "d": 1,
+  "h": 5
+ },
+ {
+  "id": "gargoyle",
+  "name": "Gargoyle Statue",
+  "cat": "Treasure & Crystals",
+  "price": 4,
+  "tint": false,
+  "w": 2,
+  "d": 1,
+  "h": 5
+ },
+ {
+  "id": "nugget",
+  "name": "Gold Nugget",
+  "cat": "Treasure & Crystals",
+  "price": 2,
+  "tint": false,
+  "w": 1,
+  "d": 1,
+  "h": 3
+ },
+ {
+  "id": "portcullis",
+  "name": "Castle Portcullis",
+  "cat": "Castle",
+  "price": 5,
+  "tint": false,
+  "w": 8,
+  "d": 1,
+  "h": 31
+ },
+ {
+  "id": "castle-gate-arched",
+  "name": "Arched Castle Gate",
+  "cat": "Castle",
+  "price": 4,
+  "tint": false,
+  "w": 1,
+  "d": 4,
+  "h": 22
+ },
+ {
+  "id": "turret-top",
+  "name": "Turret Top",
+  "cat": "Castle",
+  "price": 3,
+  "tint": true,
+  "w": 8,
+  "d": 4,
+  "h": 7
+ },
+ {
+  "id": "turret-quarter",
+  "name": "Turret Quarter",
+  "cat": "Castle",
+  "price": 3,
+  "tint": true,
+  "w": 7,
+  "d": 7,
+  "h": 7
+ },
+ {
+  "id": "castle-wall-window",
+  "name": "Castle Wall with Window",
+  "cat": "Castle",
+  "price": 2,
+  "tint": true,
+  "w": 5,
+  "d": 2,
+  "h": 18
+ },
+ {
+  "id": "castle-flag",
+  "name": "Castle Flag",
+  "cat": "Castle",
+  "price": 2,
+  "tint": false,
+  "w": 1,
+  "d": 7,
+  "h": 12
+ },
+ {
+  "id": "cannon",
+  "name": "Cannon Base",
+  "cat": "Castle",
+  "price": 3,
+  "tint": false,
+  "w": 3,
+  "d": 4,
+  "h": 5
+ },
+ {
+  "id": "lamppost-ornate",
+  "name": "Ornate Lamppost",
+  "cat": "Town",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 21
+ },
+ {
+  "id": "lamppost-old",
+  "name": "Street Lamp",
+  "cat": "Town",
+  "price": 2,
+  "tint": false,
+  "w": 1,
+  "d": 3,
+  "h": 24
+ },
+ {
+  "id": "flag-2x2",
+  "name": "Flag 2x2",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 1,
+  "d": 3,
+  "h": 5
+ },
+ {
+  "id": "flag-pennant",
+  "name": "Pennant Flag",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 1,
+  "d": 4,
+  "h": 3
+ },
+ {
+  "id": "signpost",
+  "name": "Signpost",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 5,
+  "d": 1,
+  "h": 11
+ },
+ {
+  "id": "roadsign-round",
+  "name": "Round Road Sign",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 14
+ },
+ {
+  "id": "roadsign-octagon",
+  "name": "Stop Sign",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 14
+ },
+ {
+  "id": "barrel-big",
+  "name": "Big Barrel",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 10
+ },
+ {
+  "id": "tile-map",
+  "name": "Treasure Map Tile",
+  "cat": "Town",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "tile-radar",
+  "name": "Radar Screen Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "tile-gauges",
+  "name": "Gauges Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "tile-computer",
+  "name": "Computer Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "tile-wood",
+  "name": "Wood Plank Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 4,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "tile-danger",
+  "name": "Danger Stripe Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 4,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "tile-solar",
+  "name": "Solar Panel Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 4,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "tile-piano",
+  "name": "Piano Keys Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 4,
+  "d": 1,
+  "h": 1
+ },
+ {
+  "id": "tile-arrow",
+  "name": "Arrow Tile",
+  "cat": "Town",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 1
+ },
+ {
+  "id": "car-base",
+  "name": "Car Chassis",
+  "cat": "Vehicles",
+  "price": 3,
+  "tint": false,
+  "w": 5,
+  "d": 10,
+  "h": 6
+ },
+ {
+  "id": "wheel-set",
+  "name": "Wheels Plate 2x2",
+  "cat": "Vehicles",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 2,
+  "h": 4
+ },
+ {
+  "id": "windscreen-2x4",
+  "name": "Windscreen 2x4x2",
+  "cat": "Vehicles",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 2,
+  "h": 6
+ },
+ {
+  "id": "windscreen-canopy",
+  "name": "Canopy 4x4",
+  "cat": "Vehicles",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 6
+ },
+ {
+  "id": "mudguard",
+  "name": "Car Mudguard",
+  "cat": "Vehicles",
+  "price": 2,
+  "tint": true,
+  "w": 4,
+  "d": 3,
+  "h": 5
+ },
+ {
+  "id": "engine",
+  "name": "Car Engine",
+  "cat": "Vehicles",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 4
+ },
+ {
+  "id": "propeller",
+  "name": "Propeller",
+  "cat": "Vehicles",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 3,
+  "h": 1
+ },
+ {
+  "id": "seat",
+  "name": "Seat 2x2",
+  "cat": "Vehicles",
+  "price": 1,
+  "tint": false,
+  "w": 2,
+  "d": 2,
+  "h": 6
+ },
+ {
+  "id": "anchor",
+  "name": "Anchor",
+  "cat": "Vehicles",
+  "price": 2,
+  "tint": false,
+  "w": 6,
+  "d": 6,
+  "h": 7
+ },
+ {
+  "id": "boat-deck",
+  "name": "Boat Deck 6x6",
+  "cat": "Vehicles",
+  "price": 4,
+  "tint": true,
+  "w": 6,
+  "d": 6,
+  "h": 3
+ },
+ {
+  "id": "rocket-tail",
+  "name": "Rocket Tail",
+  "cat": "Space & Rockets",
+  "price": 3,
+  "tint": true,
+  "w": 2,
+  "d": 5,
+  "h": 6
+ },
+ {
+  "id": "jet-engine",
+  "name": "Jet Engine Plate",
+  "cat": "Space & Rockets",
+  "price": 2,
+  "tint": false,
+  "w": 4,
+  "d": 3,
+  "h": 3
+ },
+ {
+  "id": "plane-engine",
+  "name": "Plane Engine",
+  "cat": "Space & Rockets",
+  "price": 2,
+  "tint": false,
+  "w": 2,
+  "d": 5,
+  "h": 8
+ },
+ {
+  "id": "antenna",
+  "name": "Antenna",
+  "cat": "Space & Rockets",
+  "price": 1,
+  "tint": false,
+  "w": 1,
+  "d": 1,
+  "h": 24
+ },
+ {
+  "id": "ball-turret",
+  "name": "Ball Turret",
+  "cat": "Space & Rockets",
+  "price": 3,
+  "tint": false,
+  "w": 3,
+  "d": 3,
+  "h": 3
+ },
+ {
+  "id": "space-cone",
+  "name": "Space Cone",
+  "cat": "Space & Rockets",
+  "price": 3,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 14
+ },
+ {
+  "id": "solar-dish",
+  "name": "Satellite Dish",
+  "cat": "Space & Rockets",
+  "price": 3,
+  "tint": false,
+  "w": 4,
+  "d": 4,
+  "h": 2
+ },
+ {
+  "id": "rocket-bricks",
+  "name": "Rocket Thrusters",
+  "cat": "Space & Rockets",
+  "price": 2,
+  "tint": false,
+  "w": 3,
+  "d": 3,
   "h": 3
  }
 ]

@@ -27,10 +27,15 @@ $throws = static function (callable $f): bool {
 };
 
 $prices = LegoBuilder::prices();
-check(count($prices) > 40, 'palette prices load');
-check(($prices['brick-2x4'] ?? -1) === 0, 'bricks are free');
+check(count($prices) > 250, 'palette prices load (big piece box)');
+foreach (['brick-2x4', 'plate-4x8', 'tile-2x2', 'slope-45-2x2', 'arch-1x4', 'window-1x2x2', 'window-round', 'bay-window', 'castle-door', 'door-4-panes', 'fence-picket', 'barrel'] as $plain) {
+    check(($prices[$plain] ?? -1) === 0, "plain piece $plain is free");
+}
+foreach (['tree', 'palm-tree', 'lamppost', 'pirate-flag', 'treasure-chest', 'crystal-5', 'statuette', 'tile-map', 'horse', 'car-base', 'portcullis', 'rocket-tail'] as $cool) {
+    check(($prices[$cool] ?? 0) >= 1, "cool piece $cool costs coins");
+}
 $paid = array_keys(array_filter($prices, static fn ($p) => $p > 0));
-check(count($paid) >= 10 && max($prices) <= 5 && min(array_filter($prices)) >= 1, 'cool pieces cost 1-5 coins');
+check(count($paid) >= 80 && count($paid) < count($prices) / 2 && max($prices) <= 5 && min(array_filter($prices)) >= 1, 'cool pieces cost 1-5 coins');
 
 check(LegoBuilder::legoBuilderState('u-own', [])['allowed'] === true, 'board owner may build');
 check(LegoBuilder::legoBuilderState('u-gift', [])['allowed'] === true, 'Rooko2014 may build');
