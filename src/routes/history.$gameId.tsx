@@ -125,9 +125,10 @@ function Replay({ game }: { game: HistoryGame }) {
       if (v) void playSfx(v.kind);
       if (mv.san.includes("#")) void playSfx("mate", 160);
       else if (mv.san.includes("+")) void playSfx("check", 120);
-      else if (mv.captured) void playSfx("capture", 60);
+      // on the Lego board the brick burst plays the explosion clip instead of the capture click
+      else if (mv.captured && game.style !== "lg") void playSfx("capture", 60);
     },
-    [played, verdictAt],
+    [played, verdictAt, game.style],
   );
 
   // Show the emojis for a ply opened from a link (?ply=N) once its verdict is known.
