@@ -134,7 +134,7 @@ final class Avatar
         $style = $data['style'] ?? null;
         $style = in_array($style, ['2d', 'an', 'ra', 'lg'], true) ? $style : '3d';
         if ($style === 'lg' && !self::ownsLegoBoard($userId)) {
-            throw new RpcError('LG comes with the Lego Universe board (60 Morse coins).');
+            throw new RpcError('LG comes with the Brick Heroes board (60 Morse coins).');
         }
         if ($style === 'ra') {
             $current = self::readRow($userId);

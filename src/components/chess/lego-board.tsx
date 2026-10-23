@@ -79,20 +79,20 @@ type RigFix = {
 };
 
 export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
-  hulk: { file: "hulk.glb", role: "Hulk", height: 0.94, gait: "stomp", attack: "smash", fx: "#8cff6a" },
-  spiderman: { file: "spiderman.glb", role: "Spider-Man", height: 0.84, gait: "swing", attack: "webkick", fx: "#f4f4f4" },
-  ironman: { file: "ironman.glb", role: "Iron Man", height: 0.86, gait: "fly", attack: "repulsor", fx: "#9ef3ff" },
+  hulk: { file: "hulk.glb", role: "Smash Giant", height: 0.94, gait: "stomp", attack: "smash", fx: "#8cff6a" },
+  spiderman: { file: "spiderman.glb", role: "Web Slinger", height: 0.84, gait: "swing", attack: "webkick", fx: "#f4f4f4" },
+  ironman: { file: "ironman.glb", role: "Iron Flyer", height: 0.86, gait: "fly", attack: "repulsor", fx: "#9ef3ff" },
   // the good king: the Captain America minifig (OMR 76042) with the official LDraw Cap head and torso prints
-  cap: { file: "captain-america.glb", role: "Captain America (good king minifig)", height: 0.92, gait: "walk", attack: "punch", fx: "#7fb2ff" },
-  panther: { file: "blackpanther.glb", role: "Black Panther", height: 0.96, gait: "walk", attack: "pounce", fx: "#b18cff" },
-  strange: { file: "wizard.glb", role: "Dr. Strange (stand-in: Wizard minifig)", height: 1.0, gait: "portal", attack: "spell", fx: "#ff9a2a",
+  cap: { file: "captain-america.glb", role: "Star Captain (good king minifig)", height: 0.92, gait: "walk", attack: "punch", fx: "#7fb2ff" },
+  panther: { file: "blackpanther.glb", role: "Shadow Cat", height: 0.96, gait: "walk", attack: "pounce", fx: "#b18cff" },
+  strange: { file: "wizard.glb", role: "Wizard (good queen minifig)", height: 1.0, gait: "portal", attack: "spell", fx: "#ff9a2a",
     // the beard sat in the right-arm node (it swung off with the arm); snake and magnifier stay in the hands
     rig: { move: [{ from: "armR", mat: "White", to: "body" }], jointMat: { armL: "Blue", armR: "Blue" } } },
   agent: { file: "space-police.glb", role: "Hero pawn (Space Police officer)", height: 0.72, gait: "walk", attack: "punch", fx: "#7fb2ff",
     // the hand pushed the shoulder joint forward, off the body; take the arm pivot from the sleeve only
     rig: { jointMat: { armL: "Black", armR: "Black" } } },
-  doom: { file: "doom-bigbrick.glb", role: "Dr. Doom", height: 1.0, gait: "walk", attack: "blast", fx: "#5dff6a" },
-  widow: { file: "widow.glb", role: "Black Widow (villain queen minifig)", height: 0.86, gait: "walk", attack: "kick", fx: "#ff5a5a",
+  doom: { file: "doom-bigbrick.glb", role: "Iron Tyrant", height: 1.0, gait: "walk", attack: "blast", fx: "#5dff6a" },
+  widow: { file: "widow.glb", role: "Spy Queen (villain queen minifig)", height: 0.86, gait: "walk", attack: "kick", fx: "#ff5a5a",
     // the pistol stretched the right arm's box, pulling its shoulder up and forward off the body;
     // the shoulder now mirrors the clean left one
     rig: { mirror: ["armR"] } },
@@ -100,10 +100,10 @@ export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   blacktron: { file: "blacktron.glb", role: "Villain bishop (Blacktron minifig)", height: 0.86, gait: "walk", attack: "skystrike", fx: "#ff3b3b",
     // the hand pushed the shoulder joint forward, off the body; take the arm pivot from the sleeve only
     rig: { jointMat: { armL: "Black", armR: "Black" } } },
-  goblin: { file: "insectoid.glb", role: "Green Goblin (stand-in: Insectoids minifig)", height: 0.86, gait: "glide", attack: "bomb", fx: "#a6ff3b",
+  goblin: { file: "insectoid.glb", role: "Bomb Glider (villain knight, Insectoids minifig)", height: 0.86, gait: "glide", attack: "bomb", fx: "#a6ff3b",
     // the hand pushed the shoulder joint forward, off the body; take the arm pivot from the sleeve only
     rig: { jointMat: { armL: "Green", armR: "Green" } } },
-  doombot: { file: "gigabot.glb", role: "Doombot (stand-in: Insectoids Gigabot robot)", height: 0.72, gait: "walk", attack: "punch", fx: "#5dff6a",
+  doombot: { file: "gigabot.glb", role: "Tyrant Bot (villain pawn, Insectoids Gigabot robot)", height: 0.72, gait: "walk", attack: "punch", fx: "#5dff6a",
     // a stray brick on the far side sits in the right-arm node; its shoulder mirrors the clean left one
     rig: { mirror: ["armR"], jointMat: { armL: "Dark_Grey" } } },
 };
