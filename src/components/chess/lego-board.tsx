@@ -12,9 +12,8 @@
  * board top. The tower is "Avenger Tower" by Sohan (Printables, CC BY-SA); the city is Kenney (CC0).
  * See public/lego/CREDITS.md for the full list.
  */
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
@@ -22,7 +21,9 @@ import { asset } from "@/lib/base";
 import { squareToWorld } from "@/lib/chess/board-math";
 import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
 import { activeLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
-import { playLegoBeam, playLegoExplode, playLegoHit, playLegoMagic, playLegoWhoosh } from "@/lib/lego-sfx";
+import { playLegoBeam, playLegoExplode, playLegoHit, playLegoMagic, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
+import { useResilientGLTF } from "@/lib/resilient-gltf";
+import { LoadGuard } from "@/components/chess/load-guard";
 
 export const LEGO_BOARD_ID = "lego-universe";
 /** White's default camera: low enough to see the figures and the tower behind the board. */
@@ -248,7 +249,7 @@ function setJointPivots(root: THREE.Object3D, rig?: RigFix) {
 
 /** A figure's own copy: cloned nodes and materials (so a hit flash only lights this one). */
 function useFigure(id: LegoCharId) {
-  const gltf = useGLTF(charUrl(id));
+  const gltf = useResilientGLTF(charUrl(id));
   return useMemo(() => {
     const root = gltf.scene.clone(true);
     const mats: THREE.MeshStandardMaterial[] = [];
@@ -696,7 +697,7 @@ function rng(seed: number) {
 
 /** A character's own colours, most-used first (by triangle count), near-duplicates merged. */
 function useCharColors(id: LegoCharId) {
-  const gltf = useGLTF(charUrl(id));
+  const gltf = useResilientGLTF(charUrl(id));
   return useMemo(() => {
     const weight = new Map<string, number>();
     gltf.scene.traverse((o) => {
@@ -736,9 +737,28 @@ export type Burst = { id: string; victim: LegoCharId; at: THREE.Vector3; dir: TH
  * fade after a couple of seconds. A white flash, a shockwave ring and a brick clatter go with it.
  */
 function BrickBurst({ burst }: { burst: Burst }) {
+  return (
+    <LoadGuard fallback={<BurstBody burst={burst} colors={PLAIN_BURST} />}>
+      <CharBurst burst={burst} />
+    </LoadGuard>
+  );
+}
+
+/** Grey bricks for a burst whose figure model could not load (same burst, same sound). */
+const PLAIN_BURST = [
+  { color: "#a0a5a9", w: 3 },
+  { color: "#6c6e68", w: 2 },
+  { color: "#d7d7d7", w: 1 },
+];
+
+function CharBurst({ burst }: { burst: Burst }) {
+  const colors = useCharColors(burst.victim);
+  return <BurstBody burst={burst} colors={colors} />;
+}
+
+function BurstBody({ burst, colors }: { burst: Burst; colors: { color: string; w: number }[] }) {
   const { at, dir, seed, delay, limit } = burst;
   const height = LEGO_CHARS[burst.victim].height;
-  const colors = useCharColors(burst.victim);
   const geos = debrisGeometry();
   const refs = useRef<(THREE.Mesh | null)[]>([]);
   const group = useRef<THREE.Group>(null);
@@ -1147,8 +1167,8 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
     }
     if (move === "spell" && t >= tWind) once("chant", () => playLegoMagic());
     if (hitT >= 0) {
+      // no synth thud here: the victim's BrickBurst plays the explosion clip at this very moment
       once("hit", () => {
-        playLegoHit(mv.shake > 0.1);
         shake.current.amp = Math.max(shake.current.amp, mv.shake);
       });
     }
@@ -1289,17 +1309,77 @@ function pickTricks(): Trick[] {
   return out;
 }
 
+/** Draws the standard 3D chess piece (type and colour) at the origin, for a figure that will not load. */
+export type LegoStandInRender = (type: PieceSymbol, color: Color) => ReactNode;
+
+/** A plain rounded piece in the team colour: the last resort if no standard piece is passed in. */
+function PlainStandIn({ type, color }: { type: PieceSymbol; color: Color }) {
+  const h = type === "k" || type === "q" ? 0.62 : type === "p" ? 0.38 : 0.5;
+  const c = color === "w" ? "#eeeae0" : "#2c2c30";
+  return (
+    <group>
+      <mesh position={[0, 0.05, 0]} castShadow>
+        <cylinderGeometry args={[0.26, 0.3, 0.1, 24]} />
+        <meshStandardMaterial color={c} roughness={0.35} />
+      </mesh>
+      <mesh position={[0, 0.1 + (h - 0.2) / 2, 0]} castShadow>
+        <cylinderGeometry args={[0.1, 0.19, h - 0.2, 20]} />
+        <meshStandardMaterial color={c} roughness={0.35} />
+      </mesh>
+      <mesh position={[0, h - 0.04, 0]} castShadow>
+        <sphereGeometry args={[0.13, 20, 14]} />
+        <meshStandardMaterial color={c} roughness={0.35} />
+      </mesh>
+    </group>
+  );
+}
+
+/** What stands on a square when that figure's model failed to load after its retries. */
+function StandIn({
+  type,
+  color,
+  sq,
+  pitch,
+  onClick,
+  render,
+}: {
+  type: PieceSymbol;
+  color: Color;
+  sq: Square;
+  pitch: number;
+  onClick?: () => void;
+  render?: LegoStandInRender;
+}) {
+  const at = useMemo(() => v3(sq, pitch), [sq, pitch]);
+  return (
+    <group
+      position={[at.x, STAND, at.z]}
+      onClick={(e) => {
+        if (!onClick) return;
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      {render ? render(type, color) : <PlainStandIn type={type} color={color} />}
+    </group>
+  );
+}
+
 export function LegoArmy({
   fen,
   lastMove,
   pitch = 1,
   onSquare,
+  standIn,
 }: {
   fen: string;
   lastMove: { from: string; to: string } | null;
   pitch?: number;
   onSquare: (sq: Square) => void;
+  /** The standard 3D piece, drawn in place of any figure whose model will not load. */
+  standIn?: LegoStandInRender;
 }) {
+  useEffect(() => primeLegoExplode(), []);
   const pieces = useMemo(() => {
     const out: P[] = [];
     new Chess(fen).board().forEach((row, r) =>
@@ -1386,20 +1466,35 @@ export function LegoArmy({
     <>
       {pieces.map((p) =>
         fight && p.sq === fight.to && p.color === fight.color ? null : (
-          <SquareFigure
+          <LoadGuard
             key={`${p.color}${p.type}${p.sq}`}
-            id={LEGO_ROSTER[p.color][p.type]}
-            color={p.color}
-            sq={p.sq}
-            spawnFrom={!fight && fought !== moveKey && lastMove?.to === p.sq ? (lastMove.from as Square) : p.sq}
-            pitch={pitch}
-            onClick={() => onSquare(p.sq)}
-          />
+            fallback={<StandIn type={p.type} color={p.color} sq={p.sq} pitch={pitch} onClick={() => onSquare(p.sq)} render={standIn} />}
+            onFail={() => useResilientGLTF.clear(charUrl(LEGO_ROSTER[p.color][p.type]))}
+          >
+            <Suspense fallback={null}>
+              <SquareFigure
+                id={LEGO_ROSTER[p.color][p.type]}
+                color={p.color}
+                sq={p.sq}
+                spawnFrom={!fight && fought !== moveKey && lastMove?.to === p.sq ? (lastMove.from as Square) : p.sq}
+                pitch={pitch}
+                onClick={() => onSquare(p.sq)}
+              />
+            </Suspense>
+          </LoadGuard>
         ),
       )}
-      {fight ? <FightScene key={fight.id} fight={fight} pitch={pitch} /> : null}
+      {fight ? (
+        <LoadGuard key={fight.id} fallback={<StandIn type={fight.type} color={fight.color} sq={fight.to} pitch={pitch} render={standIn} />}>
+          <Suspense fallback={null}>
+            <FightScene fight={fight} pitch={pitch} />
+          </Suspense>
+        </LoadGuard>
+      ) : null}
       {bursts.map((b) => (
-        <BrickBurst key={b.id} burst={b} />
+        <Suspense key={b.id} fallback={null}>
+          <BrickBurst burst={b} />
+        </Suspense>
       ))}
     </>
   );
@@ -1466,7 +1561,7 @@ function duskTint(m: THREE.MeshStandardMaterial) {
 }
 
 function useCityPieces() {
-  const gltf = useGLTF(CITY_URL);
+  const gltf = useResilientGLTF(CITY_URL);
   return useMemo(() => {
     const out: Record<string, THREE.Object3D> = {};
     gltf.scene.children.forEach((c) => {
@@ -1515,7 +1610,7 @@ function StudFrame() {
 }
 
 function useAvengersTower() {
-  const gltf = useGLTF(TOWER_URL);
+  const gltf = useResilientGLTF(TOWER_URL);
   return useMemo(() => {
     const t = gltf.scene.clone(true);
     t.position.set(...TOWER_POS);
@@ -1555,8 +1650,18 @@ function useActiveBuild(): { build: LegoBuild; items: PaletteItem[] } | null {
 
 export function LegoWorld() {
   const custom = useActiveBuild();
-  if (custom) return <CustomLegoWorld build={custom.build} items={custom.items} />;
-  return <TowerLegoWorld />;
+  // the scenery is never worth a crash page: without the city or tower, keep the sky and baseplate
+  if (custom)
+    return (
+      <LoadGuard fallback={<LegoWorldBase />}>
+        <CustomLegoWorld build={custom.build} items={custom.items} />
+      </LoadGuard>
+    );
+  return (
+    <LoadGuard fallback={<LegoWorldBase />}>
+      <TowerLegoWorld />
+    </LoadGuard>
+  );
 }
 
 /** Sky, lights and the board's own baseplate: shared by the tower world and a custom build. */

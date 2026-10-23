@@ -1,7 +1,8 @@
 /**
- * Lego Universe fight sounds, synthesized with WebAudio (no sound files).
- * Uses the same mute switch as the replay sounds.
+ * Lego Universe fight sounds, synthesized with WebAudio, plus the user's own explosion clip
+ * (public/lego/sfx/explode.mp3). Uses the same mute switch as the replay sounds.
  */
+import { asset } from "@/lib/base";
 import { isMuted } from "@/lib/history/sfx";
 
 let ctx: AudioContext | null = null;
@@ -78,14 +79,6 @@ export function playLegoHit(big = false) {
   hiss(0.08, 3000, 1500, 0.16, 0, 0.8);
 }
 
-/** Bricks clattering on the board. */
-export function playLegoBricks() {
-  for (let i = 0; i < 7; i++) {
-    const f = 1800 + Math.random() * 2600;
-    tone(f, f * 0.8, 0.05, "square", 0.025, 0.05 + i * 0.06 + Math.random() * 0.05);
-  }
-}
-
 /** Energy beams: repulsor, Doom blast, zaps. */
 export function playLegoBeam(deep = false) {
   tone(deep ? 260 : 900, deep ? 60 : 300, 0.45, "sawtooth", 0.06);
@@ -97,12 +90,44 @@ export function playLegoMagic() {
   [660, 880, 1175, 1568].forEach((f, i) => tone(f, f * 1.02, 0.35, "triangle", 0.05, i * 0.07));
 }
 
-/** A figure blowing apart: a short pop/boom, then the bricks clattering down on the board. */
-export function playLegoExplode() {
-  tone(180, 40, 0.35, "sine", 0.12);
-  hiss(0.25, 2200, 400, 0.1);
-  for (let i = 0; i < 16; i++) {
-    const f = 1500 + Math.random() * 3200;
-    tone(f, f * 0.75, 0.045, "square", 0.022, 0.35 + i * 0.05 + Math.random() * 0.06);
+/** The user's explosion clip; the ?v= is its content hash so no browser plays an old cached sound. */
+export const LEGO_EXPLODE_URL = asset("/lego/sfx/explode.mp3?v=0b893287");
+let explodeBuf: Promise<AudioBuffer | null> | null = null;
+
+function explodeClip(a: AudioContext): Promise<AudioBuffer | null> {
+  if (!explodeBuf) {
+    explodeBuf = fetch(LEGO_EXPLODE_URL)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then((b) => a.decodeAudioData(b))
+      .catch(() => {
+        explodeBuf = null; // try again next time
+        return null;
+      });
   }
+  return explodeBuf;
+}
+
+/** Fetch and decode the explosion clip ahead of the first capture. */
+export function primeLegoExplode() {
+  const a = audio();
+  if (a) void explodeClip(a);
+}
+
+/** A figure blowing apart into bricks (either team, every board view): the user's explosion clip, nothing else. */
+export function playLegoExplode() {
+  const a = audio();
+  if (!a) return;
+  void explodeClip(a).then((buf) => {
+    if (isMuted()) return;
+    if (!buf) return;
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    const g = a.createGain();
+    g.gain.value = 1;
+    src.connect(g).connect(a.destination);
+    src.start();
+  });
 }

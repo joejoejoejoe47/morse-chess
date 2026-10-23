@@ -1778,7 +1778,15 @@ function Scene({
       ) : null}
       {lego ? (
         <Suspense fallback={null}>
-          <LegoArmy fen={fen} lastMove={lastMove} pitch={pitch} onSquare={onSquare} />
+          <LegoArmy
+            fen={fen}
+            lastMove={lastMove}
+            pitch={pitch}
+            onSquare={onSquare}
+            standIn={(type, color) => (
+              <PieceMesh type={type} color={color} geometries={geometries} ivory={ivory} ebony={ebony} skin={skin} outlineOn={outlineOn} />
+            )}
+          />
         </Suspense>
       ) : null}
       {ownArmy ? null : pieces.map((p) =>
