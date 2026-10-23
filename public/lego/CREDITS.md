@@ -25,7 +25,7 @@ LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this.
 | ironman.glb | Iron Man (white bishops) | "Lego Iron Man minifigure" | Neut2000 | CC BY 4.0 | https://sketchfab.com/3d-models/lego-iron-man-minifigure-093538974670456289de6ac7d414d953 |
 | spiderman.glb | Spider-Man (white knights) | "Spider-Man Homecoming LEGO Model" | Lego Mania (dankmememe) | CC BY 4.0 | https://sketchfab.com/3d-models/spider-man-homecoming-lego-model-d84dc4fc47614a4687a774152b343ddd |
 | space-police.glb | white pawns (hero agents) | Minifig from 6986 "Mission Commander" (Space Police I) | Damien Roux [Darats] | CC BY 2.0 (LDraw OMR) | https://library.ldraw.org/omr/sets/199 |
-| doom-bigbrick.glb | Dr. Doom (black king) | "Big Brick * RDJ Dr. DOOM * Robert Downey Jr" (assembled, helmet on, hair piece left out) | cBoLsmUiEc | MakerWorld Standard Digital File License (personal use) | https://makerworld.com/en/models/4145928739 (file supplied by the board's owner) |
+| doom-bigbrick.glb | Dr. Doom (black king) | "Big Brick * RDJ Dr. DOOM * Robert Downey Jr" (assembled, helmet on, hair piece left out; mask, hood and head parts repositioned/rescaled so the mask sits in the hood, no new geometry) | cBoLsmUiEc | MakerWorld Standard Digital File License (personal use) | https://makerworld.com/en/models/4145928739 (file supplied by the board's owner) |
 | widow.glb | Black Widow (black queen) | Black Widow minifig from 76042 "The SHIELD Helicarrier" (its plain unprinted head swapped for the official LDraw face print 3626cpd66 "Head Female with Black Eyebrows and Eyelashes, Beauty Mark, Dark Red Lips", by Gerald Lasser [GeraldLasser], CC BY 4.0) | Marc Giraudet [Mad_Marc] | CC BY 2.0 (LDraw OMR) | https://library.ldraw.org/omr/sets/1202 |
 | skeleton.glb | black rooks (Skeleton minifig) | Skeleton from 6232 "Skeleton Crew" | Stan Isachenko [angmarec] | CC BY 2.0 (LDraw OMR) | https://library.ldraw.org/omr/sets/60 |
 | blacktron.glb | black bishops (stand-in for Loki/Ultron) | Minifig from 6894 "Invader" (Blacktron I) | Damien Roux [Darats] | CC BY 2.0 (LDraw OMR) | https://library.ldraw.org/omr/sets/150 |
@@ -38,14 +38,22 @@ A real Dr. Strange normal minifig that is free to redistribute was not found. We
 
 ## Setting
 
-- **avengers-tower.glb**
+- **sky/helicarrier.glb** (the heroes' base, behind white)
+  - Source: "76042 - The SHIELD Helicarrier" by Marc Giraudet [Mad_Marc], LDraw Official Model Repository, https://library.ldraw.org/omr/sets/1202, licence CC BY 2.0.
+  - Uses LDraw library parts (LDraw.org, CC BY 2.0).
+  - Changes: converted to glTF with three.js LDrawLoader (main ship only; the minifigs and display stand are left out), merged per colour, simplified, normals dropped (flat shading) and meshopt-compressed.
+- **sky/doom-tower.glb** (Dr. Doom's tower, behind black)
+  - Source: the skyscraper model by Sohan (Sohan_4213645), Printables, https://www.printables.com/model/1691934, licence CC BY-SA 4.0. It is the same model as avengers-tower.glb below.
+  - Changes: recoloured in Dr. Doom's colours (steel-grey spine, decks and ledges; green walls), the emblem on both faces pressed flat into the wall (vertices moved only, nothing added) and meshopt-compressed. The shape is otherwise Sohan's.
+  - This derived file is shared under the same CC BY-SA 4.0 licence.
+- **avengers-tower.glb** (no longer shown; kept for older links)
   - Source: "Avenger Tower" by Sohan (Sohan_4213645), https://www.printables.com/model/1691934, licence CC BY-SA 4.0.
   - Changes: converted from STL to glTF, scaled uniformly (0.6) and given one material.
   - This derived file is shared under the same CC BY-SA licence.
 - **city.glb**
-  - Source: the city blocks below the tower are from Kenney's "City Kit (Commercial)" 2.1, https://kenney.nl/assets/city-kit-commercial, licence CC0.
+  - Source: the city blocks far below the floating board are from Kenney's "City Kit (Commercial)" 2.1, https://kenney.nl/assets/city-kit-commercial, licence CC0.
 - **Drawn in code:**
-  - The balcony, glass rail, studded baseplate, dusk sky and effects (beams, standing portals, shockwaves).
+  - The floating deck, studded baseplate, dusk sky and effects (beams, standing portals, shockwaves).
   - The capture debris. These are real LEGO brick and plate shapes (1x2, 2x2 and 2x4 bricks, 1x2 and 2x2 plates, all with studs on top, standard LEGO proportions) drawn in code, in the colours of the figure that was captured.
 
 ## Create Lego board (builder pieces)
