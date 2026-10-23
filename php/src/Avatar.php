@@ -71,7 +71,7 @@ final class Avatar
         $json = (string) ($row['avatar_json'] ?? '');
         $decoded = $json !== '' ? json_decode($json, true) : [];
         $parsed = Catalog::parseLoadout(is_array($decoded) ? $decoded : []);
-        $style = in_array($row['piece_style'], ['2d', 'an', 'ra', 'lg', '3d'], true) ? (string) $row['piece_style'] : '3d';
+        $style = in_array($row['piece_style'], ['2d', 'an', 'ra', 'lg', 'cl', 'pa', '3d'], true) ? (string) $row['piece_style'] : '3d';
         $loadout = self::clampLoadout($parsed, $owned);
         $loadout['style'] = $style;
         return [
@@ -132,7 +132,8 @@ final class Avatar
     public static function setPieceStyle(string $userId, array $data): mixed
     {
         $style = $data['style'] ?? null;
-        $style = in_array($style, ['2d', 'an', 'ra', 'lg'], true) ? $style : '3d';
+        // 'cl' (Classic) and 'pa' (Parlor) are free 3D sets.
+        $style = in_array($style, ['2d', 'an', 'ra', 'lg', 'cl', 'pa'], true) ? $style : '3d';
         if ($style === 'lg' && !self::ownsLegoBoard($userId)) {
             throw new RpcError('LG comes with the Brick Verse board (60 Morse coins).');
         }

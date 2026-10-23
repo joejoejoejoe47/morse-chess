@@ -24,6 +24,7 @@ import { BoardAdjustPanel } from "@/components/board-adjust";
 import { useTheme } from "@/components/theme";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
+import { HEIRLOOM_CREDIT } from "@/components/chess/heirloom-sets";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { boardById, boardUnlocked, equippedSkin } from "@/lib/chess/board-skins";
@@ -84,12 +85,18 @@ function imageIsLight(src: string) {
   });
 }
 
-type BoardView = "2d" | "3d" | "an" | "ra" | "lg";
+/** Free real chess sets, each with its own board (see heirloom-sets.tsx). */
+const HEIRLOOM_BUTTONS = [
+  { id: "cl", label: "Classic", title: "Classic set: black and white lacquer with gold trim (free)" },
+  { id: "pa", label: "Parlor", title: "Parlor set on a round wooden table (free)" },
+] as const;
+
+type BoardView = "2d" | "3d" | "an" | "ra" | "lg" | "cl" | "pa";
 
 function readBoardView(): BoardView {
   try {
     const saved = localStorage.getItem("morse-board-view");
-    if (saved === "2d" || saved === "an" || saved === "ra" || saved === "lg") return saved;
+    if (saved === "2d" || saved === "an" || saved === "ra" || saved === "lg" || saved === "cl" || saved === "pa") return saved;
     return "3d";
   } catch {
     return "3d";
@@ -581,6 +588,20 @@ export function GameView({ gameId }: { gameId: string }) {
                 LG
               </button>
             ) : null}
+            {HEIRLOOM_BUTTONS.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                title={b.title}
+                className={cn(
+                  "min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
+                  view === b.id ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                )}
+                onClick={() => setBoardView(b.id)}
+              >
+                {b.label}
+              </button>
+            ))}
             <RaBuy
               active={view === "ra"}
               onView={() => setBoardView("ra")}
@@ -704,6 +725,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 people={view === "an"}
                 real={view === "ra"}
                 lego={lgOn}
+                heirloom={view === "cl" || view === "pa" ? view : null}
                 showTip={prefs.pieceTip}
                 fightZoom={(view === "an" || view === "ra") && prefs.fightZoom}
                 kings={{ w: game.whiteLook, b: game.blackLook }}
@@ -712,6 +734,16 @@ export function GameView({ gameId }: { gameId: string }) {
               />
           )}
         </div>
+        {view === "cl" || view === "pa" ? (
+          <a
+            href={HEIRLOOM_CREDIT[view].url}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute bottom-1 left-2 z-10 rounded bg-ink/50 px-1.5 py-0.5 text-[10px] text-mist/80 hover:text-ivory"
+          >
+            Set: "{HEIRLOOM_CREDIT[view].title}" by {HEIRLOOM_CREDIT[view].author} · CC BY 4.0
+          </a>
+        ) : null}
         {error ? (
           <p className="pointer-events-none absolute left-1/2 top-12 z-10 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1.5 text-[13px] text-danger">
             {error}

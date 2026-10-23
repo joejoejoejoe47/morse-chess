@@ -496,6 +496,10 @@ $legoBuy = Mores::buyBoard('dave', ['boardId' => 'lego-universe']);
 check($legoBuy['ok'] === true && $legoBuy['coins'] === 1 && in_array('lego-universe', $legoBuy['owned'], true), 'buying Lego Universe costs 60 coins');
 check(\Morse\Avatar::setPieceStyle('dave', ['style' => 'lg'])['style'] === 'lg', 'owning the board unlocks LG');
 Db::run('UPDATE profiles SET piece_style = ? WHERE user_id = ?', ['3d', 'dave']);
+check(\Morse\Avatar::setPieceStyle('dave', ['style' => 'cl'])['style'] === 'cl', 'Classic set is free');
+check(\Morse\Avatar::setPieceStyle('dave', ['style' => 'pa'])['style'] === 'pa', 'Parlor set is free');
+check(\Morse\Catalog::parseLoadout(['style' => 'pa'])['style'] === 'pa', 'loadout keeps the Parlor style');
+Db::run('UPDATE profiles SET piece_style = ? WHERE user_id = ?', ['3d', 'dave']);
 
 // ── Brick builder purchases ───────────────────────────────────────────────
 $lp = \Morse\LegoBuilder::prices();
