@@ -16,9 +16,21 @@ function readBase(): string {
 
 export const BASE = readBase();
 
-/** Prefix a root-relative path ("/avatars/x.glb", "/api/rtc") with the mount point. */
+/** Content hashes of the models and sounds in public/, filled in at build time (vite.config.ts). */
+declare const __ASSET_VERSIONS__: Record<string, string> | undefined;
+const VERSIONS: Record<string, string> = typeof __ASSET_VERSIONS__ === "undefined" ? {} : __ASSET_VERSIONS__;
+
+/**
+ * Prefix a root-relative path ("/avatars/x.glb", "/api/rtc") with the mount point.
+ * Models and sounds also get their content hash as ?v=, so they can be cached for a year
+ * and a changed file is fetched fresh.
+ */
 export function asset(path: string): string {
-  return path.startsWith("/") ? BASE + path : path;
+  if (!path.startsWith("/")) return path;
+  const q = path.indexOf("?");
+  const bare = q < 0 ? path : path.slice(0, q);
+  const v = VERSIONS[bare];
+  return BASE + (v ? `${bare}?v=${v}` : path);
 }
 
 export const apiUrl = asset;

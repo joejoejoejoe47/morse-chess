@@ -597,7 +597,7 @@ function AnimatedPiece({
       onPointerOut={() => setTip(false)}
     >
       {showTip ? (
-        <Html position={[0, 1.45, 0]} center zIndexRange={[30, 0]} style={{ pointerEvents: "none" }}>
+        <Html position={[0, 1.45, 0]} center zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
           <span className="grid place-items-center" style={{ pointerEvents: "none" }}>
             <ShieldBadge kind={type} side={color === "w" ? "w" : "b"} />
           </span>
