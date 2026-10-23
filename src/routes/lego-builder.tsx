@@ -102,7 +102,7 @@ function BuilderGate() {
   if (error) return <Notice text={error} />;
   if (!state || !palette) return <Notice text="Opening the brick box…" />;
   if (!state.allowed)
-    return <Notice text="Create Brick board is for owners of the Brick Heroes board. Get it in the board shop first." link />;
+    return <Notice text="Create Brick board is for owners of the Brick Verse board. Get it in the board shop first." link />;
   return <Builder initial={state} palette={palette} />;
 }
 
@@ -387,7 +387,7 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
           <MorseCrest />
           <span className="hidden flex-col leading-tight sm:flex">
             <span className="font-display text-2xl text-ivory">Brick Builder</span>
-            <span className="text-xs uppercase tracking-[0.18em] text-mist">Morse Chess · Brick Heroes</span>
+            <span className="text-xs uppercase tracking-[0.18em] text-mist">Morse Chess · Brick Verse</span>
           </span>
         </Link>
         <Link to="/" className={`${pillGhost} ml-2 hidden md:inline-flex`}>

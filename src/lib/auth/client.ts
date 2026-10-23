@@ -34,5 +34,10 @@ export async function signIn(): Promise<void> {
 export async function signOut(redirectTo = "/"): Promise<void> {
   const { error } = await authClient.signOut();
   if (error) throw new Error(error.message ?? "Sign-out failed");
+  try {
+    localStorage.removeItem("morse-last-user");
+  } catch {
+    /* storage unavailable */
+  }
   window.location.href = BASE + redirectTo;
 }

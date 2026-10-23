@@ -49,14 +49,42 @@ const CSS = `
 }
 @keyframes lego-lid { 0%, 100% { transform: rotate(0deg); } 18%, 60% { transform: rotate(-28deg); } }
 @keyframes lego-shake { 0%, 100% { transform: translate(-50%, -50%); } 10% { transform: translate(-51%, -50%) rotate(-2deg); } 20% { transform: translate(-49%, -50%) rotate(2deg); } 30% { transform: translate(-50%, -50%); } }
-@media (prefers-reduced-motion: reduce) { .lego-brick, .lego-tile .lego-box, .lego-tile .lego-box::before { animation-duration: 6s; } }
+.bv-logo { position: relative; display: inline-flex; flex-direction: column; align-items: center; line-height: 0.86; transform: rotate(-4deg);
+  font: 900 1em/0.86 "Arial Black", "Segoe UI Black", Impact, system-ui, sans-serif; letter-spacing: 0.02em; text-transform: uppercase; }
+.bv-logo span { display: block; color: #ffd400; -webkit-text-stroke: 0.06em #b40000; paint-order: stroke fill;
+  text-shadow: 0 0.04em 0 #7a0000, 0 0.08em 0 #4a0000, 0 0.14em 0.16em rgba(0,0,0,0.55); }
+.bv-logo span + span { color: #fff; -webkit-text-stroke-color: #1e5aa8; font-size: 1.18em; text-shadow: 0 0.04em 0 #123a73, 0 0.08em 0 #0a2147, 0 0.14em 0.16em rgba(0,0,0,0.55); }
+.bv-logo::after { content: ""; position: absolute; inset: -10% -20%; background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.75) 50%, transparent 62%);
+  mix-blend-mode: overlay; animation: bv-shine 3.2s ease-in-out infinite; pointer-events: none; }
+@keyframes bv-shine { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
+.lego-tile .bv-title { position: absolute; left: 0; right: 0; top: 7%; display: flex; justify-content: center; font-size: 13cqw; z-index: 2; animation: bv-bob 2.2s ease-in-out infinite; }
+.lego-tile .bv-stars { position: absolute; inset: 0; background-image: radial-gradient(1.5px 1.5px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 78% 12%, #fff, transparent),
+  radial-gradient(1.5px 1.5px at 88% 40%, #ffe27a, transparent), radial-gradient(1px 1px at 30% 8%, #fff, transparent), radial-gradient(1.5px 1.5px at 6% 46%, #cfe3ff, transparent),
+  radial-gradient(1px 1px at 60% 28%, #fff, transparent); animation: bv-twinkle 2.6s ease-in-out infinite alternate; }
+@keyframes bv-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3%); } }
+@keyframes bv-twinkle { from { opacity: 0.45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lego-brick, .lego-tile .lego-box, .lego-tile .lego-box::before, .bv-logo::after, .lego-tile .bv-title { animation-duration: 6s; } }
 `;
+
+/** The Brick Verse logo: chunky toy-box lettering with a shine sweeping across it. */
+export function BrickVerseLogo({ className }: { className?: string }) {
+  return (
+    <span className={"bv-logo " + (className ?? "")} aria-label="Brick Verse">
+      <span aria-hidden="true">Brick</span>
+      <span aria-hidden="true">Verse</span>
+    </span>
+  );
+}
 
 /** The store picture for Lego Universe: a box with LEGO bricks bursting out of it. */
 export function LegoTile() {
   return (
     <div className="lego-tile aspect-square w-full rounded-lg border border-black/20" data-lego-tile>
       <style>{CSS}</style>
+      <div className="bv-stars" />
+      <div className="bv-title">
+        <BrickVerseLogo />
+      </div>
       {BRICKS.map((b, i) => (
         <Brick
           key={i}
@@ -94,22 +122,25 @@ export function LegoShop({
     setError(null);
     try {
       const res = await buyBoard({ data: { boardId: "lego-universe" } });
-      if (!res.ok) setError(res.error ?? "Could not buy Brick Heroes.");
+      if (!res.ok) setError(res.error ?? "Could not buy Brick Verse.");
       else onBought({ coins: res.coins, owned: res.owned });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not buy Brick Heroes.");
+      setError(err instanceof Error ? err.message : "Could not buy Brick Verse.");
     } finally {
       setBusy(false);
     }
   }
   return (
     <div className="fixed inset-0 z-50" data-lego-shop>
-      <img src={asset("/lego/preview.jpg")} alt="Brick Heroes: the board on the Hero Tower balcony" className="absolute inset-0 h-full w-full object-cover" />
+      <img src={asset("/lego/preview.jpg")} alt="Brick Verse: the board on the Hero Tower balcony" className="absolute inset-0 h-full w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" onClick={onClose} />
       <div className="absolute inset-x-0 bottom-0 flex justify-center p-4 sm:p-8">
         <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#10131f]/90 p-5 text-[#f4efe6] shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur">
           <p className="text-xs uppercase tracking-[0.2em] text-[#f2cd37]">Board</p>
-          <p className="mt-1 font-display text-3xl">Brick Heroes</p>
+          <style>{CSS}</style>
+          <h2 className="mt-2 text-[40px]">
+            <BrickVerseLogo />
+          </h2>
           <p className="mt-2 text-sm text-[#cfd6ea]">
             The board on the balcony of the Hero Tower. Unlocks <b>LG</b> mode: brick heroes (Smash Giant, Web Slinger, Iron Flyer...) against the Iron Tyrant&apos;s villains, all animated.
           </p>

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { authClient, authEnabled } from "./client";
 
 /** Normalized user shape used across the app, auth on or off. */
@@ -54,23 +55,89 @@ export type CurrentUserState = {
  * `authEnabled` is a module-level constant fixed at load, so the guarded hook
  * call keeps a stable hook order across every render of a given component.
  */
+// The last signed-in user, so a dropped connection to the club never looks like "signed out".
+// Only a real answer from the server ("no session": 200 with null, or 401) signs the visitor out.
+const LAST_USER_KEY = "morse-last-user";
+const SESSION_RETRY_MS = [800, 2000, 4000, 8000, 15000, 30000];
+let lastUser: AppUser | null | undefined;
+
+function readLastUser(): AppUser | null {
+  if (lastUser !== undefined) return lastUser;
+  lastUser = null;
+  try {
+    const raw = localStorage.getItem(LAST_USER_KEY);
+    const parsed = raw ? (JSON.parse(raw) as AppUser) : null;
+    if (parsed && typeof parsed.id === "string") lastUser = parsed;
+  } catch {
+    /* storage unavailable */
+  }
+  return lastUser;
+}
+
+function rememberUser(user: AppUser | null) {
+  if (readLastUser()?.id === user?.id && (user === null || JSON.stringify(lastUser) === JSON.stringify(user))) return;
+  lastUser = user;
+  try {
+    if (user) localStorage.setItem(LAST_USER_KEY, JSON.stringify(user));
+    else localStorage.removeItem(LAST_USER_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function toAppUser(user: { id: string; name?: string | null; email?: string | null; image?: string | null }): AppUser {
+  return {
+    id: user.id,
+    displayName: user.name ?? null,
+    primaryEmail: user.email ?? null,
+    profileImageUrl: user.image ?? null,
+    isDevFallback: false,
+  };
+}
+
 export function useCurrentUserState(): CurrentUserState {
   if (!authEnabled) return { user: DEV_USER, isPending: false };
   // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
-  const { data, isPending } = authClient.useSession();
-  const user = data?.user;
-  return {
-    user: user
-      ? {
-          id: user.id,
-          displayName: user.name ?? null,
-          primaryEmail: user.email ?? null,
-          profileImageUrl: user.image ?? null,
-          isDevFallback: false,
-        }
-      : null,
-    isPending,
-  };
+  return useSteadySession();
+}
+
+function useSteadySession(): CurrentUserState {
+  const { data, isPending, error, refetch } = authClient.useSession();
+  const status = (error as { status?: number } | null)?.status;
+  const signedIn = !!(data && typeof data === "object" && (data as { user?: unknown }).user);
+  // Anything other than a clean answer (network drop, timeout, 5xx, an HTML page while files
+  // are being uploaded) is a hiccup: keep the visitor in and ask again shortly.
+  const hiccup = (!!error && status !== 401) || (!error && !isPending && data != null && !signedIn);
+  const tries = useRef(0);
+
+  useEffect(() => {
+    if (!hiccup) {
+      tries.current = 0;
+      return;
+    }
+    const wait = SESSION_RETRY_MS[Math.min(tries.current, SESSION_RETRY_MS.length - 1)];
+    tries.current += 1;
+    const timer = window.setTimeout(() => void refetch(), wait);
+    const again = () => void refetch();
+    window.addEventListener("online", again);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("online", again);
+    };
+  }, [hiccup, error, data, refetch]);
+
+  if (signedIn) {
+    const user = toAppUser((data as { user: { id: string } }).user);
+    rememberUser(user);
+    return { user, isPending: false };
+  }
+  if (hiccup || (isPending && !data)) {
+    const known = readLastUser();
+    // A known visitor stays in; an unknown one waits on the splash instead of the sign-in form.
+    return known ? { user: known, isPending: false } : { user: null, isPending: true };
+  }
+  rememberUser(null);
+  return { user: null, isPending: false };
 }
 
 /**
