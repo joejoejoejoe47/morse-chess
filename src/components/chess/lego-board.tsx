@@ -62,23 +62,49 @@ type CharSpec = {
   attack: Attack;
   /** Effect colour for beams / portals / blasts / trails. */
   fx: string;
+  /**
+   * Rig fixes for models whose arm node also carries something that is not the arm
+   * (a held gun, a beard, a stray brick), which would pull the shoulder joint off the body.
+   * move: meshes of that material go to another part; jointMat: only meshes of that
+   * material place the joint; mirror: the joint is the other arm's, mirrored across the body.
+   */
+  rig?: RigFix;
+};
+
+type RigFix = {
+  move?: { from: PartName; mat: string; to: PartName }[];
+  jointMat?: Partial<Record<PartName, string>>;
+  mirror?: ("armL" | "armR")[];
 };
 
 export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   hulk: { file: "hulk.glb", role: "Hulk", height: 0.94, gait: "stomp", attack: "smash", fx: "#8cff6a" },
   spiderman: { file: "spiderman.glb", role: "Spider-Man", height: 0.84, gait: "swing", attack: "webkick", fx: "#f4f4f4" },
   ironman: { file: "ironman.glb", role: "Iron Man", height: 0.86, gait: "fly", attack: "repulsor", fx: "#9ef3ff" },
-  // the good king: kept as it was (Captain America BrickHeadz) while the owner decides on Black Panther
-  cap: { file: "captain-america-bh.glb", role: "Good king (Captain America BrickHeadz)", height: 1.12, gait: "walk", attack: "punch", fx: "#7fb2ff" },
+  // the good king: the Captain America minifig (OMR 76042) with the official LDraw Cap head and torso prints
+  cap: { file: "captain-america.glb", role: "Captain America (good king minifig)", height: 0.92, gait: "walk", attack: "punch", fx: "#7fb2ff" },
   panther: { file: "blackpanther.glb", role: "Black Panther", height: 0.96, gait: "walk", attack: "pounce", fx: "#b18cff" },
-  strange: { file: "wizard.glb", role: "Dr. Strange (stand-in: Wizard minifig)", height: 1.0, gait: "portal", attack: "spell", fx: "#ff9a2a" },
-  agent: { file: "space-police.glb", role: "Hero pawn (Space Police officer)", height: 0.72, gait: "walk", attack: "punch", fx: "#7fb2ff" },
+  strange: { file: "wizard.glb", role: "Dr. Strange (stand-in: Wizard minifig)", height: 1.0, gait: "portal", attack: "spell", fx: "#ff9a2a",
+    // the beard sat in the right-arm node (it swung off with the arm); snake and magnifier stay in the hands
+    rig: { move: [{ from: "armR", mat: "White", to: "body" }], jointMat: { armL: "Blue", armR: "Blue" } } },
+  agent: { file: "space-police.glb", role: "Hero pawn (Space Police officer)", height: 0.72, gait: "walk", attack: "punch", fx: "#7fb2ff",
+    // the hand pushed the shoulder joint forward, off the body; take the arm pivot from the sleeve only
+    rig: { jointMat: { armL: "Black", armR: "Black" } } },
   doom: { file: "doom-bigbrick.glb", role: "Dr. Doom", height: 1.0, gait: "walk", attack: "blast", fx: "#5dff6a" },
-  widow: { file: "widow.glb", role: "Black Widow (villain queen minifig)", height: 0.86, gait: "walk", attack: "kick", fx: "#ff5a5a" },
+  widow: { file: "widow.glb", role: "Black Widow (villain queen minifig)", height: 0.86, gait: "walk", attack: "kick", fx: "#ff5a5a",
+    // the pistol stretched the right arm's box, pulling its shoulder up and forward off the body;
+    // the shoulder now mirrors the clean left one
+    rig: { mirror: ["armR"] } },
   skeleton: { file: "skeleton.glb", role: "Villain rook (Skeleton minifig)", height: 0.9, gait: "walk", attack: "whirl", fx: "#e8e8e8" },
-  blacktron: { file: "blacktron.glb", role: "Villain bishop (Blacktron minifig)", height: 0.86, gait: "walk", attack: "skystrike", fx: "#ff3b3b" },
-  goblin: { file: "insectoid.glb", role: "Green Goblin (stand-in: Insectoids minifig)", height: 0.86, gait: "glide", attack: "bomb", fx: "#a6ff3b" },
-  doombot: { file: "gigabot.glb", role: "Doombot (stand-in: Insectoids Gigabot robot)", height: 0.72, gait: "walk", attack: "punch", fx: "#5dff6a" },
+  blacktron: { file: "blacktron.glb", role: "Villain bishop (Blacktron minifig)", height: 0.86, gait: "walk", attack: "skystrike", fx: "#ff3b3b",
+    // the hand pushed the shoulder joint forward, off the body; take the arm pivot from the sleeve only
+    rig: { jointMat: { armL: "Black", armR: "Black" } } },
+  goblin: { file: "insectoid.glb", role: "Green Goblin (stand-in: Insectoids minifig)", height: 0.86, gait: "glide", attack: "bomb", fx: "#a6ff3b",
+    // the hand pushed the shoulder joint forward, off the body; take the arm pivot from the sleeve only
+    rig: { jointMat: { armL: "Green", armR: "Green" } } },
+  doombot: { file: "gigabot.glb", role: "Doombot (stand-in: Insectoids Gigabot robot)", height: 0.72, gait: "walk", attack: "punch", fx: "#5dff6a",
+    // a stray brick on the far side sits in the right-arm node; its shoulder mirrors the clean left one
+    rig: { mirror: ["armR"], jointMat: { armL: "Dark_Grey" } } },
 };
 
 export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
@@ -155,23 +181,61 @@ function applyPose(p: Parts, o: Pose) {
  * The node's children are shifted back by the same amount, so at rest nothing moves and the geometry is
  * untouched; only node positions change.
  */
-function setJointPivots(root: THREE.Object3D) {
+const matName = (o: THREE.Object3D) => {
+  const m = (o as THREE.Mesh).material;
+  return m && !Array.isArray(m) ? m.name.trim() : "";
+};
+
+function setJointPivots(root: THREE.Object3D, rig?: RigFix) {
   root.updateMatrixWorld(true);
   const partNames = new Set<string>(PART_NAMES);
+  // meshes that ride in the wrong part go to the right one (world placement kept)
+  for (const mv of rig?.move ?? []) {
+    const from = root.getObjectByName(mv.from);
+    const to = root.getObjectByName(mv.to);
+    if (!from || !to) continue;
+    const hits: THREE.Object3D[] = [];
+    from.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && matName(o) === mv.mat) hits.push(o);
+    });
+    for (const o of hits) to.attach(o);
+  }
+  root.updateMatrixWorld(true);
   const box = new THREE.Box3();
   const size = new THREE.Vector3();
-  const joint = new THREE.Vector3();
+  const joints = {} as Record<PartName, THREE.Vector3 | undefined>;
+  const bodyMid = new THREE.Vector3();
   for (const n of PART_NAMES) {
     const node = root.getObjectByName(n);
     if (!node || !node.parent) continue;
     box.makeEmpty();
-    for (const c of node.children) if (!partNames.has(c.name)) box.expandByObject(c);
+    const only = rig?.jointMat?.[n];
+    const add = (o: THREE.Object3D) => {
+      for (const c of o.children) {
+        if (partNames.has(c.name)) continue;
+        if (!only) box.expandByObject(c);
+        else if ((c as THREE.Mesh).isMesh && matName(c) === only) box.expandByObject(c, true);
+        else add(c);
+      }
+    };
+    add(node);
     if (box.isEmpty()) continue;
-    box.getCenter(joint);
+    const joint = box.getCenter(new THREE.Vector3());
     box.getSize(size);
+    if (n === "body") bodyMid.copy(joint);
     if (n === "body" || n === "head") joint.y = box.min.y;
     else if (n === "legL" || n === "legR") joint.y = box.max.y;
     else joint.y = box.max.y - size.y * 0.2;
+    joints[n] = joint;
+  }
+  for (const n of rig?.mirror ?? []) {
+    const other = joints[n === "armL" ? "armR" : "armL"];
+    if (other) joints[n] = new THREE.Vector3(2 * bodyMid.x - other.x, other.y, other.z);
+  }
+  for (const n of PART_NAMES) {
+    const node = root.getObjectByName(n);
+    const joint = joints[n];
+    if (!node || !node.parent || !joint) continue;
     // world -> the node's parent space, and the shift seen from inside the node
     const inParent = node.parent.worldToLocal(joint.clone());
     const shiftWorld = joint.clone().sub(node.getWorldPosition(new THREE.Vector3()));
@@ -199,7 +263,7 @@ function useFigure(id: LegoCharId) {
         mats.push(c);
       }
     });
-    setJointPivots(root);
+    setJointPivots(root, LEGO_CHARS[id].rig);
     // uniform scale only: the figure keeps its LEGO proportions
     root.scale.setScalar(LEGO_CHARS[id].height);
     const parts = {} as Parts;
@@ -436,7 +500,7 @@ export type Fight = {
   to: Square;
   victimType: PieceSymbol;
   victimSq: Square;
-  /** The black bishop's aerial tricks after a capture: always 1 or 2, never 3. */
+  /** The bishops' aerial tricks after a capture (Blacktron and Iron Man): always 1 or 2, never 3. */
   tricks: Trick[];
 };
 
@@ -458,6 +522,8 @@ const MOVES: Record<Attack, { wind: number; strike: number; ranged: boolean; lun
 const RECOVER = 0.4;
 const BREAK = 1.5;
 const trickTime = (n: number) => (n >= 2 ? 2.7 : 2.15);
+/** Both bishops knock the piece out, then fly up, do their tricks and land on the square. */
+const TRICK_FLYERS: ReadonlySet<LegoCharId> = new Set<LegoCharId>(["blacktron", "ironman"]);
 
 /** Everything about a capture that does not change frame to frame. */
 function fightPlan(f: Fight, pitch: number) {
@@ -482,7 +548,7 @@ function fightPlan(f: Fight, pitch: number) {
   const spot = near.clone().addScaledVector(dir, lunge);
   const approach = !mv.ranged && near.distanceTo(from) > 0.05 ? moveTime(atk.gait === "portal" ? "walk" : atk.gait, near.distanceTo(from)) : 0.3;
   const impact = approach + mv.wind + mv.strike;
-  const flight = atk.attack === "skystrike";
+  const flight = TRICK_FLYERS.has(atkId);
   const finish = flight ? trickTime(f.tricks.length) : spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
   const total = Math.max(impact + RECOVER + finish, impact + BREAK + 0.1);
   return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total };
@@ -923,7 +989,8 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
       pos = near;
       if (t >= tFinish) fr = { ...idlePose(atk.gait, now, seed), lunge: fr.lunge, spin: 0 };
     } else if (P.flight) {
-      // black bishop: up into the sky, 1 or 2 tricks with trails, swoop down onto the square
+      // the bishops: up into the sky, 1 or 2 tricks with trails, swoop down onto the square
+      // (Iron Man keeps his own flight look: arms back like the fly gait, repulsor-coloured trail)
       flying = true;
       const u = clamp01((t - tFinish) / P.finish);
       const H = 3.2;
@@ -941,7 +1008,12 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
       pitchX = 0.9 * cruise;
       const land = span(u, 0.94, 1);
       fr = {
-        pose: u < 0.05 ? { lean: 0.3, armLx: 0.6, armRx: 0.6, legL: -0.3, legR: -0.3 } : { armLx: -2.9 * cruise, armRx: -2.9 * cruise, legL: 0.25 * cruise + 0.3 * Math.sin(Math.PI * land), legR: 0.15 * cruise, lean: 0.2 * Math.sin(Math.PI * land) },
+        pose:
+          u < 0.05
+            ? { lean: 0.3, armLx: 0.6, armRx: 0.6, legL: -0.3, legR: -0.3 }
+            : P.atkId === "ironman"
+              ? { armLx: 0.55 * cruise, armRx: 0.55 * cruise, armLz: 0.25 * cruise, armRz: -0.25 * cruise, legL: 0.3 * Math.sin(Math.PI * land), lean: 0.2 * Math.sin(Math.PI * land) }
+              : { armLx: -2.9 * cruise, armRx: -2.9 * cruise, legL: 0.25 * cruise + 0.3 * Math.sin(Math.PI * land), legR: 0.15 * cruise, lean: 0.2 * Math.sin(Math.PI * land) },
         lunge: 0,
         y: p.y,
         spin: 0,
@@ -1205,7 +1277,7 @@ const _obj = new THREE.Object3D();
 
 type P = { sq: Square; type: PieceSymbol; color: Color };
 
-/** A random 1 OR 2 aerial tricks for the black bishop's capture flight (never 3). */
+/** A random 1 OR 2 aerial tricks for a bishop's capture flight (never 3). */
 function pickTricks(): Trick[] {
   const all: Trick[] = ["flip", "roll", "spin"];
   const n = Math.random() < 0.5 ? 1 : 2;
