@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { asset } from "@/lib/base";
 import { buyBoard } from "@/lib/server/mores";
@@ -116,7 +117,17 @@ export function LegoShop({
             <button type="button" className="mt-4 w-full rounded-xl bg-[#f2cd37] px-3 py-3 text-sm font-medium text-[#1a140f]" onClick={onLook}>
               You own it. Walk around it
             </button>
-          ) : (
+          ) : null}
+          {owned ? (
+            <Link
+              to="/lego-builder"
+              data-lego-create
+              className="mt-2 block w-full rounded-xl border border-[#f2cd37] px-3 py-3 text-center text-sm font-medium text-[#f2cd37] hover:bg-[#f2cd37]/10"
+            >
+              Create Lego board
+            </Link>
+          ) : null}
+          {!owned ? (
             <button
               type="button"
               disabled={busy || short}
@@ -125,7 +136,7 @@ export function LegoShop({
             >
               {busy ? "Buying…" : `Buy for ${LEGO_PRICE} Morse coins`}
             </button>
-          )}
+          ) : null}
           {!owned && short ? <p className="mt-2 text-sm text-[#f4d2c8]">You need {LEGO_PRICE} Morse coins. You have {coins.toLocaleString()}.</p> : null}
           {error ? <p className="mt-2 text-sm text-[#f4d2c8]">{error}</p> : null}
           <div className="mt-3 flex justify-between text-sm text-[#cfc4b2]">
