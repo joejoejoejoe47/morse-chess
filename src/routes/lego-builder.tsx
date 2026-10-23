@@ -87,9 +87,9 @@ function BuilderGate() {
     };
   }, []);
   if (error) return <Notice text={error} />;
-  if (!state || !palette) return <Notice text="Opening the Lego box…" />;
+  if (!state || !palette) return <Notice text="Opening the brick box…" />;
   if (!state.allowed)
-    return <Notice text="Create Lego board is for owners of the Lego Universe board. Get it in the board shop first." link />;
+    return <Notice text="Create Brick board is for owners of the Brick Heroes board. Get it in the board shop first." link />;
   return <Builder initial={state} palette={palette} />;
 }
 
@@ -181,7 +181,7 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
   const [rot, setRot] = useState(0);
   const [mode, setMode] = useState<"place" | "erase">("place");
   const [buildId, setBuildId] = useState<string | null>(null);
-  const [name, setName] = useState("My Lego board");
+  const [name, setName] = useState("My Brick board");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [buying, setBuying] = useState<PaletteItem | null>(null);
@@ -297,7 +297,7 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
       const r = await putLegoBuildInUse({ data: { id } });
       setBuilds(r.builds);
       setInUse(true);
-      setStatus("In use! Your build now surrounds the Lego chess board.");
+      setStatus("In use! Your build now surrounds the Brick chess board.");
     } catch (e) {
       setStatus((e as Error).message);
     } finally {
@@ -327,7 +327,7 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
   const fresh = () => {
     if (dirty && pieces.length && !window.confirm("Drop the changes you have not saved?")) return;
     setBuildId(null);
-    setName("My Lego board");
+    setName("My Brick board");
     undoStack.current = [];
     redoStack.current = [];
     setPieces([]);
@@ -344,7 +344,7 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
       setBuildId(null);
       setPieces([]);
       undoStack.current = [];
-      setName("My Lego board");
+      setName("My Brick board");
       setStatus("Deleted.");
     } catch (e) {
       setStatus((e as Error).message);
@@ -367,7 +367,7 @@ function Builder({ initial, palette }: { initial: LegoBuilderState; palette: Pal
             {coins.toLocaleString()} Morse coins
           </span>
         </div>
-        <h1 className="px-4 pt-3 text-lg font-semibold">Lego pieces</h1>
+        <h1 className="px-4 pt-3 text-lg font-semibold">Brick pieces</h1>
         <p className="px-4 pb-2 text-xs text-[#aab3cf]">Most pieces are free. The coolest ones cost a few Morse coins, once.</p>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4" data-testid="palette">
           {CATS.map((cat) => {

@@ -162,7 +162,7 @@ export function BoardGallery({
               data-lego-create
               className="rounded-full bg-[#f2cd37] px-5 py-2.5 text-sm font-medium text-[#1a140f] shadow hover:brightness-105"
             >
-              Create Lego board
+              Create Brick board
             </Link>
           </div>
         ) : null;

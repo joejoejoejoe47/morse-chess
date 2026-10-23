@@ -587,7 +587,7 @@ function AvatarStudio() {
               ))}
             </div>
           ) : null}
-          {tab === "kings" && loadout.style === "lg" ? <Note>LG figures come with the Lego Universe board.</Note> : null}
+          {tab === "kings" && loadout.style === "lg" ? <Note>LG figures come with the Brick Heroes board.</Note> : null}
           {tab === "kings" && (characterId === "rogue" || characterId === "hooded") && (owned.includes("rogue") || characterId === "hooded") ? (
             <button
               type="button"

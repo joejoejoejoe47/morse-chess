@@ -66,7 +66,7 @@ export function LegoTile() {
         />
       ))}
       <div className="lego-box">
-        <b>LEGO</b>
+        <b>BRICKS</b>
       </div>
     </div>
   );
@@ -94,24 +94,24 @@ export function LegoShop({
     setError(null);
     try {
       const res = await buyBoard({ data: { boardId: "lego-universe" } });
-      if (!res.ok) setError(res.error ?? "Could not buy Lego Universe.");
+      if (!res.ok) setError(res.error ?? "Could not buy Brick Heroes.");
       else onBought({ coins: res.coins, owned: res.owned });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not buy Lego Universe.");
+      setError(err instanceof Error ? err.message : "Could not buy Brick Heroes.");
     } finally {
       setBusy(false);
     }
   }
   return (
     <div className="fixed inset-0 z-50" data-lego-shop>
-      <img src={asset("/lego/preview.jpg")} alt="Lego Universe: the board on the Avengers tower balcony" className="absolute inset-0 h-full w-full object-cover" />
+      <img src={asset("/lego/preview.jpg")} alt="Brick Heroes: the board on the Hero Tower balcony" className="absolute inset-0 h-full w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" onClick={onClose} />
       <div className="absolute inset-x-0 bottom-0 flex justify-center p-4 sm:p-8">
         <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#10131f]/90 p-5 text-[#f4efe6] shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur">
           <p className="text-xs uppercase tracking-[0.2em] text-[#f2cd37]">Board</p>
-          <p className="mt-1 font-display text-3xl">Lego Universe</p>
+          <p className="mt-1 font-display text-3xl">Brick Heroes</p>
           <p className="mt-2 text-sm text-[#cfd6ea]">
-            The board on the balcony of the Avengers tower. Unlocks <b>LG</b> mode: LEGO Marvel heroes (Hulk, Spider-Man, Iron Man...) against Doom&apos;s villains, all animated.
+            The board on the balcony of the Hero Tower. Unlocks <b>LG</b> mode: brick heroes (Smash Giant, Web Slinger, Iron Flyer...) against the Iron Tyrant&apos;s villains, all animated.
           </p>
           {owned ? (
             <button type="button" className="mt-4 w-full rounded-xl bg-[#f2cd37] px-3 py-3 text-sm font-medium text-[#1a140f]" onClick={onLook}>
@@ -124,7 +124,7 @@ export function LegoShop({
               data-lego-create
               className="mt-2 block w-full rounded-xl border border-[#f2cd37] px-3 py-3 text-center text-sm font-medium text-[#f2cd37] hover:bg-[#f2cd37]/10"
             >
-              Create Lego board
+              Create Brick board
             </Link>
           ) : null}
           {!owned ? (

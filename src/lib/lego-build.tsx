@@ -49,7 +49,7 @@ export const LEGO_COLORS: { name: string; hex: string }[] = [
 let metaCache: Promise<PaletteItem[]> | null = null;
 export function loadPaletteMeta(): Promise<PaletteItem[]> {
   metaCache ??= fetch(PALETTE_META_URL).then((r) => {
-    if (!r.ok) throw new Error("Could not load the Lego pieces.");
+    if (!r.ok) throw new Error("Could not load the Brick pieces.");
     return r.json() as Promise<PaletteItem[]>;
   });
   return metaCache;

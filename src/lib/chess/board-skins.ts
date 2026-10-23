@@ -642,8 +642,8 @@ export const BOARD_CATALOG: BoardSkin[] = [
   {
     ...BASE,
     id: "lego-universe",
-    name: "Lego Universe",
-    blurb: "60 coins. A LEGO board on the balcony of the Avengers tower at dusk. Unlocks LG mode: LEGO Marvel heroes (Hulk, Spider-Man, Iron Man...) against Doom's villains, all animated.",
+    name: "Brick Heroes",
+    blurb: "60 coins. A brick board on the balcony of the Hero Tower at dusk. Unlocks LG mode: brick heroes (Smash Giant, Web Slinger, Iron Flyer...) against the Iron Tyrant's villains, all animated.",
     cost: 0,
     coinCost: 60,
     tableKind: "felt",

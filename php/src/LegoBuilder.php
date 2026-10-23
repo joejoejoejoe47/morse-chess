@@ -53,7 +53,7 @@ final class LegoBuilder
     private static function requireAllowed(string $userId): void
     {
         if (!self::allowed($userId)) {
-            throw new RpcError('Create Lego board comes with the Lego Universe board.', 403);
+            throw new RpcError('Create Brick board comes with the Brick Heroes board.', 403);
         }
     }
 
@@ -166,7 +166,7 @@ final class LegoBuilder
     {
         self::requireAllowed($userId);
         $name = trim(preg_replace('/\s+/u', ' ', is_string($data['name'] ?? null) ? $data['name'] : '') ?? '');
-        $name = mb_substr($name === '' ? 'My Lego board' : $name, 0, 40);
+        $name = mb_substr($name === '' ? 'My Brick board' : $name, 0, 40);
         $pieces = self::cleanPieces($data['pieces'] ?? null, self::prices(), self::owned($userId));
         $json = json_encode($pieces, JSON_UNESCAPED_SLASHES);
         $id = is_string($data['id'] ?? null) ? $data['id'] : '';
