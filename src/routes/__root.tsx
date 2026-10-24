@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme";
 import { BellHost } from "@/components/bell-host";
 import { StudioSplash } from "@/components/studio-splash";
 import { CoinDock } from "@/components/coin-dock";
+import { MorseBotHost } from "@/components/morse-bot";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
@@ -59,6 +60,7 @@ export const Route = createRootRoute({
         </AuthProvider>
         <StudioSplash />
         <CoinDock />
+        <MorseBotHost />
         <Toaster
           theme="system"
           position="top-center"
