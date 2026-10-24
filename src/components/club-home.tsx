@@ -303,7 +303,7 @@ export function ClubHome() {
         </button>
         <button
           type="button"
-          className="inline-flex items-center gap-2 text-sm text-ivory underline-offset-4 hover:underline"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-line bg-walnut px-4 py-2 text-sm font-medium text-ivory hover:border-gold-line"
           onClick={() => window.dispatchEvent(new CustomEvent("morse-bot-wake"))}
         >
           Hello to Morse Bot
