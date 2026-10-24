@@ -17,6 +17,7 @@ import {
   type Team,
   type Unit,
 } from "@/components/sandbox/cross-scene";
+import { CastleMatch } from "@/components/sandbox/castle-match";
 
 export const Route = createFileRoute("/sandbox")({ ssr: false, component: SandboxPage });
 
@@ -34,7 +35,7 @@ function SandboxPage() {
   const door = useClubDoor();
   const navigate = useNavigate();
   const [owned, setOwned] = useState<boolean | null>(null);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState<false | "cross" | "castle">(false);
 
   useEffect(() => {
     if (door.status !== "in") return;
@@ -71,7 +72,7 @@ function SandboxPage() {
           <button
             type="button"
             className="w-72 shrink-0 overflow-hidden rounded-2xl border border-[#8a7048] text-left"
-            onClick={() => setPlaying(true)}
+            onClick={() => setPlaying("cross")}
           >
             <img src="/sandbox/you-turn.png" alt="Cross Colosseum" className="h-40 w-full object-cover" />
             <div className="bg-[#1a140f] p-4">
@@ -79,10 +80,22 @@ function SandboxPage() {
               <p className="mt-1 text-sm text-[#cbbba6]">Four armies. One middle square. Build it or fall.</p>
             </div>
           </button>
+          <button
+            type="button"
+            className="w-72 shrink-0 overflow-hidden rounded-2xl border border-[#8a7048] text-left"
+            onClick={() => setPlaying("castle")}
+          >
+            <div className="grid h-40 place-items-center bg-[#2a1f16] text-[#e7c98a]">Castle Court</div>
+            <div className="bg-[#1a140f] p-4">
+              <p className="font-display text-2xl">Princess Aurora's Court</p>
+              <p className="mt-1 text-sm text-[#cbbba6]">AN pieces on the wooden board, inside the castle room. Change views.</p>
+            </div>
+          </button>
         </div>
       </main>
     );
   }
+  if (playing === "castle") return <CastleMatch onExit={() => setPlaying(false)} />;
   return <CrossMatch onExit={() => setPlaying(false)} />;
 }
 
@@ -205,8 +218,6 @@ function CrossMatch({ onExit }: { onExit: () => void }) {
       applyMove(pick.u.id, pick.m.x, pick.m.z);
     }, 700);
     return () => window.clearTimeout(timer);
-    // AI step is intentionally tied to the turn token.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn, winner, ask]);
 
   const playerLost = lost.includes("W") || (winner != null && winner !== "W");
@@ -231,29 +242,17 @@ function CrossMatch({ onExit }: { onExit: () => void }) {
         ) : null}
         <label className="mt-3 block rounded-lg bg-black/55 p-2 text-xs">
           Your RA look
-          <select
-            className="mt-1 w-full bg-[#1b140e] p-1"
-            value={look}
-            onChange={(e) => setLook(e.target.value)}
-          >
+          <select className="mt-1 w-full bg-[#1b140e] p-1" value={look} onChange={(e) => setLook(e.target.value)}>
             {LOOKS.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
+              <option key={row.id} value={row.id}>{row.name}</option>
             ))}
           </select>
         </label>
       </aside>
       <div className="absolute bottom-4 left-4 z-10 flex flex-wrap gap-2">
         {ORDER.map((team) => (
-          <span
-            key={team}
-            className="rounded-full px-3 py-1 text-xs"
-            style={{ background: TEAM_COLOR[team], color: "#1a120c", opacity: lost.includes(team) ? 0.35 : 1 }}
-          >
-            {TEAM_NAME[team]}
-            {kingOf(units, team) ? "" : " fallen"}
-            {turn === team ? " · turn" : ""}
+          <span key={team} className="rounded-full px-3 py-1 text-xs" style={{ background: TEAM_COLOR[team], color: "#1a120c", opacity: lost.includes(team) ? 0.35 : 1 }}>
+            {TEAM_NAME[team]}{kingOf(units, team) ? "" : " fallen"}{turn === team ? " · turn" : ""}
           </span>
         ))}
       </div>
@@ -262,206 +261,60 @@ function CrossMatch({ onExit }: { onExit: () => void }) {
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/55 p-4">
           <div className="max-w-md rounded-2xl border border-[#c9a46a] bg-[#16110c] p-6 text-center">
             <p className="font-display text-3xl">Middle square</p>
-            <p className="mt-2 text-sm text-[#e7dccb]">
-              {TEAM_NAME[ask.other]} already stands there. Dominate the square, or make allies. Allies cannot kill each other. You cannot be allies with two people.
-            </p>
+            <p className="mt-2 text-sm text-[#e7dccb]">{TEAM_NAME[ask.other]} already stands there. Dominate the square, or make allies.</p>
             <div className="mt-5 flex justify-center gap-3">
-              <button type="button" className="rounded-full bg-[#c9a46a] px-4 py-2 text-[#1a120c]" onClick={() => applyMove(ask.unitId, ask.x, ask.z)}>
-                Dominate
-              </button>
-              <button
-                type="button"
-                className="rounded-full border border-[#e7dccb] px-4 py-2"
-                onClick={() => {
-                  if (allies.W && allies.W !== ask.other) {
-                    setNote("You already have an ally.");
-                    setAsk(null);
-                    return;
-                  }
-                  const nextAllies = { ...allies, W: ask.other, [ask.other]: "W" as Team };
-                  setAllies(nextAllies);
-                  const next = units.map((u) =>
-                    u.id === ask.unitId || (u.alive && u.team === ask.other && inCenter(u.x, u.z)) ? { ...u, shake: 12 } : u,
-                  );
-                  setUnits(next);
-                  setNote("They shake hands. Neither army can kill the other.");
-                  applyMove(ask.unitId, ask.x, ask.z, nextAllies);
-                }}
-              >
-                Make allies
-              </button>
+              <button type="button" className="rounded-full bg-[#c9a46a] px-4 py-2 text-[#1a120c]" onClick={() => applyMove(ask.unitId, ask.x, ask.z)}>Dominate</button>
+              <button type="button" className="rounded-full border border-[#e7dccb] px-4 py-2" onClick={() => {
+                if (allies.W && allies.W !== ask.other) { setNote("You already have an ally."); setAsk(null); return; }
+                const nextAllies = { ...allies, W: ask.other, [ask.other]: "W" as Team };
+                setAllies(nextAllies);
+                setNote("They shake hands. Neither army can kill the other.");
+                applyMove(ask.unitId, ask.x, ask.z, nextAllies);
+              }}>Make allies</button>
             </div>
           </div>
         </div>
       ) : null}
-      {playerWon ? (
-        <EndScreen
-          image
-          title="Colosseum stands"
-          body="You built it. Everyone else loses."
-          onAgain={() => window.location.reload()}
-          onHome={onExit}
-        />
-      ) : null}
-      {playerLost && !playerWon ? (
-        <EndScreen
-          title="DEFEAT"
-          body="Your king fell, stood alone, was mated, or had only pawns left."
-          onAgain={() => window.location.reload()}
-          onHome={onExit}
-        />
-      ) : null}
+      {playerWon ? <EndScreen image title="Colosseum stands" body="You built it. Everyone else loses." onAgain={() => window.location.reload()} onHome={onExit} /> : null}
+      {playerLost && !playerWon ? <EndScreen title="DEFEAT" body="Your king fell, stood alone, was mated, or had only pawns left." onAgain={() => window.location.reload()} onHome={onExit} /> : null}
     </main>
   );
 }
 
-function BoardClicks({
-  units,
-  selected,
-  moves,
-  onPick,
-  onMove,
-  disabled,
-}: {
-  units: Unit[];
-  selected: string | null;
-  moves: { x: number; z: number }[];
-  onPick: (id: string | null) => void;
-  onMove: (x: number, z: number) => void;
-  disabled: boolean;
-}) {
+function BoardClicks({ units, selected, moves, onPick, onMove, disabled }: { units: Unit[]; selected: string | null; moves: { x: number; z: number }[]; onPick: (id: string | null) => void; onMove: (x: number, z: number) => void; disabled: boolean; }) {
   const cells: { x: number; z: number }[] = [];
   for (let x = -12; x <= 11; x++) {
     for (let z = -12; z <= 11; z++) {
-      const arm =
-        (x >= -4 && x <= 3 && z >= -4 && z <= 3) ||
-        (x >= -12 && x <= -5 && z >= -4 && z <= 3) ||
-        (x >= 4 && x <= 11 && z >= -4 && z <= 3) ||
-        (z >= -12 && z <= -5 && x >= -4 && x <= 3) ||
-        (z >= 4 && z <= 11 && x >= -4 && x <= 3);
+      const arm = (x >= -4 && x <= 3 && z >= -4 && z <= 3) || (x >= -12 && x <= -5 && z >= -4 && z <= 3) || (x >= 4 && x <= 11 && z >= -4 && z <= 3) || (z >= -12 && z <= -5 && x >= -4 && x <= 3) || (z >= 4 && z <= 11 && x >= -4 && x <= 3);
       if (arm) cells.push({ x, z });
     }
   }
   return (
     <div className="pointer-events-none absolute bottom-16 right-4 z-10 hidden max-h-[46vh] w-64 overflow-auto rounded-xl bg-black/45 p-2 md:block">
       <p className="mb-1 text-[10px] uppercase tracking-[0.16em] text-[#e7c98a]">Squares</p>
-      <p className="text-[10px] text-[#f0e6d4]">Your west board</p>
       <div className="grid grid-cols-8 gap-px">
-        {cells
-          .filter((c) => c.x >= -12 && c.x <= -5 && c.z >= -4 && c.z <= 3)
-          .map((c) => {
-            const here = units.find((u) => u.alive && cellKey(u.x, u.z) === cellKey(c.x, c.z) && u.x === c.x && u.z === c.z);
-            const hot = moves.some((m) => m.x === c.x && m.z === c.z);
-            return (
-              <button
-                key={`${c.x},${c.z}`}
-                type="button"
-                disabled={disabled}
-                className="pointer-events-auto h-6 text-[9px]"
-                style={{
-                  background: inCenter(c.x, c.z) ? "#8a5a28" : (c.x + c.z) % 2 ? "#6d5340" : "#cbb98a",
-                  outline: hot ? "2px solid #f2e2b0" : selected && here?.id === selected ? "2px solid #fff" : "none",
-                  color: "#1a120c",
-                }}
-                onClick={() => {
-                  if (here?.team === "W") onPick(here.id);
-                  else if (hot) onMove(c.x, c.z);
-                }}
-              >
-                {here ? here.kind.toUpperCase() : ""}
-              </button>
-            );
-          })}
-      </div>
-      <p className="mt-2 text-[10px] text-[#f0e6d4]">Middle board</p>
-      <div className="grid grid-cols-8 gap-px">
-        {cells
-          .filter((c) => c.x >= -4 && c.x <= 3 && c.z >= -4 && c.z <= 3)
-          .map((c) => {
-            const here = units.find((u) => u.alive && u.x === c.x && u.z === c.z);
-            const hot = moves.some((m) => m.x === c.x && m.z === c.z);
-            return (
-              <button
-                key={`m${c.x},${c.z}`}
-                type="button"
-                disabled={disabled}
-                className="pointer-events-auto h-6 text-[9px]"
-                style={{
-                  background: inCenter(c.x, c.z) ? "#8a5a28" : (c.x + c.z) % 2 ? "#6d5340" : "#cbb98a",
-                  outline: hot ? "2px solid #f2e2b0" : "none",
-                  color: "#1a120c",
-                }}
-                onClick={() => {
-                  if (here?.team === "W") onPick(here.id);
-                  else if (hot) onMove(c.x, c.z);
-                }}
-              >
-                {here ? here.kind.toUpperCase() : ""}
-              </button>
-            );
-          })}
+        {cells.filter((c) => c.x >= -12 && c.x <= -5 && c.z >= -4 && c.z <= 3).map((c) => {
+          const here = units.find((u) => u.alive && u.x === c.x && u.z === c.z);
+          const hot = moves.some((m) => m.x === c.x && m.z === c.z);
+          return (
+            <button key={`${c.x},${c.z}`} type="button" disabled={disabled} className="pointer-events-auto h-6 text-[9px]" style={{ background: inCenter(c.x, c.z) ? "#8a5a28" : (c.x + c.z) % 2 ? "#6d5340" : "#cbb98a", outline: hot ? "2px solid #f2e2b0" : selected && here?.id === selected ? "2px solid #fff" : "none", color: "#1a120c" }} onClick={() => { if (here?.team === "W") onPick(here.id); else if (hot) onMove(c.x, c.z); }}>{here ? here.kind.toUpperCase() : ""}</button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function EndScreen({
-  title,
-  body,
-  image,
-  onAgain,
-  onHome,
-}: {
-  title: string;
-  body: string;
-  image?: boolean;
-  onAgain: () => void;
-  onHome: () => void;
-}) {
+function EndScreen({ title, body, image, onAgain, onHome }: { title: string; body: string; image?: boolean; onAgain: () => void; onHome: () => void; }) {
   return (
-    <div
-      className="absolute inset-0 z-30 grid place-items-center bg-black/72 p-6 text-center"
-      style={image ? { backgroundImage: "linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.72)), url(/sandbox/you-turn.png)", backgroundSize: "cover" } : undefined}
-    >
+    <div className="absolute inset-0 z-30 grid place-items-center bg-black/72 p-6 text-center" style={image ? { backgroundImage: "linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.72)), url(/sandbox/you-turn.png)", backgroundSize: "cover" } : undefined}>
       <div>
         <p className="font-display text-7xl tracking-wide text-[#f8f1e4]">{title}</p>
         <p className="mt-3 text-[#f0e6d4]">{body}</p>
         <div className="mt-6 flex justify-center gap-3">
-          <button type="button" className="rounded-full bg-[#c9a46a] px-5 py-2 text-[#1a120c]" onClick={onAgain}>
-            Another game
-          </button>
-          <button type="button" className="rounded-full border border-[#f0e6d4] px-5 py-2" onClick={onHome}>
-            Return home
-          </button>
+          <button type="button" className="rounded-full bg-[#c9a46a] px-5 py-2 text-[#1a120c]" onClick={onAgain}>Another game</button>
+          <button type="button" className="rounded-full border border-[#f0e6d4] px-5 py-2" onClick={onHome}>Return home</button>
         </div>
-      </div>
-      <p className="mt-2 text-[10px] text-[#f0e6d4]">Middle board</p>
-      <div className="grid grid-cols-8 gap-px">
-        {cells
-          .filter((c) => c.x >= -4 && c.x <= 3 && c.z >= -4 && c.z <= 3)
-          .map((c) => {
-            const here = units.find((u) => u.alive && u.x === c.x && u.z === c.z);
-            const hot = moves.some((m) => m.x === c.x && m.z === c.z);
-            return (
-              <button
-                key={`m${c.x},${c.z}`}
-                type="button"
-                disabled={disabled}
-                className="pointer-events-auto h-6 text-[9px]"
-                style={{
-                  background: inCenter(c.x, c.z) ? "#8a5a28" : (c.x + c.z) % 2 ? "#6d5340" : "#cbb98a",
-                  outline: hot ? "2px solid #f2e2b0" : "none",
-                  color: "#1a120c",
-                }}
-                onClick={() => {
-                  if (here?.team === "W") onPick(here.id);
-                  else if (hot) onMove(c.x, c.z);
-                }}
-              >
-                {here ? here.kind.toUpperCase() : ""}
-              </button>
-            );
-          })}
       </div>
     </div>
   );
