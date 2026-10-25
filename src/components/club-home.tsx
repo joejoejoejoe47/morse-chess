@@ -29,7 +29,8 @@ import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 type Flow =
   | { kind: "idle" }
   | { kind: "pick-mode"; intent: "random" | "challenge" | "bot" | "bot-v2" }
-  | { kind: "ask-name"; mode: GameMode }
+  | { kind: "select-game"; intent: "random" | "challenge" }
+  | { kind: "ask-name"; mode: GameMode; game?: string }
   | { kind: "searching"; mode: GameMode }
   | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string };
 
@@ -274,7 +275,7 @@ export function ClubHome() {
       <section className="relative mt-8 grid gap-4 md:grid-cols-2">
         <button
           type="button"
-          onClick={() => setFlow({ kind: "pick-mode", intent: "random" })}
+          onClick={() => setFlow({ kind: "select-game", intent: "random" })}
           className="felt-inset rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
         >
           <div className="flex items-center gap-3">
@@ -290,7 +291,7 @@ export function ClubHome() {
         </button>
         <button
           type="button"
-          onClick={() => setFlow({ kind: "pick-mode", intent: "challenge" })}
+          onClick={() => setFlow({ kind: "select-game", intent: "challenge" })}
           className="felt-inset rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
         >
           <div className="flex items-center gap-3">
@@ -482,13 +483,15 @@ export function ClubHome() {
           <div className="w-full max-w-md rounded-xl border border-line bg-panel p-6">
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-display text-2xl text-ivory">
-                {flow.kind === "pick-mode"
-                  ? "How do you want to play?"
-                  : flow.kind === "ask-name"
-                    ? "Who sits across the board?"
-                    : flow.kind === "searching" || home.queued
-                      ? "Finding a board"
-                      : "Challenge sent"}
+                {flow.kind === "select-game"
+                  ? "Choose your game"
+                  : flow.kind === "pick-mode"
+                    ? "How do you want to play?"
+                    : flow.kind === "ask-name"
+                      ? "Who sits across the board?"
+                      : flow.kind === "searching" || home.queued
+                        ? "Finding a board"
+                        : "Challenge sent"}
               </h2>
               <button
                 type="button"
@@ -503,6 +506,69 @@ export function ClubHome() {
                 <X className="size-4" />
               </button>
             </div>
+
+            {flow.kind === "select-game" ? (
+              <div className="mt-5">
+                <p className="mb-4 text-sm text-mist">Choose a game. Background fades, boxes appear.</p>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <button
+                    type="button"
+                    className="relative aspect-square rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
+                    onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })}
+                  >
+                    <div className="mb-1 text-2xl">♟️</div>
+                    <div className="text-xs font-medium">Normal Chess</div>
+                    <div className="text-[10px] text-mist">Standard rules</div>
+                  </button>
+                  <button
+                    type="button"
+                    className="relative aspect-square rounded-lg border border-line bg-ink/40 p-2 text-center opacity-60 cursor-not-allowed"
+                    disabled
+                  >
+                    <div className="mb-1 text-2xl">👥</div>
+                    <div className="text-xs">3-Player</div>
+                    <div className="absolute inset-0 grid place-items-center bg-ink/70 rounded-lg text-xs font-bold text-ivory">Coming Soon</div>
+                  </button>
+                  <button
+                    type="button"
+                    className="relative aspect-square rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
+                    onClick={() => {
+                      // Check Mate: custom placement mode - for now route to normal with note
+                      setFlow({ kind: "pick-mode", intent: flow.intent });
+                    }}
+                  >
+                    <div className="mb-1 text-2xl">♔</div>
+                    <div className="text-xs font-medium">Check Mate</div>
+                    <div className="text-[10px] text-mist">Place pieces first</div>
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    className="relative aspect-[4/3] rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
+                    onClick={() => {
+                      // Football: longer board, ball, etc. - stub for now
+                      alert("Football mode coming: longer board, ball throws, touchdowns, 5-min timer.");
+                    }}
+                  >
+                    <div className="mb-1 text-2xl">🏈</div>
+                    <div className="text-xs font-medium">Football</div>
+                    <div className="text-[10px] text-mist">Always 5 min</div>
+                  </button>
+                  <button
+                    type="button"
+                    className="relative aspect-[4/3] rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
+                    onClick={() => {
+                      alert("Morse Strategy: Stratego-style placement, ranks, bombs, hidden pieces.");
+                    }}
+                  >
+                    <div className="mb-1 text-2xl">⚔️</div>
+                    <div className="text-xs font-medium">Morse Strategy</div>
+                    <div className="text-[10px] text-mist">Setup & ranks</div>
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {flow.kind === "pick-mode" ? (
               <div className="mt-5 grid gap-3">
