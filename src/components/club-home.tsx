@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Navigate, useNavigate, Link } from "@tanstack/react-router";
 import { Timer, Wind, X } from "lucide-react";
 import { ClubBrand, ClubHeaderActions, MorseCrest } from "@/components/club-brand";
@@ -26,10 +26,13 @@ import { SplashSkeleton } from "@/components/auth-screen";
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 
+type VariantId = "checkmate" | "football" | "strategy";
+
 type Flow =
   | { kind: "idle" }
   | { kind: "pick-mode"; intent: "random" | "challenge" | "bot" | "bot-v2" }
   | { kind: "select-game"; intent: "random" | "challenge" }
+  | { kind: "variant-name"; intent: "random" | "challenge"; mode: VariantId }
   | { kind: "ask-name"; mode: GameMode; game?: string }
   | { kind: "searching"; mode: GameMode }
   | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string };
@@ -137,6 +140,25 @@ export function ClubHome() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function launchVariant(mode: VariantId, versus: string) {
+    try {
+      sessionStorage.setItem("morse-variant-vs", versus.trim() || "MorseBot");
+    } catch {
+      /* ignore */
+    }
+    setFlow({ kind: "idle" });
+    void navigate({ to: "/variant/$mode", params: { mode } });
+  }
+
+  function pickVariant(mode: VariantId) {
+    if (flow.kind !== "select-game") return;
+    if (flow.intent === "challenge") {
+      setFlow({ kind: "variant-name", intent: flow.intent, mode });
+      return;
+    }
+    launchVariant(mode, "MorseBot");
   }
 
   async function chooseMode(mode: GameMode) {
@@ -480,11 +502,13 @@ export function ClubHome() {
 
       {(flow.kind !== "idle" || home.queued) && (
         <div className="fixed inset-0 z-40 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
-          <div className="w-full max-w-md rounded-xl border border-line bg-panel p-6">
+          <div className={"w-full rounded-xl border border-line bg-panel p-6 " + (flow.kind === "select-game" ? "max-w-4xl" : "max-w-md")}>
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-display text-2xl text-ivory">
                 {flow.kind === "select-game"
                   ? "Choose your game"
+                  : flow.kind === "variant-name"
+                    ? "Who sits across the board?"
                   : flow.kind === "pick-mode"
                     ? "How do you want to play?"
                     : flow.kind === "ask-name"
@@ -509,65 +533,43 @@ export function ClubHome() {
 
             {flow.kind === "select-game" ? (
               <div className="mt-5">
-                <p className="mb-4 text-sm text-mist">Choose a game. Background fades, boxes appear.</p>
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  <button
-                    type="button"
-                    className="relative aspect-square rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
-                    onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })}
-                  >
-                    <div className="mb-1 text-2xl">♟️</div>
-                    <div className="text-xs font-medium">Normal Chess</div>
-                    <div className="text-[10px] text-mist">Standard rules</div>
-                  </button>
-                  <button
-                    type="button"
-                    className="relative aspect-square rounded-lg border border-line bg-ink/40 p-2 text-center opacity-60 cursor-not-allowed"
-                    disabled
-                  >
-                    <div className="mb-1 text-2xl">👥</div>
-                    <div className="text-xs">3-Player</div>
-                    <div className="absolute inset-0 grid place-items-center bg-ink/70 rounded-lg text-xs font-bold text-ivory">Coming Soon</div>
-                  </button>
-                  <button
-                    type="button"
-                    className="relative aspect-square rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
-                    onClick={() => {
-                      // Check Mate: custom placement mode - for now route to normal with note
-                      setFlow({ kind: "pick-mode", intent: flow.intent });
-                    }}
-                  >
-                    <div className="mb-1 text-2xl">♔</div>
-                    <div className="text-xs font-medium">Check Mate</div>
-                    <div className="text-[10px] text-mist">Place pieces first</div>
-                  </button>
+                <div className="grid grid-cols-3 gap-3">
+                  <GameCard title="Chess" caption="Timed or breeze" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })}>
+                    <MiniBoard marks={["", "", "♜", "", "♚", "", "♝", ""]} />
+                  </GameCard>
+                  <GameCard title="3 Player" caption="Coming soon" disabled>
+                    <MiniBoard marks={["♚", "", "", "♔", "", "", "", "♚"]} wash />
+                    <span className="absolute inset-0 grid place-items-center bg-black/55 text-sm font-semibold uppercase tracking-[0.18em] text-ivory">Coming soon</span>
+                  </GameCard>
+                  <GameCard title="Check Mate" caption="Place, then crown" onClick={() => pickVariant("checkmate")}>
+                    <MiniBoard marks={["", "♝", "", "♚", "", "♞", "", "♜"]} dark />
+                  </GameCard>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    className="relative aspect-[4/3] rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
-                    onClick={() => {
-                      // Football: longer board, ball, etc. - stub for now
-                      alert("Football mode coming: longer board, ball throws, touchdowns, 5-min timer.");
-                    }}
-                  >
-                    <div className="mb-1 text-2xl">🏈</div>
-                    <div className="text-xs font-medium">Football</div>
-                    <div className="text-[10px] text-mist">Always 5 min</div>
-                  </button>
-                  <button
-                    type="button"
-                    className="relative aspect-[4/3] rounded-lg border border-gold-line/40 bg-walnut/60 p-2 text-center hover:bg-walnut"
-                    onClick={() => {
-                      alert("Morse Strategy: Stratego-style placement, ranks, bombs, hidden pieces.");
-                    }}
-                  >
-                    <div className="mb-1 text-2xl">⚔️</div>
-                    <div className="text-xs font-medium">Morse Strategy</div>
-                    <div className="text-[10px] text-mist">Setup & ranks</div>
-                  </button>
+                <div className="mx-auto mt-3 grid max-w-lg grid-cols-2 gap-3">
+                  <GameCard title="Football" caption="5 minutes · 6 a score" onClick={() => pickVariant("football")}>
+                    <MiniBoard marks={["⊓", "", "●", "", "", "♟", "♚", ""]} field />
+                  </GameCard>
+                  <GameCard title="Morse Strategy" caption="Hide ranks, find the apple" onClick={() => pickVariant("strategy")}>
+                    <MiniBoard marks={["10", "?", "B", "?", "A", "?", "3", "1"]} wide />
+                  </GameCard>
                 </div>
               </div>
+            ) : null}
+
+            {flow.kind === "variant-name" ? (
+              <form
+                className="mt-5 space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  launchVariant(flow.mode, target);
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="variant-user">Username</Label>
+                  <Input id="variant-user" autoFocus value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Who sits across from you" />
+                </div>
+                <Button type="submit" variant="solid" size="lg">Sit down</Button>
+              </form>
             ) : null}
 
             {flow.kind === "pick-mode" ? (
@@ -696,6 +698,51 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
       <div className="h-1 overflow-hidden rounded-full bg-ink-soft">
         <div className="h-full bg-forest transition-[width] duration-200" style={{ width: `${(left / 5) * 100}%` }} />
       </div>
+    </div>
+  );
+}
+
+function GameCard({
+  title,
+  caption,
+  onClick,
+  disabled,
+  children,
+}: {
+  title: string;
+  caption: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="relative overflow-hidden rounded-xl border border-[#6d5a32] bg-[#1a140f] text-left shadow-[0_16px_30px_rgba(0,0,0,0.35)] enabled:hover:border-[#e6c56a] disabled:cursor-not-allowed"
+    >
+      <div className="aspect-[4/3]">{children}</div>
+      <div className="border-t border-[#3a3024] px-3 py-2">
+        <div className="font-display text-xl leading-none text-ivory">{title}</div>
+        <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-[#b7a88c]">{caption}</div>
+      </div>
+    </button>
+  );
+}
+
+function MiniBoard({ marks, dark, field, wide, wash }: { marks: string[]; dark?: boolean; field?: boolean; wide?: boolean; wash?: boolean }) {
+  return (
+    <div className={"grid h-full grid-cols-4 grid-rows-2 " + (wash ? "opacity-60" : "")}>
+      {marks.slice(0, 8).map((mark, i) => {
+        const light = (Math.floor(i / 4) + (i % 4)) % 2 === 0;
+        const bg = field ? (light ? "#2f8f4e" : "#1f6b3a") : dark ? (light ? "#3a342c" : "#211c18") : light ? "#e7d3a8" : "#b58863";
+        return (
+          <div key={i} className="grid place-items-center font-display text-lg text-[#1a120c]" style={{ background: bg, color: wide || dark ? "#f4e7cb" : "#1a120c" }}>
+            {mark}
+          </div>
+        );
+      })}
     </div>
   );
 }

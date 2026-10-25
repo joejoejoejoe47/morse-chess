@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { getPurse } from "@/lib/server/mores";
 import { asset } from "@/lib/base";
 
@@ -100,17 +100,19 @@ export function CoinDock() {
             />
           ))
         : null}
-      <div
+      <Link
+        to="/store"
         className={
           tuck == null
-            ? "pointer-events-none fixed top-3 right-3 z-[60] flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5"
-            : "pointer-events-none fixed right-3 z-[60] flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5"
+            ? "fixed top-3 right-3 z-[60] flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5"
+            : "fixed right-3 z-[60] flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5"
         }
         style={tuck == null ? { marginTop: "env(safe-area-inset-top)" } : { top: tuck }}
+        title="Morse store"
       >
         <img src={asset("/morse-coin.png")} alt="Morse coin" className="size-7 shrink-0" />
         <span className="font-display text-lg leading-none tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
-      </div>
+      </Link>
     </>
   );
 }

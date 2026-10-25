@@ -67,10 +67,10 @@ const pillGhost =
 
 function CoinPill({ coins }: { coins: number }) {
   return (
-    <span className="flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5" data-testid="coins" title="Morse coins">
+    <Link to="/store" className="flex items-center gap-2 rounded-full border border-[#6d5a32] bg-black/60 px-3 py-1.5" data-testid="coins" title="Morse store">
       <img src={asset("/morse-coin.png")} alt="Morse coins" className="size-7 shrink-0" />
       <span className="font-display text-lg leading-none tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
-    </span>
+    </Link>
   );
 }
 

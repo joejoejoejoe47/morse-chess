@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ModelSlot } from "@/components/chess/load-guard";
 import * as THREE from "three";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
@@ -32,6 +32,7 @@ import {
   type PieceStyle,
 } from "@/lib/avatar/catalog";
 import { buyGear, getAvatar, saveAvatar } from "@/lib/server/avatar";
+import { listAvatarModels, saveAvatarModel, wearAvatarModel } from "@/lib/server/store";
 import { cn } from "@/lib/utils";
 import { asset } from "@/lib/base";
 
@@ -83,6 +84,7 @@ const GOLD_BTN =
   "bg-[linear-gradient(180deg,#e9c766_0%,#c99a3a_55%,#a87a26_100%)] text-[#1b140a] border border-[#f3d98a] shadow-[0_6px_18px_rgba(201,154,58,0.25)]";
 
 function AvatarStudio() {
+  const navigate = useNavigate();
   const [worn, setWorn] = useState<AvatarLoadout>(DEFAULT_LOADOUT);
   const [owned, setOwned] = useState<string[]>(["piece", "none", "poly-band", "plain", "march"]);
   const [raTrial, setRaTrial] = useState(false);
@@ -93,6 +95,8 @@ function AvatarStudio() {
   const [pins, setPins] = useState<string[]>([]);
   const [finishDraft, setFinishDraft] = useState<string | null>(null);
   const [saved, setSaved] = useState<"idle" | "saving" | "saved">("idle");
+  const [kingName, setKingName] = useState("");
+  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
   const [past, setPast] = useState<AvatarLoadout[]>([]);
   const [future, setFuture] = useState<AvatarLoadout[]>([]);
   const [board, setBoard] = useState(false);
@@ -115,7 +119,7 @@ function AvatarStudio() {
   useEffect(() => {
     let live = true;
     void getAvatar()
-      .then((row) => {
+      .then(async (row) => {
         if (!live || !row) return;
         setWorn(row.loadout);
         setOwned(row.owned);
@@ -123,6 +127,12 @@ function AvatarStudio() {
         setCoins(row.coins);
         setUsername(row.username || "");
         setReady(true);
+        try {
+          const named = await listAvatarModels();
+          if (live) setModels((named.models ?? []).filter((m: { id: string }) => m.id !== "current"));
+        } catch {
+          /* store can be empty on an older server */
+        }
       })
       .catch((err) => {
         if (live) setError(err instanceof Error ? err.message : "The cabinet did not open.");
@@ -227,10 +237,40 @@ function AvatarStudio() {
     setSaved("saving");
     const done = await commit({ ...worn, finishId: finishDraft ?? worn.finishId }, false);
     if (done) {
+      const label = kingName.trim() || `${username || "My"} king`;
+      try {
+        const savedRow = await saveAvatarModel({ data: { name: label, loadout: done } });
+        setModels(savedRow.models ?? []);
+        if (!kingName.trim()) setKingName(label);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Saved the look, but not a named model.");
+      }
       setFinishDraft(null);
       setSaved("saved");
       window.setTimeout(() => setSaved((cur) => (cur === "saved" ? "idle" : cur)), 2200);
     } else setSaved("idle");
+  }
+
+  function sellKing() {
+    const look = { ...worn, finishId: finishDraft ?? worn.finishId };
+    let shot = "";
+    const canvas = document.querySelector("#king-stage canvas");
+    if (canvas instanceof HTMLCanvasElement) {
+      try {
+        shot = canvas.toDataURL("image/jpeg", 0.72);
+      } catch {
+        shot = "";
+      }
+    }
+    try {
+      sessionStorage.setItem(
+        "morse-sell-open",
+        JSON.stringify({ kind: "av", name: kingName.trim() || `${username || "My"} king`, shot, loadout: look, sourceId: "current" }),
+      );
+    } catch {
+      /* ignore */
+    }
+    void navigate({ to: "/store" });
   }
 
   async function travel(dir: "undo" | "redo") {
@@ -267,7 +307,7 @@ function AvatarStudio() {
 
   return (
     <main className="relative h-dvh overflow-hidden bg-[#0d0b09] text-ivory">
-      <div className="absolute inset-0">
+      <div id="king-stage" className="absolute inset-0">
         {loadout.style === "2d" ? (
           <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_center,#2a241c_0%,#0c0d0b_68%)]">
             <div className="relative grid size-[min(68vh,26rem)] place-items-center border border-line bg-[#e7d7b4] shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
@@ -280,7 +320,7 @@ function AvatarStudio() {
           <Canvas
             camera={{ position: [0.25, 2.5, 6.1], fov: 34 }}
             shadows
-            gl={{ toneMapping: THREE.ACESFilmicToneMapping }}
+            gl={{ toneMapping: THREE.ACESFilmicToneMapping, preserveDrawingBuffer: true }}
             onCreated={({ gl }) => keepWebGL(gl)}
           >
             <color attach="background" args={["#0f0c0a"]} />
@@ -298,7 +338,7 @@ function AvatarStudio() {
             />
           </Canvas>
         ) : loadout.style === "ra" ? (
-          <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows onCreated={({ gl }) => keepWebGL(gl)}>
+          <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows gl={{ preserveDrawingBuffer: true }} onCreated={({ gl }) => keepWebGL(gl)}>
             <color attach="background" args={["#9eb8cc"]} />
             <ModelSlot>
               <FieldStage />
@@ -309,7 +349,7 @@ function AvatarStudio() {
             <OrbitControls ref={controls as never} enablePan target={[0, 1.1, 1.2]} minDistance={3} maxDistance={12} maxPolarAngle={1.35} />
           </Canvas>
         ) : (
-          <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows onCreated={({ gl }) => keepWebGL(gl)}>
+          <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows gl={{ preserveDrawingBuffer: true }} onCreated={({ gl }) => keepWebGL(gl)}>
             <color attach="background" args={["#9eb8cc"]} />
             <ModelSlot>
               <FieldStage />
@@ -374,10 +414,10 @@ function AvatarStudio() {
             </button>
           ))}
         </div>
-        <div className="pointer-events-auto flex items-center gap-2 rounded-md border border-[#4a3d2a] bg-[#14110d]/90 px-3 py-1.5 backdrop-blur-md sm:hidden">
+        <Link to="/store" className="pointer-events-auto flex items-center gap-2 rounded-md border border-[#4a3d2a] bg-[#14110d]/90 px-3 py-1.5 backdrop-blur-md sm:hidden" title="Morse store">
           <img src={asset("/morse-coin.png")} alt="" className="size-5" />
           <span className="font-display text-lg tabular-nums text-ivory">{coins.toLocaleString()}</span>
-        </div>
+        </Link>
       </header>
 
       {/* Left: category column + SAVE AVATAR. */}
@@ -409,10 +449,18 @@ function AvatarStudio() {
         <div className="hidden items-center justify-between gap-2 px-1 pb-2 text-sm sm:flex">
           <span className="truncate font-display text-lg text-[#f3e6c8]">{username || "You"}</span>
           <span className="flex items-center gap-1.5">
-            <img src={asset("/morse-coin.png")} alt="" className="size-5" />
-            <span className="font-display text-lg tabular-nums text-[#f0d68a]">{coins.toLocaleString()}</span>
+            <Link to="/store" className="flex items-center gap-1.5" title="Morse store">
+              <img src={asset("/morse-coin.png")} alt="" className="size-5" />
+              <span className="font-display text-lg tabular-nums text-[#f0d68a]">{coins.toLocaleString()}</span>
+            </Link>
           </span>
         </div>
+        <input
+          value={kingName}
+          onChange={(e) => setKingName(e.target.value)}
+          placeholder="Name this king"
+          className="min-h-10 rounded-md border border-[#3a3024] bg-black/30 px-2 text-sm text-[#f4e7cb]"
+        />
         <button
           type="button"
           disabled={!ready || saved === "saving"}
@@ -425,6 +473,32 @@ function AvatarStudio() {
           <SaveIcon />
           {saved === "saving" ? "Saving…" : saved === "saved" ? "Saved ✓" : unsaved ? "Save avatar •" : "Save avatar"}
         </button>
+        <button
+          type="button"
+          disabled={!ready}
+          onClick={sellKing}
+          className="flex min-h-11 shrink-0 items-center justify-center rounded-md border border-[#d6ad4f] px-4 text-sm font-bold uppercase tracking-[0.16em] text-[#f0d68a]"
+        >
+          Sell
+        </button>
+        {models.length ? (
+          <div className="max-h-28 space-y-1 overflow-auto">
+            {models.map((model) => (
+              <button
+                key={model.id}
+                type="button"
+                className="block w-full truncate rounded px-2 py-1 text-left text-xs text-[#e6c56a] hover:bg-white/5"
+                onClick={() => {
+                  void wearAvatarModel({ data: { id: model.id } }).then((row) => {
+                    if (row?.loadout) setWorn(row.loadout);
+                  }).catch((err) => setError(err instanceof Error ? err.message : "Could not wear that king."));
+                }}
+              >
+                {model.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </nav>
 
       {/* Centre overlays: name plate, hint, toolbar. */}

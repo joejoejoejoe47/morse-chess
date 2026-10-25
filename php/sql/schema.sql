@@ -328,3 +328,33 @@ CREATE TABLE IF NOT EXISTS `lego_builds` (
   PRIMARY KEY (`id`),
   KEY `lego_builds_user_idx` (`user_id`, `updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Named kings (AV models) and the Morse coin store ───────────────────────
+
+CREATE TABLE IF NOT EXISTS `avatar_models` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `name` VARCHAR(64) NOT NULL,
+  `loadout_json` MEDIUMTEXT NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `avatar_models_user_idx` (`user_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `market_listings` (
+  `id` VARCHAR(64) NOT NULL,
+  `seller_id` VARCHAR(64) NOT NULL,
+  `seller_name` VARCHAR(64) NOT NULL,
+  `kind` VARCHAR(8) NOT NULL,
+  `name` VARCHAR(80) NOT NULL,
+  `price` INT NOT NULL,
+  `blurb` VARCHAR(500) NOT NULL DEFAULT '',
+  `shot` MEDIUMTEXT NOT NULL,
+  `payload` MEDIUMTEXT NOT NULL,
+  `status` VARCHAR(12) NOT NULL DEFAULT 'live',
+  `buyer_id` VARCHAR(64) NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `market_live_idx` (`status`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
