@@ -5,6 +5,7 @@ import { ClubBrand, ClubHeaderActions, MorseCrest } from "@/components/club-bran
 import { CheckTile, PieceMark } from "@/components/chess/marks";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { sandboxUrlFor } from "@/lib/master-sandbox";
+import { asset } from "@/lib/base";
 import {
   cancelChallenge,
   claimUsername,
@@ -501,30 +502,26 @@ export function ClubHome() {
       <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
 
       {flow.kind === "select-game" ? (
-        <div className="fixed inset-0 z-40 overflow-auto bg-[#120d09] px-4 py-6 text-[#f3e2b6] sm:px-8">
-          <div className="mx-auto max-w-5xl">
-            <div className="flex items-center justify-between">
-              <div className="inline-flex items-center gap-3 rounded-full border border-[#d7c08a]/80 bg-black/40 px-4 py-1.5">
-                <span className="grid size-8 place-items-center rounded-full border border-[#d7c08a] text-xs">♔</span>
-                <span className="font-display text-sm tracking-[0.28em]">{flow.intent === "random" ? "RANDOM" : "INTENDED"}</span>
-              </div>
-              <button
-                type="button"
-                aria-label="Close"
-                className="grid size-10 place-items-center text-2xl text-[#d7c08a]"
-                onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
-              >
-                <X className="size-5" />
-              </button>
+        <div className="fixed inset-0 z-40 grid place-items-center bg-[#110d09]">
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute right-4 top-4 z-10 grid size-11 place-items-center text-[#e7c56a]"
+            onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
+          >
+            <X className="size-6" />
+          </button>
+          <div className="relative w-[min(100vw,calc(100dvh*1024/572))]" style={{ aspectRatio: "1024 / 572" }}>
+            <img src={asset("/pull-up.png")} alt="" className="absolute inset-0 h-full w-full select-none" draggable={false} />
+            <div className="absolute grid grid-cols-3 grid-rows-2 gap-x-[2.1%] gap-y-[3.4%]" style={{ left: "6.6%", right: "6.4%", top: "16.2%", bottom: "8.6%" }}>
+              <button type="button" aria-label="Standard" className="rounded-md hover:bg-white/5" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} />
+              <button type="button" aria-label="Doubles" className="rounded-md hover:bg-white/5" onClick={() => pickVariant("checkmate")} />
+              <button type="button" aria-label="Duel" className="rounded-md hover:bg-white/5" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} />
+              <button type="button" aria-label="Rumble" className="rounded-md hover:bg-white/5" onClick={() => pickVariant("strategy")} />
+              <button type="button" aria-label="Hoops" className="rounded-md hover:bg-white/5" onClick={() => pickVariant("football")} />
+              <button type="button" aria-label="Snow Day" className="rounded-md hover:bg-white/5" onClick={() => setError("Coming soon")} />
             </div>
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              <PlaylistCard kicker="CHESS" title="STANDARD" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} marks={["♟", "♛", "♚", "♝", "♜"]} />
-              <PlaylistCard kicker="CHECK" title="MATE" onClick={() => pickVariant("checkmate")} marks={["♞", "♞"]} />
-              <PlaylistCard kicker="FOOT" title="BALL" onClick={() => pickVariant("football")} marks={["♚"]} />
-              <PlaylistCard kicker="MORSE" title="STRATEGY" onClick={() => pickVariant("strategy")} marks={["♞", "♞", "♞"]} />
-              <PlaylistCard kicker="THREE" title="PLAYER" disabled marks={["♜", "♜"]} />
-              <PlaylistCard kicker="ONE" title="DUEL" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} marks={["♟", "♟", "♟"]} />
-            </div>
+            {error ? <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-sm text-[#e7c56a]">{error}</p> : null}
           </div>
         </div>
       ) : null}
@@ -681,45 +678,6 @@ export function ClubHome() {
         </div>
       )}
     </main>
-  );
-}
-
-function PlaylistCard({
-  kicker,
-  title,
-  marks,
-  onClick,
-  disabled,
-}: {
-  kicker: string;
-  title: string;
-  marks: string[];
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="relative aspect-[5/3.4] overflow-hidden rounded-md border border-[#c6a36a] bg-[#1a130e] text-left shadow-[inset_0_0_0_1px_rgba(198,163,106,0.35)] enabled:hover:border-[#f0d48a] disabled:cursor-not-allowed"
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(90,70,40,0.35),transparent_62%)]" />
-      <div className="absolute inset-x-0 top-4 flex items-end justify-center gap-2 text-[#efe2c4]">
-        {marks.map((mark, i) => (
-          <span key={i} className="font-display leading-none drop-shadow" style={{ fontSize: i === Math.floor(marks.length / 2) ? "4.2rem" : "3rem" }}>
-            {mark}
-          </span>
-        ))}
-      </div>
-      <div className="absolute bottom-3 left-4">
-        <div className="font-display text-3xl leading-none text-[#e7c56a]">{kicker}</div>
-        <div className="mt-1 text-xs tracking-[0.22em] text-[#e7c56a]">{title}</div>
-      </div>
-      {disabled ? (
-        <span className="absolute inset-0 grid place-items-center bg-black/55 text-sm font-semibold uppercase tracking-[0.2em] text-[#f3e2b6]">Coming soon</span>
-      ) : null}
-    </button>
   );
 }
 
