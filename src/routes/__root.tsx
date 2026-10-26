@@ -6,6 +6,7 @@ import { SoundtrackHost } from "@/components/soundtrack-host";
 import { StudioSplash } from "@/components/studio-splash";
 import { CoinDock } from "@/components/coin-dock";
 import { MasterPopupHost } from "@/components/master-popup-host";
+import { MailPopupHost } from "@/components/mail-popup-host";
 import { Toaster } from "sonner";
 
 export const Route = createRootRoute({
@@ -16,6 +17,7 @@ export const Route = createRootRoute({
           <BellHost />
           <SoundtrackHost />
           <MasterPopupHost />
+          <MailPopupHost />
           <Outlet />
         </ThemeProvider>
       </AuthProvider>

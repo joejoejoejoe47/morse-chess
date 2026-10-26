@@ -367,9 +367,12 @@ CREATE TABLE IF NOT EXISTS `mail` (
   `to_id` VARCHAR(64) NOT NULL,
   `to_name` VARCHAR(64) NOT NULL,
   `body` VARCHAR(2000) NOT NULL,
+  `seen` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `mail_to_idx` (`to_id`, `created_at`),
   KEY `mail_from_idx` (`from_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE `mail` ADD COLUMN `seen` TINYINT(1) NOT NULL DEFAULT 0;
 

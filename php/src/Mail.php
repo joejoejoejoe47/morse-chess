@@ -12,6 +12,8 @@ final class Mail
         Rpc::register('listGc', [self::class, 'listGc']);
         Rpc::register('gcThread', [self::class, 'gcThread']);
         Rpc::register('sendMail', [self::class, 'sendMail']);
+        Rpc::register('gcPops', [self::class, 'gcPops']);
+        Rpc::register('gcRead', [self::class, 'gcRead']);
     }
 
     /** First capital in the name, or the first letter when there is none. */
@@ -114,6 +116,40 @@ final class Mail
             [$id, $userId, mb_substr($me, 0, 64), $other['user_id'], mb_substr((string) $other['username'], 0, 64), $body, Db::now()]
         );
         return ['id' => $id];
+    }
+
+    /** Unread letters waiting for this player. Shown once they are at the club. */
+    public static function gcPops(string $userId, array $data): mixed
+    {
+        $rows = Db::all(
+            'SELECT id, from_name, body FROM mail WHERE to_id = ? AND seen = 0 ORDER BY created_at ASC LIMIT 8',
+            [$userId]
+        );
+        $letters = [];
+        foreach ($rows as $row) {
+            $letters[] = [
+                'id' => (string) $row['id'],
+                'name' => (string) $row['from_name'],
+                'text' => mb_substr((string) $row['body'], 0, 280),
+            ];
+        }
+        return ['letters' => $letters];
+    }
+
+    /** @param array<string,mixed> $data */
+    public static function gcRead(string $userId, array $data): mixed
+    {
+        $ids = $data['ids'] ?? [];
+        if (!is_array($ids)) {
+            return ['ok' => true];
+        }
+        foreach (array_slice($ids, 0, 8) as $id) {
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+            Db::run('UPDATE mail SET seen = 1 WHERE id = ? AND to_id = ?', [$id, $userId]);
+        }
+        return ['ok' => true];
     }
 
     /** @return array{user_id:string,username:string}|null */
