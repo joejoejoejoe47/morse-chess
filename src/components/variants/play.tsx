@@ -20,11 +20,12 @@ type Step = { from: [number, number]; to: [number, number] };
 const GLYPH: Record<Kind, string> = { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" };
 const SETUP: Kind[] = ["k", "r", "b", "b", "n", "n", "p"];
 
-const LookCtx = createContext<{ look: Look; sky: Sky; light: string; dark: string; setLook: (next: Look) => void }>({
+const LookCtx = createContext<{ look: Look; sky: Sky; light: string; dark: string; modes: Look[]; setLook: (next: Look) => void }>({
   look: "3d",
   sky: "table",
   light: "#e7d3a8",
   dark: "#b58863",
+  modes: ["2d", "3d", "an", "lg"],
   setLook: () => undefined,
 });
 
@@ -59,7 +60,7 @@ function Shell({
   rail?: ReactNode;
   children: ReactNode;
 }) {
-  const { look, setLook } = useContext(LookCtx);
+  const { look, modes, setLook } = useContext(LookCtx);
   const prefs = useLookPrefs();
   const [wash, setWash] = useState<"dark" | "light" | "color">("dark");
   const [chatOpen, setChatOpen] = useState(false);
@@ -110,7 +111,7 @@ function Shell({
             {status}
           </span>
           <div className="flex overflow-hidden rounded-full border border-line bg-panel">
-            {(["2d", "3d", "an", "lg"] as Look[]).map((id) => (
+            {modes.map((id) => (
               <button
                 key={id}
                 type="button"
@@ -1345,14 +1346,18 @@ export function Strategy({ versus }: { versus: string }) {
 }
 
 export function VariantPlay({ mode, versus }: { mode: "checkmate" | "football" | "strategy"; versus: string }) {
+  const modes: Look[] = mode === "strategy" ? ["an", "lg"] : ["2d", "3d", "an", "lg"];
   const [look, setLook] = useState<Look>(() => {
     try {
       const saved = localStorage.getItem("morse-board-view");
-      if (saved === "2d" || saved === "3d" || saved === "an" || saved === "lg") return saved;
+      if (saved === "2d" || saved === "3d" || saved === "an" || saved === "lg") {
+        if (mode === "strategy" && saved !== "an" && saved !== "lg") return "an";
+        return saved;
+      }
     } catch {
       /* ignore */
     }
-    return "3d";
+    return mode === "strategy" ? "an" : "3d";
   });
   const [boardId, setBoardId] = useState("lodge");
   useEffect(() => {
@@ -1365,6 +1370,7 @@ export function VariantPlay({ mode, versus }: { mode: "checkmate" | "football" |
   const skin = boardById(boardId);
   const sky: Sky = look === "lg" ? "lego" : look === "an" && mode === "football" ? "arena" : "table";
   function choose(next: Look) {
+    if (!modes.includes(next)) return;
     setLook(next);
     try {
       localStorage.setItem("morse-board-view", next);
@@ -1375,7 +1381,7 @@ export function VariantPlay({ mode, versus }: { mode: "checkmate" | "football" |
   }
   const game = mode === "football" ? <Football versus={versus} /> : mode === "strategy" ? <Strategy versus={versus} /> : <CheckMate versus={versus} />;
   return (
-    <LookCtx.Provider value={{ look, sky, light: skin.lightSq, dark: skin.darkSq, setLook: choose }}>
+    <LookCtx.Provider value={{ look, sky, light: skin.lightSq, dark: skin.darkSq, modes, setLook: choose }}>
       {game}
     </LookCtx.Provider>
   );
