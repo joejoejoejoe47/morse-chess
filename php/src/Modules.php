@@ -9,7 +9,7 @@ final class Modules
 {
     public static function registerAll(): void
     {
-        foreach (['Avatar', 'Mores', 'Clubs', 'LegoBuilder', 'Store'] as $name) {
+        foreach (['Avatar', 'Mores', 'Clubs', 'LegoBuilder', 'Store', 'Mail'] as $name) {
             $class = __NAMESPACE__ . '\\' . $name;
             if (class_exists($class)) {
                 $class::register();

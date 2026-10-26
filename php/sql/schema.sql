@@ -358,3 +358,18 @@ CREATE TABLE IF NOT EXISTS `market_listings` (
   KEY `market_live_idx` (`status`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── GC, the club post. One row is one letter between two players. ──────────
+
+CREATE TABLE IF NOT EXISTS `mail` (
+  `id` VARCHAR(64) NOT NULL,
+  `from_id` VARCHAR(64) NOT NULL,
+  `from_name` VARCHAR(64) NOT NULL,
+  `to_id` VARCHAR(64) NOT NULL,
+  `to_name` VARCHAR(64) NOT NULL,
+  `body` VARCHAR(2000) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `mail_to_idx` (`to_id`, `created_at`),
+  KEY `mail_from_idx` (`from_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

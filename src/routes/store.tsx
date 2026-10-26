@@ -5,6 +5,7 @@ import { useClubDoor } from "@/lib/auth/use-club-door";
 import { asset } from "@/lib/base";
 import { buyMarketListing, createMarketListing, listMarket, mySellables } from "@/lib/server/store";
 import { ShopPreview, type Look } from "@/components/variants/stage";
+import { GcMail } from "@/components/gc-mail";
 
 export const Route = createFileRoute("/store")({
   component: StoreDoor,
@@ -94,6 +95,7 @@ function Store() {
   const [busy, setBusy] = useState(false);
   const [look, setLook] = useState<Look>("3d");
   const [seeing, setSeeing] = useState(false);
+  const [gc, setGc] = useState(false);
 
   async function refresh(query = q) {
     const row = await listMarket({ data: { q: query } });
@@ -185,6 +187,9 @@ function Store() {
         <Link to="/" className="shrink-0 font-display text-lg text-ivory">Morse</Link>
         <button type="button" onClick={() => void openSell()} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
           Sell
+        </button>
+        <button type="button" onClick={() => setGc(true)} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
+          GC
         </button>
         <input
           value={q}
@@ -298,6 +303,7 @@ function Store() {
           </div>
         </div>
       ) : null}
+      {gc ? <GcMail onClose={() => setGc(false)} /> : null}
     </main>
   );
 }
