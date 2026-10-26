@@ -6,6 +6,7 @@ import { CheckTile, PieceMark } from "@/components/chess/marks";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { sandboxUrlFor } from "@/lib/master-sandbox";
 import { asset } from "@/lib/base";
+import { isMasterUsername } from "@/lib/chess/board-skins";
 import {
   cancelChallenge,
   claimUsername,
@@ -515,11 +516,33 @@ export function ClubHome() {
             <img src={asset("/pull-up.png")} alt="" className="absolute inset-0 h-full w-full select-none" draggable={false} />
             <div className="absolute grid grid-cols-3 grid-rows-2 gap-x-[2.4%] gap-y-[2.2%]" style={{ left: "8.2%", right: "7.4%", top: "27.5%", bottom: "13.5%" }}>
               <button type="button" aria-label="Normal chess" className="rounded-md hover:bg-white/5" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} />
-              <button type="button" aria-label="3 player" className="rounded-md hover:bg-white/5" onClick={() => setError("Coming soon")} />
-              <button type="button" aria-label="Football" className="rounded-md hover:bg-white/5" onClick={() => pickVariant("football")} />
-              <button type="button" aria-label="Morse Strategy" className="rounded-md hover:bg-white/5" onClick={() => pickVariant("strategy")} />
-              <button type="button" aria-label="Checkmate" className="rounded-md hover:bg-white/5" onClick={() => pickVariant("checkmate")} />
-              <button type="button" aria-label="Snow Day" className="rounded-md hover:bg-white/5" onClick={() => setError("Coming soon")} />
+              {(
+                [
+                  ["3 player", () => setError("Coming soon")],
+                  ["Football", () => pickVariant("football")],
+                  ["Morse Strategy", () => pickVariant("strategy")],
+                  ["Checkmate", () => pickVariant("checkmate")],
+                  ["Snow Day", () => setError("Coming soon")],
+                ] as const
+              ).map(([label, go]) => (
+                <button
+                  key={label}
+                  type="button"
+                  aria-label={label}
+                  disabled={!isMasterUsername(home.profile.username)}
+                  className="relative rounded-md enabled:hover:bg-white/5 disabled:cursor-default"
+                  onClick={() => {
+                    if (!isMasterUsername(home.profile.username)) return;
+                    go();
+                  }}
+                >
+                  {isMasterUsername(home.profile.username) ? null : (
+                    <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/55 px-2 text-center text-sm font-semibold uppercase tracking-[0.16em] text-[#f3e2b6]">
+                      Coming soon
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
             {error ? <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-sm text-[#e7c56a]">{error}</p> : null}
           </div>

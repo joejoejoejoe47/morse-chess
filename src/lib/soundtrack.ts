@@ -1,4 +1,5 @@
 import { deleteSongBlob, getSongBlob, saveSongBlob } from "@/lib/bell";
+import { asset } from "@/lib/base";
 
 const KEY = "morse-soundtrack-v1";
 export const SOUNDTRACK_CHANGED = "morse-soundtrack-changed";
@@ -11,6 +12,14 @@ export type SoundtrackSettings = {
   songs: SoundtrackSong[];
   lists: Soundtrack[];
 };
+
+export const BUILTIN_SONGS: { id: string; name: string; src: string }[] = [
+  { id: "builtin-walking", name: "Walking Down the Street In a Car", src: "/soundtrack/walking-down-the-street.m4a" },
+];
+
+export function builtinSrc(id: string) {
+  return BUILTIN_SONGS.find((song) => song.id === id)?.src ?? null;
+}
 
 export function emptySoundtrack(): SoundtrackSettings {
   return { unmuted: false, activeId: null, songs: [], lists: [] };
@@ -128,26 +137,41 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
     return;
   }
   const songId = ids[((index % ids.length) + ids.length) % ids.length];
-  const rec = await getSongBlob(accountId, songId);
+  const built = builtinSrc(songId);
   if (generation !== token) return;
-  if (!rec) {
-    await playAt(accountId, list, index + 1, hops + 1, generation);
-    return;
+  if (!built) {
+    const rec = await getSongBlob(accountId, songId);
+    if (generation !== token) return;
+    if (!rec) {
+      await playAt(accountId, list, index + 1, hops + 1, generation);
+      return;
+    }
+    if (musicUrl) URL.revokeObjectURL(musicUrl);
+    musicUrl = URL.createObjectURL(rec.blob);
+    audio.src = musicUrl;
+  } else {
+    if (musicUrl) {
+      URL.revokeObjectURL(musicUrl);
+      musicUrl = "";
+    }
+    audio.src = asset(built);
   }
-  if (musicUrl) URL.revokeObjectURL(musicUrl);
-  musicUrl = URL.createObjectURL(rec.blob);
-  audio.src = musicUrl;
   audio.volume = 1;
   const at = ((index % ids.length) + ids.length) % ids.length;
   audio.onended = () => {
     if (generation !== token || music !== audio) return;
     const latest = loadSoundtrack(accountId);
-    const next = latest.lists.find((item) => item.id === list.id);
-    if (!latest.unmuted || !next) {
+    if (!latest.unmuted) {
       stopSoundtrack();
       return;
     }
-    void playAt(accountId, next, at + 1, 0, generation);
+    const next = latest.lists.find((item) => item.id === list.id);
+    const follow = next && next.songIds.length ? next : list.id === "club" ? list : null;
+    if (!follow) {
+      stopSoundtrack();
+      return;
+    }
+    void playAt(accountId, follow, at + 1, 0, generation);
   };
   try {
     await audio.play();
@@ -158,8 +182,11 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
 
 export async function syncSoundtrack(accountId: string) {
   const settings = loadSoundtrack(accountId);
-  const list = settings.lists.find((item) => item.id === settings.activeId) ?? null;
-  if (!settings.unmuted || !list || !list.songIds.length) {
+  const chosen = settings.lists.find((item) => item.id === settings.activeId) ?? null;
+  const list = chosen && chosen.songIds.length
+    ? chosen
+    : { id: "club", name: "Club", songIds: BUILTIN_SONGS.map((song) => song.id) };
+  if (!settings.unmuted || !list.songIds.length) {
     stopSoundtrack();
     return;
   }

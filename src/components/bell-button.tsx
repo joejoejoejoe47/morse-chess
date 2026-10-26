@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, BellOff, Shield, Volume2, VolumeX } from "lucide-react";
+import { Bell, BellOff, Music2, Shield, Volume2, VolumeX } from "lucide-react";
 import { loadBellSettings, subscribeBellSettings, toggleBellMute, toggleClubBell } from "@/lib/bell";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { cn } from "@/lib/utils";
@@ -66,6 +66,9 @@ export function BellControls({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
       <BellButton />
+      <Link to="/soundtrack" aria-label="Soundtrack" className={circle}>
+        <Music2 className="size-4" />
+      </Link>
       <BellMuteButton />
       <ClubBellButton />
     </div>

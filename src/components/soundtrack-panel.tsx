@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { ChevronDown, ChevronUp, Music2, Plus, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, Music2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import {
   subscribeSoundtrack,
   unlockSoundtrack,
   uploadSoundtrackSong,
+  BUILTIN_SONGS,
   type Soundtrack,
   type SoundtrackSettings,
 } from "@/lib/soundtrack";
@@ -74,7 +75,12 @@ export function SoundtrackPanel({ accountId, page = false }: { accountId: string
     });
   }
 
-  const songName = (id: string) => settings.songs.find((song) => song.id === id)?.name ?? "Missing song";
+  const songName = (id: string) =>
+    BUILTIN_SONGS.find((song) => song.id === id)?.name ?? settings.songs.find((song) => song.id === id)?.name ?? "Missing song";
+  const catalog = [
+    ...BUILTIN_SONGS.map((song) => ({ id: song.id, name: song.name, builtin: true })),
+    ...settings.songs.filter((song) => !BUILTIN_SONGS.some((built) => built.id === song.id)).map((song) => ({ ...song, builtin: false })),
+  ];
 
   return (
     <Card className="relative space-y-4">
@@ -108,31 +114,29 @@ export function SoundtrackPanel({ accountId, page = false }: { accountId: string
           >
             {settings.unmuted ? "Unmuted" : "Unmute the soundtrack"}
           </Button>
-          <div className="rounded-md border border-line bg-ink-soft p-4">
-            <Label>Songs from this browser</Label>
-            <p className="mt-1 text-sm text-mist">Upload a song, then put it on a soundtrack in any order.</p>
-            <input ref={file} type="file" accept="audio/*" className="hidden" onChange={(e) => void onFile(e)} />
-            <Button type="button" variant="secondary" size="sm" className="mt-3" disabled={busy} onClick={() => file.current?.click()}>
-              <Upload className="size-3.5" />
-              {busy ? "Saving…" : "Upload a song"}
-            </Button>
-            <ul className="mt-3 space-y-2">
-              {settings.songs.length === 0 ? <li className="text-sm text-mist">No songs yet.</li> : null}
-              {settings.songs.map((song) => (
-                <li key={song.id} className="flex items-center justify-between gap-2 text-sm text-ivory">
-                  <span className="truncate">{song.name}</span>
+          <ul className="space-y-2">
+            {catalog.map((song) => (
+              <li key={song.id} className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-gold-line/40 bg-ink-soft px-4 py-3">
+                <span className="font-display text-3xl leading-none text-ivory">{song.name}</span>
+                {song.builtin ? null : (
                   <button type="button" className="text-mist hover:text-ivory" onClick={() => void removeSoundtrackSong(accountId, song.id)} aria-label={`Remove ${song.name}`}>
-                    <Trash2 className="size-3.5" />
+                    <Trash2 className="size-4" />
                   </button>
-                </li>
-              ))}
-            </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+          <div>
+            <input ref={file} type="file" accept="audio/*" className="hidden" onChange={(e) => void onFile(e)} />
+            <button type="button" disabled={busy} onClick={() => file.current?.click()} className="text-sm text-mist hover:text-ivory">
+              {busy ? "Saving…" : "Upload a song"}
+            </button>
           </div>
           <div className="rounded-md border border-line bg-ink-soft p-4">
             <Label htmlFor="soundtrack-name">Create a soundtrack</Label>
             <Input id="soundtrack-name" className="mt-2" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name it" />
             <div className="mt-3 space-y-2">
-              {settings.songs.map((song) => (
+              {catalog.map((song) => (
                 <label key={song.id} className="flex items-center gap-2 text-sm text-ivory">
                   <input
                     type="checkbox"
