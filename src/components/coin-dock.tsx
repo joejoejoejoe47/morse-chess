@@ -81,7 +81,7 @@ export function CoinDock() {
     };
   }, [home, path]);
 
-  if (coins == null || path.startsWith("/club") || path.startsWith("/avatar") || path.startsWith("/lego-builder")) return null;
+  if (coins == null || path.startsWith("/club") || path.startsWith("/avatar") || path.startsWith("/lego-builder") || path.startsWith("/variant")) return null;
 
   return (
     <>

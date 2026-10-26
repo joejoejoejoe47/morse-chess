@@ -1,9 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PieceSymbol } from "chess.js";
+import { ImagePlus } from "lucide-react";
+import { ClubBrand } from "@/components/club-brand";
+import { NamePlate } from "@/components/avatar/name-plate";
 import { getHomeState } from "@/lib/server/mores";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { boardById } from "@/lib/chess/board-skins";
+import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
+import { cn } from "@/lib/utils";
 import { VariantStage, type Look, type Sky, type StageUnit } from "@/components/variants/stage";
 
 type Side = "w" | "b";
@@ -23,27 +28,6 @@ const LookCtx = createContext<{ look: Look; sky: Sky; light: string; dark: strin
   setLook: () => undefined,
 });
 
-function ModeBar() {
-  const { look, setLook } = useContext(LookCtx);
-  return (
-    <div className="flex rounded-md border border-[#4a3d2a] bg-[#14110d]/90 p-1">
-      {(["2d", "3d", "an", "lg"] as Look[]).map((id) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => setLook(id)}
-          className={
-            "min-h-9 rounded px-3 text-xs font-semibold uppercase tracking-[0.16em] " +
-            (look === id ? "bg-[linear-gradient(180deg,#e9c766,#a87a26)] text-[#1b140a]" : "text-[#b9a98a]")
-          }
-        >
-          {id}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 const other = (s: Side): Side => (s === "w" ? "b" : "w");
 
 function blank(rows: number, cols: number): Board {
@@ -60,24 +44,177 @@ function onBoard(r: number, f: number, rows: number, cols: number) {
 
 function Shell({
   title,
-  note,
+  status,
+  clock = null,
+  opp,
+  hot = false,
+  rail,
   children,
 }: {
   title: string;
-  note: string;
+  status: string;
+  clock?: string | null;
+  opp: string;
+  hot?: boolean;
+  rail?: ReactNode;
   children: ReactNode;
 }) {
+  const { look, setLook } = useContext(LookCtx);
+  const prefs = useLookPrefs();
+  const [wash, setWash] = useState<"dark" | "light" | "color">("dark");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [lines, setLines] = useState<{ id: number; from: string; text: string }[]>([]);
+  const [draft, setDraft] = useState("");
+  const [camera, setCamera] = useState(false);
+  const video = useRef<HTMLVideoElement>(null);
+  const chatEnd = useRef<HTMLDivElement>(null);
+  const room = wash === "light" ? "#f6f1e4" : wash === "color" ? (prefs.roomColor ?? "#0c0d0b") : "#0c0d0b";
+  const roomImage = wash === "color" ? prefs.roomImage : null;
+
+  useEffect(() => {
+    if (!camera) return;
+    let stream: MediaStream | null = null;
+    let live = true;
+    void navigator.mediaDevices
+      ?.getUserMedia({ video: true, audio: false })
+      .then((next) => {
+        if (!live) {
+          next.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        stream = next;
+        if (video.current) video.current.srcObject = next;
+      })
+      .catch(() => setCamera(false));
+    return () => {
+      live = false;
+      stream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [camera]);
+
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ block: "end" });
+  }, [lines.length, chatOpen]);
+
   return (
-    <main className="min-h-dvh bg-[#120e0b] text-[#f4e7cb]">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#3a3024] px-4 py-3">
-        <Link to="/" className="text-xs uppercase tracking-[0.18em] text-[#cbb892] hover:text-[#f0d68a]">
-          ‹ Lounge
-        </Link>
-        <h1 className="font-display text-2xl text-[#f8edd4]">{title}</h1>
-        <ModeBar />
-        <span className="max-w-md text-right text-xs text-[#b7a88c]">{note}</span>
+    <main
+      className="relative flex h-dvh max-h-dvh flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+      style={roomBackdrop(room, roomImage)}
+    >
+      <header data-coin-bar className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
+        <ClubBrand to="/" tone={wash === "light" ? "dark" : "light"} />
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <span className="hidden text-[15px] text-mist md:inline">
+            {title}
+            {" · "}
+            {status}
+          </span>
+          <div className="flex overflow-hidden rounded-full border border-line bg-panel">
+            {(["2d", "3d", "an", "lg"] as Look[]).map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={cn(
+                  "min-h-11 min-w-11 px-4 py-2 text-sm font-medium uppercase sm:px-3 sm:py-1.5 sm:text-[13px]",
+                  look === id ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                )}
+                onClick={() => setLook(id)}
+              >
+                {id}
+              </button>
+            ))}
+          </div>
+          <div className="flex overflow-hidden rounded-full border border-line bg-panel">
+            <button type="button" className={cn("min-h-11 px-3 text-sm font-medium", wash === "dark" ? "bg-ivory text-ink" : "text-mist hover:text-ivory")} onClick={() => setWash("dark")}>Dark</button>
+            <button type="button" className={cn("min-h-11 px-3 text-sm font-medium", wash === "light" ? "bg-ivory text-ink" : "text-mist hover:text-ivory")} onClick={() => setWash("light")}>Light</button>
+          </div>
+          <button
+            type="button"
+            aria-label="Board color"
+            className={cn("size-11 rounded-full border", wash === "color" ? "border-gold-line ring-2 ring-gold-line/50" : "border-line")}
+            style={{ backgroundColor: prefs.roomColor ?? "#0c0d0b" }}
+            onClick={() => setWash("color")}
+          />
+          <Link to="/" className="inline-flex min-h-11 items-center rounded-full border border-line bg-panel px-4 text-sm font-medium text-ivory hover:border-line-strong">
+            Lounge
+          </Link>
+        </div>
       </header>
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-3 py-4 lg:flex-row lg:items-start lg:justify-center">{children}</div>
+      <div className="relative min-h-0 flex-1">
+        <div className="absolute inset-0">{children}</div>
+        {rail ? (
+          <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[48%] flex-col overflow-y-auto border-t border-line bg-ink/95 backdrop-blur-md sm:inset-y-0 sm:left-0 sm:right-auto sm:max-h-none sm:w-[min(100%,20rem)] sm:border-r sm:border-t-0">
+            {rail}
+          </aside>
+        ) : null}
+        {camera ? (
+          <div className="absolute left-1/2 top-3 z-20 w-32 -translate-x-1/2">
+            <p className="mb-1 text-center text-[10px] uppercase tracking-[0.16em] text-ivory">Real life</p>
+            <video ref={video} autoPlay playsInline muted className="aspect-[3/4] w-full rounded-xl border border-white/25 bg-black object-cover shadow-xl" />
+          </div>
+        ) : null}
+        <div className="pointer-events-none absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 flex justify-between gap-2 sm:inset-x-4 sm:bottom-4">
+          <div className={rail ? "sm:pl-[21rem]" : ""}>
+            <NamePlate label="Opponent" name={opp} clock={clock} hot={!hot} />
+          </div>
+          <NamePlate label="You" name="You" align="right" clock={clock} hot={hot} />
+        </div>
+        {chatOpen ? (
+          <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[48%] flex-col border-t border-line bg-ink/95 backdrop-blur-md sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-[min(100%,20rem)] sm:border-l sm:border-t-0">
+            <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
+              <p className="text-xs uppercase tracking-[0.16em] text-mist">Table chat</p>
+              <div className="flex gap-2">
+                <button type="button" className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory" onClick={() => setCamera((on) => !on)}>
+                  {camera ? "Camera off" : "Real life"}
+                </button>
+                <button type="button" className="min-h-11 rounded-full border border-line px-3 text-sm text-ivory" onClick={() => setChatOpen(false)}>
+                  Put away
+                </button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+              {lines.length === 0 ? <p className="text-[13px] text-mist">Say something. It stays on this table.</p> : null}
+              {lines.map((line) => (
+                <div key={line.id} className="rounded-lg bg-panel px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-mist">{line.from}</p>
+                  <p className="mt-0.5 text-[15px] text-ivory">{line.text}</p>
+                </div>
+              ))}
+              <div ref={chatEnd} />
+            </div>
+            <form
+              className="flex items-center gap-2 border-t border-line p-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const text = draft.trim();
+                if (!text) return;
+                setLines((list) => [...list, { id: Date.now(), from: "You", text }]);
+                setDraft("");
+              }}
+            >
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Message…"
+                maxLength={280}
+                className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-3 text-base text-ivory outline-none placeholder:text-mist focus:border-gold-line"
+              />
+              <button type="submit" aria-label="Send" className="inline-flex size-11 items-center justify-center rounded-lg border border-line text-ivory">
+                <ImagePlus className="size-4" />
+              </button>
+            </form>
+          </aside>
+        ) : (
+          <div className="absolute right-3 top-[42%] z-10 flex -translate-y-1/2 flex-col items-end gap-2">
+            <button type="button" className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong" onClick={() => setChatOpen(true)}>
+              Chat
+            </button>
+            <button type="button" className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong" onClick={() => setCamera((on) => !on)}>
+              {camera ? "Camera off" : "Real life"}
+            </button>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
@@ -99,21 +236,58 @@ function Grid({
 }) {
   const { look, sky, light, dark } = useContext(LookCtx);
   const plain = new Set(["#e7d3a8", "#b58863", "#cbb892", "#8c6a45"]);
+  const painted = (r: number, f: number) => {
+    const p = paint(r, f);
+    if (!plain.has(p.bg)) return p;
+    return { ...p, bg: (r + f) % 2 === 0 ? light : dark };
+  };
+  if (look === "2d") {
+    const cells = [];
+    for (let r = rows - 1; r >= 0; r--) {
+      for (let f = 0; f < cols; f++) {
+        const p = painted(r, f);
+        cells.push(
+          <button
+            key={`${r}:${f}`}
+            type="button"
+            onClick={() => onPick(r, f)}
+            className="relative grid min-h-0 place-items-center [container-type:size]"
+            style={{ background: p.bg }}
+          >
+            {p.text ? (
+              <span
+                className="pointer-events-none select-none font-display leading-none"
+                style={{
+                  fontSize: "78cqmin",
+                  color: p.fg,
+                  WebkitTextStroke: "1.5px rgba(20,12,8,0.85)",
+                  textShadow: "0 6px 12px rgba(0,0,0,0.35)",
+                }}
+              >
+                {p.text}
+              </span>
+            ) : null}
+          </button>,
+        );
+      }
+    }
+    return (
+      <div className="grid h-full w-full place-items-center p-3 sm:p-6">
+        <div
+          className="h-full max-h-full max-w-full overflow-hidden rounded-xl border border-[#3a2a1c] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+          style={{ aspectRatio: `${cols} / ${rows}` }}
+        >
+          <div className="grid h-full w-full" style={{ gridTemplateColumns: `repeat(${cols},minmax(0,1fr))`, gridTemplateRows: `repeat(${rows},minmax(0,1fr))` }}>
+            {cells}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
-    <VariantStage
-      rows={rows}
-      cols={cols}
-      onPick={onPick}
-      units={units}
-      look={look}
-      sky={sky}
-      ball={ball}
-      paint={(r, f) => {
-        const p = paint(r, f);
-        if (!plain.has(p.bg)) return p;
-        return { ...p, bg: (r + f) % 2 === 0 ? light : dark };
-      }}
-    />
+    <div className="h-full w-full">
+      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} paint={painted} />
+    </div>
   );
 }
 
@@ -464,7 +638,29 @@ export function CheckMate({ versus }: { versus: string }) {
   }
 
   return (
-    <Shell title="Check Mate" note={versus}>
+    <Shell
+      title="Check Mate"
+      opp={versus}
+      hot={phase !== "play" || turn === "w"}
+      status={phase === "play" ? (turn === "w" ? "Your move" : `${versus} is moving`) : phase === "place" ? "Place your pieces" : "Board closed"}
+      rail={
+        <div className="space-y-3 p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-mist">Check Mate</p>
+          <p className="text-sm text-ivory">{banner || note}</p>
+          {phase === "place" && placing ? (
+            <p className="font-display text-4xl text-ivory">
+              {GLYPH[placing]} <span className="text-base text-mist">{queue.length} left</span>
+            </p>
+          ) : null}
+          <p className="text-xs uppercase tracking-[0.16em] text-mist">
+            {phase === "play" ? (turn === "w" ? "Your move" : `${versus} is moving`) : phase === "place" ? "Your half only" : "Game over"}
+          </p>
+          <p className="text-sm leading-relaxed text-mist">
+            Black bands crown any piece that steps on them. When both sides have a new king the band grows, then turns red from the edges until two squares remain.
+          </p>
+        </div>
+      }
+    >
       <Grid
         rows={8}
         cols={8}
@@ -482,20 +678,6 @@ export function CheckMate({ versus }: { versus: string }) {
           };
         }}
       />
-      <aside className="w-full max-w-sm space-y-3 rounded-xl border border-[#3a3024] bg-[#1b1612] p-4">
-        <p className="text-sm text-[#e7d7b8]">{banner || note}</p>
-        {phase === "place" && placing ? (
-          <p className="font-display text-3xl">
-            Place {GLYPH[placing]} <span className="text-base text-[#cbb892]">{queue.length} left</span>
-          </p>
-        ) : null}
-        <p className="text-xs uppercase tracking-[0.16em] text-[#b7a88c]">
-          {phase === "play" ? (turn === "w" ? "Your move" : `${versus} is moving`) : phase === "place" ? "Your half only" : "Game over"}
-        </p>
-        <p className="text-xs text-[#b7a88c]">
-          Black bands crown any piece that steps on them. When both sides have a new king the band grows, then turns red from the edges until two squares remain.
-        </p>
-      </aside>
     </Shell>
   );
 }
@@ -766,12 +948,13 @@ export function Football({ versus }: { versus: string }) {
   const result = over === "time" ? (score.w === score.b ? "Time. Tie game." : score.w > score.b ? "Time. You win." : `Time. ${versus} wins.`) : over === "kings" ? "King versus king. Tie game." : "";
 
   return (
-    <Shell title="Football" note="5:00 · touchdown 6">
-      <div className="flex w-full max-w-[760px] items-center justify-between px-2 font-display text-3xl">
-        <span>You {score.w}</span>
-        <span className="tabular-nums text-[#f0d68a]">{clock}</span>
-        <span>{score.b} {versus}</span>
-      </div>
+    <Shell
+      title="Football"
+      opp={versus}
+      clock={clock}
+      hot={turn === "w" && !over}
+      status={`${score.w}–${score.b}${result ? ` · ${result}` : turn === "w" ? " · Your down" : ` · ${versus}`}`}
+    >
       <Grid
         rows={F_ROWS}
         cols={F_COLS}
@@ -793,15 +976,15 @@ export function Football({ versus }: { versus: string }) {
           };
         }}
       />
-      <aside className="w-full max-w-sm space-y-3 rounded-xl border border-[#3a3024] bg-[#1b1612] p-4">
-        <p className="text-sm">{result || (turn === "w" ? "Your down." : `${versus} has the ball side.`)}</p>
-        <p className="text-xs text-[#b7a88c]">Run the ball into the far end zone, or throw it to a teammate standing there. Pawn throws 1, knight and bishop 5, rook 8, queen the whole field, king 1. A king drops the ball after 3 downs. Kings cannot be taken.</p>
-        {sel && board[sel[0]][sel[1]]?.ball && turn === "w" && !over ? (
-          <button type="button" className="rounded-md border border-[#d6ad4f] px-3 py-2 text-sm uppercase tracking-[0.14em]" onClick={() => setThrowing((v) => !v)}>
-            {throwing ? "Throwing — pick a teammate" : "Throw the ball"}
-          </button>
-        ) : null}
-      </aside>
+      {sel && board[sel[0]][sel[1]]?.ball && turn === "w" && !over ? (
+        <button
+          type="button"
+          className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory"
+          onClick={() => setThrowing((v) => !v)}
+        >
+          {throwing ? "Throwing — pick a teammate" : "Throw the ball"}
+        </button>
+      ) : null}
     </Shell>
   );
 }
@@ -1033,7 +1216,38 @@ export function Strategy({ versus }: { versus: string }) {
   }
 
   return (
-    <Shell title="Morse Strategy" note={versus}>
+    <Shell
+      title="Morse Strategy"
+      opp={versus}
+      hot={phase !== "play" || turn === "w"}
+      status={phase === "place" ? "Set your side" : phase === "over" ? "Board closed" : turn === "w" ? "Your move" : `${versus} is moving`}
+      rail={
+        <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-mist">Morse Strategy</p>
+          <p className="text-sm text-ivory">{banner || (phase === "place" ? "Place every piece on your side. Bishop (3) defuses bombs. Find the apple." : turn === "w" ? "Your move. One square, no diagonals." : `${versus} is moving.`)}</p>
+          {phase === "place" ? (
+            <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2 overflow-auto">
+              {bag.map((p, i) => (
+                <button key={`${p.name}-${p.i}`} type="button" onClick={() => setPick(i)} className={"rounded-md border px-2 py-2 text-left text-sm " + (i === pick ? "border-gold-line text-ivory" : "border-line text-mist")}>
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm leading-relaxed text-mist">Enemy pieces stay black until they fight. Higher rank takes lower. Equals both fall. Bombs stay put and kill, unless a bishop defuses one. The apple is the king — take it to win.</p>
+          )}
+          {phase === "place" ? (
+            <div className="space-y-2">
+              <input value={setupName} onChange={(e) => setSetupName(e.target.value)} className="w-full rounded-md border border-line bg-ink px-2 py-2 text-sm text-ivory" placeholder="Setup name" />
+              <button type="button" onClick={saveSetup} className="rounded-md border border-gold-line px-3 py-2 text-xs uppercase tracking-[0.14em] text-ivory">Save setup</button>
+              {setups.map((s) => (
+                <button key={s.name} type="button" onClick={() => loadSetup(s.cells)} className="block text-left text-sm text-ivory">{s.name}</button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      }
+    >
       <Grid
         rows={10}
         cols={10}
@@ -1065,29 +1279,6 @@ export function Strategy({ versus }: { versus: string }) {
           };
         }}
       />
-      <aside className="w-full max-w-sm space-y-3 rounded-xl border border-[#3a3024] bg-[#1b1612] p-4">
-        <p className="text-sm">{banner || (phase === "place" ? "Place every piece on your side. Bishop (3) defuses bombs. Find the apple." : turn === "w" ? "Your move. One square, no diagonals." : `${versus} is moving.`)}</p>
-        {phase === "place" ? (
-          <div className="grid max-h-64 grid-cols-2 gap-2 overflow-auto">
-            {bag.map((p, i) => (
-              <button key={`${p.name}-${p.i}`} type="button" onClick={() => setPick(i)} className={"rounded-md border px-2 py-2 text-left text-sm " + (i === pick ? "border-[#e6c56a] text-[#f0d68a]" : "border-[#3a3024]")}>
-                {p.name}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {phase === "place" ? (
-          <div className="space-y-2">
-            <input value={setupName} onChange={(e) => setSetupName(e.target.value)} className="w-full rounded-md border border-[#3a3024] bg-black/30 px-2 py-2 text-sm" placeholder="Setup name" />
-            <button type="button" onClick={saveSetup} className="rounded-md border border-[#d6ad4f] px-3 py-2 text-xs uppercase tracking-[0.14em]">Save setup</button>
-            {setups.map((s) => (
-              <button key={s.name} type="button" onClick={() => loadSetup(s.cells)} className="block text-left text-sm text-[#e6c56a]">{s.name}</button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-[#b7a88c]">Enemy pieces stay black until they fight. Higher rank takes lower. Equals both fall. Bombs stay put and kill, unless a bishop defuses one. The apple is the king — take it to win.</p>
-        )}
-      </aside>
     </Shell>
   );
 }

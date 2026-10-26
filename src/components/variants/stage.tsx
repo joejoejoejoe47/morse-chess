@@ -42,11 +42,18 @@ function PieceMesh({ unit, look }: { unit: StageUnit; look: Look }) {
   const white = unit.side === "w";
   const color = white ? "w" : "b";
   if (unit.hidden) {
+    if (look === "lg") {
+      return (
+        <Suspense fallback={null}>
+          <LegoFig id={LEGO_ROSTER.b.p} />
+        </Suspense>
+      );
+    }
+    if (look === "an") return <Person type="p" white={false} />;
     return (
-      <mesh position={[0, 0.35, 0]}>
-        <sphereGeometry args={[0.22, 18, 14]} />
-        <meshStandardMaterial color="#14110e" roughness={0.45} />
-      </mesh>
+      <group scale={0.92}>
+        <SculptedPiece type="p" color="b" />
+      </group>
     );
   }
   if (look === "2d") {
@@ -158,10 +165,10 @@ export function VariantStage({
   ball?: { r: number; f: number } | null;
 }) {
   const span = Math.max(rows, cols);
-  const cam: [number, number, number] = [0, span * 0.95 + 4, span * 0.72 + 3];
+  const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
   return (
-    <div className="h-[72vh] w-full max-w-[1100px] overflow-hidden rounded-md border-4 border-[#6a5433] bg-[#0c0a09]">
-      <Canvas shadows dpr={[1, 1.5]} camera={{ position: cam, fov: 36, near: 0.1, far: 400 }} gl={{ antialias: true, alpha: false }}>
+    <div className="h-full w-full">
+      <Canvas shadows dpr={[1, 1.5]} camera={{ position: cam, fov: 34, near: 0.1, far: 400 }} gl={{ antialias: true, alpha: false }}>
         <color attach="background" args={[sky === "table" ? "#14110e" : "#87a0c4"]} />
         {sky === "table" ? (
           <>
