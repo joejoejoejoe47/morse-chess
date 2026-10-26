@@ -206,9 +206,9 @@ function Store() {
       <section className="flex flex-wrap gap-2 p-3">
         {listings.length === 0 ? <p className="text-sm text-mist">Nothing is for sale yet. Press Sell to list a king or a Lego board.</p> : null}
         {listings.map((card) => (
-          <button key={card.id} type="button" onClick={() => { setSeeing(false); setOpen(card); }} className="w-[88px] overflow-hidden rounded-md border border-line bg-panel text-left">
-            <img src={card.shot} alt="" className="h-14 w-full object-cover" />
-            <span className="block truncate px-1 py-1 text-[10px] leading-tight text-ivory">{card.name}</span>
+          <button key={card.id} type="button" onClick={() => { setSeeing(false); setOpen(card); }} className="w-[352px] overflow-hidden rounded-md border border-line bg-panel text-left">
+            <img src={card.shot} alt="" className="h-56 w-full object-cover" />
+            <span className="block truncate px-2 py-2 text-base leading-tight text-ivory">{card.name}</span>
           </button>
         ))}
       </section>

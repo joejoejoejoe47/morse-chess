@@ -522,10 +522,12 @@ export function LegoWalker({
   const seed = useMemo(() => hash(`${color}${id}${to[0].toFixed(2)}${to[2].toFixed(2)}`), [color, id, to]);
   const mid = spec.height * 0.45;
   const blew = useRef(false);
+  const strikeAt = useRef<number | null>(null);
   useEffect(() => {
     root.position.y = -mid;
     start.current = null;
     blew.current = false;
+    strikeAt.current = null;
   }, [root, mid, from[0], from[2], to[0], to[2], slay]);
   useFrame((state) => {
     const g = outer.current;
@@ -541,6 +543,34 @@ export function LegoWalker({
       f.rotation.set(m.flip, (spec.gait === "portal" ? m.spin : 0) + yawTo(a, b), 0);
       f.scale.setScalar(Math.max(0.001, m.scale));
       applyPose(parts, m.pose);
+    } else if (slay) {
+      if (strikeAt.current == null) strikeAt.current = now;
+      const age = now - strikeAt.current;
+      const move = spec.attack;
+      const yaw = yawTo(a, b);
+      g.position.set(b.x, 0, b.z);
+      f.rotation.set(0, yaw, 0);
+      f.scale.setScalar(1);
+      if (age < 0.45) {
+        const fr = attackFrame(move, "wind", age / 0.45);
+        f.position.y = STAND + mid + fr.y;
+        applyPose(parts, fr.pose);
+      } else if (age < 0.78) {
+        const fr = attackFrame(move, "strike", (age - 0.45) / 0.33);
+        f.position.y = STAND + mid + fr.y;
+        g.position.x = b.x + Math.sin(yaw) * (fr.lunge || 0.2);
+        g.position.z = b.z + Math.cos(yaw) * (fr.lunge || 0.2);
+        applyPose(parts, fr.pose);
+      } else {
+        const idle = idlePose(spec.gait, now, seed);
+        f.position.y = STAND + mid + idle.y;
+        f.rotation.set(0, restYaw(color), 0);
+        applyPose(parts, idle.pose);
+        if (!blew.current) {
+          blew.current = true;
+          playLegoExplode();
+        }
+      }
     } else {
       const idle = idlePose(spec.gait, now, seed);
       g.position.set(b.x, 0, b.z);
@@ -548,10 +578,6 @@ export function LegoWalker({
       f.rotation.set(0, restYaw(color), 0);
       f.scale.setScalar(1);
       applyPose(parts, idle.pose);
-      if (slay && !blew.current) {
-        blew.current = true;
-        playLegoExplode();
-      }
     }
     keepOnBoard(f, root);
   });

@@ -50,6 +50,8 @@ function Shell({
   opp,
   hot = false,
   rail,
+  leave = "Lounge",
+  verdict = null,
   children,
 }: {
   title: string;
@@ -58,6 +60,8 @@ function Shell({
   opp: string;
   hot?: boolean;
   rail?: ReactNode;
+  leave?: string;
+  verdict?: "victory" | "defeat" | null;
   children: ReactNode;
 }) {
   const { look, modes, setLook } = useContext(LookCtx);
@@ -67,6 +71,7 @@ function Shell({
   const [lines, setLines] = useState<{ id: number; from: string; text: string }[]>([]);
   const [draft, setDraft] = useState("");
   const [camera, setCamera] = useState(false);
+  const [sheet, setSheet] = useState(true);
   const video = useRef<HTMLVideoElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const room = wash === "light" ? "#f6f1e4" : wash === "color" ? (prefs.roomColor ?? "#0c0d0b") : "#0c0d0b";
@@ -137,12 +142,24 @@ function Shell({
             onClick={() => setWash("color")}
           />
           <Link to="/" className="inline-flex min-h-11 items-center rounded-full border border-line bg-panel px-4 text-sm font-medium text-ivory hover:border-line-strong">
-            Lounge
+            {leave}
           </Link>
         </div>
       </header>
       <div className="relative min-h-0 flex-1">
         <div className="absolute inset-0">{children}</div>
+        {verdict && sheet ? (
+          <div className="absolute inset-0 z-30 grid place-items-center bg-black/45">
+            <div className="relative px-10">
+              <button type="button" aria-label="Close" className="absolute -right-2 -top-8 text-2xl text-ivory" onClick={() => setSheet(false)}>
+                ×
+              </button>
+              <p className="font-display text-6xl uppercase tracking-[0.12em] text-ivory sm:text-7xl">
+                {verdict === "victory" ? "Victory" : "Defeat"}
+              </p>
+            </div>
+          </div>
+        ) : null}
         {rail ? (
           <aside className="absolute inset-x-0 bottom-0 z-20 flex max-h-[48%] flex-col overflow-y-auto border-t border-line bg-ink/95 backdrop-blur-md sm:inset-y-0 sm:left-0 sm:right-auto sm:max-h-none sm:w-[min(100%,20rem)] sm:border-r sm:border-t-0">
             {rail}
@@ -228,6 +245,7 @@ function Grid({
   units,
   ball = null,
   cue = null,
+  stadium = false,
 }: {
   rows: number;
   cols: number;
@@ -236,6 +254,7 @@ function Grid({
   units: StageUnit[];
   ball?: { r: number; f: number } | null;
   cue?: MoveCue | null;
+  stadium?: boolean;
 }) {
   const { look, sky, light, dark } = useContext(LookCtx);
   const plain = new Set(["#e7d3a8", "#b58863", "#cbb892", "#8c6a45"]);
@@ -249,14 +268,20 @@ function Grid({
     for (let r = rows - 1; r >= 0; r--) {
       for (let f = 0; f < cols; f++) {
         const p = painted(r, f);
+        const dot = stadium && p.bg === "#e6c56a";
+        if (stadium && !p.text && !dot) {
+          cells.push(<button key={`${r}:${f}`} type="button" className="relative min-h-0" onClick={() => onPick(r, f)} />);
+          continue;
+        }
         cells.push(
           <button
             key={`${r}:${f}`}
             type="button"
             onClick={() => onPick(r, f)}
             className="relative grid min-h-0 place-items-center [container-type:size]"
-            style={{ background: p.bg }}
+            style={{ background: stadium ? "transparent" : p.bg }}
           >
+            {dot ? <span className="pointer-events-none size-[28%] rounded-full bg-[#f4e7b2] shadow-[0_0_12px_rgba(244,231,178,0.9)]" /> : null}
             {p.text ? (
               <span
                 className="pointer-events-none select-none font-display leading-none"
@@ -278,7 +303,7 @@ function Grid({
       <div className="grid h-full w-full place-items-center p-3 sm:p-6">
         <div
           className="h-full max-h-full max-w-full overflow-hidden rounded-xl border border-[#3a2a1c] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
-          style={{ aspectRatio: `${cols} / ${rows}` }}
+          style={{ aspectRatio: `${cols} / ${rows}`, background: stadium ? "#1a2430" : undefined }}
         >
           <div className="grid h-full w-full" style={{ gridTemplateColumns: `repeat(${cols},minmax(0,1fr))`, gridTemplateRows: `repeat(${rows},minmax(0,1fr))` }}>
             {cells}
@@ -289,7 +314,7 @@ function Grid({
   }
   return (
     <div className="h-full w-full">
-      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} paint={painted} />
+      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} />
     </div>
   );
 }
@@ -675,6 +700,8 @@ export function CheckMate({ versus }: { versus: string }) {
     <Shell
       title="Check Mate"
       opp={versus}
+      leave="Return to lounge"
+      verdict={banner.startsWith("You checkmated") ? "victory" : banner.includes("your last king") ? "defeat" : null}
       hot={phase !== "play" || turn === "w"}
       status={phase === "play" ? (turn === "w" ? "Your move" : `${versus} is moving`) : phase === "place" ? "Place your pieces" : "Board closed"}
       rail={
@@ -1002,8 +1029,10 @@ export function Football({ versus }: { versus: string }) {
       clock={clock}
       hot={turn === "w" && !over}
       status={`${score.w}–${score.b}${result ? ` · ${result}` : turn === "w" ? " · Your down" : ` · ${versus}`}`}
+      verdict={over === "time" && score.w !== score.b ? (score.w > score.b ? "victory" : "defeat") : null}
     >
       <Grid
+        stadium
         rows={F_ROWS}
         cols={F_COLS}
         onPick={onSquare}
@@ -1280,6 +1309,7 @@ export function Strategy({ versus }: { versus: string }) {
     <Shell
       title="Morse Strategy"
       opp={versus}
+      verdict={banner.startsWith("You found") ? "victory" : banner.includes("found your") ? "defeat" : null}
       hot={phase !== "play" || turn === "w"}
       status={phase === "place" ? "Set your side" : phase === "over" ? "Board closed" : turn === "w" ? "Your move" : `${versus} is moving`}
       rail={

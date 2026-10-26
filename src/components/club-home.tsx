@@ -500,7 +500,36 @@ export function ClubHome() {
 
       <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
 
-      {(flow.kind !== "idle" || home.queued) && (
+      {flow.kind === "select-game" ? (
+        <div className="fixed inset-0 z-40 overflow-auto bg-[#120d09] px-4 py-6 text-[#f3e2b6] sm:px-8">
+          <div className="mx-auto max-w-5xl">
+            <div className="flex items-center justify-between">
+              <div className="inline-flex items-center gap-3 rounded-full border border-[#d7c08a]/80 bg-black/40 px-4 py-1.5">
+                <span className="grid size-8 place-items-center rounded-full border border-[#d7c08a] text-xs">♔</span>
+                <span className="font-display text-sm tracking-[0.28em]">{flow.intent === "random" ? "RANDOM" : "INTENDED"}</span>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                className="grid size-10 place-items-center text-2xl text-[#d7c08a]"
+                onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <PlaylistCard kicker="CHESS" title="STANDARD" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} marks={["♟", "♛", "♚", "♝", "♜"]} />
+              <PlaylistCard kicker="CHECK" title="MATE" onClick={() => pickVariant("checkmate")} marks={["♞", "♞"]} />
+              <PlaylistCard kicker="FOOT" title="BALL" onClick={() => pickVariant("football")} marks={["♚"]} />
+              <PlaylistCard kicker="MORSE" title="STRATEGY" onClick={() => pickVariant("strategy")} marks={["♞", "♞", "♞"]} />
+              <PlaylistCard kicker="THREE" title="PLAYER" disabled marks={["♜", "♜"]} />
+              <PlaylistCard kicker="ONE" title="DUEL" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} marks={["♟", "♟", "♟"]} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {(flow.kind !== "idle" && flow.kind !== "select-game" || home.queued) && (
         <div className="fixed inset-0 z-40 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
           <div className={"w-full rounded-xl border border-line bg-panel p-6 " + (flow.kind === "select-game" ? "max-w-4xl" : "max-w-md")}>
             <div className="flex items-start justify-between gap-3">
@@ -530,31 +559,6 @@ export function ClubHome() {
                 <X className="size-4" />
               </button>
             </div>
-
-            {flow.kind === "select-game" ? (
-              <div className="mt-5">
-                <div className="grid grid-cols-3 gap-3">
-                  <GameCard title="Chess" caption="Timed or breeze" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })}>
-                    <MiniBoard marks={["", "", "♜", "", "♚", "", "♝", ""]} />
-                  </GameCard>
-                  <GameCard title="3 Player" caption="Coming soon" disabled>
-                    <MiniBoard marks={["♚", "", "", "♔", "", "", "", "♚"]} wash />
-                    <span className="absolute inset-0 grid place-items-center bg-black/55 text-sm font-semibold uppercase tracking-[0.18em] text-ivory">Coming soon</span>
-                  </GameCard>
-                  <GameCard title="Check Mate" caption="Place, then crown" onClick={() => pickVariant("checkmate")}>
-                    <MiniBoard marks={["", "♝", "", "♚", "", "♞", "", "♜"]} dark />
-                  </GameCard>
-                </div>
-                <div className="mx-auto mt-3 grid max-w-lg grid-cols-2 gap-3">
-                  <GameCard title="Football" caption="5 minutes · 6 a score" onClick={() => pickVariant("football")}>
-                    <MiniBoard marks={["⊓", "", "●", "", "", "♟", "♚", ""]} field />
-                  </GameCard>
-                  <GameCard title="Morse Strategy" caption="Hide ranks, find the apple" onClick={() => pickVariant("strategy")}>
-                    <MiniBoard marks={["10", "?", "B", "?", "A", "?", "3", "1"]} wide />
-                  </GameCard>
-                </div>
-              </div>
-            ) : null}
 
             {flow.kind === "variant-name" ? (
               <form
@@ -677,6 +681,45 @@ export function ClubHome() {
         </div>
       )}
     </main>
+  );
+}
+
+function PlaylistCard({
+  kicker,
+  title,
+  marks,
+  onClick,
+  disabled,
+}: {
+  kicker: string;
+  title: string;
+  marks: string[];
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="relative aspect-[5/3.4] overflow-hidden rounded-md border border-[#c6a36a] bg-[#1a130e] text-left shadow-[inset_0_0_0_1px_rgba(198,163,106,0.35)] enabled:hover:border-[#f0d48a] disabled:cursor-not-allowed"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(90,70,40,0.35),transparent_62%)]" />
+      <div className="absolute inset-x-0 top-4 flex items-end justify-center gap-2 text-[#efe2c4]">
+        {marks.map((mark, i) => (
+          <span key={i} className="font-display leading-none drop-shadow" style={{ fontSize: i === Math.floor(marks.length / 2) ? "4.2rem" : "3rem" }}>
+            {mark}
+          </span>
+        ))}
+      </div>
+      <div className="absolute bottom-3 left-4">
+        <div className="font-display text-3xl leading-none text-[#e7c56a]">{kicker}</div>
+        <div className="mt-1 text-xs tracking-[0.22em] text-[#e7c56a]">{title}</div>
+      </div>
+      {disabled ? (
+        <span className="absolute inset-0 grid place-items-center bg-black/55 text-sm font-semibold uppercase tracking-[0.2em] text-[#f3e2b6]">Coming soon</span>
+      ) : null}
+    </button>
   );
 }
 
