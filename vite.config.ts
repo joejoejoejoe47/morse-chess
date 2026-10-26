@@ -17,7 +17,7 @@ function assetVersions(dir = "public"): Record<string, string> {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) walk(p);
-      else if (/\.(glb|mp3)$/i.test(e.name)) {
+      else if (/\.(glb|mp3|m4a|png|jpe?g|webp)$/i.test(e.name)) {
         out["/" + path.relative(dir, p).split(path.sep).join("/")] = createHash("sha256").update(fs.readFileSync(p)).digest("hex").slice(0, 8);
       }
     }
