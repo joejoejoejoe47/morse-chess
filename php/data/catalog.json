@@ -256,7 +256,12 @@
         {
           "id": "royal-crown",
           "price": 6
-        }
+        },
+        { "id": "clown", "price": 0 },
+        { "id": "chef", "price": 0 },
+        { "id": "cappello", "price": 0 },
+        { "id": "propeller", "price": 0 },
+        { "id": "viking", "price": 0 }
       ],
       "mounts": [
         {

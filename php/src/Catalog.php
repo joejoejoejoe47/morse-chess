@@ -151,6 +151,30 @@ final class Catalog
             'frameId' => $pick($src['frameId'] ?? null, 'plain', $groups['frames']),
             'attackId' => $pick($attackRaw, 'march', $groups['attacks']),
             'finishId' => $pick($src['finishId'] ?? null, 'king-onyx', $groups['finishes'] ?? []),
+            'lgBody' => $pick($src['lgBody'] ?? null, 'cap', self::legoParts()),
+            'lgHead' => $pick($src['lgHead'] ?? null, 'cap', self::legoParts()),
+            'lgHair' => $pick($src['lgHair'] ?? null, 'none', self::lgHair()),
+            'lgLegs' => $pick($src['lgLegs'] ?? null, 'cap', self::legoParts()),
+            'lgWeapon' => $pick($src['lgWeapon'] ?? null, 'none', self::lgWeapons()),
         ];
+    }
+
+    /** @return list<array{id:string}> */
+    private static function legoParts(): array
+    {
+        $ids = ['cap', 'spiderman', 'ironman', 'panther', 'strange', 'agent', 'widow', 'skeleton', 'blacktron', 'goblin', 'doombot', 'doom'];
+        return array_map(static fn (string $id): array => ['id' => $id], $ids);
+    }
+
+    /** @return list<array{id:string}> */
+    private static function lgHair(): array
+    {
+        return array_map(static fn (string $id): array => ['id' => $id], ['none', 'clown', 'chef', 'cappello', 'propeller', 'viking']);
+    }
+
+    /** @return list<array{id:string}> */
+    private static function lgWeapons(): array
+    {
+        return array_map(static fn (string $id): array => ['id' => $id], ['none', 'devil', 'talwar']);
     }
 }

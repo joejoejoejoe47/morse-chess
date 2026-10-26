@@ -12,6 +12,7 @@ import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
 import { StonePerson, type Gait } from "@/components/chess/stone-people";
 import { RaCrown, WarDog } from "@/components/chess/war-dog";
 import { FieldStage } from "@/components/avatar/field-stage";
+import { LegoDress } from "@/components/avatar/lego-dress";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { keepWebGL } from "@/lib/gl-quiet";
@@ -22,6 +23,9 @@ import {
   DEFAULT_LOADOUT,
   FINISHES,
   FRAMES,
+  LG_HAIR,
+  LG_WEAPONS,
+  LEGO_PARTS,
   MOUNTS,
   SWORDS,
   characterById,
@@ -348,6 +352,21 @@ function AvatarStudio() {
             </ModelSlot>
             <OrbitControls ref={controls as never} enablePan target={[0, 1.1, 1.2]} minDistance={3} maxDistance={12} maxPolarAngle={1.35} />
           </Canvas>
+        ) : loadout.style === "lg" ? (
+          <Canvas camera={{ position: [4.2, 2.4, 7.2], fov: 38 }} shadows gl={{ preserveDrawingBuffer: true }} onCreated={({ gl }) => keepWebGL(gl)}>
+            <color attach="background" args={["#9eb8cc"]} />
+            <ModelSlot>
+              <FieldStage />
+              <LegoDress
+                body={loadout.lgBody}
+                head={loadout.lgHead}
+                hair={loadout.lgHair}
+                legs={loadout.lgLegs}
+                weapon={loadout.lgWeapon}
+              />
+            </ModelSlot>
+            <OrbitControls ref={controls as never} enablePan target={[0, 1.15, 1]} minDistance={3.2} maxDistance={12} maxPolarAngle={1.35} />
+          </Canvas>
         ) : (
           <Canvas camera={{ position: [4.6, 2.35, 7.4], fov: 38 }} shadows gl={{ preserveDrawingBuffer: true }} onCreated={({ gl }) => keepWebGL(gl)}>
             <color attach="background" args={["#9eb8cc"]} />
@@ -393,7 +412,7 @@ function AvatarStudio() {
           Lounge
         </Link>
         <div className="pointer-events-auto mx-auto flex rounded-md border border-[#4a3d2a] bg-[#14110d]/90 p-1 backdrop-blur-md">
-          {(["2d", "3d", "an", "ra"] as PieceStyle[]).map((style) => (
+          {(["2d", "3d", "an", "lg", "ra"] as PieceStyle[]).map((style) => (
             <button
               key={style}
               type="button"
@@ -576,8 +595,12 @@ function AvatarStudio() {
         <div className="flex items-center gap-3 border-b border-[#2e261d] px-4 py-3.5">
           <CategoryIcon id={tab} gold big />
           <div>
-            <h2 className="text-lg font-bold uppercase leading-tight tracking-[0.12em] text-[#f6e7c3]">{category.title}</h2>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">{category.sub}</p>
+            <h2 className="text-lg font-bold uppercase leading-tight tracking-[0.12em] text-[#f6e7c3]">
+              {loadout.style === "lg" && tab === "kings" ? "LG minifig" : category.title}
+            </h2>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">
+              {loadout.style === "lg" && tab === "kings" ? "Body, head, hair, legs, weapon" : category.sub}
+            </p>
           </div>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
@@ -662,7 +685,16 @@ function AvatarStudio() {
               ))}
             </div>
           ) : null}
-          {tab === "kings" && loadout.style === "lg" ? <Note>LG figures come with the Brick Verse board.</Note> : null}
+          {tab === "kings" && loadout.style === "lg" ? (
+            <div className="space-y-4">
+              <Note>Swap each piece. Hair is a hat. The weapon sits in the right hand. Brick Verse has to be yours or the lounge will not keep LG.</Note>
+              <PartRow label="Body" value={loadout.lgBody} options={LEGO_PARTS} onPick={(id) => void equip("lgBody", id, 0)} />
+              <PartRow label="Head" value={loadout.lgHead} options={LEGO_PARTS} onPick={(id) => void equip("lgHead", id, 0)} />
+              <PartRow label="Hair" value={loadout.lgHair} options={LG_HAIR} onPick={(id) => void equip("lgHair", id, 0)} />
+              <PartRow label="Legs" value={loadout.lgLegs} options={LEGO_PARTS} onPick={(id) => void equip("lgLegs", id, 0)} />
+              <PartRow label="Weapon" value={loadout.lgWeapon} options={LG_WEAPONS} onPick={(id) => void equip("lgWeapon", id, 0)} />
+            </div>
+          ) : null}
           {tab === "kings" && (characterId === "rogue" || characterId === "hooded") && (owned.includes("rogue") || characterId === "hooded") ? (
             <button
               type="button"
@@ -806,6 +838,39 @@ function AvatarStudio() {
         }}
       />
     </main>
+  );
+}
+
+function PartRow({
+  label,
+  value,
+  options,
+  onPick,
+}: {
+  label: string;
+  value: string;
+  options: { id: string; name: string }[];
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onPick(item.id)}
+            className={cn(
+              "rounded-md border px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.08em]",
+              value === item.id ? GOLD_BTN : "border-[#3a3024] text-[#d7c9ae] hover:border-[#5a4a33]",
+            )}
+          >
+            {item.name}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

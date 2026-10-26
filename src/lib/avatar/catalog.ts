@@ -15,6 +15,12 @@ export type AvatarLoadout = {
   attackId: string;
   /** Colour finish of the 3D king piece (AV "King pieces" grid). */
   finishId: string;
+  /** LG minifig parts. Hair is a hat model. Weapon is a sword, or none. */
+  lgBody: string;
+  lgHead: string;
+  lgHair: string;
+  lgLegs: string;
+  lgWeapon: string;
 };
 
 export type GearItem = {
@@ -161,6 +167,56 @@ export const CROWNS: CrownItem[] = [
     dark: "",
     model: asset("/avatars/crowns/royal.glb"),
   },
+  {
+    id: "clown",
+    name: "Clown hat",
+    price: 0,
+    portrait: "",
+    blurb: "A clown hat on the head.",
+    gold: "",
+    dark: "",
+    model: asset("/avatars/crowns/clown.glb"),
+  },
+  {
+    id: "chef",
+    name: "Chef hat",
+    price: 0,
+    portrait: "",
+    blurb: "A tall chef hat.",
+    gold: "",
+    dark: "",
+    model: asset("/avatars/crowns/chef.glb"),
+  },
+  {
+    id: "cappello",
+    name: "Cappello",
+    price: 0,
+    portrait: "",
+    blurb: "A wide hat.",
+    gold: "",
+    dark: "",
+    model: asset("/avatars/crowns/cappello.glb"),
+  },
+  {
+    id: "propeller",
+    name: "Propeller hat",
+    price: 0,
+    portrait: "",
+    blurb: "A hat with a propeller.",
+    gold: "",
+    dark: "",
+    model: asset("/avatars/crowns/propeller.glb"),
+  },
+  {
+    id: "viking",
+    name: "Viking helmet",
+    price: 0,
+    portrait: "",
+    blurb: "A viking helmet.",
+    gold: "",
+    dark: "",
+    model: asset("/avatars/crowns/viking.glb"),
+  },
 ];
 
 export const MOUNTS: (GearItem & { url?: string; kind?: ModelKind; height?: number })[] = [
@@ -228,7 +284,44 @@ export const DEFAULT_LOADOUT: AvatarLoadout = {
   frameId: "plain",
   attackId: "march",
   finishId: "king-onyx",
+  lgBody: "cap",
+  lgHead: "cap",
+  lgHair: "none",
+  lgLegs: "cap",
+  lgWeapon: "none",
 };
+
+export const LEGO_PARTS: { id: string; name: string; file: string }[] = [
+  { id: "cap", name: "Star Captain", file: "captain-america.glb" },
+  { id: "spiderman", name: "Web Slinger", file: "spiderman.glb" },
+  { id: "ironman", name: "Iron Flyer", file: "ironman.glb" },
+  { id: "panther", name: "Shadow Cat", file: "blackpanther.glb" },
+  { id: "strange", name: "Wizard", file: "wizard.glb" },
+  { id: "agent", name: "Space Police", file: "space-police.glb" },
+  { id: "widow", name: "Spy Queen", file: "widow.glb" },
+  { id: "skeleton", name: "Skeleton", file: "skeleton.glb" },
+  { id: "blacktron", name: "Blacktron", file: "blacktron.glb" },
+  { id: "goblin", name: "Bomb Glider", file: "insectoid.glb" },
+  { id: "doombot", name: "Tyrant Bot", file: "gigabot.glb" },
+  { id: "doom", name: "Iron Tyrant", file: "doom-bigbrick.glb" },
+];
+
+export const LG_HAIR = [
+  { id: "none", name: "No hair" },
+  { id: "clown", name: "Clown hat" },
+  { id: "chef", name: "Chef hat" },
+  { id: "cappello", name: "Cappello" },
+  { id: "propeller", name: "Propeller hat" },
+  { id: "viking", name: "Viking helmet" },
+];
+
+export const LG_WEAPONS = [
+  { id: "none", name: "Bare hands" },
+  { id: "devil", name: "Devil sword" },
+  { id: "talwar", name: "Talwar" },
+];
+
+export const legoPartById = (id: string) => LEGO_PARTS.find((row) => row.id === id) ?? LEGO_PARTS[0];
 
 const byId = <T extends { id: string }>(rows: T[]) => new Map(rows.map((row) => [row.id, row]));
 
@@ -296,6 +389,11 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     frameId: pick(src.frameId, "plain", FRAMES),
     attackId: pick(attackRaw, "march", ATTACKS),
     finishId: pick(src.finishId, "king-onyx", FINISHES),
+    lgBody: pick(src.lgBody, "cap", LEGO_PARTS),
+    lgHead: pick(src.lgHead, "cap", LEGO_PARTS),
+    lgHair: pick(src.lgHair, "none", LG_HAIR),
+    lgLegs: pick(src.lgLegs, "cap", LEGO_PARTS),
+    lgWeapon: pick(src.lgWeapon, "none", LG_WEAPONS),
   };
 }
 
