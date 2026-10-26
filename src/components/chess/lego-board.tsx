@@ -494,6 +494,82 @@ function SquareFigure({
   );
 }
 
+/** A figure that walks between two world spots and faces its opponent when it stops. */
+export function LegoWalker({
+  id,
+  color,
+  from,
+  to,
+  slay = false,
+  carry = false,
+}: {
+  id: LegoCharId;
+  color: Color;
+  from: [number, number, number];
+  to: [number, number, number];
+  slay?: boolean;
+  carry?: boolean;
+}) {
+  const spec = LEGO_CHARS[id];
+  const { root, parts } = useFigure(id);
+  const outer = useRef<THREE.Group>(null);
+  const fig = useRef<THREE.Group>(null);
+  const a = useMemo(() => new THREE.Vector3(from[0], 0, from[2]), [from[0], from[2]]);
+  const b = useMemo(() => new THREE.Vector3(to[0], 0, to[2]), [to[0], to[2]]);
+  const moving = a.distanceTo(b) > 0.08;
+  const dur = moveTime(spec.gait, Math.max(0.2, a.distanceTo(b)));
+  const start = useRef<number | null>(null);
+  const seed = useMemo(() => hash(`${color}${id}${to[0].toFixed(2)}${to[2].toFixed(2)}`), [color, id, to]);
+  const mid = spec.height * 0.45;
+  const blew = useRef(false);
+  useEffect(() => {
+    root.position.y = -mid;
+    start.current = null;
+    blew.current = false;
+  }, [root, mid, from[0], from[2], to[0], to[2], slay]);
+  useFrame((state) => {
+    const g = outer.current;
+    const f = fig.current;
+    if (!g || !f) return;
+    const now = state.clock.elapsedTime;
+    if (start.current === null) start.current = now;
+    const u = moving ? span(now - start.current, 0, dur) : 1;
+    if (u < 1) {
+      const m = travel(spec.gait, a, b, u, now);
+      g.position.set(m.pos.x, 0, m.pos.z);
+      f.position.y = STAND + mid + m.pos.y;
+      f.rotation.set(m.flip, (spec.gait === "portal" ? m.spin : 0) + yawTo(a, b), 0);
+      f.scale.setScalar(Math.max(0.001, m.scale));
+      applyPose(parts, m.pose);
+    } else {
+      const idle = idlePose(spec.gait, now, seed);
+      g.position.set(b.x, 0, b.z);
+      f.position.y = STAND + mid + idle.y;
+      f.rotation.set(0, restYaw(color), 0);
+      f.scale.setScalar(1);
+      applyPose(parts, idle.pose);
+      if (slay && !blew.current) {
+        blew.current = true;
+        playLegoExplode();
+      }
+    }
+    keepOnBoard(f, root);
+  });
+  return (
+    <group ref={outer}>
+      <group ref={fig}>
+        <primitive object={root} />
+        {carry ? (
+          <mesh position={[0.16, mid + 0.22, 0.18]} rotation={[0.4, 0.2, 0.6]} scale={[1.15, 0.72, 0.72]}>
+            <sphereGeometry args={[0.11, 16, 12]} />
+            <meshStandardMaterial color="#6b3418" roughness={0.62} />
+          </mesh>
+        ) : null}
+      </group>
+    </group>
+  );
+}
+
 // ── captures ───────────────────────────────────────────────────────────────
 
 export type Fight = {

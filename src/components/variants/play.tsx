@@ -9,7 +9,7 @@ import { setPieceStyle } from "@/lib/server/avatar";
 import { boardById } from "@/lib/chess/board-skins";
 import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
 import { cn } from "@/lib/utils";
-import { VariantStage, type Look, type Sky, type StageUnit } from "@/components/variants/stage";
+import { VariantStage, type Look, type MoveCue, type Sky, type StageUnit } from "@/components/variants/stage";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -226,6 +226,7 @@ function Grid({
   onPick,
   units,
   ball = null,
+  cue = null,
 }: {
   rows: number;
   cols: number;
@@ -233,6 +234,7 @@ function Grid({
   onPick: (r: number, f: number) => void;
   units: StageUnit[];
   ball?: { r: number; f: number } | null;
+  cue?: MoveCue | null;
 }) {
   const { look, sky, light, dark } = useContext(LookCtx);
   const plain = new Set(["#e7d3a8", "#b58863", "#cbb892", "#8c6a45"]);
@@ -286,7 +288,7 @@ function Grid({
   }
   return (
     <div className="h-full w-full">
-      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} paint={painted} />
+      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} paint={painted} />
     </div>
   );
 }
@@ -491,6 +493,7 @@ export function CheckMate({ versus }: { versus: string }) {
   const [crowned, setCrowned] = useState<{ w: boolean; b: boolean }>({ w: false, b: false });
   const [note, setNote] = useState("Place your king, rook, two bishops, two knights and one pawn. Red squares can take a piece on the first move.");
   const [banner, setBanner] = useState("");
+  const [cue, setCue] = useState<MoveCue | null>(null);
 
   const red = (r: number, f: number) => isRedSq(r, f, inset, lastTwo);
   const placing = queue[0];
@@ -555,6 +558,21 @@ export function CheckMate({ versus }: { versus: string }) {
       return;
     }
     const step = moves[Math.floor(Math.random() * moves.length)];
+    const mover = live[step.from[0]][step.from[1]];
+    const victim = live[step.to[0]][step.to[1]];
+    if (mover) {
+      setCue({
+        id: Date.now(),
+        from: step.from,
+        to: step.to,
+        capture: Boolean(victim),
+        thrown: false,
+        side: "b",
+        kind: mover.kind,
+        victim: victim?.kind,
+        victimSide: victim?.side,
+      });
+    }
     const applied = applyStep(live, step, zone.band, zone.inset);
     const crowns = { ...zone.crowned, b: zone.crowned.b || applied.crowned === "b" };
     const grown = growZone({ ...zone, crowned: crowns }, applied.board);
@@ -568,6 +586,21 @@ export function CheckMate({ versus }: { versus: string }) {
 
   function playHuman(step: Step) {
     const zone = { band, inset, lastTwo, crowned };
+    const mover = board[step.from[0]][step.from[1]];
+    const victim = board[step.to[0]][step.to[1]];
+    if (mover) {
+      setCue({
+        id: Date.now(),
+        from: step.from,
+        to: step.to,
+        capture: Boolean(victim),
+        thrown: false,
+        side: mover.side,
+        kind: mover.kind,
+        victim: victim?.kind,
+        victimSide: victim?.side,
+      });
+    }
     const applied = applyStep(board, step, band, inset);
     const crowns = { ...crowned, w: crowned.w || applied.crowned === "w" };
     setCrowned(crowns);
@@ -666,6 +699,7 @@ export function CheckMate({ versus }: { versus: string }) {
         cols={8}
         onPick={onSquare}
         units={board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind }] : [])))}
+        cue={cue}
         paint={(r, f) => {
           const u = board[r][f];
           const marked = hot.has(`${r}:${f}`) || (sel && sel[0] === r && sel[1] === f);
@@ -803,6 +837,7 @@ export function Football({ versus }: { versus: string }) {
   const [score, setScore] = useState({ w: 0, b: 0 });
   const [left, setLeft] = useState(5 * 60);
   const [over, setOver] = useState("");
+  const [cue, setCue] = useState<MoveCue | null>(null);
 
   useEffect(() => {
     if (over) return;
@@ -868,6 +903,17 @@ export function Football({ versus }: { versus: string }) {
     let carry = Boolean(u.ball);
     if (!carry && ball && ball[0] === to[0] && ball[1] === to[1]) carry = true;
     if (victim?.ball) carry = true;
+    setCue({
+      id: Date.now(),
+      from,
+      to,
+      capture: Boolean(victim),
+      thrown: false,
+      side: u.side,
+      kind: u.kind,
+      victim: victim?.kind,
+      victimSide: victim?.side,
+    });
     next[from[0]][from[1]] = null;
     const held = u.kind === "k" && carry ? (u.held ?? 0) + 1 : 0;
     next[to[0]][to[1]] = { ...u, ball: carry, held };
@@ -886,6 +932,7 @@ export function Football({ versus }: { versus: string }) {
     const u = next[from[0]][from[1]];
     const catcher = next[to[0]][to[1]];
     if (!u?.ball || !catcher || catcher.side !== u.side) return;
+    setCue({ id: Date.now(), from, to, capture: false, thrown: true, side: u.side, kind: u.kind });
     next[from[0]][from[1]] = { ...u, ball: false, held: 0 };
     next[to[0]][to[1]] = { ...catcher, ball: true, held: catcher.kind === "k" ? 1 : 0 };
     if (inEnd(catcher.side, to[0])) {
@@ -961,6 +1008,7 @@ export function Football({ versus }: { versus: string }) {
         onPick={onSquare}
         ball={loose ? { r: loose[0], f: loose[1] } : null}
         units={board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind, ball: u.ball }] : [])))}
+        cue={cue}
         paint={(r, f) => {
           const u = board[r][f];
           const end = r <= 1 || r >= 12;
@@ -1047,6 +1095,7 @@ export function Strategy({ versus }: { versus: string }) {
   const [turn, setTurn] = useState<Side>("w");
   const [sel, setSel] = useState<[number, number] | null>(null);
   const [banner, setBanner] = useState("");
+  const [cue, setCue] = useState<MoveCue | null>(null);
   const [setupName, setSetupName] = useState("My setup");
   const [setups, setSetups] = useState<{ name: string; cells: { r: number; f: number; rank: Rank }[] }[]>([]);
 
@@ -1141,6 +1190,17 @@ export function Strategy({ versus }: { versus: string }) {
     if (!att) return;
     const def = next[to[0]][to[1]];
     next[from[0]][from[1]] = null;
+    setCue({
+      id: Date.now(),
+      from,
+      to,
+      capture: Boolean(def),
+      thrown: false,
+      side,
+      kind: rankPiece(att.rank),
+      victim: def ? rankPiece(def.rank) : undefined,
+      victimSide: def?.side,
+    });
     if (!def) {
       next[to[0]][to[1]] = att;
     } else {
@@ -1266,6 +1326,7 @@ export function Strategy({ versus }: { versus: string }) {
               : [],
           ),
         )}
+        cue={cue}
         paint={(r, f) => {
           const u = board[r][f];
           const mine = u?.side === "w";

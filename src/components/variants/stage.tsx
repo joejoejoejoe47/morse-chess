@@ -1,10 +1,11 @@
 import { Suspense, useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { Html, OrbitControls, useGLTF } from "@react-three/drei";
 import type { PieceSymbol } from "chess.js";
+import * as THREE from "three";
 import { SculptedPiece } from "@/components/chess/sculpted-piece";
-import { StonePerson, type Gait } from "@/components/chess/stone-people";
-import { LEGO_CHARS, LEGO_ROSTER, LegoWorld, type LegoCharId } from "@/components/chess/lego-board";
+import { StonePerson, WarCorpse, type Gait } from "@/components/chess/stone-people";
+import { LEGO_CHARS, LEGO_ROSTER, LegoWalker, LegoWorld, type LegoCharId } from "@/components/chess/lego-board";
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 import { asset } from "@/lib/base";
 
@@ -22,6 +23,27 @@ export type StageUnit = {
   hidden?: boolean;
   ball?: boolean;
 };
+
+export type MoveCue = {
+  id: number;
+  from: [number, number];
+  to: [number, number];
+  capture: boolean;
+  thrown: boolean;
+  side: "w" | "b";
+  kind: PieceSymbol;
+  victim?: PieceSymbol;
+  victimSide?: "w" | "b";
+};
+
+function Pigskin() {
+  return (
+    <mesh scale={[1.2, 0.72, 0.72]} rotation={[0.3, 0.4, 0.5]} castShadow>
+      <sphereGeometry args={[0.13, 18, 12]} />
+      <meshStandardMaterial color="#6b3418" roughness={0.55} />
+    </mesh>
+  );
+}
 
 function spot(r: number, f: number, rows: number, cols: number, y = 0.14): [number, number, number] {
   return [f - (cols - 1) / 2, y, (rows - 1) / 2 - r];
@@ -88,6 +110,115 @@ function PieceMesh({ unit, look }: { unit: StageUnit; look: Look }) {
   );
 }
 
+function Actor({
+  unit,
+  look,
+  rows,
+  cols,
+  spawn,
+  slay,
+}: {
+  unit: StageUnit;
+  look: Look;
+  rows: number;
+  cols: number;
+  spawn: [number, number] | null;
+  slay: boolean;
+}) {
+  const home = spot(unit.r, unit.f, rows, cols);
+  const from = spawn ? spot(spawn[0], spawn[1], rows, cols) : home;
+  const ref = useRef<THREE.Group>(null);
+  const gait = useRef<Gait>({ phase: Math.random() * 8, amp: 0, act: "idle", fade: 1 });
+  const pos = useRef(new THREE.Vector3(from[0], 0, from[2]));
+  const trip = useRef<{ from: THREE.Vector3; to: THREE.Vector3; t: number } | null>(null);
+  const swung = useRef(false);
+  const attackUntil = useRef(0);
+  const live = look === "an" || look === "lg";
+  useFrame((_, raw) => {
+    const node = ref.current;
+    if (!node || look === "lg") return;
+    if (!live) {
+      node.position.set(home[0], home[1], home[2]);
+      node.rotation.y = unit.side === "w" ? Math.PI : 0;
+      return;
+    }
+    const dt = Math.min(raw, 0.1);
+    const target = new THREE.Vector3(home[0], 0, home[2]);
+    if (!trip.current || trip.current.to.distanceTo(target) > 0.01) {
+      trip.current = { from: pos.current.clone(), to: target.clone(), t: pos.current.distanceTo(target) > 0.05 ? 0 : 1 };
+    }
+    const span = trip.current.from.distanceTo(trip.current.to);
+    if (span > 0.04) trip.current.t = Math.min(1, trip.current.t + dt / 0.72);
+    else trip.current.t = 1;
+    pos.current.lerpVectors(trip.current.from, trip.current.to, trip.current.t);
+    node.position.set(pos.current.x, 0.14, pos.current.z);
+    const traveling = trip.current.t < 1;
+    gait.current.amp += ((traveling ? 1 : 0) - gait.current.amp) * (1 - Math.exp(-8 * dt));
+    if (traveling) gait.current.phase += dt * 9;
+    if (!traveling && slay && !swung.current) {
+      swung.current = true;
+      attackUntil.current = performance.now() + 1100;
+    }
+    gait.current.act = performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
+    const dx = target.x - pos.current.x;
+    const dz = target.z - pos.current.z;
+    if (Math.hypot(dx, dz) > 0.08) node.rotation.y = Math.atan2(dx, dz);
+    else if (gait.current.act !== "attack") node.rotation.y = unit.side === "w" ? Math.PI : 0;
+  });
+  if (look === "lg" && !unit.hidden) {
+    const color = unit.side === "w" ? "w" : "b";
+    return (
+      <group onClick={(e) => e.stopPropagation()}>
+        <Suspense fallback={null}>
+          <LegoWalker
+            id={LEGO_ROSTER[color][unit.kind]}
+            color={color}
+            from={from}
+            to={home}
+            slay={slay}
+            carry={Boolean(unit.ball)}
+          />
+        </Suspense>
+      </group>
+    );
+  }
+  return (
+    <group ref={ref} position={home}>
+      {look === "an" ? (
+        <StonePerson type={unit.hidden ? "p" : unit.kind} white={!unit.hidden && unit.side === "w"} cast="stone" gait={gait} sword={false} clash={slay} />
+      ) : (
+        <PieceMesh unit={unit} look={look} />
+      )}
+      {unit.ball && look !== "lg" ? (
+        <group position={[0.18, 0.72, 0.12]}>
+          <Pigskin />
+        </group>
+      ) : null}
+    </group>
+  );
+}
+
+function Throw({ from, to, rows, cols }: { from: [number, number]; to: [number, number]; rows: number; cols: number }) {
+  const ref = useRef<THREE.Group>(null);
+  const born = useRef<number | null>(null);
+  const a = spot(from[0], from[1], rows, cols, 0.7);
+  const b = spot(to[0], to[1], rows, cols, 0.7);
+  useFrame(({ clock }) => {
+    const node = ref.current;
+    if (!node) return;
+    if (born.current == null) born.current = clock.elapsedTime;
+    const u = Math.min(1, (clock.elapsedTime - born.current) / 0.72);
+    const arc = Math.sin(u * Math.PI) * (0.55 + Math.hypot(b[0] - a[0], b[2] - a[2]) * 0.18);
+    node.position.set(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + arc, a[2] + (b[2] - a[2]) * u);
+    node.rotation.set(u * 16, 0, u * 9);
+  });
+  return (
+    <group ref={ref}>
+      <Pigskin />
+    </group>
+  );
+}
+
 function Deck({
   rows,
   cols,
@@ -96,6 +227,7 @@ function Deck({
   units,
   look,
   ball,
+  cue,
 }: {
   rows: number;
   cols: number;
@@ -104,6 +236,7 @@ function Deck({
   units: StageUnit[];
   look: Look;
   ball: { r: number; f: number } | null;
+  cue: MoveCue | null;
 }) {
   const squares = [];
   for (let r = 0; r < rows; r++) {
@@ -124,22 +257,31 @@ function Deck({
         <meshStandardMaterial color="#3c261c" roughness={0.7} />
       </mesh>
       {squares}
-      {units.map((unit) => (
-        <group key={`${unit.side}${unit.kind}${unit.r}:${unit.f}${unit.label ?? ""}`} position={spot(unit.r, unit.f, rows, cols)} onClick={(e) => { e.stopPropagation(); onPick(unit.r, unit.f); }}>
-          <PieceMesh unit={unit} look={look} />
-          {unit.ball ? (
-            <mesh position={[0.18, 0.55, 0.12]}>
-              <sphereGeometry args={[0.12, 16, 12]} />
-              <meshStandardMaterial color="#f4f4f4" roughness={0.35} />
-            </mesh>
-          ) : null}
+      {units.map((unit) => {
+        const moving = cue && cue.side === unit.side && cue.to[0] === unit.r && cue.to[1] === unit.f && !cue.thrown;
+        return (
+          <group key={`${unit.side}${unit.kind}${unit.r}:${unit.f}${unit.label ?? ""}`} onClick={(e) => { e.stopPropagation(); onPick(unit.r, unit.f); }}>
+            <Actor
+              unit={unit}
+              look={look}
+              rows={rows}
+              cols={cols}
+              spawn={moving ? cue.from : null}
+              slay={Boolean(moving && cue.capture)}
+            />
+          </group>
+        );
+      })}
+      {cue?.capture && look === "an" && cue.victim ? (
+        <group key={cue.id} position={spot(cue.to[0], cue.to[1], rows, cols, 0.08)}>
+          <WarCorpse type={cue.victim} white={cue.victimSide === "w"} cast="stone" sword={false} clash delay={0.55} onDone={() => undefined} />
         </group>
-      ))}
-      {ball ? (
-        <mesh position={spot(ball.r, ball.f, rows, cols, 0.22)}>
-          <sphereGeometry args={[0.14, 18, 14]} />
-          <meshStandardMaterial color="#f7f7f7" roughness={0.3} />
-        </mesh>
+      ) : null}
+      {cue?.thrown ? <Throw key={cue.id} from={cue.from} to={cue.to} rows={rows} cols={cols} /> : null}
+      {ball && !cue?.thrown ? (
+        <group position={spot(ball.r, ball.f, rows, cols, 0.22)}>
+          <Pigskin />
+        </group>
       ) : null}
     </group>
   );
@@ -154,6 +296,7 @@ export function VariantStage({
   look,
   sky,
   ball = null,
+  cue = null,
 }: {
   rows: number;
   cols: number;
@@ -163,6 +306,7 @@ export function VariantStage({
   look: Look;
   sky: Sky;
   ball?: { r: number; f: number } | null;
+  cue?: MoveCue | null;
 }) {
   const span = Math.max(rows, cols);
   const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
@@ -178,7 +322,7 @@ export function VariantStage({
         ) : null}
         {sky === "lego" ? <LegoWorld /> : null}
         {sky === "arena" ? <SkyArenaWorld squaresBottom={0.02} plinth={false} /> : null}
-        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} />
+        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} />
         <OrbitControls target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.05} minDistance={4} maxDistance={span * 3} />
       </Canvas>
     </div>
