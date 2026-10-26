@@ -4,6 +4,7 @@ import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { asset } from "@/lib/base";
 import { buyMarketListing, createMarketListing, listMarket, mySellables } from "@/lib/server/store";
+import { ShopPreview, type Look } from "@/components/variants/stage";
 
 export const Route = createFileRoute("/store")({
   component: StoreDoor,
@@ -91,6 +92,8 @@ function Store() {
   const [shot, setShot] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [look, setLook] = useState<Look>("3d");
+  const [seeing, setSeeing] = useState(false);
 
   async function refresh(query = q) {
     const row = await listMarket({ data: { q: query } });
@@ -177,10 +180,10 @@ function Store() {
   }
 
   return (
-    <main className="min-h-dvh bg-[#120e0b] text-[#f4e7cb]">
-      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-[#3a3024] bg-[#120e0b]/95 px-3 py-3">
-        <Link to="/" className="shrink-0 text-xs uppercase tracking-[0.16em] text-[#cbb892]">Lounge</Link>
-        <button type="button" onClick={() => void openSell()} className="shrink-0 rounded-md border border-[#d6ad4f] bg-[#3a2c16] px-4 py-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#f0d68a]">
+    <main className="club-wash min-h-dvh bg-ink text-ivory">
+      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-ink/95 px-3 py-3">
+        <Link to="/" className="shrink-0 font-display text-lg text-ivory">Morse</Link>
+        <button type="button" onClick={() => void openSell()} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
           Sell
         </button>
         <input
@@ -190,39 +193,39 @@ function Store() {
             void refresh(e.target.value).catch(() => undefined);
           }}
           placeholder="Search models"
-          className="min-w-0 flex-1 rounded-md border border-[#3a3024] bg-black/40 px-3 py-2 text-sm outline-none"
+          className="min-w-0 flex-1 rounded-md border border-line bg-ink-soft px-3 py-2 text-sm text-ivory outline-none"
         />
         <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#6d5a32] bg-black/50 px-3 py-1.5">
           <img src={asset("/morse-coin.png")} alt="" className="size-5" />
-          <span className="font-display tabular-nums">{coins.toLocaleString()}</span>
+          <span className="font-display tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
         </span>
       </header>
 
       {error ? <p className="px-4 pt-3 text-sm text-[#e07a7a]">{error}</p> : null}
 
-      <section className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-        {listings.length === 0 ? <p className="text-sm text-[#b7a88c]">Nothing is for sale yet. Press Sell to list a king or a Lego board.</p> : null}
+      <section className="flex flex-wrap gap-2 p-3">
+        {listings.length === 0 ? <p className="text-sm text-mist">Nothing is for sale yet. Press Sell to list a king or a Lego board.</p> : null}
         {listings.map((card) => (
-          <button key={card.id} type="button" onClick={() => setOpen(card)} className="overflow-hidden rounded-xl border border-[#3a3024] bg-[#1b1612] text-left">
-            <img src={card.shot} alt="" className="aspect-[4/3] w-full object-cover" />
-            <div className="flex items-center justify-between gap-2 px-3 py-3">
-              <span>
-                <span className="block font-display text-xl">{card.name}</span>
-                <span className="text-xs uppercase tracking-[0.14em] text-[#b7a88c]">{card.kind === "lg" ? "LG board" : "AV"} · {card.seller}</span>
-              </span>
-              <span className="font-display text-lg text-[#f0d68a]">{card.price}</span>
-            </div>
+          <button key={card.id} type="button" onClick={() => { setSeeing(false); setOpen(card); }} className="w-[88px] overflow-hidden rounded-md border border-line bg-panel text-left">
+            <img src={card.shot} alt="" className="h-14 w-full object-cover" />
+            <span className="block truncate px-1 py-1 text-[10px] leading-tight text-ivory">{card.name}</span>
           </button>
         ))}
       </section>
 
       {open ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/70 p-4" onClick={() => setOpen(null)}>
-          <div className="max-h-[92vh] w-full max-w-lg overflow-auto rounded-xl border border-[#6d5a32] bg-[#1b1612] p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[92vh] w-full max-w-lg overflow-auto rounded-xl border border-gold-line bg-panel p-4" onClick={(e) => e.stopPropagation()}>
             <img src={open.shot} alt="" className="w-full rounded-md" />
-            <h2 className="mt-3 font-display text-3xl">{open.name}</h2>
-            <p className="text-sm text-[#b7a88c]">{open.kind === "lg" ? "LG board" : "AV king"} · {open.seller}</p>
-            {open.blurb ? <p className="mt-3 text-sm leading-relaxed text-[#f4e7cb]">{open.blurb}</p> : null}
+            <h2 className="mt-3 font-display text-3xl text-ivory">{open.name}</h2>
+            <p className="text-sm text-mist">{open.kind === "lg" ? "LG board" : "AV king"} · {open.seller}</p>
+            {open.blurb ? <p className="mt-3 text-sm leading-relaxed text-ivory">{open.blurb}</p> : null}
+            <div className="mt-3 flex gap-1">
+              {(["2d", "3d", "an", "lg"] as Look[]).map((id) => (
+                <button key={id} type="button" onClick={() => { setLook(id); setSeeing(true); }} className={"rounded px-2 py-1 text-[10px] uppercase tracking-[0.14em] " + (seeing && look === id ? "bg-walnut text-ivory" : "text-mist")}>{id}</button>
+              ))}
+            </div>
+            {seeing ? <div className="mt-2"><ShopPreview kind={open.kind === "lg" ? "lg" : "av"} look={look} /></div> : null}
             <button
               type="button"
               disabled={busy || open.mine || coins < open.price}
@@ -270,7 +273,14 @@ function Store() {
             ) : null}
             {sell === "form" ? (
               <div className="space-y-3">
-                {shot ? <img src={shot} alt="" className="w-full rounded-md" /> : null}
+                <ShopPreview kind={kind} look={look} onShot={setShot} />
+                <div className="flex gap-1">
+                  {(["2d", "3d", "an", "lg"] as Look[]).map((id) => (
+                    <button key={id} type="button" onClick={() => setLook(id)} className={"rounded px-2 py-1 text-[10px] uppercase tracking-[0.14em] " + (look === id ? "bg-walnut text-ivory" : "text-mist")}>{id}</button>
+                  ))}
+                </div>
+                <p className="text-xs text-mist">Frame the cover, drag the piece into the gold box, then press Screenshot.</p>
+                {shot ? <img src={shot} alt="" className="h-16 w-24 rounded object-cover" /> : null}
                 <label className="block text-xs uppercase tracking-[0.14em] text-[#b7a88c]">Name
                   <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-md border border-[#3a3024] bg-black/30 px-3 py-2 text-sm" />
                 </label>

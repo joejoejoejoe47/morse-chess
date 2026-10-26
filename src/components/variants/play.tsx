@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import type { PieceSymbol } from "chess.js";
+import { getHomeState } from "@/lib/server/mores";
+import { setPieceStyle } from "@/lib/server/avatar";
+import { boardById } from "@/lib/chess/board-skins";
+import { VariantStage, type Look, type Sky, type StageUnit } from "@/components/variants/stage";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -9,6 +14,35 @@ type Step = { from: [number, number]; to: [number, number] };
 
 const GLYPH: Record<Kind, string> = { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" };
 const SETUP: Kind[] = ["k", "r", "b", "b", "n", "n", "p"];
+
+const LookCtx = createContext<{ look: Look; sky: Sky; light: string; dark: string; setLook: (next: Look) => void }>({
+  look: "3d",
+  sky: "table",
+  light: "#e7d3a8",
+  dark: "#b58863",
+  setLook: () => undefined,
+});
+
+function ModeBar() {
+  const { look, setLook } = useContext(LookCtx);
+  return (
+    <div className="flex rounded-md border border-[#4a3d2a] bg-[#14110d]/90 p-1">
+      {(["2d", "3d", "an", "lg"] as Look[]).map((id) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setLook(id)}
+          className={
+            "min-h-9 rounded px-3 text-xs font-semibold uppercase tracking-[0.16em] " +
+            (look === id ? "bg-[linear-gradient(180deg,#e9c766,#a87a26)] text-[#1b140a]" : "text-[#b9a98a]")
+          }
+        >
+          {id}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const other = (s: Side): Side => (s === "w" ? "b" : "w");
 
@@ -40,6 +74,7 @@ function Shell({
           ‹ Lounge
         </Link>
         <h1 className="font-display text-2xl text-[#f8edd4]">{title}</h1>
+        <ModeBar />
         <span className="max-w-md text-right text-xs text-[#b7a88c]">{note}</span>
       </header>
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-3 py-4 lg:flex-row lg:items-start lg:justify-center">{children}</div>
@@ -52,36 +87,33 @@ function Grid({
   cols,
   paint,
   onPick,
+  units,
+  ball = null,
 }: {
   rows: number;
   cols: number;
   paint: (r: number, f: number) => { bg: string; fg: string; text: string };
   onPick: (r: number, f: number) => void;
+  units: StageUnit[];
+  ball?: { r: number; f: number } | null;
 }) {
-  const cells = [];
-  for (let r = rows - 1; r >= 0; r--) {
-    for (let f = 0; f < cols; f++) {
-      const p = paint(r, f);
-      cells.push(
-        <button
-          key={`${r}:${f}`}
-          type="button"
-          onClick={() => onPick(r, f)}
-          className="grid place-items-center font-display text-[clamp(0.85rem,2.4vw,1.45rem)] leading-none"
-          style={{ background: p.bg, color: p.fg }}
-        >
-          {p.text}
-        </button>,
-      );
-    }
-  }
+  const { look, sky, light, dark } = useContext(LookCtx);
+  const plain = new Set(["#e7d3a8", "#b58863", "#cbb892", "#8c6a45"]);
   return (
-    <div
-      className="grid w-full max-w-[min(96vw,760px)] overflow-hidden rounded-md border-4 border-[#6a5433] shadow-[0_24px_60px_rgba(0,0,0,0.5)]"
-      style={{ gridTemplateColumns: `repeat(${cols},minmax(0,1fr))`, aspectRatio: `${cols} / ${rows}` }}
-    >
-      {cells}
-    </div>
+    <VariantStage
+      rows={rows}
+      cols={cols}
+      onPick={onPick}
+      units={units}
+      look={look}
+      sky={sky}
+      ball={ball}
+      paint={(r, f) => {
+        const p = paint(r, f);
+        if (!plain.has(p.bg)) return p;
+        return { ...p, bg: (r + f) % 2 === 0 ? light : dark };
+      }}
+    />
   );
 }
 
@@ -437,6 +469,7 @@ export function CheckMate({ versus }: { versus: string }) {
         rows={8}
         cols={8}
         onPick={onSquare}
+        units={board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind }] : [])))}
         paint={(r, f) => {
           const u = board[r][f];
           const marked = hot.has(`${r}:${f}`) || (sel && sel[0] === r && sel[1] === f);
@@ -743,6 +776,8 @@ export function Football({ versus }: { versus: string }) {
         rows={F_ROWS}
         cols={F_COLS}
         onPick={onSquare}
+        ball={loose ? { r: loose[0], f: loose[1] } : null}
+        units={board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind, ball: u.ball }] : [])))}
         paint={(r, f) => {
           const u = board[r][f];
           const end = r <= 1 || r >= 12;
@@ -810,6 +845,15 @@ function rankLabel(rank: Rank) {
 
 function canStep(rank: Rank) {
   return rank !== "A" && rank !== "B";
+}
+
+function rankPiece(rank: Rank): PieceSymbol {
+  if (rank === "A" || (typeof rank === "number" && rank >= 8)) return "k";
+  if (rank === "B" || rank === 1) return "p";
+  if (rank === 5 || rank === 6 || rank === 7) return "q";
+  if (rank === 4) return "r";
+  if (rank === 3) return "b";
+  return "n";
 }
 
 export function Strategy({ versus }: { versus: string }) {
@@ -994,6 +1038,20 @@ export function Strategy({ versus }: { versus: string }) {
         rows={10}
         cols={10}
         onPick={onSquare}
+        units={board.flatMap((row, r) =>
+          row.flatMap((u, f) =>
+            u
+              ? [{
+                  r,
+                  f,
+                  side: u.side,
+                  kind: rankPiece(u.rank),
+                  label: u.rank === "A" ? "A" : u.rank === "B" ? "B" : String(u.rank),
+                  hidden: u.side === "b" && !u.seen,
+                }]
+              : [],
+          ),
+        )}
         paint={(r, f) => {
           const u = board[r][f];
           const mine = u?.side === "w";
@@ -1035,7 +1093,38 @@ export function Strategy({ versus }: { versus: string }) {
 }
 
 export function VariantPlay({ mode, versus }: { mode: "checkmate" | "football" | "strategy"; versus: string }) {
-  if (mode === "football") return <Football versus={versus} />;
-  if (mode === "strategy") return <Strategy versus={versus} />;
-  return <CheckMate versus={versus} />;
+  const [look, setLook] = useState<Look>(() => {
+    try {
+      const saved = localStorage.getItem("morse-board-view");
+      if (saved === "2d" || saved === "3d" || saved === "an" || saved === "lg") return saved;
+    } catch {
+      /* ignore */
+    }
+    return "3d";
+  });
+  const [boardId, setBoardId] = useState("lodge");
+  useEffect(() => {
+    void getHomeState()
+      .then((home) => {
+        if (home?.profile?.equippedBoard) setBoardId(home.profile.equippedBoard);
+      })
+      .catch(() => undefined);
+  }, []);
+  const skin = boardById(boardId);
+  const sky: Sky = look === "lg" ? "lego" : look === "an" && mode === "football" ? "arena" : "table";
+  function choose(next: Look) {
+    setLook(next);
+    try {
+      localStorage.setItem("morse-board-view", next);
+    } catch {
+      /* ignore */
+    }
+    void setPieceStyle({ data: { style: next } }).catch(() => undefined);
+  }
+  const game = mode === "football" ? <Football versus={versus} /> : mode === "strategy" ? <Strategy versus={versus} /> : <CheckMate versus={versus} />;
+  return (
+    <LookCtx.Provider value={{ look, sky, light: skin.lightSq, dark: skin.darkSq, setLook: choose }}>
+      {game}
+    </LookCtx.Provider>
+  );
 }
