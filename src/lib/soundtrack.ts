@@ -11,6 +11,9 @@ export type SoundtrackSettings = {
   activeId: string | null;
   songs: SoundtrackSong[];
   lists: Soundtrack[];
+  likes: string[];
+  plays: Record<string, number>;
+  history: string[];
 };
 
 export const BUILTIN_SONGS: { id: string; name: string; src: string }[] = [
@@ -22,7 +25,7 @@ export function builtinSrc(id: string) {
 }
 
 export function emptySoundtrack(): SoundtrackSettings {
-  return { unmuted: false, activeId: null, songs: [], lists: [] };
+  return { unmuted: false, activeId: null, songs: [], lists: [], likes: [], plays: {}, history: [] };
 }
 
 function storageKey(accountId: string) {
@@ -55,6 +58,9 @@ export function loadSoundtrack(accountId: string | null | undefined): Soundtrack
       activeId: parsed.activeId ? String(parsed.activeId) : null,
       songs,
       lists,
+      likes: Array.isArray(parsed.likes) ? parsed.likes.map(String) : [],
+      plays: parsed.plays && typeof parsed.plays === "object" ? Object.fromEntries(Object.entries(parsed.plays).map(([id, n]) => [id, Number(n) || 0])) : {},
+      history: Array.isArray(parsed.history) ? parsed.history.map(String).slice(0, 40) : [],
     };
   } catch {
     return base;
@@ -97,6 +103,118 @@ let music: HTMLAudioElement | null = null;
 let musicUrl = "";
 let playingKey = "";
 let token = 0;
+let libraryHold = false;
+let librarySong = "";
+let libraryQueue: string[] = [];
+let libraryAt = 0;
+let libraryRepeat = false;
+const playerListeners = new Set<() => void>();
+
+function emitPlayer() {
+  playerListeners.forEach((fn) => fn());
+}
+
+export function subscribePlayer(cb: () => void) {
+  playerListeners.add(cb);
+  const audio = track();
+  const kick = () => emitPlayer();
+  audio?.addEventListener("timeupdate", kick);
+  audio?.addEventListener("play", kick);
+  audio?.addEventListener("pause", kick);
+  audio?.addEventListener("ended", kick);
+  return () => {
+    playerListeners.delete(cb);
+    audio?.removeEventListener("timeupdate", kick);
+    audio?.removeEventListener("play", kick);
+    audio?.removeEventListener("pause", kick);
+    audio?.removeEventListener("ended", kick);
+  };
+}
+
+export function libraryNow() {
+  const audio = track();
+  const duration = audio && Number.isFinite(audio.duration) ? audio.duration : 0;
+  return {
+    songId: librarySong,
+    playing: Boolean(audio && !audio.paused && !audio.ended && librarySong),
+    current: audio?.currentTime ?? 0,
+    duration,
+    repeat: libraryRepeat,
+  };
+}
+
+/** While the library page is open, the club list waits. */
+export function setLibraryHold(on: boolean) {
+  libraryHold = on;
+  if (on) stopSoundtrack();
+  else window.dispatchEvent(new Event(SOUNDTRACK_CHANGED));
+}
+
+export function setLibraryRepeat(on: boolean) {
+  libraryRepeat = on;
+  emitPlayer();
+}
+
+export function seekLibrary(ratio: number) {
+  const audio = track();
+  if (!audio || !Number.isFinite(audio.duration)) return;
+  audio.currentTime = Math.min(audio.duration, Math.max(0, ratio * audio.duration));
+  emitPlayer();
+}
+
+export function toggleLibrary() {
+  const audio = track();
+  if (!audio || !librarySong) return;
+  if (audio.paused) void audio.play().catch(() => undefined);
+  else audio.pause();
+  emitPlayer();
+}
+
+export async function playLibrarySong(accountId: string, songId: string, queue?: string[]) {
+  const audio = track();
+  if (!audio) return;
+  libraryHold = true;
+  token += 1;
+  const generation = token;
+  libraryQueue = queue?.length ? queue : [songId];
+  libraryAt = Math.max(0, libraryQueue.indexOf(songId));
+  librarySong = songId;
+  const built = builtinSrc(songId);
+  if (!built) {
+    const rec = await getSongBlob(accountId, songId);
+    if (generation !== token || !rec) return;
+    if (musicUrl) URL.revokeObjectURL(musicUrl);
+    musicUrl = URL.createObjectURL(rec.blob);
+    audio.src = musicUrl;
+  } else {
+    if (musicUrl) {
+      URL.revokeObjectURL(musicUrl);
+      musicUrl = "";
+    }
+    audio.src = asset(built);
+  }
+  const settings = loadSoundtrack(accountId);
+  const plays = { ...settings.plays, [songId]: (settings.plays[songId] ?? 0) + 1 };
+  const history = [songId, ...settings.history.filter((id) => id !== songId)].slice(0, 40);
+  saveSoundtrack(accountId, { ...settings, plays, history });
+  audio.onended = () => {
+    if (generation !== token) return;
+    if (libraryRepeat) {
+      audio.currentTime = 0;
+      void audio.play().catch(() => undefined);
+      return;
+    }
+    const next = libraryQueue[libraryAt + 1];
+    if (next) void playLibrarySong(accountId, next, libraryQueue);
+    else emitPlayer();
+  };
+  try {
+    await audio.play();
+  } catch {
+    /* the click already unlocked it */
+  }
+  emitPlayer();
+}
 
 function track() {
   if (typeof Audio === "undefined") return null;
@@ -181,6 +299,7 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
 }
 
 export async function syncSoundtrack(accountId: string) {
+  if (libraryHold) return;
   const settings = loadSoundtrack(accountId);
   const chosen = settings.lists.find((item) => item.id === settings.activeId) ?? null;
   const list = chosen && chosen.songIds.length
