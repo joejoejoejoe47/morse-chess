@@ -171,41 +171,41 @@ export const CROWNS: CrownItem[] = [
     id: "clown",
     name: "Clown hat",
     price: 0,
-    portrait: "",
+    portrait: asset("/avatars/crowns/clown.jpg"),
     blurb: "A clown hat on the head.",
-    gold: "",
-    dark: "",
+    gold: asset("/avatars/crowns/clown.jpg"),
+    dark: asset("/avatars/crowns/clown.jpg"),
     model: asset("/avatars/crowns/clown.glb"),
   },
   {
     id: "chef",
     name: "Chef hat",
     price: 0,
-    portrait: "",
+    portrait: asset("/avatars/crowns/chef.jpg"),
     blurb: "A tall chef hat.",
-    gold: "",
-    dark: "",
+    gold: asset("/avatars/crowns/chef.jpg"),
+    dark: asset("/avatars/crowns/chef.jpg"),
     model: asset("/avatars/crowns/chef.glb"),
   },
   {
     id: "cappello",
     name: "Cappello",
     price: 0,
-    portrait: "",
+    portrait: asset("/avatars/crowns/cappello.jpg"),
     blurb: "A wide hat.",
-    gold: "",
-    dark: "",
+    gold: asset("/avatars/crowns/cappello.jpg"),
+    dark: asset("/avatars/crowns/cappello.jpg"),
     model: asset("/avatars/crowns/cappello.glb"),
   },
   {
-    id: "propeller",
-    name: "Propeller hat",
+    id: "gold-crown",
+    name: "Gold Crown",
     price: 0,
-    portrait: "",
-    blurb: "A hat with a propeller.",
-    gold: "",
-    dark: "",
-    model: asset("/avatars/crowns/propeller.glb"),
+    portrait: asset("/avatars/crowns/gold-crown.jpg"),
+    blurb: "A gold crown set with jewels.",
+    gold: asset("/avatars/crowns/gold-crown.jpg"),
+    dark: asset("/avatars/crowns/gold-crown.jpg"),
+    model: asset("/avatars/crowns/gold-crown.glb"),
   },
   {
     id: "viking",
@@ -311,7 +311,7 @@ export const LG_HAIR = [
   { id: "clown", name: "Clown hat" },
   { id: "chef", name: "Chef hat" },
   { id: "cappello", name: "Cappello" },
-  { id: "propeller", name: "Propeller hat" },
+  { id: "gold-crown", name: "Gold Crown" },
   { id: "viking", name: "Viking helmet" },
 ];
 
@@ -375,7 +375,9 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
   const oldSword = ["sword", "dual", "shield", "staff", "long", "cutlass", "axe", "rapier"];
   const swordRaw = oldSword.includes(String(src.swordId)) ? "devil" : src.swordId;
   const oldCrown = ["circlet", "sun", "poly-arch", "arched", "laurel"];
-  const crownRaw = oldCrown.includes(String(src.crownId)) ? "poly-band" : src.crownId;
+  // The propeller hat became the Gold Crown: anyone who wore it keeps a hat.
+  const crownRaw = src.crownId === "propeller" ? "gold-crown" : oldCrown.includes(String(src.crownId)) ? "poly-band" : src.crownId;
+  const hairRaw = src.lgHair === "propeller" ? "gold-crown" : src.lgHair;
   const oldAttack = ["flip", "slam", "sweep", "charge", "flash", "bow"];
   const attackRaw = oldAttack.includes(String(src.attackId)) ? "chop" : src.attackId;
   return {
@@ -391,7 +393,7 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     finishId: pick(src.finishId, "king-onyx", FINISHES),
     lgBody: pick(src.lgBody, "cap", LEGO_PARTS),
     lgHead: pick(src.lgHead, "cap", LEGO_PARTS),
-    lgHair: pick(src.lgHair, "none", LG_HAIR),
+    lgHair: pick(hairRaw, "none", LG_HAIR),
     lgLegs: pick(src.lgLegs, "cap", LEGO_PARTS),
     lgWeapon: pick(src.lgWeapon, "none", LG_WEAPONS),
   };

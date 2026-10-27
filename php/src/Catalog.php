@@ -138,6 +138,13 @@ final class Catalog
             return $fallback;
         };
         $swordRaw = in_array((string) ($src['swordId'] ?? ''), $legacy['sword']['from'], true) ? $legacy['sword']['to'] : ($src['swordId'] ?? null);
+        // The propeller hat became the Gold Crown: old picks carry over.
+        $renamed = ['propeller' => 'gold-crown'];
+        foreach (['crownId', 'lgHair'] as $key) {
+            if (isset($src[$key]) && is_string($src[$key]) && isset($renamed[$src[$key]])) {
+                $src[$key] = $renamed[$src[$key]];
+            }
+        }
         $crownRaw = in_array((string) ($src['crownId'] ?? ''), $legacy['crown']['from'], true) ? $legacy['crown']['to'] : ($src['crownId'] ?? null);
         $attackRaw = in_array((string) ($src['attackId'] ?? ''), $legacy['attack']['from'], true) ? $legacy['attack']['to'] : ($src['attackId'] ?? null);
         return [
@@ -169,7 +176,7 @@ final class Catalog
     /** @return list<array{id:string}> */
     private static function lgHair(): array
     {
-        return array_map(static fn (string $id): array => ['id' => $id], ['none', 'clown', 'chef', 'cappello', 'propeller', 'viking']);
+        return array_map(static fn (string $id): array => ['id' => $id], ['none', 'clown', 'chef', 'cappello', 'gold-crown', 'viking']);
     }
 
     /** @return list<array{id:string}> */

@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { characterById, crownById, mountById, skeletonFor, type TeamView } from "@/lib/avatar/catalog";
+import { HAT_FIT, softenMetal } from "@/lib/avatar/hat-fit";
 import { asset } from "@/lib/base";
 
 function prep(source: THREE.Object3D, height: number, dark: boolean) {
@@ -110,15 +111,22 @@ function makeCrown(id: string, team: TeamView) {
   return group;
 }
 
-function fitCrown(source: THREE.Object3D) {
+function fitCrown(source: THREE.Object3D, id: string) {
   const obj = source.clone(true);
   obj.name = "kit-crown";
   obj.userData.kit = true;
+  const hat = HAT_FIT[id];
+  // Hats are sized by their band and pulled down over the head.
+  if (hat) {
+    obj.userData.wide = hat.w / 1.15 / (hat.base ?? 1);
+    obj.userData.sink = hat.sink * 0.5;
+  }
   obj.traverse((node) => {
     const mesh = node as THREE.Mesh;
     if (mesh.isMesh) {
       mesh.castShadow = true;
       mesh.frustumCulled = false;
+      if (hat) softenMetal(mesh);
     }
   });
   const box = new THREE.Box3().setFromObject(obj);
@@ -214,12 +222,12 @@ function seatCrown(root: THREE.Object3D, head: THREE.Object3D, crown: THREE.Obje
   crown.updateWorldMatrix(true, true);
   const box = new THREE.Box3().setFromObject(crown);
   const span = Math.max(box.getSize(new THREE.Vector3()).x, box.getSize(new THREE.Vector3()).z, 0.001);
-  crown.scale.setScalar(want / span);
+  crown.scale.setScalar((want * (crown.userData.wide ?? 1)) / span);
   crown.updateWorldMatrix(true, true);
   const fitted = new THREE.Box3().setFromObject(crown);
   const delta = new THREE.Vector3(
     seat.x - (fitted.min.x + fitted.max.x) / 2,
-    seat.y - fitted.min.y,
+    seat.y - fitted.min.y - want * (crown.userData.sink ?? 0),
     seat.z - (fitted.min.z + fitted.max.z) / 2,
   );
   const parent = crown.parent ?? head;
@@ -326,7 +334,7 @@ function GlbBody({
     }
     const head = findSlot(scene, "head");
     if (wearCrown) {
-      const crown = crownSpec.model ? fitCrown(crownFile.scene) : makeCrown(crownId, team);
+      const crown = crownSpec.model ? fitCrown(crownFile.scene, crownId) : makeCrown(crownId, team);
       if (crownId === "halo") crown.userData.halo = true;
       if (head) seatCrown(scene, head, crown);
       else {
@@ -620,7 +628,7 @@ function StauntonKing({
   const spec = crownById(crownId);
   const file = useGLTF(spec.model || asset("/avatars/crowns/poly-band.glb"));
   const crown = useMemo(
-    () => (spec.model ? fitCrown(file.scene) : makeCrown(crownId, team)),
+    () => (spec.model ? fitCrown(file.scene, crownId) : makeCrown(crownId, team)),
     [spec.model, file.scene, crownId, team],
   );
   const blade = useMemo(() => (swordId === "none" ? null : makeSword()), [swordId]);
