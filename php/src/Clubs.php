@@ -570,7 +570,7 @@ final class Clubs
             'ownedBoards' => self::ownedBoards($me['owned_boards'] ?? ''),
             'score' => (int) ($me['score'] ?? 0),
             'coins' => (int) ($me['coins'] ?? 0),
-            'look' => (string) ($me['avatar_json'] ?? ''),
+            'look' => Kit::look($userId, (string) ($me['avatar_json'] ?? '')),
             'username' => (string) ($me['username'] ?? ''),
         ];
         if (!$clubId) {
@@ -1034,7 +1034,7 @@ final class Clubs
         $lookOf = static function (string $id) use ($looks): string {
             foreach ($looks as $row) {
                 if ($row['user_id'] === $id) {
-                    return (string) ($row['avatar_json'] ?? '');
+                    return Kit::look($id, (string) ($row['avatar_json'] ?? ''));
                 }
             }
             return '';

@@ -82,6 +82,12 @@ const CATEGORIES: { id: Category; label: string; title: string; sub: string }[] 
 ];
 
 const GRID_FINISHES = FINISHES.filter((item) => !item.legendary);
+
+/** The letter on Royal Legacy pieces: the first letter of the username, upper case. */
+function kitInitial(name: string) {
+  const hit = name.match(/[\p{L}\p{N}]/u);
+  return hit ? hit[0].toUpperCase() : "";
+}
 const LEGACY = FINISHES.find((item) => item.legendary)!;
 
 const GOLD_BTN =
@@ -109,7 +115,9 @@ function AvatarStudio() {
   const [strike, setStrike] = useState(false);
   const [offer, setOffer] = useState(false);
   const [buyingRa, setBuyingRa] = useState(false);
-  const thumbs = useKingThumbs(FINISHES);
+  const ownsKit = owned.includes(LEGACY.id);
+  const kitLetter = kitInitial(username);
+  const thumbs = useKingThumbs(FINISHES, ownsKit, kitLetter);
 
   useEffect(() => {
     try {
@@ -220,7 +228,7 @@ function AvatarStudio() {
     setSaved("idle");
     if (price > 0 && !owned.includes(id)) {
       if (coins < price) {
-        setError(`${LEGACY.name} is legendary: ${price.toLocaleString()} Morse coins. You have ${coins.toLocaleString()}.`);
+        setError(`The Royal Legacy kit costs ${price.toLocaleString()} Morse coins. You have ${coins.toLocaleString()}.`);
         return;
       }
       try {
@@ -330,7 +338,15 @@ function AvatarStudio() {
             <color attach="background" args={["#0f0c0a"]} />
             <fog attach="fog" args={["#0f0c0a", 7, 16]} />
             <ModelSlot>
-              <PedestalStage finish={finish} crownId={loadout.crownId} team={loadout.team} board={board} spin={strike} />
+              <PedestalStage
+                finish={finish}
+                crownId={loadout.crownId}
+                team={loadout.team}
+                board={board}
+                spin={strike}
+                legacy={ownsKit}
+                letter={kitLetter}
+              />
             </ModelSlot>
             <OrbitControls
               ref={controls as never}
@@ -654,8 +670,10 @@ function AvatarStudio() {
                   </svg>
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">{LEGACY.name}</span>
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">Legendary</span>
+                  <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">Royal Legacy kit</span>
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">
+                    {own(LEGACY) ? "Unlocked · Royal Legacy King" : "Legendary · unlock"}
+                  </span>
                 </span>
                 {own(LEGACY) ? (
                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e9c766]">Owned</span>
@@ -666,7 +684,13 @@ function AvatarStudio() {
                   </span>
                 )}
               </button>
-              {loadout.style === "3d" ? <Note>{finish.blurb} Wear it on the pedestal, then press Save avatar.</Note> : null}
+              {loadout.style === "3d" ? (
+                <Note>
+                  {ownsKit
+                    ? `Royal Legacy kit: in 3D games your king is this king and all your pieces are pearl and gold with your letter${kitLetter ? ` "${kitLetter}"` : ""}. Playing black makes the set darker. ${finish.blurb} Press Save avatar to keep it.`
+                    : `In 3D games all your pieces are the colour of this king (darker when you play black). ${finish.blurb} Unlock the Royal Legacy kit for ${LEGACY.price} coins to get the Royal Legacy king and pearl and gold pieces with your letter.`}
+                </Note>
+              ) : null}
             </>
           ) : null}
 

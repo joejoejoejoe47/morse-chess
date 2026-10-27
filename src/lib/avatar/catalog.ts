@@ -268,7 +268,7 @@ export const FINISHES: KingFinish[] = [
   { id: "king-onyx", name: "Onyx King", price: 0, portrait: "", blurb: "Black and gold. The house king.", body: "#121110", trim: "#d1a740", crown: "#e2b84e", metal: 0.4 },
   { id: "king-sun", name: "Sun King", price: 0, portrait: "", blurb: "Bright polished gold.", body: "#d9a93c", trim: "#f2d27a", crown: "#f2d27a", metal: 1 },
   { id: "king-iron", name: "Iron King", price: 0, portrait: "", blurb: "Dark iron and silver.", body: "#2e3034", trim: "#8d9198", crown: "#a3a7ad", metal: 0.8 },
-  { id: "king-royal-legacy", name: "Royal Legacy King", price: 25000, portrait: "", blurb: "Legendary. Gold, onyx and a ruby cross.", body: "#0b0a09", trim: "#f0c75a", crown: "#ffd66b", metal: 1, legendary: true },
+  { id: "king-royal-legacy", name: "Royal Legacy King", price: 20, portrait: "", blurb: "Legendary. Gold, onyx and a ruby cross.", body: "#0b0a09", trim: "#f0c75a", crown: "#ffd66b", metal: 1, legendary: true },
 ];
 
 export const STARTER_IDS = ["piece", "knight", "none", "poly-band", "plain", "march"];

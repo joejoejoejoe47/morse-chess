@@ -712,7 +712,7 @@ export function GameView({ gameId }: { gameId: string }) {
                 real={view === "ra"}
                 lego={lgOn}
                 heirloom={skin.id === "classic" ? "cl" : skin.id === "parlor" ? "pa" : null}
-                heirloomPieces={false}
+                heirloomPieces={view === "3d"}
                 showTip={prefs.pieceTip}
                 fightZoom={(view === "an" || view === "ra") && prefs.fightZoom}
                 kings={{ w: game.whiteLook, b: game.blackLook }}
@@ -728,7 +728,7 @@ export function GameView({ gameId }: { gameId: string }) {
             rel="noreferrer"
             className="absolute bottom-1 left-2 z-10 rounded bg-ink/50 px-1.5 py-0.5 text-[10px] text-mist/80 hover:text-ivory"
           >
-            Board: "{HEIRLOOM_CREDIT[skin.id === "classic" ? "cl" : "pa"].title}" by {HEIRLOOM_CREDIT[skin.id === "classic" ? "cl" : "pa"].author} · CC BY 4.0
+            {view === "3d" ? "Set" : "Board"}: "{HEIRLOOM_CREDIT[skin.id === "classic" ? "cl" : "pa"].title}" by {HEIRLOOM_CREDIT[skin.id === "classic" ? "cl" : "pa"].author} · CC BY 4.0
           </a>
         ) : null}
         {error ? (
