@@ -157,6 +157,20 @@
         "cost": 0,
         "coinCost": 60,
         "sealed": false
+      },
+      {
+        "id": "classic",
+        "name": "Classic",
+        "cost": 0,
+        "coinCost": 12,
+        "sealed": false
+      },
+      {
+        "id": "parlor",
+        "name": "Parlor",
+        "cost": 0,
+        "coinCost": 12,
+        "sealed": false
       }
     ],
     "giftBoards": [

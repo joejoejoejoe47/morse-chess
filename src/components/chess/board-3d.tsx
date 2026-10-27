@@ -1432,6 +1432,7 @@ function Scene({
   plate = null,
   lego = false,
   heirloom = null,
+  heirloomPieces = true,
 }: {
   fen: string;
   you: Side;
@@ -1458,8 +1459,9 @@ function Scene({
   plate?: string | null;
   /** LG style: LEGO Marvel figures on the Lego Universe balcony. */
   lego?: boolean;
-  /** Classic / Parlor: a real chess set model with its own board (replaces the equipped board). */
+  /** Classic / Parlor board model. The set's own men are used only when heirloomPieces is set. */
   heirloom?: HeirloomId | null;
+  heirloomPieces?: boolean;
 }) {
   const geometries = useMemo(() => makeGeometries(boardUsesFinePieces(skin)), [skin]);
   const ivory = useMemo(
@@ -1524,11 +1526,12 @@ function Scene({
   const [riteDone, setRiteDone] = useState<string | null>(null);
   const cheerTimer = useRef<number | null>(null);
   const set = lego ? null : heirloom;
+  const setMen = Boolean(set && heirloomPieces);
   const meadow = !lego && !set && (skin.id === "grassland" || skin.id === "castle");
   const legoWorld = lego || (!set && skin.id === LEGO_BOARD_ID);
   /** A board with its own army replaces the normal pieces and their fight effects. */
   const rocco = !lego && !set && skin.id === ROCCO_BOARD_ID;
-  const ownArmy = rocco || lego || Boolean(set);
+  const ownArmy = rocco || lego || setMen;
   const arena = !legoWorld && !set && skin.id === SKY_ARENA_BOARD_ID;
   const pitch = meadow ? GLADE_PITCH : 1;
 
@@ -1804,7 +1807,7 @@ function Scene({
           />
         </ModelSlot>
       ) : null}
-      {set ? (
+      {set && setMen ? (
         <HeirloomArmy
           id={set}
           fen={fen}
@@ -2132,6 +2135,7 @@ export function ChessBoard3D({
   overlay = null,
   lego = false,
   heirloom = null,
+  heirloomPieces = true,
 }: {
   fen: string;
   you: Side;
@@ -2158,8 +2162,9 @@ export function ChessBoard3D({
   overlay?: ReactNode;
   /** LG piece style: LEGO Marvel figures on the Lego Universe balcony (needs the Lego Universe board). */
   lego?: boolean;
-  /** Classic / Parlor piece style: a free real chess set with its own board. */
+  /** Classic / Parlor board. Its own men are drawn only when heirloomPieces is set. */
   heirloom?: HeirloomId | null;
+  heirloomPieces?: boolean;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
@@ -2272,6 +2277,7 @@ export function ChessBoard3D({
           plate={plate}
           lego={lego}
           heirloom={set}
+          heirloomPieces={heirloomPieces}
         />
         </LoadGuard>
         {overlay}

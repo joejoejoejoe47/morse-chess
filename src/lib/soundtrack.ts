@@ -12,6 +12,8 @@ export type SoundtrackSettings = {
   songs: SoundtrackSong[];
   lists: Soundtrack[];
   likes: string[];
+  downs: string[];
+  covers: Record<string, string>;
   plays: Record<string, number>;
   history: string[];
 };
@@ -25,7 +27,7 @@ export function builtinSrc(id: string) {
 }
 
 export function emptySoundtrack(): SoundtrackSettings {
-  return { unmuted: false, activeId: null, songs: [], lists: [], likes: [], plays: {}, history: [] };
+  return { unmuted: false, activeId: null, songs: [], lists: [], likes: [], downs: [], covers: {}, plays: {}, history: [] };
 }
 
 function storageKey(accountId: string) {
@@ -59,6 +61,8 @@ export function loadSoundtrack(accountId: string | null | undefined): Soundtrack
       songs,
       lists,
       likes: Array.isArray(parsed.likes) ? parsed.likes.map(String) : [],
+      downs: Array.isArray(parsed.downs) ? parsed.downs.map(String) : [],
+      covers: parsed.covers && typeof parsed.covers === "object" ? Object.fromEntries(Object.entries(parsed.covers).map(([id, url]) => [id, String(url)])) : {},
       plays: parsed.plays && typeof parsed.plays === "object" ? Object.fromEntries(Object.entries(parsed.plays).map(([id, n]) => [id, Number(n) || 0])) : {},
       history: Array.isArray(parsed.history) ? parsed.history.map(String).slice(0, 40) : [],
     };
@@ -108,6 +112,7 @@ let librarySong = "";
 let libraryQueue: string[] = [];
 let libraryAt = 0;
 let libraryRepeat = false;
+let userPaused = false;
 const playerListeners = new Set<() => void>();
 
 function emitPlayer() {
@@ -165,14 +170,20 @@ export function seekLibrary(ratio: number) {
 export function toggleLibrary() {
   const audio = track();
   if (!audio || !librarySong) return;
-  if (audio.paused) void audio.play().catch(() => undefined);
-  else audio.pause();
+  if (audio.paused) {
+    userPaused = false;
+    void audio.play().catch(() => undefined);
+  } else {
+    userPaused = true;
+    audio.pause();
+  }
   emitPlayer();
 }
 
 export async function playLibrarySong(accountId: string, songId: string, queue?: string[]) {
   const audio = track();
   if (!audio) return;
+  userPaused = false;
   libraryHold = true;
   token += 1;
   const generation = token;
@@ -232,7 +243,7 @@ const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQ
 /** Call from a click so the song is allowed to keep playing in a game. */
 export function unlockSoundtrack() {
   const audio = track();
-  if (!audio || !audio.paused) return;
+  if (!audio || !audio.paused || userPaused) return;
   audio.volume = 1;
   if (!audio.src) audio.src = SILENT;
   const pending = audio.play();
@@ -299,7 +310,7 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
 }
 
 export async function syncSoundtrack(accountId: string) {
-  if (libraryHold) return;
+  if (libraryHold || userPaused) return;
   const settings = loadSoundtrack(accountId);
   const chosen = settings.lists.find((item) => item.id === settings.activeId) ?? null;
   const list = chosen && chosen.songIds.length
