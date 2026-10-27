@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { asset } from "@/lib/base";
 import { crownById, type TeamView } from "@/lib/avatar/catalog";
+import { HAT_FIT, softenMetal } from "@/lib/avatar/hat-fit";
 
 const FILE: Record<Color, Record<PieceSymbol, string>> = {
   w: {
@@ -71,7 +72,7 @@ export function SculptedPiece({ type, color, ink, yaw }: { type: PieceSymbol; co
   return <primitive object={scene} />;
 }
 
-/** Crown width matches the Staunton king's head. Bottom sits at local y=0. */
+/** Crown width matches the Staunton king's head; hats sit over it. Bottom sits at local y=0. */
 export function KingCrown({ id, team }: { id: string; team: TeamView }) {
   void team;
   const spec = crownById(id);
@@ -92,9 +93,14 @@ export function KingCrown({ id, team }: { id: string; team: TeamView }) {
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const halo = id === "halo";
-    const fit = (halo ? 0.32 : 0.26) / Math.max(size.x, size.z, 0.001);
+    // Hats are sized by their band, so brims, horns and tails reach past the king's head.
+    const hat = HAT_FIT[id];
+    if (hat) obj.traverse((node) => (node as THREE.Mesh).isMesh && softenMetal(node as THREE.Mesh));
+    const width = hat ? (0.3 * hat.w) / 1.15 / (hat.base ?? 1) : halo ? 0.32 : 0.26;
+    const fit = width / Math.max(size.x, size.z, 0.001);
+    const drop = hat ? hat.sink * 0.1 : 0;
     holder.scale.setScalar(fit);
-    holder.position.set(-center.x * fit, -box.min.y * fit + (halo ? 0.07 : 0), -center.z * fit);
+    holder.position.set(-center.x * fit, -box.min.y * fit + (halo ? 0.07 : 0) - drop, -center.z * fit);
     return holder;
   }, [gltf.scene, id]);
   return <primitive object={scene} />;

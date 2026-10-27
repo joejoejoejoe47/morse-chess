@@ -24,6 +24,9 @@ final class Avatar
         $set = [];
         foreach (explode(',', (string) ($raw ?? '')) as $part) {
             $part = trim($part);
+            if ($part === 'propeller') {
+                $part = 'gold-crown'; // renamed hat crown; ownership carries over
+            }
             if ($part !== '' && !in_array($part, $set, true)) {
                 $set[] = $part;
             }
