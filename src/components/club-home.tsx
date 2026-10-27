@@ -506,6 +506,13 @@ export function ClubHome() {
         <div className="fixed inset-0 z-40 grid place-items-center bg-[#110d09]">
           <button
             type="button"
+            className="absolute left-4 top-4 z-10 rounded-md border border-[#e7c56a]/50 bg-[#1a140e]/85 px-4 py-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#e7c56a]"
+            onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
+          >
+            Back
+          </button>
+          <button
+            type="button"
             aria-label="Close"
             className="absolute right-4 top-4 z-10 grid size-11 place-items-center text-[#e7c56a]"
             onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
@@ -553,7 +560,23 @@ export function ClubHome() {
         <div className="fixed inset-0 z-40 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
           <div className={"w-full rounded-xl border border-line bg-panel p-6 " + (flow.kind === "select-game" ? "max-w-4xl" : "max-w-md")}>
             <div className="flex items-start justify-between gap-3">
-              <h2 className="font-display text-2xl text-ivory">
+              <div>
+                {flow.kind === "pick-mode" && (flow.intent === "random" || flow.intent === "challenge") ? (
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "select-game", intent: flow.intent }); }}>
+                    Back
+                  </button>
+                ) : null}
+                {flow.kind === "variant-name" ? (
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "select-game", intent: flow.intent }); }}>
+                    Back
+                  </button>
+                ) : null}
+                {flow.kind === "ask-name" ? (
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "pick-mode", intent: "challenge" }); }}>
+                    Back
+                  </button>
+                ) : null}
+                <h2 className="font-display text-2xl text-ivory">
                 {flow.kind === "select-game"
                   ? "Choose your game"
                   : flow.kind === "variant-name"
@@ -565,7 +588,8 @@ export function ClubHome() {
                       : flow.kind === "searching" || home.queued
                         ? "Finding a board"
                         : "Challenge sent"}
-              </h2>
+                </h2>
+              </div>
               <button
                 type="button"
                 className="grid size-9 place-items-center rounded-md text-mist hover:bg-panel-2 hover:text-ivory"
