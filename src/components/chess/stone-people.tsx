@@ -8,7 +8,18 @@ import { SpaceCrew } from "@/components/chess/space-crew";
 import { asset } from "@/lib/base";
 
 export type PeopleCast = "stone" | "pipe" | "ring" | "wars" | "mario" | "lotr";
-export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "charge" | "attack" | "death" | "cheer" | "pickup"; fade: number };
+export type Gait = {
+  phase: number;
+  amp: number;
+  act: "idle" | "walk" | "charge" | "attack" | "death" | "cheer" | "pickup";
+  fade: number;
+  /** optional: play this exact GLB clip instead of the act's clip (football tackles: Block, Hit_A, Death_A, Lie_StandUp, Running_A…) */
+  clip?: string;
+  /** with clip: play once and hold the last frame */
+  once?: boolean;
+  /** with clip: playback speed */
+  speed?: number;
+};
 
 const PROP = /sword|shield|axe|knife|crossbow|throw|spell|wand|staff|mug|cape|helmet|hat|hood|cloak|badge/i;
 const BODY = /head|body|arm|leg|eyes|jaw|skull/i;
@@ -254,6 +265,7 @@ function WarUnit({
     return map;
   }, [animations, mixer]);
   const mode = useRef<Gait["act"]>("idle");
+  const playing = useRef<string>(clips.idle);
   const breath = useRef(Math.random() * Math.PI * 2);
   const rate = useRef(0.75 + Math.random() * 0.7);
   const fall = useRef(0);
@@ -277,6 +289,7 @@ function WarUnit({
     if (want === "death") {
       if (mode.current !== "death") {
         mode.current = "death";
+        playing.current = "";
         fall.current = 0;
         laid.current = false;
         air.current = 0;
@@ -341,22 +354,34 @@ function WarUnit({
       return;
     }
     mixer.update(dt);
-    if (want !== mode.current) {
-      const prev = actions[clipName(clips, mode.current)];
-      const next = actions[clipName(clips, want)];
-      prev?.fadeOut(0.1);
+    const forced = gait.current.clip && actions[gait.current.clip] ? gait.current.clip : null;
+    const key = forced ?? clipName(clips, want);
+    if (want !== mode.current || key !== playing.current) {
+      const prev = actions[playing.current];
+      const next = actions[key];
+      if (prev !== next) prev?.fadeOut(forced ? 0.16 : 0.1);
       if (next) {
-        const once = want === "attack" || want === "pickup";
-        const duel = clash && want === "attack";
-        const cheering = want === "cheer";
-        next.timeScale = duel ? 0.7 : 1;
-        next.setLoop(duel || cheering ? THREE.LoopRepeat : once ? THREE.LoopOnce : THREE.LoopRepeat, duel ? 2 : once ? 1 : Infinity);
-        next.clampWhenFinished = once;
-        next.reset();
-        if (want === "idle") next.time = breath.current % next.getClip().duration;
-        next.fadeIn(0.08).play();
+        if (forced) {
+          const once = gait.current.once ?? false;
+          next.timeScale = gait.current.speed ?? 1;
+          next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
+          next.clampWhenFinished = once;
+          next.reset();
+          next.fadeIn(0.16).play();
+        } else {
+          const once = want === "attack" || want === "pickup";
+          const duel = clash && want === "attack";
+          const cheering = want === "cheer";
+          next.timeScale = duel ? 0.7 : 1;
+          next.setLoop(duel || cheering ? THREE.LoopRepeat : once ? THREE.LoopOnce : THREE.LoopRepeat, duel ? 2 : once ? 1 : Infinity);
+          next.clampWhenFinished = once;
+          next.reset();
+          if (want === "idle") next.time = breath.current % next.getClip().duration;
+          next.fadeIn(0.08).play();
+        }
       }
       mode.current = want;
+      playing.current = key;
     }
     if (ref.current && want === "idle") {
       const puff = 1 + Math.sin(clock.elapsedTime * rate.current + breath.current) * 0.02;
@@ -364,7 +389,7 @@ function WarUnit({
     } else if (ref.current) {
       ref.current.scale.set(scale, scale, scale);
     }
-    if (want === "walk") {
+    if (want === "walk" || /^(Running|Walking)/.test(key)) {
       for (const name of ["root", "hips", "Bone", "Hips"]) {
         const bone = clone.getObjectByName(name);
         if (!bone) continue;

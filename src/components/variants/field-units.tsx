@@ -8,7 +8,7 @@ import { useFrame } from "@react-three/fiber";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
 import { SculptedPiece } from "@/components/chess/sculpted-piece";
-import { StonePerson, WarCorpse, type Gait } from "@/components/chess/stone-people";
+import { StonePerson, type Gait } from "@/components/chess/stone-people";
 import { LEGO_CHARS, LEGO_ROSTER, LegoBurst, LegoRunner, legoAttack, legoMoveTime, type LegoCharId, type LegoDrive } from "@/components/chess/lego-board";
 import { BALL_TRACK, TeamRing } from "@/components/variants/neon-stadium";
 import { playLegoBeam, playLegoHit, playLegoWhoosh } from "@/lib/lego-sfx";
@@ -91,9 +91,10 @@ export function capturePlan(look: FieldLook, side: "w" | "b", kind: PieceSymbol,
   const approach = Math.max(0.25, walk(dist - reach));
   const yaw = Math.atan2(dir.x, dir.z);
   let launch = approach;
-  let strikeEnd = approach + 1.1;
-  let hit = approach + 0.5;
-  let stepIn = hit + 1.5;
+  // AN: the sword swing connects ~0.45 s in; the attacker waits for the victim to go down before stepping in
+  let strikeEnd = approach + 1.05;
+  let hit = approach + 0.45;
+  let stepIn = hit + 1.6;
   const shot = shotKind(id);
   if (look === "lg") {
     const mv = legoAttack(id);
@@ -102,9 +103,10 @@ export function capturePlan(look: FieldLook, side: "w" | "b", kind: PieceSymbol,
     hit = launch + (shot === "bomb" ? 0.62 : shot === "beam" ? 0.18 : 0.34);
     stepIn = Math.max(strikeEnd, hit) + 0.55;
   } else if (look !== "an") {
-    hit = approach + 0.28;
-    strikeEnd = hit + 0.2;
-    stepIn = hit + 0.75;
+    // 3D: wind-up, shoulder charge, follow-through; the victim falls, gets up and leaves before the step in
+    hit = approach + 0.4;
+    strikeEnd = hit + 0.4;
+    stepIn = hit + 1.75;
   }
   const step = Math.max(0.3, walk(reach));
   return { from: from.clone(), near, to: to.clone(), dir, yaw, approach, launch, strikeEnd, hit, stepIn, step, shot };
@@ -166,13 +168,16 @@ export function FieldActor({
   const gait = useRef<Gait>({ phase: Math.random() * 8, amp: 0, act: "idle", fade: 1 });
   const drive = useRef<LegoDrive>({ mode: "idle", a: new THREE.Vector3(), b: new THREE.Vector3(), u: 0, yaw: 0, side: unit.side });
   const lunge = useRef(0);
+  const tilt = useRef<THREE.Group>(null);
+  const yawNow = useRef(restYaw(unit.side));
   const ball = useMemo(() => makeBall(look === "an" ? 0.82 : 0.9), [look]);
   const holding = Boolean(unit.ball) && !hideBall;
   const shotFx = useRef<number | null>(null);
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, rawDt) => {
     const g = node.current;
     if (!g) return;
     const now = clock.elapsedTime;
+    const dt = Math.min(0.05, rawDt);
     if (seenEpoch.current !== epoch) {
       seenEpoch.current = epoch;
       pos.current.copy(home);
@@ -200,7 +205,11 @@ export function FieldActor({
     let b = pos.current;
     let u = 0;
     let attacking = false;
+    let lean = 0;
+    let hop = 0;
     lunge.current = 0;
+    // knights jump over whoever is in the way instead of walking through them
+    const jumper = unit.kind === "n" && look !== "lg";
     if (tr) {
       const t = now - tr.t0;
       const c = tr.cap;
@@ -212,6 +221,7 @@ export function FieldActor({
         if (u < 1) {
           mode = "walk";
           yaw = Math.atan2(tr.to.x - tr.from.x, tr.to.z - tr.from.z);
+          if (jumper && tr.from.distanceTo(tr.to) > 1.2) hop = Math.sin(u * Math.PI) * 0.55;
         } else trip.current = null;
       } else if (t < c.approach) {
         u = clamp01(t / c.approach);
@@ -220,6 +230,7 @@ export function FieldActor({
         if (c.from.distanceTo(c.near) > 0.05) {
           pos.current.lerpVectors(c.from, c.near, look === "lg" ? u : ease(u));
           mode = "walk";
+          if (jumper && c.from.distanceTo(c.near) > 1.2) hop = Math.sin(u * Math.PI) * 0.55;
         }
         yaw = c.yaw;
       } else if (t < c.stepIn) {
@@ -235,10 +246,27 @@ export function FieldActor({
           }
         } else if (look === "an") {
           attacking = t < c.strikeEnd;
+          // a step into the swing as it connects
+          const k = clamp01((t - (c.hit - 0.22)) / 0.55);
+          lunge.current = Math.sin(k * Math.PI) * 0.12;
         } else {
-          // 3D: a short shove toward the victim
-          const k = clamp01((t - c.approach) / (c.hit - c.approach + 0.2));
-          lunge.current = Math.sin(k * Math.PI) * 0.22;
+          // 3D: lean back (wind-up), drive the shoulder in, then settle back
+          const w = t - c.approach;
+          const at = c.hit - c.approach;
+          const wind = Math.max(0.05, at - 0.16);
+          if (w < wind) {
+            const k = ease(w / wind);
+            lunge.current = -0.08 * k;
+            lean = -0.2 * k;
+          } else if (w < at) {
+            const k = ease((w - wind) / (at - wind));
+            lunge.current = -0.08 + 0.36 * k;
+            lean = -0.2 + 0.62 * k;
+          } else {
+            const k = ease(clamp01((w - at) / 0.45));
+            lunge.current = 0.28 * (1 - k);
+            lean = 0.42 * (1 - k);
+          }
         }
         if (look === "lg" && t >= c.launch && shotFx.current !== tr.t0) {
           shotFx.current = tr.t0;
@@ -256,8 +284,12 @@ export function FieldActor({
         else trip.current = null;
       }
     }
-    g.position.set(pos.current.x + Math.sin(yaw) * lunge.current, FIELD_Y, pos.current.z + Math.cos(yaw) * lunge.current);
     const walking = mode === "walk";
+    // 3D pieces bob along at a jog instead of sliding
+    const jog = look === "3d" && walking && hop === 0 ? Math.abs(Math.sin(gait.current.phase * 2.2)) * 0.05 : 0;
+    if (look === "3d" && walking && hop === 0) lean = 0.1;
+    g.position.set(pos.current.x + Math.sin(yaw) * lunge.current, FIELD_Y + hop + jog, pos.current.z + Math.cos(yaw) * lunge.current);
+    if (tilt.current) tilt.current.rotation.x += (lean - tilt.current.rotation.x) * Math.min(1, dt * 22);
     if (look === "lg") {
       const d = drive.current;
       d.mode = mode;
@@ -269,10 +301,28 @@ export function FieldActor({
       g.rotation.y = 0;
     } else {
       const body = g.children[1] as THREE.Object3D | undefined;
-      if (body) body.rotation.y = walking || attacking || lunge.current > 0 || (tr && tr.cap) ? yaw : restYaw(unit.side);
+      const want = walking || attacking || lunge.current !== 0 || (tr && tr.cap) ? yaw : restYaw(unit.side);
+      // turn smoothly instead of snapping round
+      let d = want - yawNow.current;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      yawNow.current += d * Math.min(1, dt * 14);
+      if (body) body.rotation.y = yawNow.current;
       gait.current.amp += ((walking ? 1 : 0) - gait.current.amp) * 0.2;
       if (walking) gait.current.phase += 0.15;
       gait.current.act = attacking ? "attack" : walking ? "walk" : "idle";
+      if (look === "an") {
+        const span = tr ? (tr.cap ? tr.cap.from.distanceTo(tr.cap.near) : tr.from.distanceTo(tr.to)) : 0;
+        if (walking && hop > 0) {
+          gait.current.clip = "Jump_Idle";
+          gait.current.once = false;
+          gait.current.speed = 1;
+        } else if (walking) {
+          // a proper run for longer moves, a walk for one square
+          gait.current.clip = span > 1.3 ? "Running_A" : "Walking_A";
+          gait.current.once = false;
+          gait.current.speed = span > 1.3 ? 1.15 : 1.3;
+        } else gait.current.clip = undefined;
+      }
     }
     if (unit.ball && !hideBall && now > BALL_TRACK.lock) {
       BALL_TRACK.pos.set(g.position.x, 0.6, g.position.z);
@@ -298,7 +348,7 @@ export function FieldActor({
             <StonePerson type={kind} white={white} cast="stone" gait={gait} blade carry={holding ? ball : null} />
           </group>
         ) : (
-          <group scale={0.92}>
+          <group scale={0.92} ref={tilt}>
             <SculptedPiece type={kind} color={white ? "w" : "b"} />
             {holding ? (
               <group position={[0.3, 0.5, 0.06]} rotation={[0, 0, 0.5]}>
@@ -341,43 +391,156 @@ function SelectPulse() {
   );
 }
 
-/** The player being knocked out: stands until the hit lands, then falls / bursts and is gone. */
-export function FieldVictim({ cue, look, rows, cols }: { cue: FieldCue; look: FieldLook; rows: number; cols: number }) {
+/** Where the tackled player falls: away from the attacker, onto a free square (never onto a teammate or a rival). */
+function fallWay(cue: FieldCue, dir: THREE.Vector3, rows: number, cols: number, taken: FieldUnitLike[]) {
+  const busy = new Set(taken.map((u) => `${u.r},${u.f}`));
+  let best: THREE.Vector3 | null = null;
+  let score = -Infinity;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let df = -1; df <= 1; df++) {
+      if (!dr && !df) continue;
+      const r = cue.to[0] + dr;
+      const f = cue.to[1] + df;
+      if (r < -1 || r > rows || f < 0 || f >= cols) continue;
+      if (busy.has(`${r},${f}`)) continue;
+      const v = new THREE.Vector3(df, 0, -dr).normalize();
+      const s = v.dot(dir);
+      if (s < -0.05) continue; // never back into the attacker
+      if (s > score) {
+        score = s;
+        best = v;
+      }
+    }
+  }
+  return best ? { v: best, room: true } : { v: dir.clone(), room: false };
+}
+
+const lerpAngle = (a: number, b: number, k: number) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
+
+/**
+ * The tackled player (owner, t192u: "they do not even fight"): braces / blocks as the attacker comes in,
+ * takes the hit, is knocked back onto a free square, falls, lies there a moment, gets back up and leaves the field.
+ */
+export function FieldVictim({ cue, look, rows, cols, taken = [] }: { cue: FieldCue; look: FieldLook; rows: number; cols: number; taken?: FieldUnitLike[] }) {
   const plan = useMemo(
     () => capturePlan(look, cue.side, cue.kind, fieldSpot(cue.from[0], cue.from[1], rows, cols), fieldSpot(cue.to[0], cue.to[1], rows, cols)),
     [cue.id], // eslint-disable-line react-hooks/exhaustive-deps
   );
+  const way = useMemo(() => fallWay(cue, plan.dir, rows, cols, taken), [cue.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const kind = cue.victim ?? "p";
   const vside = cue.victimSide ?? (cue.side === "w" ? "b" : "w");
   const node = useRef<THREE.Group>(null);
+  const turn = useRef<THREE.Group>(null);
+  const tip = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const born = useRef<number | null>(null);
   const [burst, setBurst] = useState(false);
   const [gone, setGone] = useState(false);
   const drive = useRef<LegoDrive>({ mode: "idle", a: new THREE.Vector3(), b: new THREE.Vector3(), u: 0, yaw: 0, side: vside });
+  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
   const face = plan.yaw + Math.PI; // looks at the attacker
+  const fallYaw = Math.atan2(way.v.x, way.v.z);
+  const knock = way.room ? (look === "an" ? 0.45 : 0.42) : 0.12;
   useFrame(({ clock }) => {
     if (born.current == null) born.current = clock.elapsedTime;
     const t = clock.elapsedTime - born.current;
     const g = node.current;
-    if (!g) return;
+    if (!g || gone) return;
     const after = t - plan.hit;
+    const at = (k: number, y = FIELD_Y) => g.position.set(plan.to.x + way.v.x * knock * k, y, plan.to.z + way.v.z * knock * k);
     if (look === "an") {
-      // knocked back, away from the attacker, while he falls
-      const k = ease(clamp01(after / 0.45));
-      g.position.set(plan.to.x + plan.dir.x * 0.7 * k, FIELD_Y, plan.to.z + plan.dir.z * 0.7 * k);
+      const G = gait.current;
+      G.act = "idle";
+      let yaw = face;
+      if (after < 0) {
+        // block: shield / arms up as the attacker swings
+        if (t > plan.hit - 0.5) {
+          G.clip = "Block";
+          G.once = true;
+          G.speed = 1.5;
+        } else G.clip = undefined;
+        at(0);
+      } else if (after < 0.3) {
+        // the hit lands: rocked back, spun toward the free side
+        G.clip = "Hit_A";
+        G.once = true;
+        G.speed = 1.3;
+        const k = ease(after / 0.3);
+        at(k * 0.6);
+        yaw = lerpAngle(face, fallYaw + Math.PI, k);
+      } else if (after < 1.75) {
+        // falls flat on his back onto the free square and stays down a moment
+        G.clip = "Death_A";
+        G.once = true;
+        G.speed = 0.95;
+        at(0.6 + 0.4 * ease((after - 0.3) / 0.4));
+        yaw = fallYaw + Math.PI;
+        if (!way.room) G.fade = Math.max(0, 1 - (after - 0.3) / 0.6);
+      } else if (after < 3.3) {
+        // gets back up
+        G.clip = "Lie_StandUp";
+        G.once = true;
+        G.speed = 1.5;
+        at(1);
+        yaw = fallYaw + Math.PI;
+      } else {
+        // ...and jogs off (fades away where he stands, so he never walks through anybody)
+        G.clip = undefined;
+        at(1);
+        yaw = fallYaw + Math.PI;
+        G.fade = Math.max(0, 1 - (after - 3.3) / 0.5);
+      }
+      if (turn.current) turn.current.rotation.y = yaw;
+      if (G.fade <= 0.01) setGone(true);
     } else if (look === "lg") {
       if (after >= 0 && !burst) setBurst(true);
     } else {
+      const tp = tip.current;
       const b = body.current;
-      if (b) {
-        const k = ease(clamp01(after / 0.4));
-        b.rotation.x = -k * (Math.PI / 2) * 0.95;
-        const s = clamp01((after - 0.45) / 0.55);
-        b.position.y = -s * 0.8;
-        g.position.set(plan.to.x + plan.dir.x * 0.35 * k, FIELD_Y, plan.to.z + plan.dir.z * 0.35 * k);
-        if (s >= 1 && !gone) setGone(true);
+      if (!tp || !b) return;
+      const flat = (Math.PI / 2) * 0.92;
+      let lean = 0;
+      let y = FIELD_Y;
+      let s = 1;
+      if (after < 0) {
+        // brace: lean into the attacker and crouch a touch
+        const k = ease(clamp01((t - (plan.hit - 0.35)) / 0.3));
+        lean = -0.14 * k;
+        b.scale.set(0.92 * (1 + 0.04 * k), 0.92 * (1 - 0.07 * k), 0.92 * (1 + 0.04 * k));
+        at(0);
+      } else if (after < 0.42) {
+        const k = ease(after / 0.42);
+        lean = -0.14 + (flat + 0.14) * k;
+        y += Math.sin(k * Math.PI) * 0.14;
+        b.scale.setScalar(0.92);
+        at(k);
+      } else if (after < 1.0) {
+        // a bounce on landing, then lies there
+        const k = clamp01((after - 0.42) / 0.16);
+        lean = flat - Math.sin(k * Math.PI) * 0.1;
+        at(1);
+        if (!way.room) s = Math.max(0, 1 - (after - 0.42) / 0.4);
+      } else if (after < 1.45) {
+        // gets up with a little overshoot
+        const k = ease((after - 1.0) / 0.45);
+        lean = flat * (1 - k) - Math.sin(k * Math.PI) * 0.12;
+        y += Math.sin(k * Math.PI) * 0.08;
+        at(1);
+      } else if (after < 1.7) {
+        const k = (after - 1.45) / 0.25;
+        lean = Math.sin(k * Math.PI * 3) * 0.06 * (1 - k);
+        at(1);
+      } else {
+        // off he goes
+        const k = ease(clamp01((after - 1.7) / 0.35));
+        s = 1 - k;
+        y -= 0.25 * k;
+        at(1);
       }
+      g.position.y = y;
+      tp.rotation.x = lean;
+      if (after >= 0) b.scale.setScalar(0.92 * s);
+      if (s <= 0.01) setGone(true);
     }
   });
   if (gone) return null;
@@ -385,8 +548,8 @@ export function FieldVictim({ cue, look, rows, cols }: { cue: FieldCue; look: Fi
     <group>
       <group ref={node} position={plan.to.toArray()}>
         {look === "an" ? (
-          <group rotation={[0, face, 0]} scale={AN_FIELD_SCALE}>
-            <WarCorpse type={kind} white={vside === "w"} cast="stone" delay={plan.hit} quick onDone={() => setGone(true)} />
+          <group ref={turn} rotation={[0, face, 0]} scale={AN_FIELD_SCALE}>
+            <StonePerson type={kind} white={vside === "w"} cast="stone" gait={gait} />
           </group>
         ) : look === "lg" ? (
           burst ? null : (
@@ -397,9 +560,13 @@ export function FieldVictim({ cue, look, rows, cols }: { cue: FieldCue; look: Fi
             </group>
           )
         ) : (
-          <group rotation={[0, face, 0]}>
-            <group ref={body} scale={0.92}>
-              <SculptedPiece type={kind} color={vside === "w" ? "w" : "b"} />
+          <group rotation={[0, fallYaw, 0]}>
+            <group ref={tip}>
+              <group rotation={[0, face - fallYaw, 0]}>
+                <group ref={body} scale={0.92}>
+                  <SculptedPiece type={kind} color={vside === "w" ? "w" : "b"} />
+                </group>
+              </group>
             </group>
           </group>
         )}
