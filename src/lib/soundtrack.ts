@@ -188,10 +188,13 @@ export function toggleLibrary() {
   if (!audio || !librarySong) return;
   if (audio.paused) {
     userPaused = false;
-    void audio.play().catch(() => undefined);
+    void startSong(audio).catch(() => undefined);
   } else {
     userPaused = true;
-    audio.pause();
+    fade(audio, 0, FADE_OUT_MS, () => {
+      audio.pause();
+      audio.volume = 1;
+    });
   }
   emitPlayer();
 }
@@ -229,7 +232,7 @@ export async function playLibrarySong(accountId: string, songId: string, queue?:
     if (generation !== token) return;
     if (libraryRepeat) {
       audio.currentTime = 0;
-      void audio.play().catch(() => undefined);
+      void startSong(audio).catch(() => undefined);
       return;
     }
     const next = libraryQueue[libraryAt + 1];
@@ -237,7 +240,7 @@ export async function playLibrarySong(accountId: string, songId: string, queue?:
     else emitPlayer();
   };
   try {
-    await audio.play();
+    await startSong(audio);
   } catch {
     /* the click already unlocked it */
   }
@@ -251,8 +254,51 @@ function track() {
     music.preload = "auto";
     music.setAttribute("playsinline", "true");
   }
-  music.volume = 1;
   return music;
+}
+
+/** Short volume fades so muting, pausing and starting a song never clicks or pops. */
+const FADE_IN_MS = 90;
+const FADE_OUT_MS = 140;
+let fadeTimer: ReturnType<typeof setInterval> | null = null;
+let fadeDir: -1 | 0 | 1 = 0;
+let unlocked = false;
+
+function cancelFade() {
+  if (fadeTimer) clearInterval(fadeTimer);
+  fadeTimer = null;
+  fadeDir = 0;
+}
+
+function fade(audio: HTMLAudioElement, to: 0 | 1, ms: number, done?: () => void) {
+  cancelFade();
+  const from = audio.volume;
+  const start = performance.now();
+  fadeDir = to === 1 ? 1 : -1;
+  fadeTimer = setInterval(() => {
+    const k = Math.min(1, (performance.now() - start) / ms);
+    audio.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+    if (k >= 1) {
+      cancelFade();
+      done?.();
+    }
+  }, 15);
+}
+
+/** Every real song start goes through here: unmuted, fading in from silence. */
+function startSong(audio: HTMLAudioElement) {
+  cancelFade();
+  audio.muted = false;
+  audio.volume = 0;
+  const pending = audio.play();
+  return Promise.resolve(pending).then(() => {
+    unlocked = true;
+    if (fadeDir === 0 && !audio.paused) fade(audio, 1, FADE_IN_MS);
+    else if (audio.paused) audio.volume = 1;
+  }, (err) => {
+    audio.volume = 1;
+    throw err;
+  });
 }
 
 const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
@@ -260,19 +306,40 @@ const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQ
 /** Call from a click so the song is allowed to keep playing in a game. */
 export function unlockSoundtrack() {
   const audio = track();
-  if (!audio || !audio.paused || userPaused) return;
-  audio.volume = 1;
-  if (!audio.src) audio.src = SILENT;
+  // Only once per page, only with the silent clip, and muted: it must never play (or blip) a real song.
+  // A paused song stays paused; the song itself starts only from syncNow/playAt when songs are on.
+  if (!audio || unlocked || !audio.paused || userPaused) return;
+  if (audio.src && audio.src !== SILENT) return;
+  audio.src = SILENT;
+  audio.muted = true;
   const pending = audio.play();
-  if (pending) void pending.catch(() => undefined);
+  void Promise.resolve(pending)
+    .then(() => {
+      unlocked = true;
+      if (audio.src === SILENT) audio.pause();
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      if (audio.src === SILENT) audio.muted = false;
+    });
 }
 
 export function stopSoundtrack() {
   token += 1;
   playingKey = "";
   if (!music) return;
-  music.onended = null;
-  music.pause();
+  const audio = music;
+  audio.onended = null;
+  if (audio.paused) {
+    cancelFade();
+    audio.volume = 1;
+    return;
+  }
+  // Fade out instead of cutting the sound off mid-wave (that is the "pop").
+  fade(audio, 0, FADE_OUT_MS, () => {
+    audio.pause();
+    audio.volume = 1;
+  });
 }
 
 async function playAt(accountId: string, list: Soundtrack, index: number, hops: number, generation: number) {
@@ -304,7 +371,6 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
     }
     audio.src = asset(built);
   }
-  audio.volume = 1;
   const at = ((index % ids.length) + ids.length) % ids.length;
   audio.onended = () => {
     if (generation !== token || music !== audio) return;
@@ -323,7 +389,7 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
     void playAt(accountId, follow, at + 1, 0, generation);
   };
   try {
-    await audio.play();
+    await startSong(audio);
   } catch {
     playingKey = "";
   }
@@ -361,11 +427,12 @@ async function syncNow(accountId: string, force: boolean) {
   }
   const key = `${list.id}:${list.songIds.join(",")}`;
   const audio = track();
-  if (audio && !audio.paused && !audio.ended && playingKey === key && audio.volume === 1) return;
+  if (audio && !audio.paused && !audio.ended && playingKey === key && fadeDir !== -1) return;
   playingKey = key;
   const generation = ++token;
   if (audio) {
     audio.onended = null;
+    cancelFade();
     audio.pause();
   }
   await playAt(accountId, list, 0, 0, generation);
