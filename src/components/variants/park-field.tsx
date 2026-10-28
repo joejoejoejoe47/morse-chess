@@ -504,7 +504,7 @@ function jumboCanvas(home: string, homeColor: string) {
   return c;
 }
 
-function Jumbotron({ x, home }: { x: number; home: HomeTeam | null }) {
+function Jumbotron({ x, z, home }: { x: number; z: number; home: HomeTeam | null }) {
   const name = home?.name ?? "Knights";
   const color = home?.color ?? TEAM.w;
   const tex = useMemo(() => canvasTex(jumboCanvas(name, color)), [name, color]);
@@ -513,7 +513,8 @@ function Jumbotron({ x, home }: { x: number; home: HomeTeam | null }) {
   const h = 3.25;
   const y = 3.0;
   return (
-    <group position={[x, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+    // off to one side and turned toward the field, so the score overlay never covers it
+    <group position={[x, 0, z]} rotation={[0, Math.PI / 2 - 0.32, 0]}>
       {[-w * 0.32, w * 0.32].map((dx) => (
         <mesh key={dx} position={[dx, y / 2, -0.15]} castShadow>
           <boxGeometry args={[0.22, y, 0.22]} />
@@ -586,7 +587,7 @@ export function ParkField({ rows, cols, show = null, home = null }: { rows: numb
       <Benches cols={cols} />
       <Bleachers list={stands} />
       <Fans list={stands} hype={show?.hype ?? null} home={home?.color ?? TEAM.w} />
-      <Jumbotron x={-(hw + 0.45 + 8 * STEP_OUT + 1.4)} home={home} />
+      <Jumbotron x={-(hw + 0.45 + 8 * STEP_OUT + 1.0)} z={-(hl - 2.6)} home={home} />
       <Trees hw={hw} hl={hl} />
       <Town hw={hw} hl={hl} />
       <GoalPosts rows={rows} />
