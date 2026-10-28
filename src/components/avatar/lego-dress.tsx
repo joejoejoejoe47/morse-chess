@@ -1,3 +1,4 @@
+import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -46,7 +47,11 @@ type Skull = {
   r: number;
   /** Top of the head (below the stud): where a hat sits. */
   top: number;
-  /** The head is a helmet or mask that stays on; a hat sits on top of it, at the gear's top and width. */
+  /**
+   * The head is a helmet or mask that stays on; a hat sits on top of it, at the gear's top and
+   * width. With `cut` as well, what sticks up past the gear top (Black Panther's ears) is
+   * trimmed under the hat.
+   */
   gear?: { top: number; r: number };
   /** Where hidden headgear starts, when it differs from the skull (top y, radius share). */
   cut?: { top?: number; r?: number };
@@ -57,32 +62,32 @@ const RIG: Record<string, Rig> = {
   "captain-america.glb": { skull: skull(-0.072, -0.173, 0.72, 0.13), legs: { x: -0.072, top: 0.368, w: 0.39, z: -0.174 }, hipZ: -0.173 },
   "spiderman.glb": { skull: skull(0, -0.043, 0.713, 0.126), legs: { x: 0, top: 0.366, w: 0.381, z: -0.043 }, hipZ: -0.043 },
   "ironman.glb": {
-    skull: skull(0, -0.018, 0.665, 0.118, { gear: { top: 1.0, r: 0.155 } }),
+    skull: skull(0, -0.018, 0.665, 0.118, { cut: { r: 1.06 } }),
     legs: { x: 0, top: 0.341, w: 0.355, z: -0.012 },
     hipZ: -0.018,
   },
   // A mask with no bare skull under it, much bigger than a minifig head: its radius here is
   // the skull it stands for, so it comes out helmet-sized.
   "blackpanther.glb": {
-    skull: skull(0, -0.03, 0.52, 0.17, { top: 0.84, gear: { top: 0.97, r: 0.2 } }),
+    skull: skull(0, -0.03, 0.52, 0.17, { top: 0.84, gear: { top: 0.86, r: 0.205 }, cut: { top: 0.86, r: 3 } }),
     legs: { x: -0.001, top: 0.172, w: 0.373, z: -0.029 },
     hipZ: -0.033,
   },
   "wizard.glb": { skull: skull(0.127, -0.05, 0.616, 0.111), legs: { x: 0.127, top: 0.314, w: 0.334, z: -0.05 }, hipZ: -0.05 },
   "space-police.glb": {
-    skull: skull(-0.004, -0.055, 0.685, 0.118, { cut: { top: 0.9, r: 0.98 } }),
+    skull: skull(-0.004, -0.055, 0.685, 0.118, { cut: { top: 0.9, r: 1.06 } }),
     legs: { x: -0.004, top: 0.339, w: 0.357, z: -0.12 },
     hipZ: -0.055,
   },
   "widow.glb": { skull: skull(-0.014, -0.202, 0.682, 0.123), legs: { x: -0.014, top: 0.348, w: 0.369, z: -0.203 }, hipZ: -0.202 },
-  "skeleton.glb": { skull: skull(0, 0, 0.629, 0.116, { cut: { top: 0.76, r: 1.08 } }), legs: { x: 0, top: 0.3, w: 0.321, z: 0.031 }, hipZ: 0 },
+  "skeleton.glb": { skull: skull(0, 0, 0.629, 0.116, { cut: { r: 1.08 } }), legs: { x: 0, top: 0.3, w: 0.321, z: 0.031 }, hipZ: 0 },
   "blacktron.glb": {
-    skull: skull(0.009, -0.054, 0.691, 0.119, { gear: { top: 0.99, r: 0.15 } }),
+    skull: skull(0.009, -0.054, 0.691, 0.119, { cut: { r: 1.06 } }),
     legs: { x: 0.009, top: 0.342, w: 0.36, z: -0.119 },
     hipZ: -0.054,
   },
   "insectoid.glb": {
-    skull: skull(0, -0.053, 0.686, 0.116, { gear: { top: 1.0, r: 0.165 } }),
+    skull: skull(0, -0.053, 0.686, 0.116, { cut: { r: 1.06 } }),
     legs: { x: 0, top: 0.329, w: 0.349, z: -0.116 },
     hipZ: -0.053,
   },
@@ -106,11 +111,24 @@ const PROPS: Record<string, { held?: string[]; face?: string[] }> = {
  * `back`: the head has no back of its own, so the back of the headgear stays below the hat
  * (`behind`: how far behind the skull centre it starts, in skull radii; `wide`: clip radius).
  * `skin`: the head has no back, and its front is shown from inside instead.
+ * `lid`: a flat top closing the trimmed head under an open crown (x/z half-widths and centre z
+ * in the file, at the skull's cut top).
  */
-const HEADGEAR: Record<string, { gear: string[]; back?: string[]; behind?: number; wide?: number; skin?: string }> = {
+type Lid = { rx: number; rz: number; z: number; color: string };
+const HEADGEAR: Record<string, { gear: string[]; back?: string[]; behind?: number; wide?: number; skin?: string; lid?: Lid }> = {
   "widow.glb": { gear: [], back: ["Dark_Orange"], behind: 0.6 },
   "doom-bigbrick.glb": { gear: ["#008000"] },
+  // The skeleton's black hood comes off whole; the skull under it stays round to its top.
+  "skeleton.glb": { gear: ["Black"] },
   "space-police.glb": { gear: ["White", "Trans_Red"], skin: "Yellow" },
+  // Helmets over a plain minifig head: a hat can't go over a helmet, so the helmet comes off
+  // (the skull clip trims what is left of it) and the hat sits on the head at minifig size.
+  "ironman.glb": { gear: ["Color_154", "Decoration_10908d1"] },
+  "blacktron.glb": { gear: [], skin: "Yellow" },
+  "insectoid.glb": { gear: ["Trans_Green"] },
+  // The mask is one open shell: once its ears are trimmed it gets a lid, so an open crown
+  // (gold crown, band, halo) doesn't show into it.
+  "blackpanther.glb": { gear: [], skin: "bp_body", lid: { rx: 0.205, rz: 0.15, z: -0.025, color: "#1b1b1f" } },
 };
 const propNames = (file: string) => [...(PROPS[file]?.held ?? []), ...(PROPS[file]?.face ?? [])];
 const matName = (mesh: THREE.Mesh) => ((Array.isArray(mesh.material) ? mesh.material[0]?.name : mesh.material?.name) ?? "").trim();
@@ -127,7 +145,52 @@ const HIP_IN_LEGS: Record<string, string> = { "ironman.glb": "Color_154" };
 
 const partFile = (id: string) => legoPartById(id).file;
 const partUrl = (id: string) => asset(`/lego/chars/${partFile(id)}`);
-const swordUrl = (id: string) => asset(id === "talwar" ? "/avatars/swords/talwar.glb" : "/avatars/swords/devil.glb");
+/**
+ * LG weapons are official LDraw minifig parts (LDraw.org Parts Library, CC BY 4.0; see
+ * public/lego/CREDITS.md), converted with LDrawLoader and kept in LDraw units (LDU):
+ * Devil sword = 2674f "Minifig Sword Small with Upturned Crossguard and Capped Pommel" (Dark Red; the horned guard),
+ * Talwar = 2530 "Minifig Sword Cutlass" (silver). In LDraw the grip is the 8 LDU bar along +Y
+ * centred on the origin, with the blade up.
+ */
+const swordUrl = (id: string) =>
+  asset(id === "talwar" ? "/lego/weapons/talwar-2530.c0734b43.glb" : "/lego/weapons/devil-sword-2674f.41189726.glb");
+
+/**
+ * Each body's right-hand C clip, measured from the figure file (tools/gripfind.mjs): the centre of
+ * the hole and its axis (pointing where the blade goes: forward, or up for a raised arm; Doom's
+ * claws face sideways, so his blade points down and out at his side), in the file's own space. A minifig's hip is 36 LDU wide (3815), so the
+ * sword is scaled by hip width / 36 and its 8 LDU grip fills the hole.
+ */
+type Grip = { c: [number, number, number]; d: [number, number, number] };
+// Raised-arm hands (space-police, widow, blacktron, insectoid, gigabot) point almost straight up,
+// which put the blade across the face; their axis is tipped forward (and out) a little.
+const GRIP: Record<string, Grip> = {
+  "captain-america.glb": { c: [-0.329, 0.345, -0.093], d: [0.03, 0.18, 0.98] },
+  "spiderman.glb": { c: [-0.249, 0.371, 0.102], d: [0.09, 0.5, 0.86] },
+  "ironman.glb": { c: [-0.236, 0.325, 0.122], d: [0.04, 0.22, 0.97] },
+  "blackpanther.glb": { c: [-0.245, 0.241, 0.007], d: [0, 0.06, 1] },
+  "wizard.glb": { c: [-0.087, 0.331, 0.097], d: [0.08, 0.49, 0.87] },
+  "space-police.glb": { c: [-0.136, 0.556, 0.017], d: [-0.45, 0.2, 0.87] },
+  "widow.glb": { c: [-0.225, 0.522, 0.078], d: [-0.05, 0.5, 0.86] },
+  "skeleton.glb": { c: [-0.236, 0.305, 0.004], d: [0, 0, 1] },
+  "blacktron.glb": { c: [-0.199, 0.483, 0.209], d: [-0.05, 0.5, 0.86] },
+  "insectoid.glb": { c: [-0.138, 0.547, 0.036], d: [-0.3, 0.4, 0.87] },
+  "gigabot.glb": { c: [-0.196, 0.639, -0.002], d: [-0.2, 0.25, 0.95] },
+  "doom-bigbrick.glb": { c: [-0.151, 0.408, 0.138], d: [-0.89, -0.43, 0.16] },
+};
+const HIP_LDU = 36;
+
+/** Where and how the sword sits: grip on the hole axis, blade along GRIP.d, edge down. */
+function gripMatrix(file: string, fallback: THREE.Vector3, unit: number) {
+  const g = GRIP[file];
+  const c = g ? new THREE.Vector3(...g.c) : fallback;
+  const y = new THREE.Vector3(...(g?.d ?? [0, 0.2, 1])).normalize();
+  const down = Math.abs(y.y) > 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, -1, 0);
+  const z = down.addScaledVector(y, -down.dot(y)).normalize();
+  const x = new THREE.Vector3().crossVectors(y, z);
+  const m = new THREE.Matrix4().makeBasis(x, y, z).setPosition(c);
+  return m.multiply(new THREE.Matrix4().makeScale(...(Array(3).fill(unit / HIP_LDU) as [number, number, number])));
+}
 
 const LEGS = ["legL", "legR"];
 
@@ -213,6 +276,7 @@ function clipMesh(mesh: THREE.Mesh, toFile: THREE.Matrix4, clip: Clip) {
 
 /** Copy the named nodes of a figure (with their place in that file) into a new group, optionally clipped. */
 function lift(scene: THREE.Object3D, names: string[], clip?: Clip) {
+  fixLegoWinding(scene);
   scene.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(scene.matrixWorld).invert();
   const out = new THREE.Group();
@@ -308,7 +372,7 @@ export function LegoDress({
     const floor = B.legs.top - L.legs.top * ky;
 
     // Head: scaled to the body's own head size, the bottom of the skull centred on the neck.
-    const headN = lift(headG.scene, ["head"], hasHat && !skullH.gear ? { skull: skullH } : undefined);
+    const headN = lift(headG.scene, ["head"], hasHat && (!skullH.gear || skullH.cut) ? { skull: skullH } : undefined);
     if (hasHat)
       headN.traverse((node) => {
         const mesh = node as THREE.Mesh;
@@ -331,6 +395,16 @@ export function LegoDress({
           mesh.material = Array.isArray(mesh.material) ? two : two[0];
         }
       });
+    const lid = HEADGEAR[headFile]?.lid;
+    if (hasHat && lid) {
+      const disc = new THREE.Mesh(
+        new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: lid.color, roughness: 0.5 }),
+      );
+      disc.scale.set(lid.rx, 1, lid.rz);
+      disc.position.set(skullH.x, (skullH.cut?.top ?? skullH.top) - 0.004, lid.z);
+      headN.add(disc);
+    }
     // A borrowed head is never bigger than a standard minifig head for the torso (skull radius
     // ~1/3 of hip width): Black Panther's own oversized cat head stays only on its own body.
     const headR = headFile === bodyFile ? skullB.r : Math.min(skullB.r, MAX_HEAD_PER_HIP * B.legs.w);
@@ -346,7 +420,7 @@ export function LegoDress({
     const top = skullH.gear ?? skullH;
     const hatAt: Skull = { x: skullB.x, z: skullB.z, y: skullB.y, top: skullB.y + (top.top - skullH.y) * hk, r: top.r * hk };
     const unit = B.legs.w;
-    return { root, skull: skullB, floor, hatAt, hand: handOf(bodyG.scene, unit, propNames(bodyFile)), unit };
+    return { root, skull: skullB, floor, hatAt, grip: gripMatrix(bodyFile, handOf(bodyG.scene, unit, propNames(bodyFile)), unit), unit };
   }, [bodyG.scene, headG.scene, legsG.scene, body, head, legs, hasHat, weapon]);
 
   return (
@@ -359,7 +433,7 @@ export function LegoDress({
           </group>
         ) : null}
         {weapon !== "none" ? (
-          <group position={fig.hand} scale={fig.unit / 0.36}>
+          <group matrix={fig.grip} matrixAutoUpdate={false}>
             <SwordBit id={weapon} />
           </group>
         ) : null}
@@ -399,17 +473,19 @@ function MinifigHat({ id, skull }: { id: string; skull: Skull }) {
   return <primitive object={obj} />;
 }
 
-/** The sword, gripped at its hilt, blade forward and up. */
+/** The LDraw sword as modelled: grip bar on the origin along +Y, blade up (placed by GRIP). */
 function SwordBit({ id }: { id: string }) {
   const gltf = useGLTF(swordUrl(id));
   const obj = useMemo(() => {
-    const holder = new THREE.Group();
-    const blade = gltf.scene.clone(true);
-    holder.add(blade);
-    blade.position.y = -0.08;
-    holder.scale.setScalar(0.7);
-    holder.rotation.set(0.55, 0, 0);
-    return holder;
+    const sword = gltf.scene.clone(true);
+    sword.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = true;
+        softenMetal(mesh);
+      }
+    });
+    return sword;
   }, [gltf.scene]);
   return <primitive object={obj} />;
 }

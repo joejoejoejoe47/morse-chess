@@ -20,6 +20,7 @@ import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { asset } from "@/lib/base";
 import { squareToWorld } from "@/lib/chess/board-math";
+import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
 import { activeLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
 import { playLegoBeam, playLegoClang, playLegoExplode, playLegoHit, playLegoMagic, playLegoShieldThrow, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
@@ -228,7 +229,10 @@ function setJointPivots(root: THREE.Object3D, rig?: RigFix) {
     box.getSize(size);
     if (n === "body") bodyMid.copy(joint);
     if (n === "body" || n === "head") joint.y = box.min.y;
-    else if (n === "legL" || n === "legR") joint.y = box.max.y;
+    // Minifig legs turn on the hip pin, which sits about a quarter of the leg's height below
+    // its top, not on the top edge (turning on the edge swung the leg's top corners out
+    // through the hip block on every step and kick).
+    else if (n === "legL" || n === "legR") joint.y = box.max.y - size.y * 0.24;
     else joint.y = box.max.y - size.y * 0.2;
     joints[n] = joint;
   }
@@ -254,6 +258,7 @@ function setJointPivots(root: THREE.Object3D, rig?: RigFix) {
 function useFigure(id: LegoCharId) {
   const gltf = useResilientGLTF(charUrl(id));
   return useMemo(() => {
+    fixLegoWinding(gltf.scene);
     const root = gltf.scene.clone(true);
     const mats: THREE.MeshStandardMaterial[] = [];
     root.traverse((o) => {
@@ -2093,3 +2098,6 @@ function TowerLegoWorld() {
   );
 }
 
+
+/** For the figure check harness: the same rig and posing the board uses. */
+export const legoRigForTest = { useFigure, applyPose };
