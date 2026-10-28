@@ -530,3 +530,34 @@ html.light .auth-wood {
   pointer-events: none;
   animation: morse-verdict-pop 1.9s ease-out both;
 }
+
+/* football: the 3-2-1 countdown and the touchdown title pop in */
+.fb-count {
+  display: inline-block;
+  animation: fb-count-pop 0.9s cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+}
+@keyframes fb-count-pop {
+  0% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  22% {
+    transform: scale(0.94);
+    opacity: 1;
+  }
+  34% {
+    transform: scale(1);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.15;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fb-count {
+    animation: none;
+  }
+}

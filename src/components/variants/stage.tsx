@@ -1,5 +1,5 @@
 import { Suspense, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, OrbitControls, useGLTF } from "@react-three/drei";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
@@ -8,9 +8,9 @@ import { StonePerson, WarCorpse, type Gait } from "@/components/chess/stone-peop
 import { LEGO_CHARS, LEGO_ROSTER, LegoWalker, LegoWorld, type LegoCharId } from "@/components/chess/lego-board";
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 import { asset } from "@/lib/base";
-import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type Scoreboard } from "@/components/variants/neon-stadium";
+import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
 
-export type { Scoreboard };
+export type { Scoreboard, StadiumShow };
 
 export type Look = "2d" | "3d" | "an" | "lg";
 export type Sky = "table" | "lego" | "arena";
@@ -171,7 +171,7 @@ function Actor({
   if (look === "lg" && !unit.hidden) {
     const color = unit.side === "w" ? "w" : "b";
     return (
-      <group onClick={(e) => e.stopPropagation()}>
+      <group>
         <Suspense fallback={null}>
           <LegoWalker
             id={LEGO_ROSTER[color][unit.kind]}
@@ -254,10 +254,6 @@ function Deck({
         stadium && paint(r, f).bg !== "#e6c56a" ? null : stadium ? (
           <group key={`${r}:${f}`}>
             <TargetMark position={[x, 0.15, z]} color={sel?.throwing ? "#ffe14a" : TEAM.w} strong={sel?.r === r && sel?.f === f} />
-            <mesh position={[x, 0.16, z]} rotation={[-Math.PI / 2, 0, 0]} onClick={(e) => { e.stopPropagation(); onPick(r, f); }}>
-              <circleGeometry args={[0.48, 20]} />
-              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
           </group>
         ) : (
           <mesh key={`${r}:${f}`} position={[x, 0.08, z]} receiveShadow onClick={(e) => { e.stopPropagation(); onPick(r, f); }}>
@@ -271,8 +267,43 @@ function Deck({
       }
     }
   }
+  // Stadium picking: one handler for the whole field. A tap is read against the
+  // invisible ground plane AND every player it passes through, so a tall player
+  // standing in front of a gold target square can no longer swallow the tap.
+  const marked = (r: number, f: number) => r >= 0 && r < rows && f >= 0 && f < cols && paint(r, f).bg === "#e6c56a";
+  const stadiumPick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    // A drag that spins the camera is not a tap (fingers wobble a little, so allow some).
+    if (e.delta > 18) return;
+    let ground: [number, number] | null = null;
+    let hitUnit: [number, number] | null = null;
+    for (const hit of e.intersections) {
+      let node: THREE.Object3D | null = hit.object;
+      while (node && !node.userData.pick) node = node.parent;
+      const tag = node?.userData.pick as "ground" | [number, number] | undefined;
+      if (!tag) continue;
+      if (tag === "ground") {
+        if (!ground) ground = [Math.round((rows - 1) / 2 - hit.point.z), Math.round(hit.point.x + (cols - 1) / 2)];
+      } else if (!hitUnit) hitUnit = tag;
+    }
+    if (ground && (ground[0] < 0 || ground[0] >= rows || ground[1] < 0 || ground[1] >= cols)) ground = null;
+    const same = (a: [number, number] | null, b: [number, number] | null) => Boolean(a && b && a[0] === b[0] && a[1] === b[1]);
+    const selected: [number, number] | null = sel ? [sel.r, sel.f] : null;
+    let pickSq: [number, number] | null = null;
+    if (hitUnit && same(hitUnit, ground)) pickSq = hitUnit;
+    else if (selected && ground && marked(ground[0], ground[1]) && !same(ground, selected)) pickSq = ground;
+    else if (hitUnit) pickSq = hitUnit;
+    else pickSq = ground;
+    if (pickSq) onPick(pickSq[0], pickSq[1]);
+  };
   return (
-    <group>
+    <group onClick={stadium ? stadiumPick : undefined}>
+      {stadium ? (
+        <mesh position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]} userData={{ pick: "ground" }}>
+          <planeGeometry args={[cols, rows]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+        </mesh>
+      ) : null}
       {stadium ? null : (
       <mesh position={[0, 0.02, 0]} receiveShadow>
         <boxGeometry args={[cols + 0.8, 0.08, rows + 0.8]} />
@@ -288,7 +319,11 @@ function Deck({
       {units.map((unit) => {
         const moving = cue && cue.side === unit.side && cue.to[0] === unit.r && cue.to[1] === unit.f && !cue.thrown;
         return (
-          <group key={`${unit.side}${unit.kind}${unit.r}:${unit.f}${unit.label ?? ""}`} onClick={(e) => { e.stopPropagation(); onPick(unit.r, unit.f); }}>
+          <group
+            key={`${unit.side}${unit.kind}${unit.r}:${unit.f}${unit.label ?? ""}`}
+            userData={{ pick: [unit.r, unit.f] }}
+            onClick={stadium ? undefined : (e) => { e.stopPropagation(); onPick(unit.r, unit.f); }}
+          >
             <Actor
               unit={unit}
               look={look}
@@ -327,7 +362,8 @@ export function VariantStage({
   cue = null,
   stadium = false,
   sel = null,
-  board = null,
+  show = null,
+  onReady,
 }: {
   rows: number;
   cols: number;
@@ -336,11 +372,12 @@ export function VariantStage({
   units: StageUnit[];
   look: Look;
   sky: Sky;
+  onReady?: () => void;
   ball?: { r: number; f: number } | null;
   cue?: MoveCue | null;
   stadium?: boolean;
   sel?: { r: number; f: number; throwing: boolean } | null;
-  board?: Scoreboard | null;
+  show?: StadiumShow | null;
 }) {
   const span = Math.max(rows, cols);
   const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
@@ -348,7 +385,7 @@ export function VariantStage({
     <div className="h-full w-full">
       <Canvas shadows dpr={[1, 1.5]} camera={{ position: cam, fov: 34, near: 0.1, far: 400 }} gl={{ antialias: true, alpha: false }}>
         {stadium ? null : <color attach="background" args={[sky === "table" ? "#14110e" : "#87a0c4"]} />}
-        {stadium ? <NeonStadium rows={rows} cols={cols} board={board} /> : null}
+        {stadium ? <NeonStadium rows={rows} cols={cols} show={show} /> : null}
         {!stadium && sky === "table" ? (
           <>
             <hemisphereLight args={["#ffe7c2", "#2a2118", 0.7]} />
@@ -359,9 +396,22 @@ export function VariantStage({
         {!stadium && sky === "arena" ? <SkyArenaWorld squaresBottom={0.02} plinth={false} /> : null}
         <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} />
         <OrbitControls makeDefault target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.05} minDistance={4} maxDistance={span * 3} />
+        {onReady ? <Ready onReady={onReady} /> : null}
       </Canvas>
     </div>
   );
+}
+
+/** Tells the page once the 3D scene has really drawn a few frames (models loaded, shaders built). */
+function Ready({ onReady }: { onReady: () => void }) {
+  const frames = useRef(0);
+  const fired = useRef(false);
+  useFrame(() => {
+    if (fired.current || ++frames.current < 12) return;
+    fired.current = true;
+    onReady();
+  });
+  return null;
 }
 
 export function ShopPreview({
