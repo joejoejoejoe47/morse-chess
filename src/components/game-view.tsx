@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess, type Square } from "chess.js";
 import { Flag, ImagePlus, Undo2 } from "lucide-react";
@@ -15,8 +15,24 @@ import {
   openGameLive,
   resignGame,
   sendGameChat,
+  startBotGame,
   type GameSnapshot,
 } from "@/lib/server/mores";
+import {
+  VARIANT_INFO,
+  inCheck,
+  isVariant,
+  kingOf,
+  legalTargets,
+  needsPromotion,
+  parseFen,
+  status as variantStatus,
+  toFen,
+  tryMove,
+  type VariantId,
+} from "@/lib/variants/engine";
+import { isOwnerPreview } from "@/lib/games/release";
+import { playBoom, playResult, playYourTurn } from "@/lib/games/variant-fx";
 import { formatClock, formatEloDelta, isBotUserId } from "@/lib/mores-constants";
 import { Button } from "@/components/ui/button";
 import { ClubBrand } from "@/components/club-brand";
@@ -189,6 +205,97 @@ const DRAW_REASON: Record<string, { tag: string; note: string }> = {
   fifty: { tag: "Draw by the 50-move rule", note: "50 moves each with no capture or pawn move." },
 };
 
+/** Falling confetti for a variant win (owner t205u). */
+function Confetti() {
+  const bits = Array.from({ length: 70 }, (_, i) => i);
+  const colors = ["#f6e7b2", "#e0b85a", "#ff6b3d", "#7fd1ff", "#b8ff8a", "#ffffff"];
+  return (
+    <div data-confetti className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+      {bits.map((i) => (
+        <span
+          key={i}
+          className="morse-confetti absolute top-0 block rounded-[2px]"
+          style={
+            {
+              left: `${(i * 37) % 100}%`,
+              width: `${6 + (i % 4) * 2}px`,
+              height: `${10 + (i % 3) * 4}px`,
+              background: colors[i % colors.length],
+              "--delay": `${(i % 14) * 0.09}s`,
+              "--dur": `${2.2 + (i % 5) * 0.35}s`,
+              "--dx": `${((i * 53) % 40) - 20}vw`,
+              "--spin": `${360 + (i % 6) * 180}deg`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function VariantResult({ game, variant }: { game: GameSnapshot; variant: VariantId }) {
+  const navigate = useNavigate();
+  const [closed, setClosed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const won =
+    (game.status === "white_win" && game.you === "w") ||
+    (game.status === "black_win" && game.you === "b");
+  const draw = game.status === "draw";
+  let reason = "";
+  try {
+    const st = variantStatus(variant, parseFen(game.fen));
+    if (st.over) reason = st.reason;
+  } catch {
+    /* fall through */
+  }
+  if (!reason) reason = draw ? "Drawn game." : won ? "Your opponent resigned or ran out of time." : "Resigned or out of time.";
+  const opp = game.you === "w" ? game.black : game.white;
+  const vsBot = isBotUserId(opp.userId);
+  if (closed) return null;
+  return (
+    <div data-variant-result className="absolute inset-0 z-20 grid place-items-center bg-ink/75 px-5">
+      {won ? <Confetti /> : null}
+      <div className="relative w-full max-w-md rounded-xl border border-gold-line/60 bg-panel p-8 text-center shadow-[0_0_60px_rgba(224,184,90,0.25)]">
+        <button type="button" aria-label="Close" className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-2xl leading-none text-ivory hover:bg-panel-2" onClick={() => setClosed(true)}>
+          ×
+        </button>
+        <p className="text-xs uppercase tracking-[0.2em] text-[#e0b85a]">{VARIANT_INFO[variant].name} · Unranked</p>
+        <h2 className="mt-3 font-display text-5xl text-ivory">{draw ? "Draw" : won ? "Victory!" : "Defeat"}</h2>
+        <p data-variant-reason className="mt-3 text-base text-ivory">{reason}</p>
+        <p className="mt-3 text-sm text-mist">Variant games are just for fun: no Elo, no coins.</p>
+        <div className="mt-6 flex flex-col gap-2">
+          {vsBot ? (
+            <Button
+              type="button"
+              variant="solid"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setErr(null);
+                try {
+                  const res = await startBotGame({ data: { mode: game.mode, variant, color: game.you === "w" ? "black" : "white" } });
+                  if (res?.gameId) await navigate({ to: "/play/$gameId", params: { gameId: res.gameId } });
+                } catch (e) {
+                  setErr(e instanceof Error ? e.message : "Could not start a rematch.");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Rematch MorseBot
+            </Button>
+          ) : null}
+          <Button asChild variant={vsBot ? "outline" : "solid"}>
+            <Link to="/">Return to the lounge</Link>
+          </Button>
+        </div>
+        {err ? <p className="mt-3 text-sm text-danger">{err}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function ResultOverlay({ game }: { game: GameSnapshot }) {
   const navigate = useNavigate();
   const won =
@@ -321,6 +428,36 @@ export function GameView({ gameId }: { gameId: string }) {
   const pollGen = useRef(0);
   const pendingMove = useRef(false);
   const claimingTimeout = useRef(false);
+  // Variant games (owner t205u): Atomic blast, your-turn chime, result sound.
+  const [blast, setBlast] = useState<{ sq: string; id: string } | null>(null);
+  const [shakeId, setShakeId] = useState(0);
+  const turnRef = useRef<string | null>(null);
+  const resultRef = useRef<string | null>(null);
+
+  function fireBlast(sq: string, id: string, accountId: string) {
+    setBlast({ sq, id });
+    setShakeId((n) => n + 1);
+    playBoom(accountId);
+    window.setTimeout(() => setBlast((cur) => (cur?.id === id ? null : cur)), 1400);
+  }
+
+  function variantCues(snap: GameSnapshot, newMove: boolean) {
+    const v = isVariant(snap.variant) ? snap.variant : null;
+    if (!v) return;
+    const me = snap.you === "w" ? snap.white.userId : snap.black.userId;
+    if (newMove && v === "atomic" && snap.lastMove?.san.includes("x")) {
+      fireBlast(snap.lastMove.to, `${snap.id}-${snap.moves.length}`, me);
+    }
+    const mine = snap.status === "active" && snap.turn === snap.you;
+    const key = `${snap.id}-${snap.moves.length}`;
+    if (mine && turnRef.current !== key && snap.moves.length > 0) playYourTurn(me);
+    turnRef.current = mine ? key : null;
+    if (snap.status !== "active" && resultRef.current !== snap.id) {
+      resultRef.current = snap.id;
+      const won = (snap.status === "white_win" && snap.you === "w") || (snap.status === "black_win" && snap.you === "b");
+      playResult(me, snap.status === "draw" ? "draw" : won ? "win" : "loss");
+    }
+  }
 
   useEffect(() => {
     if (wash !== "color" || prefs.roomScene !== "photo" || !prefs.roomImage) return;
@@ -355,10 +492,12 @@ export function GameView({ gameId }: { gameId: string }) {
         window.dispatchEvent(new CustomEvent("morse-coins", { detail: { coins: snap.coins, gameId: snap.id } }));
       }
     }
-    if (snap.lastMove && snap.lastMove.san !== lastSan.current) {
+    const newMove = Boolean(snap.lastMove && snap.lastMove.san !== lastSan.current);
+    if (snap.lastMove && newMove) {
       chessClick(snap.lastMove.san);
       lastSan.current = snap.lastMove.san;
     }
+    variantCues(snap, newMove);
   }
 
   async function sendPicture(file: File | undefined) {
@@ -447,10 +586,27 @@ export function GameView({ gameId }: { gameId: string }) {
   async function submitMove(from: Square, to: Square, promotion?: "q" | "r" | "b" | "n") {
     const current = game;
     if (!current || current.status !== "active") return;
+    const v = isVariant(current.variant) ? current.variant : null;
     try {
-      const local = new Chess(current.fen);
-      const moved = local.move({ from, to, promotion });
-      if (moved) {
+      const vr = v ? tryMove(v, current.fen, from, to, promotion) : null;
+      if (v && vr) {
+        pendingMove.current = true;
+        plyRef.current = current.moves.length + 1;
+        const me = current.you === "w" ? current.white.userId : current.black.userId;
+        setGame({
+          ...current,
+          fen: toFen(vr.state),
+          turn: vr.state.turn,
+          lastMove: { from, to, san: vr.san },
+          moves: [...current.moves, { san: vr.san, from, to }],
+        });
+        chessClick(vr.san);
+        lastSan.current = vr.san;
+        if (v === "atomic" && vr.captured) fireBlast(to, `${current.id}-${current.moves.length + 1}`, me);
+      }
+      const local = v ? null : new Chess(current.fen);
+      const moved = local ? local.move({ from, to, promotion }) : null;
+      if (local && moved) {
         pendingMove.current = true;
         plyRef.current = current.moves.length + 1;
         setGame({
@@ -489,14 +645,36 @@ export function GameView({ gameId }: { gameId: string }) {
   function onMove(from: Square, to: Square) {
     const current = game;
     if (!current || current.status !== "active") return;
-    const piece = new Chess(current.fen).get(from);
-    const needsPromo = piece?.type === "p" && (to.endsWith("8") || to.endsWith("1"));
+    const v = isVariant(current.variant) ? current.variant : null;
+    let needsPromo = false;
+    if (v) {
+      needsPromo = needsPromotion(v, current.fen, from, to);
+    } else {
+      const piece = new Chess(current.fen).get(from);
+      needsPromo = piece?.type === "p" && (to.endsWith("8") || to.endsWith("1"));
+    }
     if (needsPromo) {
       setPromo({ from, to });
       return;
     }
     void submitMove(from, to);
   }
+
+  const variant: VariantId | null = game && isVariant(game.variant) ? game.variant : null;
+  const variantFen = game?.fen ?? "";
+  const rules = useMemo(() => {
+    if (!variant) return {};
+    try {
+      const st = parseFen(variantFen);
+      const k = inCheck(variant, st, st.turn) ? kingOf(st.board, st.turn) : null;
+      return {
+        legalFor: (from: string) => legalTargets(variant, parseFen(variantFen), from),
+        checkSq: k ? `${"abcdefgh"[k[1]]}${k[0] + 1}` : null,
+      };
+    } catch {
+      return {};
+    }
+  }, [variant, variantFen]);
 
   if (error && !game) {
     return (
@@ -543,7 +721,10 @@ export function GameView({ gameId }: { gameId: string }) {
     appearance: theme,
     skin,
     outlineOn: prefs.outline,
+    ...rules,
+    blast: variant === "atomic" ? blast : null,
   };
+  const preview = variant ? isOwnerPreview(variant, myName) : false;
 
   return (
     <main
@@ -554,6 +735,7 @@ export function GameView({ gameId }: { gameId: string }) {
         <ClubBrand to="/" tone={backdropLight ? "dark" : "light"} />
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-[15px] text-mist md:inline">
+            {variant ? `${VARIANT_INFO[variant].name} · ` : ""}
             {game.mode === "timed" ? `Timed · ${Math.max(1, Math.round((game.clockMs ?? 60_000) / 60_000))} min` : "Breeze"}
             {" · "}
             {over ? "Board closed" : myTurn ? "Your move" : "Waiting"}
@@ -714,7 +896,7 @@ export function GameView({ gameId }: { gameId: string }) {
       </header>
 
       <div className="relative min-h-0 flex-1">
-        <div className="absolute inset-0">
+        <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", variant === "atomic" && shakeId > 0 && "morse-shake")}>
           {view === "2d" ? (
             <ChessBoard2D {...boardProps} />
           ) : (
@@ -746,6 +928,27 @@ export function GameView({ gameId }: { gameId: string }) {
           >
             {view === "3d" ? "Set" : "Board"}: "{HEIRLOOM_CREDIT[skin.id === "classic" ? "cl" : "pa"].title}" by {HEIRLOOM_CREDIT[skin.id === "classic" ? "cl" : "pa"].author} · CC BY 4.0
           </a>
+        ) : null}
+        {variant && blast ? (
+          <div key={`flash-${blast.id}`} className="morse-flash pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle,rgba(255,214,140,0.55),rgba(255,90,30,0.15)_55%,transparent_75%)]" />
+        ) : null}
+        {variant ? (
+          <div data-variant-banner className="pointer-events-none absolute left-1/2 top-2 z-10 flex -translate-x-1/2 flex-row items-center gap-2 whitespace-nowrap">
+            <p className="rounded-full border border-gold-line/50 bg-ink/75 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-[#e0b85a] backdrop-blur-sm">
+              {VARIANT_INFO[variant].name} · Unranked{preview ? " · Owner preview" : ""}
+            </p>
+            {!over ? (
+              <p
+                data-turn-indicator
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm",
+                  myTurn ? "morse-turn-pulse bg-[#f6e7b2] text-ink" : "border border-line bg-ink/75 text-mist",
+                )}
+              >
+                {myTurn ? "Your move" : vsBot ? "MorseBot is thinking…" : `${opp.username}'s move`}
+              </p>
+            ) : null}
+          </div>
         ) : null}
         {error ? (
           <p className="pointer-events-none absolute left-1/2 top-12 z-10 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1.5 text-[13px] text-danger">
@@ -795,7 +998,7 @@ export function GameView({ gameId }: { gameId: string }) {
             onCancel={() => setPromo(null)}
           />
         ) : null}
-        {over ? <ResultOverlay game={game} /> : null}
+        {over ? variant ? <VariantResult game={game} variant={variant} /> : <ResultOverlay game={game} /> : null}
         {cameraOn && !vsBot ? (
           <div
             className={

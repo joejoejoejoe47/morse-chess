@@ -1,9 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { Chess, type Square } from "chess.js";
+import type { Square } from "chess.js";
 import { FILES } from "@/lib/chess/board-math";
+import { chessOf, type BoardRules } from "@/lib/chess/fen-board";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import { cn } from "@/lib/utils";
+
+/** The capture square and its 8 neighbours (Atomic explosion). */
+export function blastZone(sq: string): Set<string> {
+  const f = sq.charCodeAt(0) - 97;
+  const r = Number(sq[1]) - 1;
+  const out = new Set<string>();
+  for (let df = -1; df <= 1; df++)
+    for (let dr = -1; dr <= 1; dr++) {
+      const nf = f + df;
+      const nr = r + dr;
+      if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8) out.add(`${String.fromCharCode(97 + nf)}${nr + 1}`);
+    }
+  return out;
+}
 
 const GLYPH: Record<string, string> = {
   k: "♚",
@@ -24,7 +39,11 @@ export function ChessBoard2D({
   appearance = "dark",
   skin,
   outlineOn = true,
-}: {
+  legalFor,
+  checkSq,
+  dimmed,
+  blast,
+}: BoardRules & {
   fen: string;
   you: Side;
   lastMove: { from: string; to: string } | null;
@@ -36,12 +55,14 @@ export function ChessBoard2D({
   outlineOn?: boolean;
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
-  const chess = useMemo(() => new Chess(fen), [fen]);
+  const chess = useMemo(() => chessOf(fen), [fen]);
   const legal = useMemo(() => {
     if (!selected) return new Set<string>();
+    if (legalFor) return new Set(legalFor(selected));
     return new Set(chess.moves({ square: selected, verbose: true }).map((m) => m.to));
-  }, [chess, selected]);
+  }, [chess, selected, legalFor]);
   const checkSquare = useMemo(() => {
+    if (checkSq !== undefined) return checkSq as Square | null;
     if (!chess.isCheck()) return null;
     const board = chess.board();
     for (let r = 0; r < 8; r++) {
@@ -53,7 +74,7 @@ export function ChessBoard2D({
       }
     }
     return null;
-  }, [chess]);
+  }, [chess, checkSq]);
 
   useEffect(() => {
     setSelected(null);
@@ -154,6 +175,17 @@ export function ChessBoard2D({
                     >
                       {GLYPH[piece.type]}
                     </span>
+                  ) : null}
+                  {dimmed?.has(sq) ? (
+                    <span data-dimmed-square className="pointer-events-none absolute inset-0 bg-black/70" />
+                  ) : null}
+                  {blast && blastZone(blast.sq).has(sq) ? (
+                    <span
+                      key={blast.id}
+                      data-blast-square
+                      className="morse-blast pointer-events-none absolute inset-[-20%] rounded-full"
+                      style={{ animationDelay: sq === blast.sq ? "0ms" : "90ms" }}
+                    />
                   ) : null}
                   {legal.has(sq) && !piece ? (
                     <span className="pointer-events-none absolute left-1/2 top-1/2 size-[38%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_14px_rgba(255,255,255,0.9)]" />

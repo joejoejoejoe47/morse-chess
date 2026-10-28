@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { Navigate, useNavigate, Link } from "@tanstack/react-router";
-import { Timer, Wind, X } from "lucide-react";
+import { Lock, Timer, Wind, X } from "lucide-react";
 import { ClubBrand, ClubHeaderActions, MorseCrest } from "@/components/club-brand";
 import { CheckTile, PieceMark } from "@/components/chess/marks";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { sandboxUrlFor } from "@/lib/master-sandbox";
 import { asset } from "@/lib/base";
 import { isMasterUsername } from "@/lib/chess/board-skins";
+import { canPlayGame, isOwnerPreview } from "@/lib/games/release";
+import { VARIANT_INFO, type VariantId as RuleVariant } from "@/lib/variants/engine";
 import {
   cancelChallenge,
   claimUsername,
@@ -34,13 +36,16 @@ type VariantId = "checkmate" | "football" | "strategy";
 
 type Flow =
   | { kind: "idle" }
-  | { kind: "pick-mode"; intent: "random" | "challenge" | "bot" | "bot-v2" }
+  | { kind: "pick-mode"; intent: "random" | "challenge" | "bot" | "bot-v2"; variant?: RuleVariant; back?: PullScreen }
   | { kind: "pick-color"; intent: "bot" | "bot-v2"; mode: GameMode }
-  | { kind: "select-game"; intent: "random" | "challenge" }
+  | { kind: "select-game"; intent: "random" | "challenge"; screen?: PullScreen }
   | { kind: "variant-name"; intent: "random" | "challenge"; mode: VariantId }
-  | { kind: "ask-name"; mode: GameMode; game?: string }
+  | { kind: "ask-name"; mode: GameMode; game?: string; variant?: RuleVariant }
   | { kind: "searching"; mode: GameMode }
-  | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string };
+  | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string; variant?: RuleVariant };
+
+/** The UNRANKED pull-up has two screens: the main 3x2 grid and "Other games" (owner t209u). */
+type PullScreen = "main" | "other";
 
 export function ClubHome() {
   const navigate = useNavigate();
@@ -51,7 +56,6 @@ export function ClubHome() {
   const [claim, setClaim] = useState("");
   const [target, setTarget] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [otherPulse, setOtherPulse] = useState(0);
   const [busy, setBusy] = useState(false);
   // football: "Change team!" under the username box opens the team card (saved per user)
   const [teamCard, setTeamCard] = useState<{ team: FootballTeam | null } | null>(null);
@@ -175,11 +179,33 @@ export function ClubHome() {
     launchVariant(mode, "MorseBot");
   }
 
+  /** A rules variant tile (Horde, Atomic, ...): pick Timed/Breeze next, same as normal chess (owner t205u). */
+  function playVariant(variant: RuleVariant, back: PullScreen) {
+    if (flow.kind !== "select-game") return;
+    setError(null);
+    setFlow({ kind: "pick-mode", intent: flow.intent, variant, back });
+  }
+
   async function chooseMode(mode: GameMode) {
     if (flow.kind !== "pick-mode") return;
     setError(null);
     if (flow.intent === "challenge") {
-      setFlow({ kind: "ask-name", mode });
+      setFlow({ kind: "ask-name", mode, variant: flow.variant });
+      return;
+    }
+    if (flow.intent === "random" && flow.variant) {
+      // Random pull-up in a variant: MorseBot sits across (unranked, no coins).
+      setBusy(true);
+      try {
+        const { gameId } = await startBotGame({
+          data: { mode, bot: "v1", minutes: botMinutes, color: "random", variant: flow.variant },
+        });
+        await navigate({ to: "/play/$gameId", params: { gameId } });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not start that game.");
+      } finally {
+        setBusy(false);
+      }
       return;
     }
     if (flow.intent === "bot" || flow.intent === "bot-v2") {
@@ -229,7 +255,7 @@ export function ClubHome() {
     }
     setBusy(true);
     try {
-      const res = await sendChallenge({ data: { username: name, mode: flow.mode } });
+      const res = await sendChallenge({ data: { username: name, mode: flow.mode, variant: flow.variant } });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -238,7 +264,7 @@ export function ClubHome() {
         await navigate({ to: "/play/$gameId", params: { gameId: res.gameId } });
         return;
       }
-      setFlow({ kind: "waiting", mode: flow.mode, username: name, challengeId: res.challengeId });
+      setFlow({ kind: "waiting", mode: flow.mode, username: name, challengeId: res.challengeId, variant: flow.variant });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send that challenge.");
     } finally {
@@ -426,7 +452,7 @@ export function ClubHome() {
                     ) : (
                       <>
                         <span className="font-medium">{c.fromUsername}</span> wants to battle you in a {c.mode}{" "}
-                        chess game.
+                        {c.variant ? <span data-inbox-variant={c.variant}>{VARIANT_INFO[c.variant].name} (unranked)</span> : "chess"} game.
                       </>
                     )}
                   </p>
@@ -463,7 +489,7 @@ export function ClubHome() {
                   className="flex items-center justify-between gap-3 rounded-md border border-line p-4"
                 >
                   <p className="text-sm text-mist">
-                    Waiting on {c.toUsername} for a {c.mode} game.
+                    Waiting on {c.toUsername} for a {c.mode}{c.variant ? ` ${VARIANT_INFO[c.variant].name}` : ""} game.
                   </p>
                   {c.deadline != null ? <ChallengeCountdown deadline={c.deadline} now={now} /> : null}
                   <Button size="sm" variant="ghost" onClick={() => cancelChallenge({ data: { id: c.id } })}>
@@ -529,89 +555,18 @@ export function ClubHome() {
       <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
 
       {flow.kind === "select-game" ? (
-        <div className="fixed inset-0 z-40 overflow-y-auto bg-[#110d09]" data-pullup-screen>
-          <button
-            type="button"
-            className="absolute left-4 top-4 z-10 rounded-md border border-[#e7c56a]/50 bg-[#1a140e]/85 px-4 py-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#e7c56a]"
-            onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute right-4 top-16 z-10 grid size-11 place-items-center text-[#e7c56a]"
-            onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
-          >
-            <X className="size-6" />
-          </button>
-          <div className="mx-auto grid max-w-6xl gap-5 px-4 pb-10 pt-20 lg:grid-cols-[minmax(0,1fr)_290px]">
-            <section>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e7c56a]">
-                {flow.intent === "random" ? "Random pull-up" : "Intended pull-up"}
-              </p>
-              <h2 className="mt-1 font-display text-3xl text-ivory">Pick your chess</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2" data-pullup-tiles>
-                <PullTile art="classic" big="Classic" small="1v1 · Normal chess" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} />
-                <PullTile art="horde" big="Horde" small="36 pawns vs an army" onClick={() => openGame("horde")} />
-                <PullTile art="apocalypse" big="Apocalypse" small="Secret moves · 5×5" onClick={() => openGame("apocalypse")} />
-                <PullTile
-                  art="snow"
-                  big="Snow day"
-                  small="Other games →"
-                  onClick={() => {
-                    setOtherPulse((n) => n + 1);
-                    document.querySelector("[data-other-games]")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                  }}
-                />
-              </div>
-              {error ? <p className="mt-3 text-center text-sm text-[#e7c56a]">{error}</p> : null}
-            </section>
-            <aside
-              key={otherPulse}
-              data-other-games
-              className={
-                "self-start rounded-xl border border-[#e7c56a]/35 bg-[linear-gradient(180deg,#1d2a36_0%,#1a140e_55%)] p-4 shadow-2xl lg:mt-9 " +
-                (otherPulse ? "animate-[pulse_0.6s_ease-in-out_2]" : "")
-              }
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#cfe3f2]">❄ Other games</p>
-              <p className="mt-1 text-xs text-mist">Just for fun — no coins.</p>
-              <ul className="mt-3 grid gap-1.5">
-                {(
-                  [
-                    ["football", "Football", "1v1 on the gridiron", true, () => pickVariant("football")],
-                    ["checkmate", "Checkmate", "End game", true, () => pickVariant("checkmate")],
-                    ["strategy", "Morse Strategy", "Morse strategy", true, () => pickVariant("strategy")],
-                    ["knights-tour", "Knight's Tour", "Single player", false, () => openGame("knights-tour")],
-                    ["horde", "Horde Chess", "2 players or vs bot", false, () => openGame("horde")],
-                    ["breakthrough", "Breakthrough", "2 players or vs bot", false, () => openGame("breakthrough")],
-                    ["apocalypse", "Apocalypse", "2 players or vs bot", false, () => openGame("apocalypse")],
-                  ] as const
-                ).map(([id, label, note, masterOnly, go]) => {
-                  const locked = masterOnly && !isMasterUsername(home.profile?.username ?? "");
-                  return (
-                    <li key={id}>
-                      <button
-                        type="button"
-                        data-other-game={id}
-                        disabled={locked}
-                        className="flex w-full items-center justify-between gap-2 rounded-md border border-[#e7c56a]/20 bg-black/25 px-3 py-2 text-left enabled:hover:border-[#e7c56a]/60 enabled:hover:bg-black/40 disabled:cursor-default disabled:opacity-55"
-                        onClick={() => { if (!locked) go(); }}
-                      >
-                        <span>
-                          <span className="block text-sm font-semibold text-ivory">{label}</span>
-                          <span className="block text-[11px] text-mist">{note}</span>
-                        </span>
-                        {locked ? <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f3e2b6]">Coming soon</span> : <span className="text-[#e7c56a]">›</span>}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </aside>
-          </div>
-        </div>
+        <PullUpScreen
+          intent={flow.intent}
+          screen={flow.screen ?? "main"}
+          username={home.profile?.username ?? ""}
+          error={error}
+          onScreen={(screen) => { setError(null); setFlow({ kind: "select-game", intent: flow.intent, screen }); }}
+          onClose={() => { setFlow({ kind: "idle" }); setError(null); }}
+          onNormal={() => setFlow({ kind: "pick-mode", intent: flow.intent })}
+          onRules={(v, back) => playVariant(v, back)}
+          onLocal={(g) => openGame(g)}
+          onClassic={(m) => pickVariant(m)}
+        />
       ) : null}
 
       {teamCard ? (
@@ -635,7 +590,7 @@ export function ClubHome() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 {flow.kind === "pick-mode" && (flow.intent === "random" || flow.intent === "challenge") ? (
-                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "select-game", intent: flow.intent }); }}>
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "select-game", intent: flow.intent === "challenge" ? "challenge" : "random", screen: flow.back }); }}>
                     Back
                   </button>
                 ) : null}
@@ -645,12 +600,12 @@ export function ClubHome() {
                   </button>
                 ) : null}
                 {flow.kind === "variant-name" ? (
-                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "select-game", intent: flow.intent }); }}>
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "select-game", intent: flow.intent, screen: "other" }); }}>
                     Back
                   </button>
                 ) : null}
                 {flow.kind === "ask-name" ? (
-                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "pick-mode", intent: "challenge" }); }}>
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "pick-mode", intent: "challenge", variant: flow.variant, back: flow.variant ? screenOf(flow.variant) : undefined }); }}>
                     Back
                   </button>
                 ) : null}
@@ -720,6 +675,12 @@ export function ClubHome() {
 
             {flow.kind === "pick-mode" ? (
               <div className="mt-5 grid gap-3">
+                {flow.variant ? (
+                  <p className="text-sm text-mist" data-pick-variant={flow.variant}>
+                    <span className="font-semibold text-[#e7c56a]">{VARIANT_INFO[flow.variant].name}</span> · {VARIANT_INFO[flow.variant].short}.{" "}
+                    {flow.intent === "random" ? "MorseBot sits across." : "Your friend plays the same rules."} Unranked — no Elo, no coins.
+                  </p>
+                ) : null}
                 {flow.intent === "challenge" && target ? (
                   <p className="text-sm text-mist">
                     Sitting across <span className="text-ivory">{target}</span>. Timed or breeze?
@@ -736,13 +697,13 @@ export function ClubHome() {
                   <span className="text-left">
                     <span className="block">Timed</span>
                     <span className="block text-xs font-normal text-ink/70">
-                      {flow.intent === "bot" || flow.intent === "bot-v2"
+                      {flow.intent === "bot" || flow.intent === "bot-v2" || (flow.intent === "random" && flow.variant)
                         ? `${botMinutes === 1 ? "One minute" : `${botMinutes} minutes`} each. Clock pauses when you move.`
                         : "One minute each. Clock pauses when you move."}
                     </span>
                   </span>
                 </Button>
-                {flow.intent === "bot" || flow.intent === "bot-v2" ? (
+                {flow.intent === "bot" || flow.intent === "bot-v2" || (flow.intent === "random" && flow.variant) ? (
                   <div className="flex items-center gap-2 text-sm text-mist" role="radiogroup" aria-label="Clock">
                     <span>Clock</span>
                     {([1, 5, 10] as const).map((m) => (
@@ -814,7 +775,7 @@ export function ClubHome() {
 
             {flow.kind === "ask-name" ? (
               <form className="mt-5 space-y-4" onSubmit={submitChallenge}>
-                <Badge>{flow.mode} game</Badge>
+                <Badge>{flow.variant ? `${VARIANT_INFO[flow.variant].name} · ` : ""}{flow.mode} game</Badge>
                 <div className="space-y-2">
                   <Label htmlFor="opp">Username</Label>
                   <Input
@@ -838,7 +799,8 @@ export function ClubHome() {
 
             {flow.kind === "waiting" ? (
               <p className="mt-5 text-sm text-mist">
-                {home.profile.username} wants to battle {flow.username} in a {flow.mode} chess game. Waiting for
+                {home.profile.username} wants to battle {flow.username} in a {flow.mode}{" "}
+                {flow.variant ? VARIANT_INFO[flow.variant].name : "chess"} game. Waiting for
                 the user's yes.
                 {waitingRow?.deadline ? (
                   <span className="mt-2 block">
@@ -880,27 +842,167 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
   );
 }
 
-function PullTile({ art, big, small, onClick }: { art: "classic" | "horde" | "apocalypse" | "snow"; big: string; small: string; onClick: () => void }) {
+/** Which pull-up screen a rules variant's tile lives on (for Back). */
+function screenOf(v: RuleVariant): PullScreen {
+  return v === "horde" || v === "atomic" || v === "koth" ? "main" : "other";
+}
+
+type TileState = "play" | "preview" | "soon";
+type LocalGame = "knights-tour" | "apocalypse";
+
+type TileSpec = {
+  id: string;
+  art: string;
+  big: string;
+  small: string;
+  state: TileState;
+  go: () => void;
+};
+
+/**
+ * The UNRANKED pull-up (owner t209u): a 3x2 grid of engraved bronze tiles like the old pull-up,
+ * plus an "Other games" screen in the same style. Every game except normal chess shows
+ * COMING SOON until it is approved in src/lib/games/release.ts; MasterGus sees "Owner preview".
+ */
+function PullUpScreen({
+  intent,
+  screen,
+  username,
+  error,
+  onScreen,
+  onClose,
+  onNormal,
+  onRules,
+  onLocal,
+  onClassic,
+}: {
+  intent: "random" | "challenge";
+  screen: PullScreen;
+  username: string;
+  error: string | null;
+  onScreen: (s: PullScreen) => void;
+  onClose: () => void;
+  onNormal: () => void;
+  onRules: (v: RuleVariant, back: PullScreen) => void;
+  onLocal: (g: LocalGame) => void;
+  onClassic: (m: VariantId) => void;
+}) {
+  const gate = (id: string): TileState =>
+    !canPlayGame(id, username) ? "soon" : isOwnerPreview(id, username) ? "preview" : "play";
+  const rules = (v: RuleVariant, back: PullScreen): TileSpec => ({
+    id: v,
+    art: v,
+    big: VARIANT_INFO[v].name,
+    small: VARIANT_INFO[v].short,
+    state: gate(v),
+    go: () => onRules(v, back),
+  });
+  const main: TileSpec[] = [
+    { id: "normal", art: "classic", big: "1v1", small: "Normal chess", state: "play", go: onNormal },
+    { id: "apocalypse", art: "apocalypse", big: "Apocalypse", small: "5×5 · secret moves", state: gate("apocalypse"), go: () => onLocal("apocalypse") },
+    rules("horde", "main"),
+    rules("atomic", "main"),
+    rules("koth", "main"),
+    { id: "other", art: "other", big: "Other games", small: "8 more ways to play", state: "play", go: () => onScreen("other") },
+  ];
+  const football: TileState = isMasterUsername(username) ? "preview" : "soon";
+  const other: TileSpec[] = [
+    { id: "football", art: "football", big: "Football", small: "1v1 on the gridiron", state: football, go: () => onClassic("football") },
+    { id: "checkmate", art: "checkmate", big: "Checkmate", small: "End game", state: gate("checkmate"), go: () => onClassic("checkmate") },
+    { id: "strategy", art: "strategy", big: "Strategy", small: "Morse", state: gate("strategy"), go: () => onClassic("strategy") },
+    { id: "knights-tour", art: "knights-tour", big: "Knight's Tour", small: "Visit every square", state: gate("knights-tour"), go: () => onLocal("knights-tour") },
+    rules("breakthrough", "other"),
+    rules("heist", "other"),
+    rules("parade", "other"),
+    rules("cavalry", "other"),
+  ];
+  const tiles = screen === "other" ? other : main;
+  return (
+    <div className="pull-backdrop fixed inset-0 z-[65] overflow-y-auto" data-pullup-screen data-pullup-view={screen}>
+      <div className="flex min-h-full items-center justify-center p-3 sm:p-6">
+        <div className="pull-panel relative w-full max-w-6xl rounded-2xl p-4 sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {screen === "other" ? (
+                <button type="button" data-pullup-back className="pull-chip" onClick={() => onScreen("main")}>
+                  ← Back
+                </button>
+              ) : null}
+              <span className="pull-emblem grid size-11 place-items-center rounded-full" aria-hidden>
+                <PieceMark kind={screen === "other" ? "p" : "n"} className="size-6" />
+              </span>
+              <div>
+                <h2 className="pull-heading text-2xl sm:text-3xl">{screen === "other" ? "Other games" : "Unranked"}</h2>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#c9a76a]/80">
+                  {intent === "random" ? "Random pull-up" : "Intended pull-up"} · no Elo, no coins
+                </p>
+              </div>
+            </div>
+            <button type="button" aria-label="Close" className="pull-chip grid size-10 place-items-center !p-0" onClick={onClose}>
+              <X className="size-5" />
+            </button>
+          </div>
+          <div
+            key={screen}
+            data-pullup-tiles
+            className={"grid gap-3 sm:gap-4 sm:grid-cols-2 " + (screen === "other" ? "lg:grid-cols-4" : "lg:grid-cols-3")}
+          >
+            {tiles.map((t, i) => (
+              <PullTile key={t.id} spec={t} index={i} compact={screen === "other"} />
+            ))}
+          </div>
+          {error ? <p className="mt-3 text-center text-sm text-[#e7c56a]">{error}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PullTile({ spec, index, compact }: { spec: TileSpec; index: number; compact: boolean }) {
+  const soon = spec.state === "soon";
+  const long = spec.big.length > 9;
+  // One long word (CHECKMATE, BREAKTHROUGH) cannot wrap, so it gets a smaller size on the 4-up grid.
+  const longWord = !spec.big.includes(" ") && spec.big.length >= 9;
+  const size = compact
+    ? longWord ? "text-[clamp(1.05rem,1.55vw,1.5rem)]" : long ? "text-[clamp(1.35rem,2vw,1.9rem)]" : "text-[clamp(1.6rem,2.5vw,2.4rem)]"
+    : long ? "text-[clamp(1.6rem,2.7vw,2.5rem)]" : "text-[clamp(2.1rem,3.8vw,3.6rem)]";
   return (
     <button
       type="button"
-      data-pullup-tile={art}
-      className="group relative aspect-[16/9] overflow-hidden rounded-xl border border-[#c9a76a]/55 bg-[#1a140e] text-left shadow-xl transition hover:border-[#e7c56a]"
-      onClick={onClick}
+      data-pullup-tile={spec.id}
+      data-tile-state={spec.state}
+      aria-disabled={soon}
+      aria-label={`${spec.big} — ${spec.small}${soon ? " (coming soon)" : ""}`}
+      className={"pull-tile pull-in group relative aspect-[16/8] overflow-hidden rounded-xl text-left sm:aspect-[16/10] " + (soon ? "is-soon" : "")}
+      style={{ "--pull-delay": `${index * 55}ms` } as CSSProperties}
+      onClick={() => { if (!soon) spec.go(); }}
     >
       <img
-        src={asset(`/pullup/${art}.webp`)}
+        src={asset(`/pullup/${spec.art}.webp`)}
         alt=""
-        width={768}
-        height={432}
+        width={960}
+        height={540}
         decoding="async"
-        className="absolute inset-0 h-full w-full select-none object-cover transition duration-300 group-hover:scale-[1.03]"
         draggable={false}
+        className="pull-art absolute inset-0 h-full w-full select-none object-cover"
       />
-      <span className="absolute inset-0 bg-gradient-to-tr from-black/75 via-black/20 to-transparent" />
-      <span className="absolute bottom-3 left-4 right-4">
-        <span className="block font-display text-4xl leading-none text-[#f3e2b6] drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] sm:text-5xl">{big}</span>
-        <span className="mt-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#e8dcc4]">{small}</span>
+      <span className="absolute inset-0 bg-[linear-gradient(to_top,rgba(10,7,4,0.92)_0%,rgba(10,7,4,0.45)_38%,rgba(10,7,4,0)_70%)]" />
+      <span className="pull-shine pointer-events-none absolute inset-0" aria-hidden />
+      <span className="pointer-events-none absolute inset-[5px] rounded-[9px] border border-[#e9cf94]/20" aria-hidden />
+      {spec.state === "preview" ? (
+        <span data-owner-preview className="pull-badge absolute right-2.5 top-2.5">Owner preview</span>
+      ) : null}
+      {soon ? (
+        <span data-coming-soon className="pull-soon absolute right-2.5 top-2.5">
+          <Lock className="size-3" /> Coming soon
+        </span>
+      ) : null}
+      <span className="absolute bottom-3 left-4 right-4 sm:bottom-4 sm:left-5">
+        <span className={"pull-title block leading-[0.95] " + size}>{spec.big}</span>
+        <span className="mt-1.5 block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#ead9b4] sm:text-xs">
+          {spec.small}
+          {spec.id === "other" ? " →" : ""}
+        </span>
       </span>
     </button>
   );

@@ -380,3 +380,6 @@ ALTER TABLE `games` ADD COLUMN `white_start_score` INT NULL;
 ALTER TABLE `games` ADD COLUMN `black_start_score` INT NULL;
 -- Football variant: the player's team (name + colour) and the names they gave their pieces, per board.
 ALTER TABLE `profiles` ADD COLUMN `football_json` TEXT NULL;
+-- Chess variants (owner t205u): '' = normal chess, else a Variants::IDS id. No coins, no rating.
+ALTER TABLE `games` ADD COLUMN `variant` VARCHAR(16) NOT NULL DEFAULT '';
+ALTER TABLE `challenges` ADD COLUMN `variant` VARCHAR(16) NOT NULL DEFAULT '';

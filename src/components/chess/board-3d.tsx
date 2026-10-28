@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, useTexture } from "@react-three/drei";
-import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
+import type { Color, PieceSymbol, Square } from "chess.js";
 import * as THREE from "three";
 import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
 import { Figurine } from "@/components/avatar/figurine";
@@ -10,6 +10,7 @@ import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-
 import { CastleYard } from "@/components/chess/castle-yard";
 import { arenaNight } from "@/components/chess/arena-bowl";
 import { FILES, squareToWorld } from "@/lib/chess/board-math";
+import { chessOf, type BoardRules } from "@/lib/chess/fen-board";
 import { keepWebGL } from "@/lib/gl-quiet";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
@@ -699,7 +700,9 @@ function BoardSquares({
   meadow = false,
   ghost = false,
   pitch = 1,
+  dimmed,
 }: {
+  dimmed?: ReadonlySet<string>;
   selected: string | null;
   legal: Set<string>;
   lastMove: { from: string; to: string } | null;
@@ -743,7 +746,9 @@ function BoardSquares({
         const isSel = selected === sq;
         const isLast = lastMove?.from === sq || lastMove?.to === sq;
         const isCheck = checkSquare === sq;
-        const color = isCheck
+        const color = dimmed?.has(sq)
+          ? "#141210"
+          : isCheck
           ? skin.check
           : isSel
             ? skin.select
@@ -1406,6 +1411,64 @@ function MeadowDay() {
   );
 }
 
+/** Atomic chess: a fireball, shock ring, flash light and sparks on the capture square. */
+function AtomicBlast({ sq, pitch }: { sq: string; pitch: number }) {
+  const [x, , z] = squareToWorld(sq, pitch);
+  const ball = useRef<THREE.Mesh>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const light = useRef<THREE.PointLight>(null);
+  const sparks = useRef<THREE.Group>(null);
+  const start = useRef<number | null>(null);
+  const dirs = useMemo(
+    () =>
+      Array.from({ length: 18 }, (_, i) => {
+        const a = (i / 18) * Math.PI * 2;
+        return { x: Math.cos(a), z: Math.sin(a), up: 1.2 + ((i * 37) % 10) / 6 };
+      }),
+    [],
+  );
+  useFrame(({ clock }) => {
+    start.current ??= clock.elapsedTime;
+    const t = Math.min(1, (clock.elapsedTime - start.current) / 1.1);
+    const ease = 1 - (1 - t) ** 3;
+    if (ball.current) {
+      ball.current.scale.setScalar(0.3 + ease * 2.6 * pitch);
+      (ball.current.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1 - t * 1.15);
+    }
+    if (ring.current) {
+      ring.current.scale.setScalar(0.4 + ease * 3.4 * pitch);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.9 - t);
+    }
+    if (light.current) light.current.intensity = Math.max(0, 40 * (1 - t));
+    sparks.current?.children.forEach((c, i) => {
+      const d = dirs[i];
+      c.position.set(d.x * ease * 2.4 * pitch, 0.3 + d.up * ease * 2 - t * t * 2.2, d.z * ease * 2.4 * pitch);
+      c.scale.setScalar(Math.max(0.01, 1 - t));
+    });
+  });
+  return (
+    <group position={[x, 0.35, z]}>
+      <pointLight ref={light} color="#ffb347" intensity={40} distance={9} decay={1.6} />
+      <mesh ref={ball}>
+        <sphereGeometry args={[0.5, 24, 16]} />
+        <meshBasicMaterial color="#ffb02e" transparent opacity={1} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </mesh>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
+        <ringGeometry args={[0.42, 0.55, 48]} />
+        <meshBasicMaterial color="#fff1c4" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+      </mesh>
+      <group ref={sparks}>
+        {dirs.map((_, i) => (
+          <mesh key={i}>
+            <boxGeometry args={[0.09, 0.09, 0.09]} />
+            <meshBasicMaterial color={i % 3 ? "#ff7a1a" : "#ffe08a"} toneMapped={false} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
 function Scene({
   fen,
   you,
@@ -1433,7 +1496,9 @@ function Scene({
   lego = false,
   heirloom = null,
   heirloomPieces = true,
-}: {
+  dimmed,
+  blast,
+}: BoardRules & {
   fen: string;
   you: Side;
   lastMove: { from: string; to: string } | null;
@@ -1496,7 +1561,7 @@ function Scene({
   );
 
   const pieces = useMemo(() => {
-    const chess = new Chess(fen);
+    const chess = chessOf(fen);
     const list: { sq: Square; type: PieceSymbol; color: Color }[] = [];
     for (const sq of chess.board().flatMap((row, rankFromTop) =>
       row.map((p, file) => ({ p, sq: `${FILES[file]}${8 - rankFromTop}` as Square })),
@@ -1794,7 +1859,9 @@ function Scene({
         meadow={meadow}
         ghost={Boolean(plate || set)}
         pitch={pitch}
+        dimmed={dimmed}
       />
+      {blast ? <AtomicBlast key={blast.id} sq={blast.sq} pitch={pitch} /> : null}
       <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
       {rocco ? (
         <ModelSlot>
@@ -2145,7 +2212,11 @@ export function ChessBoard3D({
   lego = false,
   heirloom = null,
   heirloomPieces = true,
-}: {
+  legalFor,
+  checkSq,
+  dimmed,
+  blast,
+}: BoardRules & {
   fen: string;
   you: Side;
   lastMove: { from: string; to: string } | null;
@@ -2177,12 +2248,14 @@ export function ChessBoard3D({
 }) {
   const [selected, setSelected] = useState<Square | null>(null);
   const dragged = useRef(false);
-  const chess = useMemo(() => new Chess(fen), [fen]);
+  const chess = useMemo(() => chessOf(fen), [fen]);
   const legal = useMemo(() => {
     if (!selected) return new Set<string>();
+    if (legalFor) return new Set(legalFor(selected));
     return new Set(chess.moves({ square: selected, verbose: true }).map((m) => m.to));
-  }, [chess, selected]);
+  }, [chess, selected, legalFor]);
   const checkSquare = useMemo(() => {
+    if (checkSq !== undefined) return checkSq as Square | null;
     if (!chess.isCheck()) return null;
     const board = chess.board();
     for (let r = 0; r < 8; r++) {
@@ -2194,7 +2267,7 @@ export function ChessBoard3D({
       }
     }
     return null;
-  }, [chess]);
+  }, [chess, checkSq]);
 
   useEffect(() => {
     setSelected(null);
@@ -2287,6 +2360,8 @@ export function ChessBoard3D({
           lego={lego}
           heirloom={set}
           heirloomPieces={heirloomPieces}
+          dimmed={dimmed}
+          blast={blast}
         />
         </LoadGuard>
         {overlay}

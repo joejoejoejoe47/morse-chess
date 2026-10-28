@@ -22,6 +22,7 @@ import { Route as SandboxRouteImport } from './routes/sandbox'
 import { Route as SoundtrackRouteImport } from './routes/soundtrack'
 import { Route as StoreRouteImport } from './routes/store'
 import { Route as BoardsBoardIdRouteImport } from './routes/boards.$boardId'
+import { Route as GamesGameRouteImport } from './routes/games.$game'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as HistoryGameIdRouteImport } from './routes/history.$gameId'
 import { Route as PlayGameIdRouteImport } from './routes/play.$gameId'
@@ -92,6 +93,11 @@ const BoardsBoardIdRoute = BoardsBoardIdRouteImport.update({
   path: '/$boardId',
   getParentRoute: () => BoardsRoute,
 } as any)
+const GamesGameRoute = GamesGameRouteImport.update({
+  id: '/games/$game',
+  path: '/games/$game',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoryIndexRoute = HistoryIndexRouteImport.update({
   id: '/history/',
   path: '/history/',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
+  '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
+  '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
+  '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/soundtrack'
     | '/store'
     | '/boards/$boardId'
+    | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/soundtrack'
     | '/store'
     | '/boards/$boardId'
+    | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/soundtrack'
     | '/store'
     | '/boards/$boardId'
+    | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
@@ -244,6 +256,7 @@ export interface RootRouteChildren {
   SandboxRoute: typeof SandboxRoute
   SoundtrackRoute: typeof SoundtrackRoute
   StoreRoute: typeof StoreRoute
+  GamesGameRoute: typeof GamesGameRoute
   HistoryGameIdRoute: typeof HistoryGameIdRoute
   PlayGameIdRoute: typeof PlayGameIdRoute
   VariantModeRoute: typeof VariantModeRoute
@@ -343,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BoardsBoardIdRouteImport
       parentRoute: typeof BoardsRoute
     }
+    '/games/$game': {
+      id: '/games/$game'
+      path: '/games/$game'
+      fullPath: '/games/$game'
+      preLoaderRoute: typeof GamesGameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/history/': {
       id: '/history/'
       path: '/history'
@@ -398,6 +418,7 @@ const rootRouteChildren: RootRouteChildren = {
   SandboxRoute: SandboxRoute,
   SoundtrackRoute: SoundtrackRoute,
   StoreRoute: StoreRoute,
+  GamesGameRoute: GamesGameRoute,
   HistoryGameIdRoute: HistoryGameIdRoute,
   PlayGameIdRoute: PlayGameIdRoute,
   VariantModeRoute: VariantModeRoute,
