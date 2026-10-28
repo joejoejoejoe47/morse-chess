@@ -47,7 +47,11 @@ type Skull = {
   r: number;
   /** Top of the head (below the stud): where a hat sits. */
   top: number;
-  /** The head is a helmet or mask that stays on; a hat sits on top of it, at the gear's top and width. */
+  /**
+   * The head is a helmet or mask that stays on; a hat sits on top of it, at the gear's top and
+   * width. With `cut` as well, what sticks up past the gear top (Black Panther's ears) is
+   * trimmed under the hat.
+   */
   gear?: { top: number; r: number };
   /** Where hidden headgear starts, when it differs from the skull (top y, radius share). */
   cut?: { top?: number; r?: number };
@@ -58,32 +62,32 @@ const RIG: Record<string, Rig> = {
   "captain-america.glb": { skull: skull(-0.072, -0.173, 0.72, 0.13), legs: { x: -0.072, top: 0.368, w: 0.39, z: -0.174 }, hipZ: -0.173 },
   "spiderman.glb": { skull: skull(0, -0.043, 0.713, 0.126), legs: { x: 0, top: 0.366, w: 0.381, z: -0.043 }, hipZ: -0.043 },
   "ironman.glb": {
-    skull: skull(0, -0.018, 0.665, 0.118, { gear: { top: 1.0, r: 0.155 } }),
+    skull: skull(0, -0.018, 0.665, 0.118, { cut: { r: 1.06 } }),
     legs: { x: 0, top: 0.341, w: 0.355, z: -0.012 },
     hipZ: -0.018,
   },
   // A mask with no bare skull under it, much bigger than a minifig head: its radius here is
   // the skull it stands for, so it comes out helmet-sized.
   "blackpanther.glb": {
-    skull: skull(0, -0.03, 0.52, 0.17, { top: 0.84, gear: { top: 0.97, r: 0.2 } }),
+    skull: skull(0, -0.03, 0.52, 0.17, { top: 0.84, gear: { top: 0.86, r: 0.205 }, cut: { top: 0.86, r: 3 } }),
     legs: { x: -0.001, top: 0.172, w: 0.373, z: -0.029 },
     hipZ: -0.033,
   },
   "wizard.glb": { skull: skull(0.127, -0.05, 0.616, 0.111), legs: { x: 0.127, top: 0.314, w: 0.334, z: -0.05 }, hipZ: -0.05 },
   "space-police.glb": {
-    skull: skull(-0.004, -0.055, 0.685, 0.118, { cut: { top: 0.9, r: 0.98 } }),
+    skull: skull(-0.004, -0.055, 0.685, 0.118, { cut: { top: 0.9, r: 1.06 } }),
     legs: { x: -0.004, top: 0.339, w: 0.357, z: -0.12 },
     hipZ: -0.055,
   },
   "widow.glb": { skull: skull(-0.014, -0.202, 0.682, 0.123), legs: { x: -0.014, top: 0.348, w: 0.369, z: -0.203 }, hipZ: -0.202 },
-  "skeleton.glb": { skull: skull(0, 0, 0.629, 0.116, { cut: { top: 0.76, r: 1.08 } }), legs: { x: 0, top: 0.3, w: 0.321, z: 0.031 }, hipZ: 0 },
+  "skeleton.glb": { skull: skull(0, 0, 0.629, 0.116, { cut: { r: 1.08 } }), legs: { x: 0, top: 0.3, w: 0.321, z: 0.031 }, hipZ: 0 },
   "blacktron.glb": {
-    skull: skull(0.009, -0.054, 0.691, 0.119, { gear: { top: 0.99, r: 0.15 } }),
+    skull: skull(0.009, -0.054, 0.691, 0.119, { cut: { r: 1.06 } }),
     legs: { x: 0.009, top: 0.342, w: 0.36, z: -0.119 },
     hipZ: -0.054,
   },
   "insectoid.glb": {
-    skull: skull(0, -0.053, 0.686, 0.116, { gear: { top: 1.0, r: 0.165 } }),
+    skull: skull(0, -0.053, 0.686, 0.116, { cut: { r: 1.06 } }),
     legs: { x: 0, top: 0.329, w: 0.349, z: -0.116 },
     hipZ: -0.053,
   },
@@ -107,11 +111,24 @@ const PROPS: Record<string, { held?: string[]; face?: string[] }> = {
  * `back`: the head has no back of its own, so the back of the headgear stays below the hat
  * (`behind`: how far behind the skull centre it starts, in skull radii; `wide`: clip radius).
  * `skin`: the head has no back, and its front is shown from inside instead.
+ * `lid`: a flat top closing the trimmed head under an open crown (x/z half-widths and centre z
+ * in the file, at the skull's cut top).
  */
-const HEADGEAR: Record<string, { gear: string[]; back?: string[]; behind?: number; wide?: number; skin?: string }> = {
+type Lid = { rx: number; rz: number; z: number; color: string };
+const HEADGEAR: Record<string, { gear: string[]; back?: string[]; behind?: number; wide?: number; skin?: string; lid?: Lid }> = {
   "widow.glb": { gear: [], back: ["Dark_Orange"], behind: 0.6 },
   "doom-bigbrick.glb": { gear: ["#008000"] },
+  // The skeleton's black hood comes off whole; the skull under it stays round to its top.
+  "skeleton.glb": { gear: ["Black"] },
   "space-police.glb": { gear: ["White", "Trans_Red"], skin: "Yellow" },
+  // Helmets over a plain minifig head: a hat can't go over a helmet, so the helmet comes off
+  // (the skull clip trims what is left of it) and the hat sits on the head at minifig size.
+  "ironman.glb": { gear: ["Color_154", "Decoration_10908d1"] },
+  "blacktron.glb": { gear: [], skin: "Yellow" },
+  "insectoid.glb": { gear: ["Trans_Green"] },
+  // The mask is one open shell: once its ears are trimmed it gets a lid, so an open crown
+  // (gold crown, band, halo) doesn't show into it.
+  "blackpanther.glb": { gear: [], skin: "bp_body", lid: { rx: 0.205, rz: 0.15, z: -0.025, color: "#1b1b1f" } },
 };
 const propNames = (file: string) => [...(PROPS[file]?.held ?? []), ...(PROPS[file]?.face ?? [])];
 const matName = (mesh: THREE.Mesh) => ((Array.isArray(mesh.material) ? mesh.material[0]?.name : mesh.material?.name) ?? "").trim();
@@ -310,7 +327,7 @@ export function LegoDress({
     const floor = B.legs.top - L.legs.top * ky;
 
     // Head: scaled to the body's own head size, the bottom of the skull centred on the neck.
-    const headN = lift(headG.scene, ["head"], hasHat && !skullH.gear ? { skull: skullH } : undefined);
+    const headN = lift(headG.scene, ["head"], hasHat && (!skullH.gear || skullH.cut) ? { skull: skullH } : undefined);
     if (hasHat)
       headN.traverse((node) => {
         const mesh = node as THREE.Mesh;
@@ -333,6 +350,16 @@ export function LegoDress({
           mesh.material = Array.isArray(mesh.material) ? two : two[0];
         }
       });
+    const lid = HEADGEAR[headFile]?.lid;
+    if (hasHat && lid) {
+      const disc = new THREE.Mesh(
+        new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2),
+        new THREE.MeshStandardMaterial({ color: lid.color, roughness: 0.5 }),
+      );
+      disc.scale.set(lid.rx, 1, lid.rz);
+      disc.position.set(skullH.x, (skullH.cut?.top ?? skullH.top) - 0.004, lid.z);
+      headN.add(disc);
+    }
     // A borrowed head is never bigger than a standard minifig head for the torso (skull radius
     // ~1/3 of hip width): Black Panther's own oversized cat head stays only on its own body.
     const headR = headFile === bodyFile ? skullB.r : Math.min(skullB.r, MAX_HEAD_PER_HIP * B.legs.w);
