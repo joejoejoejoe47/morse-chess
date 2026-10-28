@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, OrbitControls, useGLTF } from "@react-three/drei";
 import type { PieceSymbol } from "chess.js";
@@ -9,6 +9,7 @@ import { LEGO_CHARS, LEGO_ROSTER, LegoWalker, LegoWorld, type LegoCharId } from 
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 import { asset } from "@/lib/base";
 import { fixLegoWinding } from "@/lib/avatar/lego-winding";
+const ParkField = lazy(() => import("@/components/variants/park-field").then((m) => ({ default: m.ParkField })));
 import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type HomeTeam, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
 import { FieldActor, FieldThrow, FieldVictim, LooseBall, SELECT_RING } from "@/components/variants/field-units";
 
@@ -408,7 +409,7 @@ function Deck({
           })
         : null}
       {stadium && field
-        ? recent.filter((c) => c.capture && !c.thrown).map((c) => <FieldVictim key={`v${c.id}`} cue={c} look={look} rows={rows} cols={cols} />)
+        ? recent.filter((c) => c.capture && !c.thrown).map((c) => <FieldVictim key={`v${c.id}`} cue={c} look={look} rows={rows} cols={cols} taken={units} />)
         : null}
       {stadium && field
         ? recent.filter((c) => c.thrown && c.id === flying).map((c) => <FieldThrow key={`t${c.id}`} cue={c} rows={rows} cols={cols} onDone={() => setFlying((f) => (f === c.id ? null : f))} />)
@@ -465,6 +466,7 @@ export function VariantStage({
   onReady,
   field = null,
   home = null,
+  park = false,
 }: {
   rows: number;
   cols: number;
@@ -481,6 +483,8 @@ export function VariantStage({
   show?: StadiumShow | null;
   field?: FieldOpts | null;
   home?: HomeTeam | null;
+  /** the daytime Park Field instead of the neon stadium (football, picked on the Boards page) */
+  park?: boolean;
 }) {
   const span = Math.max(rows, cols);
   const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
@@ -488,7 +492,12 @@ export function VariantStage({
     <div className="h-full w-full">
       <Canvas shadows dpr={[1, 1.5]} camera={{ position: cam, fov: 34, near: 0.1, far: 400 }} gl={{ antialias: true, alpha: false }}>
         {stadium ? null : <color attach="background" args={[sky === "table" ? "#14110e" : "#87a0c4"]} />}
-        {stadium ? <NeonStadium rows={rows} cols={cols} show={show} home={home} /> : null}
+        {stadium && !park ? <NeonStadium rows={rows} cols={cols} show={show} home={home} /> : null}
+        {stadium && park ? (
+          <Suspense fallback={null}>
+            <ParkField rows={rows} cols={cols} show={show} home={home} />
+          </Suspense>
+        ) : null}
         {!stadium && sky === "table" ? (
           <>
             <hemisphereLight args={["#ffe7c2", "#2a2118", 0.7]} />

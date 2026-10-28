@@ -254,10 +254,12 @@ function Grid({
   onReady,
   field = null,
   home = null,
+  park = false,
 }: {
   onReady?: () => void;
   field?: FieldOpts | null;
   home?: HomeTeam | null;
+  park?: boolean;
   rows: number;
   cols: number;
   paint: (r: number, f: number) => { bg: string; fg: string; text: string };
@@ -328,7 +330,7 @@ function Grid({
   }
   return (
     <div className="h-full w-full">
-      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} show={show} onReady={onReady} field={field} home={home} />
+      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} show={show} onReady={onReady} field={field} home={home} park={park} />
     </div>
   );
 }
@@ -822,9 +824,10 @@ function findBall(b: FBoard): { r: number; f: number; u: FUnit } | null {
   return null;
 }
 
-/** Field goals: the carrier has to be in the other team's half. */
+/** Field goals: the carrier has to be close to the other team's end zone (the try spot is in range),
+ *  so a kick from midfield is not a free 3 points. */
 function canKick(side: Side, r: number) {
-  return side === "w" ? r >= 7 : r <= 6;
+  return side === "w" ? r >= 10 : r <= 3;
 }
 
 function fMoves(b: FBoard, r: number, f: number): [number, number][] {
@@ -1412,7 +1415,7 @@ export function Football({ versus }: { versus: string }) {
           for (const to of catchSquares(live, r, f)) {
             acts.push({ kind: "t", from: [r, f], to, rank: (r - to[0]) * 3 + 2 + (inEnd("b", to[0]) ? 20 : 0) });
           }
-          if (canKick("b", r)) acts.push({ kind: "g", from: [r, f], to: [r, f], rank: 5 + (6 - r) * 2 });
+          if (canKick("b", r)) acts.push({ kind: "g", from: [r, f], to: [r, f], rank: 5 + (3 - r) * 2 });
         }
       }
     }
@@ -1456,9 +1459,23 @@ export function Football({ versus }: { versus: string }) {
   }
 
   // test hooks for screenshots, only when localStorage "morse-fb-debug" is "1"
-  const self = useRef<{ hold: (n: number) => void; td: () => void; setup: () => void }>({ hold: () => undefined, td: () => undefined, setup: () => undefined });
+  const self = useRef<{ hold: (n: number) => void; td: () => void; setup: () => void; fight: (gap?: number) => void }>({ hold: () => undefined, td: () => undefined, setup: () => undefined, fight: () => undefined });
   self.current.hold = (n: number) => setFrozen(n < 0 ? null : n);
   self.current.setup = () => setSetup(true);
+  // stage a tackle for the screenshots: a black player steps in front of a white one, who then takes him on
+  self.current.fight = (gap = 2) => {
+    const b = cloneBoard(board) as FBoard;
+    let w: [number, number] | null = null;
+    for (let r = 2; r < 9 && !w; r++) for (let f = 2; f < 6 && !w; f++) if (b[r][f]?.side === "w" && !b[r][f]?.ball && !b[r + gap]?.[f]) w = [r, f];
+    let k: [number, number] | null = null;
+    for (let r = F_ROWS - 1; r >= 0 && !k; r--) for (let f = 0; f < F_COLS && !k; f++) if (b[r][f]?.side === "b" && !b[r][f]?.ball) k = [r, f];
+    if (!w || !k) return;
+    const at: [number, number] = [w[0] + gap, w[1]];
+    b[at[0]][at[1]] = b[k[0]][k[1]];
+    b[k[0]][k[1]] = null;
+    setBoard(b);
+    later(() => moveTo(w!, at, b), 1500);
+  };
   self.current.td = () => {
     // a scripted white run down the field (legality ignored), for the replay and fireworks
     let b = cloneBoard(board) as FBoard;
@@ -1497,6 +1514,8 @@ export function Football({ versus }: { versus: string }) {
       hold: (n: number) => self.current.hold(n),
       td: () => self.current.td(),
       setup: () => self.current.setup(),
+      fight: (gap?: number) => self.current.fight(gap),
+      field: (field: "neon" | "park") => setPrefs((p) => (p ? { ...p, field } : p)),
       state: () => ({ phase: phaseRef.current, plays: drive.current.plays.length, turn: now.current.turn, score: now.current.score, try: tryRef.current, t: Math.round(performance.now()) }),
     };
     return () => {
@@ -1540,6 +1559,7 @@ export function Football({ versus }: { versus: string }) {
         onReady={onReady}
         field={field}
         home={team}
+        park={prefs?.field === "park"}
         paint={(r, f) => {
           const live = view.board;
           const u = live[r][f];

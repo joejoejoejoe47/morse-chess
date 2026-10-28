@@ -12,8 +12,8 @@ export type Scoreboard = { home: number; away: number; clock: string; note: stri
 
 const PX = 160; // canvas pixels per board unit (crisp lines up close)
 const FONT = `"Arial Black", "Helvetica Neue", Impact, "DejaVu Sans", sans-serif`;
-const MARGIN_L = 1; // field margin past each end zone (units)
-const MARGIN_W = 0.8; // sideline margin (units)
+export const MARGIN_L = 1; // field margin past each end zone (units)
+export const MARGIN_W = 0.8; // sideline margin (units)
 
 function glowText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, glow: string, opts: { italic?: boolean; spacing?: number; stroke?: string } = {}) {
   ctx.save();
@@ -305,7 +305,7 @@ function crestRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: num
 
 /** Field canvas.
  Length runs left→right (row 0 on the left), width top→bottom (column 0 at the top). */
-function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null) {
+function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null, day = false) {
   const W = (rows + MARGIN_L * 2) * PX;
   const H = Math.round((cols + MARGIN_W * 2) * PX);
   const c = document.createElement("canvas");
@@ -316,17 +316,17 @@ function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null) {
   const Y = (k: number) => (MARGIN_W + k) * PX; // column boundary k
   const top = Y(0);
   const bottom = Y(cols);
-  ctx.fillStyle = "#050a12";
+  ctx.fillStyle = day ? "#3d7d31" : "#050a12";
   ctx.fillRect(0, 0, W, H);
-  // turf stripes, every half unit (5 yards)
+  // turf stripes, every half unit (5 yards); the park field is real daytime grass
   for (let i = 0; i < rows * 2; i++) {
-    ctx.fillStyle = i % 2 ? "#0c2a24" : "#0a231f";
+    ctx.fillStyle = day ? (i % 2 ? "#4e9a3c" : "#5aa846") : i % 2 ? "#0c2a24" : "#0a231f";
     ctx.fillRect(X(i / 2), top, PX / 2 + 1, bottom - top);
   }
   // fine turf grain
   const rnd = mulberry(7);
-  for (let i = 0; i < 9000; i++) {
-    ctx.fillStyle = `rgba(${rnd() > 0.5 ? "60,140,110" : "0,0,0"},${0.05 + rnd() * 0.06})`;
+  for (let i = 0; i < (day ? 16000 : 9000); i++) {
+    ctx.fillStyle = day ? `rgba(${rnd() > 0.5 ? "150,210,100" : "20,60,15"},${0.06 + rnd() * 0.08})` : `rgba(${rnd() > 0.5 ? "60,140,110" : "0,0,0"},${0.05 + rnd() * 0.06})`;
     ctx.fillRect(X(0) + rnd() * (X(rows) - X(0)), top + rnd() * (bottom - top), 2, 2 + rnd() * 4);
   }
   // end zones
@@ -337,8 +337,13 @@ function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null) {
     ctx.fillStyle = g;
     ctx.fillRect(X(k0), top, X(k1) - X(k0), bottom - top);
   };
-  zone(0, 2, "rgba(10,120,190,0.55)", "rgba(6,60,110,0.35)");
-  zone(rows - 2, rows, "rgba(120,10,70,0.35)", "rgba(200,20,90,0.55)");
+  if (day) {
+    zone(0, 2, "rgba(16,150,215,0.85)", "rgba(10,110,180,0.7)");
+    zone(rows - 2, rows, "rgba(110,40,170,0.75)", "rgba(160,50,200,0.85)");
+  } else {
+    zone(0, 2, "rgba(10,120,190,0.55)", "rgba(6,60,110,0.35)");
+    zone(rows - 2, rows, "rgba(120,10,70,0.35)", "rgba(200,20,90,0.55)");
+  }
   // diagonal energy hatching in the end zones
   ctx.save();
   ctx.lineWidth = 3;
@@ -384,7 +389,7 @@ function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null) {
   ctx.restore();
   // faint square grid so moves still read like a board
   ctx.save();
-  ctx.strokeStyle = "rgba(160,255,230,0.07)";
+  ctx.strokeStyle = day ? "rgba(255,255,255,0.12)" : "rgba(160,255,230,0.07)";
   ctx.lineWidth = 2;
   for (let f = 1; f < cols; f++) {
     ctx.beginPath();
@@ -478,7 +483,7 @@ function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null) {
   return c;
 }
 
-function mulberry(seed: number) {
+export function mulberry(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -489,15 +494,15 @@ function mulberry(seed: number) {
   };
 }
 
-function canvasTex(c: HTMLCanvasElement) {
+export function canvasTex(c: HTMLCanvasElement) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;
 }
 
-function Field({ rows, cols, home }: { rows: number; cols: number; home: HomeTeam | null }) {
-  const tex = useMemo(() => canvasTex(fieldCanvas(rows, cols, home)), [rows, cols, home?.name, home?.color]); // eslint-disable-line react-hooks/exhaustive-deps
+export function Field({ rows, cols, home, day = false }: { rows: number; cols: number; home: HomeTeam | null; day?: boolean }) {
+  const tex = useMemo(() => canvasTex(fieldCanvas(rows, cols, home, day)), [rows, cols, home?.name, home?.color, day]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => tex.dispose(), [tex]);
   const L = rows + MARGIN_L * 2;
   const Wd = cols + MARGIN_W * 2;
@@ -505,7 +510,7 @@ function Field({ rows, cols, home }: { rows: number; cols: number; home: HomeTea
     <group rotation={[0, Math.PI / 2, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.125, 0]} receiveShadow>
         <planeGeometry args={[L, Wd]} />
-        <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={0.62} roughness={0.82} metalness={0} />
+        <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={day ? 0.14 : 0.62} roughness={0.9} metalness={0} />
       </mesh>
     </group>
   );
@@ -940,7 +945,7 @@ function Pennant({ position, rotY, text, sub, a, b }: { position: [number, numbe
 
 /* ── Light ── */
 
-function glowSprite() {
+export function glowSprite() {
   const c = document.createElement("canvas");
   c.width = c.height = 128;
   const ctx = c.getContext("2d")!;
@@ -1140,7 +1145,7 @@ function BowlLights({ hw, hl }: { hw: number; hl: number }) {
 }
 
 /** Glowing yellow goal posts on both end lines. */
-function GoalPosts({ rows }: { rows: number }) {
+export function GoalPosts({ rows }: { rows: number }) {
   const sprite = useMemo(() => glowSprite(), []);
   useEffect(() => () => sprite.dispose(), [sprite]);
   const gold = "#ffe14a";
@@ -1304,7 +1309,7 @@ function SweepBeams({ hw, hl }: { hw: number; hl: number }) {
 }
 
 /** Camera: broadside like a TV shot on wide screens, end-on on tall phones. */
-function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
+export function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
   const { camera, size, controls } = useThree();
   const wide = size.width >= size.height * 1.05;
   useEffect(() => {
@@ -1336,7 +1341,7 @@ export type CamShot = { id: number; kind: number; from: [number, number]; to: [n
 export const BALL_TRACK = { pos: new THREE.Vector3(), seen: 0, lock: -1 };
 
 /** The replay director: hard cuts between TV angles, then the camera tracks and slowly pushes in. */
-function CinemaCam({ shot }: { shot: CamShot }) {
+export function CinemaCam({ shot }: { shot: CamShot }) {
   const { camera, controls } = useThree();
   const look = useRef(new THREE.Vector3());
   const born = useRef(0);
@@ -1436,7 +1441,7 @@ export type StadiumShow = {
   fireworks?: { id: number; z: number } | null;
 };
 
-const Fireworks = lazy(() => import("@/components/variants/fireworks"));
+export const Fireworks = lazy(() => import("@/components/variants/fireworks"));
 
 /** The player's own team (name and colour) painted into their end zone, wall and rings. */
 export type HomeTeam = { name: string; color: string };

@@ -35,5 +35,11 @@ $p = Football::savePieceName('u1', ['boardId' => 'lego-universe', 'slot' => 'e1'
 check(!isset(((array) $p['names'])['lego-universe']), 'clearing the name removes it');
 check($throws(static fn () => Football::savePieceName('u1', ['boardId' => 'lego-universe', 'slot' => 'e7', 'name' => 'x'])), 'only own back pieces');
 check($throws(static fn () => Football::savePieceName('u1', ['boardId' => '../x', 'slot' => 'e1', 'name' => 'x'])), 'bad board id rejected');
+check(Football::getFootballPrefs('u1', [])['field'] === 'neon', 'neon stadium by default');
+check($throws(static fn () => Football::saveFootballField('u1', ['field' => 'moon'])), 'unknown field rejected');
+$p = Football::saveFootballField('u1', ['field' => 'park']);
+check($p['field'] === 'park', 'park field saved');
+check($p['team']['color'] === '#ffd000', 'picking a field keeps the team');
+check(Football::getFootballPrefs('u1', [])['field'] === 'park', 'field loads back');
 check($throws(static fn () => Football::getFootballPrefs('nobody', [])), 'needs a profile');
 finish();
