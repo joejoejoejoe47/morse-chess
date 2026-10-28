@@ -22,6 +22,8 @@ export type GameSnapshot = {
   serverNow: number;
   moves: { san: string; from: string; to: string }[];
   winnerUserId: string | null;
+  /** Why a drawn game was drawn (null for wins, or a draw with no rule behind it). */
+  drawReason?: "repetition" | "stalemate" | "material" | "fifty" | null;
   myScore: number;
   opponentName: string;
   myBoard: string;

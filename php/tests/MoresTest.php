@@ -739,4 +739,35 @@ check(purse('alice') === 7, 'seller receives the coins for a store sale');
 check(fails(call([\Morse\Store::class, 'buyMarketListing'], 'bob', ['id' => $listing['id']]), 'That listing is gone.'), 'a sold listing cannot be bought twice');
 check(purse('alice') === 7 && purse('bob') === 6, 'second buy moves no coins');
 
+// ── threefold repetition (owner t190u): the same position 3 times ends the game in a draw, 0 coins ──
+[$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
+Db::run('UPDATE profiles SET score = 1600 WHERE user_id IN (?, ?)', ['alice', 'bob']);
+Db::run('UPDATE games SET white_start_score = 1600, black_start_score = 1600 WHERE id = ?', [$gid]);
+$coinsA = purse('alice');
+$coinsB = purse('bob');
+shuffle_knights($gid, $white, $black, 7);
+$mid = Mores::getGame('alice', ['gameId' => $gid]);
+check($mid['status'] === 'active' && $mid['drawReason'] === null, 'start position seen twice: game goes on');
+$r = Mores::makeMove($black, ['gameId' => $gid, 'from' => 'f6', 'to' => 'g8']);
+check($r['ok'] === true, 'repeat move accepted');
+$snapA = Mores::getGame('alice', ['gameId' => $gid]);
+$snapB = Mores::getGame('bob', ['gameId' => $gid]);
+check($snapA['status'] === 'draw' && $snapA['winnerUserId'] === null, 'start position 3 times: draw');
+check($snapA['drawReason'] === 'repetition' && $snapB['drawReason'] === 'repetition', 'draw reason is repetition');
+check($snapA['coinAward'] === 0 && $snapB['coinAward'] === 0, 'repetition draw: coinAward 0');
+check(purse('alice') === $coinsA && purse('bob') === $coinsB, 'repetition draw pays 0 coins');
+check((int) Db::value('SELECT coin_award FROM games WHERE id = ?', [$gid]) === 0, 'repetition draw: no coin_award stored');
+check(fails_move(Mores::makeMove($white, ['gameId' => $gid, 'from' => 'g1', 'to' => 'f3']), 'This game is over.'), 'no moves after a repetition draw');
+
+// repetition of a later position (not the start) also draws; a different move order breaks it
+[$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
+$seq = [['e2', 'e4'], ['e7', 'e5'], ['g1', 'f3'], ['b8', 'c6'], ['f3', 'g1'], ['c6', 'b8'], ['g1', 'f3'], ['b8', 'c6'], ['f3', 'g1'], ['c6', 'b8']];
+foreach ($seq as $i => $m) {
+    $r = Mores::makeMove($i % 2 === 0 ? $white : $black, ['gameId' => $gid, 'from' => $m[0], 'to' => $m[1]]);
+    check($r['ok'] === true, "repetition seq move $i");
+    $st = Mores::getGame('alice', ['gameId' => $gid])['status'];
+    check($st === ($i === count($seq) - 1 ? 'draw' : 'active'), "repetition seq status after move $i");
+}
+check(Mores::getGame('bob', ['gameId' => $gid])['drawReason'] === 'repetition', 'later-position repetition reason');
+
 finish();

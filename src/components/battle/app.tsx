@@ -215,7 +215,7 @@ export function MorseApp({ onLounge }: { onLounge?: () => void }) {
       return;
     }
     if (chess.isDraw()) {
-      setResult("A drawn field.");
+      setResult(chess.isThreefoldRepetition() ? "Draw by repetition: the same moves came up 3 times." : "A drawn field.");
       setStatus("Neither crown falls.");
       return;
     }

@@ -688,7 +688,9 @@ final class Mores
     private static function recordAndApplyMove(array &$game, string $from, string $to, ?string $promotion = null): array
     {
         $expectedFen = (string) $game['fen'];
-        $chess = new Chess($expectedFen);
+        // Rebuilt from the move list (not just the fen) so the position history is known
+        // and threefold repetition can end the game in a draw.
+        $chess = self::replayGame($game);
         $isSq = self::validSquare($from);
         $needsPromo = $isSq && ($chess->get($from)['type'] ?? null) === 'p' && (str_ends_with($to, '8') || str_ends_with($to, '1'));
         $promo = in_array($promotion, ['q', 'r', 'b', 'n'], true) ? $promotion : null;
@@ -761,6 +763,45 @@ final class Mores
             return ['ok' => false, 'error' => $result];
         }
         return ['ok' => true];
+    }
+
+    /**
+     * The game's position with its full history: every game starts from the normal setup, so play the
+     * stored moves back. Falls back to the bare fen if the move list does not lead to the stored position.
+     */
+    private static function replayGame(array $game): Chess
+    {
+        $fen = (string) $game['fen'];
+        $chess = new Chess();
+        $rows = Db::all('SELECT san FROM game_moves WHERE game_id = ? ORDER BY ply ASC', [$game['id']]);
+        foreach ($rows as $r) {
+            if ($chess->move((string) $r['san'], false) === null) {
+                return new Chess($fen);
+            }
+        }
+        return $chess->fen() === $fen ? $chess : new Chess($fen);
+    }
+
+    /** Why a drawn game was drawn: repetition, stalemate, material, fifty, or null (no rule, e.g. the bot gave up). */
+    private static function drawReason(array $game): ?string
+    {
+        if ((string) $game['status'] !== 'draw') {
+            return null;
+        }
+        $chess = self::replayGame($game);
+        if ($chess->isStalemate()) {
+            return 'stalemate';
+        }
+        if ($chess->isThreefoldRepetition()) {
+            return 'repetition';
+        }
+        if ($chess->isInsufficientMaterial()) {
+            return 'material';
+        }
+        if ((int) (explode(' ', $chess->fen())[4] ?? 0) >= 100) {
+            return 'fifty';
+        }
+        return null;
     }
 
     private static function maybeTimeout(array &$game): void
@@ -883,6 +924,7 @@ final class Mores
             'serverNow' => Db::nowMs(),
             'moves' => array_map(static fn (array $m): array => ['san' => (string) $m['san'], 'from' => (string) $m['from_sq'], 'to' => (string) $m['to_sq']], $moves),
             'winnerUserId' => $fresh['winner_user_id'] !== null ? (string) $fresh['winner_user_id'] : null,
+            'drawReason' => self::drawReason($fresh),
             'myScore' => $me['score'] ?? Constants::START_SCORE,
             'opponentName' => $opp['username'] ?? 'Opponent',
             'myBoard' => Catalog::boardById($me['equipped_board'] ?? null)['id'],
