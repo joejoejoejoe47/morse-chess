@@ -17,7 +17,8 @@
  */
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
+import type { Color, PieceSymbol, Square } from "chess.js";
+import { chessOf } from "@/lib/chess/fen-board";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { asset } from "@/lib/base";
@@ -190,7 +191,7 @@ export function slideTime(type: PieceSymbol, dist: number) {
 
 function readFen(fen: string) {
   const out: { sq: Square; type: PieceSymbol; color: Color }[] = [];
-  new Chess(fen).board().forEach((row, r) =>
+  chessOf(fen).board().forEach((row, r) =>
     row.forEach((p, f) => {
       if (p) out.push({ sq: `${"abcdefgh"[f]}${8 - r}` as Square, type: p.type, color: p.color });
     }),

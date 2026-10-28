@@ -1,12 +1,15 @@
 // Client stub: the logic lives in the PHP backend (php/src). Generated from the original server module.
 import { rpc } from "@/lib/rpc";
 import type { GameMode, GameStatus, Side } from "@/lib/mores-constants";
+import type { VariantId } from "@/lib/variants/engine";
 
 export type PlayerInfo = { userId: string; username: string; score: number };
 
 export type GameSnapshot = {
   id: string;
   fen: string;
+  /** Chess variant (Horde, Atomic, ...) or null for normal chess (owner t205u). */
+  variant?: VariantId | null;
   mode: GameMode;
   status: GameStatus;
   turn: Side;
@@ -48,6 +51,8 @@ export type ChallengeCard = {
   status: string;
   createdAt: string;
   kind: "named" | "pull";
+  /** Chess variant of the challenge, or null for normal chess. */
+  variant?: VariantId | null;
   /** Ms left before a named challenge lapses (null for pull-ups), relative to when the server answered. */
   expiresInMs?: number | null;
   /** Client-only: local Date.now() deadline derived from expiresInMs. */

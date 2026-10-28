@@ -14,7 +14,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Environment, useGLTF } from "@react-three/drei";
-import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
+import type { Color, PieceSymbol, Square } from "chess.js";
+import { chessOf } from "@/lib/chess/fen-board";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { asset } from "@/lib/base";
@@ -590,7 +591,7 @@ export function RoccoArmy({
   const rig: RoccoRig = real ? "soldier" : "suit";
   const pieces = useMemo(() => {
     const out: P[] = [];
-    new Chess(fen).board().forEach((row, r) =>
+    chessOf(fen).board().forEach((row, r) =>
       row.forEach((p, f) => {
         if (p) out.push({ sq: `${"abcdefgh"[f]}${8 - r}` as Square, type: p.type, color: p.color });
       }),

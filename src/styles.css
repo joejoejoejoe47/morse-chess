@@ -561,3 +561,159 @@ html.light .auth-wood {
     animation: none;
   }
 }
+
+/* Chess variants (owner t205u): Atomic blast, win confetti, turn pulse. */
+.morse-blast {
+  background: radial-gradient(circle, #fff8d0 0%, #ffb02e 30%, #ff4d1a 55%, rgba(120, 20, 0, 0) 72%);
+  animation: morse-blast 900ms ease-out both;
+  mix-blend-mode: screen;
+}
+@keyframes morse-blast {
+  0% { transform: scale(0.2); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.morse-shake { animation: morse-shake 520ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+@keyframes morse-shake {
+  10%, 90% { transform: translate3d(-2px, 1px, 0); }
+  20%, 80% { transform: translate3d(4px, -2px, 0); }
+  30%, 50%, 70% { transform: translate3d(-7px, 3px, 0); }
+  40%, 60% { transform: translate3d(7px, -3px, 0); }
+}
+.morse-flash { animation: morse-flash 700ms ease-out both; }
+@keyframes morse-flash {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.morse-confetti { animation: morse-confetti var(--dur, 2.6s) cubic-bezier(0.2, 0.6, 0.4, 1) var(--delay, 0s) both; }
+@keyframes morse-confetti {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0), 105vh, 0) rotate(var(--spin, 540deg)); opacity: 0.9; }
+}
+.morse-turn-pulse { animation: morse-turn-pulse 1.6s ease-in-out infinite; }
+@keyframes morse-turn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(246, 231, 178, 0.55); }
+  50% { box-shadow: 0 0 0 10px rgba(246, 231, 178, 0); }
+}
+
+/* ── UNRANKED pull-up (owner t209u): engraved bronze tiles ─────────────────── */
+.pull-backdrop {
+  background: radial-gradient(ellipse at 50% 30%, rgba(40, 29, 18, 0.82), rgba(6, 4, 2, 0.94) 70%);
+  backdrop-filter: blur(6px);
+  animation: pull-fade 220ms ease-out both;
+}
+.pull-panel {
+  background:
+    radial-gradient(ellipse at 15% 0%, rgba(201, 167, 106, 0.12), transparent 55%),
+    linear-gradient(180deg, #221a12 0%, #17110b 100%);
+  border: 1px solid rgba(201, 167, 106, 0.42);
+  box-shadow:
+    0 40px 90px -30px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(243, 226, 182, 0.12);
+  animation: pull-rise 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.pull-heading {
+  font-family: "Cinzel", var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: linear-gradient(180deg, #f8ebc8 0%, #d8b878 55%, #a77f45 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.pull-emblem {
+  color: #f3e2b6;
+  background: radial-gradient(circle at 35% 30%, #6b5232, #2a1f14 70%);
+  border: 1px solid rgba(231, 197, 106, 0.7);
+  box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.35), 0 0 18px rgba(231, 197, 106, 0.25);
+}
+.pull-chip {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(231, 197, 106, 0.45);
+  background: rgba(26, 20, 14, 0.85);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #e7c56a;
+  transition: border-color 150ms, background 150ms;
+}
+.pull-chip:hover { border-color: #e7c56a; background: rgba(52, 38, 22, 0.9); }
+.pull-tile {
+  background: #1a140e;
+  border: 2px solid #a8834d;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.7),
+    inset 0 0 40px rgba(0, 0, 0, 0.55),
+    0 14px 30px -14px rgba(0, 0, 0, 0.9);
+  transform: translateY(0) scale(1);
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 260ms, border-color 200ms;
+  will-change: transform;
+}
+.pull-tile:not(.is-soon):hover,
+.pull-tile:not(.is-soon):focus-visible {
+  transform: translateY(-5px) scale(1.018);
+  border-color: #f0d48a;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(240, 212, 138, 0.55),
+    0 0 34px rgba(231, 197, 106, 0.35),
+    0 26px 44px -16px rgba(0, 0, 0, 0.95);
+  outline: none;
+}
+.pull-tile:not(.is-soon):active { transform: translateY(-1px) scale(0.995); }
+.pull-art {
+  filter: sepia(0.25) contrast(1.05) brightness(0.92);
+  transition: transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 300ms;
+}
+.pull-tile:not(.is-soon):hover .pull-art { transform: scale(1.07); filter: sepia(0.1) contrast(1.1) brightness(1.04); }
+.pull-tile.is-soon { cursor: not-allowed; border-color: #6f5835; }
+.pull-tile.is-soon .pull-art { filter: grayscale(0.55) sepia(0.35) brightness(0.55); }
+.pull-tile.is-soon .pull-title { opacity: 0.7; }
+.pull-shine {
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 236, 190, 0.22) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+.pull-tile:not(.is-soon):hover .pull-shine { transition: transform 900ms ease; transform: translateX(120%); }
+.pull-title {
+  font-family: "Cinzel", var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #fbf0d2 0%, #e6cb92 50%, #b48a4f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.85)) drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
+}
+.pull-badge,
+.pull-soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.pull-badge {
+  color: #1c140a;
+  background: linear-gradient(180deg, #f6dc94, #c99a45);
+  box-shadow: 0 0 14px rgba(231, 197, 106, 0.55);
+}
+.pull-soon {
+  color: #f3e2b6;
+  background: rgba(14, 10, 6, 0.82);
+  border: 1px solid rgba(231, 197, 106, 0.55);
+}
+.pull-in { animation: pull-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: var(--pull-delay, 0ms); }
+@keyframes pull-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pull-rise { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .pull-in, .pull-panel, .pull-backdrop { animation: none; }
+  .pull-tile, .pull-art { transition: none; }
+}
