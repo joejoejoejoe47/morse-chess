@@ -36,6 +36,16 @@ The LDraw models were converted with the LDraw parts library (LDraw.org, CC BY 4
 
 A real Dr. Strange normal minifig that is free to redistribute was not found. We checked Printables, MakerWorld, Cults, CGTrader, Thingiverse, Mecabricks, the LDraw parts library and the OMR, but none were usable. The ones that exist are NC/ND, paid, personal-use only, BrickHeadz, or not LEGO-shaped. So the Wizard stands in. Checked again in October 2026: the LDraw parts library (official and unofficial) has only the Doctor Strange head print 3626cpbm and hair 25972p01, with no Strange torso, legs or cape. The OMR has no Doctor Strange minifig; its only Strange is the BrickHeadz 41493.
 
+## Weapons (weapons/)
+
+The swords LG figures hold (Devil sword and Talwar in the dresser) are real LEGO minifig weapon parts, taken from the LDraw.org Parts Library (https://library.ldraw.org), licence CC BY 4.0. Nothing was modelled or generated.
+
+- **weapons/devil-sword-2674f.\*.glb** (Devil sword)
+  - Source: LDraw part 2674f "Minifig Sword Small with Upturned Crossguard and Capped Pommel" by Philippe Hurbain [Philo], LDraw.org Parts Library, licence CC BY 4.0.
+- **weapons/talwar-2530.\*.glb** (Talwar)
+  - Source: LDraw part 2530 "Minifig Sword Cutlass" by Franklin W. Cain [fwcain], LDraw.org Parts Library, licence CC BY 4.0.
+- Changes (both): converted to glTF with three.js LDrawLoader, given one LEGO colour (Dark Red for the Devil sword, Flat Silver for the Talwar) and meshopt-compressed. The shapes are not changed.
+
 ## Setting
 
 - **sky/helicarrier.glb** (the heroes' base, behind white)

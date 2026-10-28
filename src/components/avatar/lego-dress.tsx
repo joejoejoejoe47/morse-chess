@@ -145,7 +145,52 @@ const HIP_IN_LEGS: Record<string, string> = { "ironman.glb": "Color_154" };
 
 const partFile = (id: string) => legoPartById(id).file;
 const partUrl = (id: string) => asset(`/lego/chars/${partFile(id)}`);
-const swordUrl = (id: string) => asset(id === "talwar" ? "/avatars/swords/talwar.glb" : "/avatars/swords/devil.glb");
+/**
+ * LG weapons are official LDraw minifig parts (LDraw.org Parts Library, CC BY 4.0; see
+ * public/lego/CREDITS.md), converted with LDrawLoader and kept in LDraw units (LDU):
+ * Devil sword = 2674f "Minifig Sword Small with Upturned Crossguard and Capped Pommel" (Dark Red; the horned guard),
+ * Talwar = 2530 "Minifig Sword Cutlass" (silver). In LDraw the grip is the 8 LDU bar along +Y
+ * centred on the origin, with the blade up.
+ */
+const swordUrl = (id: string) =>
+  asset(id === "talwar" ? "/lego/weapons/talwar-2530.c0734b43.glb" : "/lego/weapons/devil-sword-2674f.41189726.glb");
+
+/**
+ * Each body's right-hand C clip, measured from the figure file (tools/gripfind.mjs): the centre of
+ * the hole and its axis (pointing where the blade goes: forward, or up for a raised arm; Doom's
+ * claws face sideways, so his blade points down and out at his side), in the file's own space. A minifig's hip is 36 LDU wide (3815), so the
+ * sword is scaled by hip width / 36 and its 8 LDU grip fills the hole.
+ */
+type Grip = { c: [number, number, number]; d: [number, number, number] };
+// Raised-arm hands (space-police, widow, blacktron, insectoid, gigabot) point almost straight up,
+// which put the blade across the face; their axis is tipped forward (and out) a little.
+const GRIP: Record<string, Grip> = {
+  "captain-america.glb": { c: [-0.329, 0.345, -0.093], d: [0.03, 0.18, 0.98] },
+  "spiderman.glb": { c: [-0.249, 0.371, 0.102], d: [0.09, 0.5, 0.86] },
+  "ironman.glb": { c: [-0.236, 0.325, 0.122], d: [0.04, 0.22, 0.97] },
+  "blackpanther.glb": { c: [-0.245, 0.241, 0.007], d: [0, 0.06, 1] },
+  "wizard.glb": { c: [-0.087, 0.331, 0.097], d: [0.08, 0.49, 0.87] },
+  "space-police.glb": { c: [-0.136, 0.556, 0.017], d: [-0.45, 0.2, 0.87] },
+  "widow.glb": { c: [-0.225, 0.522, 0.078], d: [-0.05, 0.5, 0.86] },
+  "skeleton.glb": { c: [-0.236, 0.305, 0.004], d: [0, 0, 1] },
+  "blacktron.glb": { c: [-0.199, 0.483, 0.209], d: [-0.05, 0.5, 0.86] },
+  "insectoid.glb": { c: [-0.138, 0.547, 0.036], d: [-0.3, 0.4, 0.87] },
+  "gigabot.glb": { c: [-0.196, 0.639, -0.002], d: [-0.2, 0.25, 0.95] },
+  "doom-bigbrick.glb": { c: [-0.151, 0.408, 0.138], d: [-0.89, -0.43, 0.16] },
+};
+const HIP_LDU = 36;
+
+/** Where and how the sword sits: grip on the hole axis, blade along GRIP.d, edge down. */
+function gripMatrix(file: string, fallback: THREE.Vector3, unit: number) {
+  const g = GRIP[file];
+  const c = g ? new THREE.Vector3(...g.c) : fallback;
+  const y = new THREE.Vector3(...(g?.d ?? [0, 0.2, 1])).normalize();
+  const down = Math.abs(y.y) > 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, -1, 0);
+  const z = down.addScaledVector(y, -down.dot(y)).normalize();
+  const x = new THREE.Vector3().crossVectors(y, z);
+  const m = new THREE.Matrix4().makeBasis(x, y, z).setPosition(c);
+  return m.multiply(new THREE.Matrix4().makeScale(...(Array(3).fill(unit / HIP_LDU) as [number, number, number])));
+}
 
 const LEGS = ["legL", "legR"];
 
@@ -375,7 +420,7 @@ export function LegoDress({
     const top = skullH.gear ?? skullH;
     const hatAt: Skull = { x: skullB.x, z: skullB.z, y: skullB.y, top: skullB.y + (top.top - skullH.y) * hk, r: top.r * hk };
     const unit = B.legs.w;
-    return { root, skull: skullB, floor, hatAt, hand: handOf(bodyG.scene, unit, propNames(bodyFile)), unit };
+    return { root, skull: skullB, floor, hatAt, grip: gripMatrix(bodyFile, handOf(bodyG.scene, unit, propNames(bodyFile)), unit), unit };
   }, [bodyG.scene, headG.scene, legsG.scene, body, head, legs, hasHat, weapon]);
 
   return (
@@ -388,7 +433,7 @@ export function LegoDress({
           </group>
         ) : null}
         {weapon !== "none" ? (
-          <group position={fig.hand} scale={fig.unit / 0.36}>
+          <group matrix={fig.grip} matrixAutoUpdate={false}>
             <SwordBit id={weapon} />
           </group>
         ) : null}
@@ -428,17 +473,19 @@ function MinifigHat({ id, skull }: { id: string; skull: Skull }) {
   return <primitive object={obj} />;
 }
 
-/** The sword, gripped at its hilt, blade forward and up. */
+/** The LDraw sword as modelled: grip bar on the origin along +Y, blade up (placed by GRIP). */
 function SwordBit({ id }: { id: string }) {
   const gltf = useGLTF(swordUrl(id));
   const obj = useMemo(() => {
-    const holder = new THREE.Group();
-    const blade = gltf.scene.clone(true);
-    holder.add(blade);
-    blade.position.y = -0.08;
-    holder.scale.setScalar(0.7);
-    holder.rotation.set(0.55, 0, 0);
-    return holder;
+    const sword = gltf.scene.clone(true);
+    sword.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.castShadow = true;
+        softenMetal(mesh);
+      }
+    });
+    return sword;
   }, [gltf.scene]);
   return <primitive object={obj} />;
 }
