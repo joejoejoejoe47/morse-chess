@@ -182,12 +182,20 @@ function PromotionPicker({
   );
 }
 
+const DRAW_REASON: Record<string, { tag: string; note: string }> = {
+  repetition: { tag: "Draw by repetition", note: "The same position came up 3 times, so it's a tie." },
+  stalemate: { tag: "Draw by stalemate", note: "No legal moves, but no check, so it's a tie." },
+  material: { tag: "Draw: not enough pieces", note: "Nobody has enough pieces left to checkmate." },
+  fifty: { tag: "Draw by the 50-move rule", note: "50 moves each with no capture or pawn move." },
+};
+
 function ResultOverlay({ game }: { game: GameSnapshot }) {
   const navigate = useNavigate();
   const won =
     (game.status === "white_win" && game.you === "w") ||
     (game.status === "black_win" && game.you === "b");
   const draw = game.status === "draw";
+  const drawWhy = draw ? DRAW_REASON[game.drawReason ?? ""] : undefined;
   const [again, setAgain] = useState(false);
   const [left, setLeft] = useState(5);
   const [againError, setAgainError] = useState<string | null>(null);
@@ -234,11 +242,16 @@ function ResultOverlay({ game }: { game: GameSnapshot }) {
           ×
         </button>
         <p className="text-xs uppercase tracking-[0.2em] text-mist">
-          {draw ? "Drawn game" : won ? "Checkmate is yours" : "Checkmate against you"}
+          {draw ? (drawWhy ? drawWhy.tag : "Drawn game") : won ? "Checkmate is yours" : "Checkmate against you"}
         </p>
         <h2 className="mt-3 font-display text-5xl text-ivory">
           {draw ? "Draw" : won ? "Victory" : "Defeat"}
         </h2>
+        {drawWhy ? (
+          <p data-draw-reason={game.drawReason ?? ""} className="mt-3 text-base text-ivory">
+            {drawWhy.note}
+          </p>
+        ) : null}
         <p className="mt-4 text-base text-mist">
           {draw
             ? game.scorePrize
