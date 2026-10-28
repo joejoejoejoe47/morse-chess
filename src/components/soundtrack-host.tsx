@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { subscribeMasterAudio } from "@/lib/master-audio";
 import { stopSoundtrack, subscribeSoundtrack, syncSoundtrack, unlockSoundtrack } from "@/lib/soundtrack";
 
 export function SoundtrackHost() {
@@ -22,9 +23,11 @@ export function SoundtrackHost() {
     window.addEventListener("pointerdown", kick);
     play();
     const off = subscribeSoundtrack(play);
+    const offMaster = subscribeMasterAudio(play);
     return () => {
       window.removeEventListener("pointerdown", kick);
       off();
+      offMaster();
     };
   }, [user, isPending]);
 

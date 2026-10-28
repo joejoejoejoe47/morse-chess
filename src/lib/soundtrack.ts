@@ -1,5 +1,6 @@
 import { deleteSongBlob, getSongBlob, saveSongBlob } from "@/lib/bell";
 import { asset } from "@/lib/base";
+import { loadMasterAudio } from "@/lib/master-audio";
 
 const KEY = "morse-soundtrack-v1";
 export const SOUNDTRACK_CHANGED = "morse-soundtrack-changed";
@@ -21,6 +22,16 @@ export type SoundtrackSettings = {
 export const BUILTIN_SONGS: { id: string; name: string; src: string }[] = [
   { id: "builtin-walking", name: "Walking Down the Street In a Car", src: "/soundtrack/walking-down-the-street.m4a" },
 ];
+
+/** The club playlist: "Walking Down the Street In a Car" first, then every other song, then round again. */
+export const FIRST_SONG_ID = "builtin-walking";
+
+export function clubOrder(settings: SoundtrackSettings) {
+  const builtins = BUILTIN_SONGS.map((song) => song.id);
+  const uploads = settings.songs.map((song) => song.id).filter((id) => !builtins.includes(id));
+  const ids = [...builtins, ...uploads];
+  return ids.includes(FIRST_SONG_ID) ? [FIRST_SONG_ID, ...ids.filter((id) => id !== FIRST_SONG_ID)] : ids;
+}
 
 export function builtinSrc(id: string) {
   return BUILTIN_SONGS.find((song) => song.id === id)?.src ?? null;
@@ -113,6 +124,7 @@ let libraryQueue: string[] = [];
 let libraryAt = 0;
 let libraryRepeat = false;
 let userPaused = false;
+let fromLibrary = false;
 const playerListeners = new Set<() => void>();
 
 function emitPlayer() {
@@ -148,11 +160,15 @@ export function libraryNow() {
   };
 }
 
-/** While the library page is open, the club list waits. */
+/** While the songs page is open the playlist keeps going (shown in its player) until a song there is picked. */
 export function setLibraryHold(on: boolean) {
   libraryHold = on;
-  if (on) stopSoundtrack();
-  else window.dispatchEvent(new Event(SOUNDTRACK_CHANGED));
+  if (!on) window.dispatchEvent(new Event(SOUNDTRACK_CHANGED));
+}
+
+/** The speaker button was pressed on: a song paused earlier may play again. */
+export function resumeSoundtrack() {
+  userPaused = false;
 }
 
 export function setLibraryRepeat(on: boolean) {
@@ -185,6 +201,7 @@ export async function playLibrarySong(accountId: string, songId: string, queue?:
   if (!audio) return;
   userPaused = false;
   libraryHold = true;
+  fromLibrary = true;
   token += 1;
   const generation = token;
   libraryQueue = queue?.length ? queue : [songId];
@@ -266,6 +283,8 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
     return;
   }
   const songId = ids[((index % ids.length) + ids.length) % ids.length];
+  librarySong = songId;
+  fromLibrary = false;
   const built = builtinSrc(songId);
   if (generation !== token) return;
   if (!built) {
@@ -290,12 +309,13 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
   audio.onended = () => {
     if (generation !== token || music !== audio) return;
     const latest = loadSoundtrack(accountId);
-    if (!latest.unmuted) {
+    if (!latest.unmuted || !loadMasterAudio(accountId)) {
       stopSoundtrack();
       return;
     }
     const next = latest.lists.find((item) => item.id === list.id);
-    const follow = next && next.songIds.length ? next : list.id === "club" ? list : null;
+    const club = list.id === "club" ? { ...list, songIds: clubOrder(latest) } : null;
+    const follow = next && next.songIds.length ? next : club && club.songIds.length ? club : null;
     if (!follow) {
       stopSoundtrack();
       return;
@@ -307,16 +327,35 @@ async function playAt(accountId: string, list: Soundtrack, index: number, hops: 
   } catch {
     playingKey = "";
   }
+  emitPlayer();
 }
 
 export async function syncSoundtrack(accountId: string) {
-  if (libraryHold || userPaused) return;
+  await syncNow(accountId, false);
+}
+
+/** Start the playlist from its first song now (songs page "Unmute"), even while that page is open. */
+export async function startPlaylist(accountId: string) {
+  userPaused = false;
+  if (fromLibrary) playingKey = "";
+  fromLibrary = false;
+  await syncNow(accountId, true);
+}
+
+async function syncNow(accountId: string, force: boolean) {
   const settings = loadSoundtrack(accountId);
+  if (!settings.unmuted || !loadMasterAudio(accountId)) {
+    // A song started by hand on the songs page is a preview; the mute buttons stop it themselves.
+    if (!(libraryHold && fromLibrary)) stopSoundtrack();
+    return;
+  }
+  if (!force && (libraryHold || userPaused)) return;
   const chosen = settings.lists.find((item) => item.id === settings.activeId) ?? null;
-  const list = chosen && chosen.songIds.length
+  // "club-walk" is the songs page's Unmute list: always the live order, so new uploads join it.
+  const list = chosen && chosen.id !== "club-walk" && chosen.songIds.length
     ? chosen
-    : { id: "club", name: "Club", songIds: BUILTIN_SONGS.map((song) => song.id) };
-  if (!settings.unmuted || !list.songIds.length) {
+    : { id: "club", name: "Club", songIds: clubOrder(settings) };
+  if (!list.songIds.length) {
     stopSoundtrack();
     return;
   }

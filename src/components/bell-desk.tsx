@@ -20,6 +20,8 @@ import {
   type BellSettings,
 } from "@/lib/bell";
 import { listClubUsers, type ClubUserRow } from "@/lib/server/mores";
+import { loadMasterAudio, subscribeMasterAudio } from "@/lib/master-audio";
+import { setChannelSound } from "@/lib/sound-switch";
 
 // re-export type locally if missing
 type Watch = BellSettings["watches"][number];
@@ -35,11 +37,21 @@ export function BellDesk() {
   const defaultFile = useRef<HTMLInputElement>(null);
   const rowFiles = useRef<Record<string, HTMLInputElement | null>>({});
 
+  const [master, setMaster] = useState(false);
+
   useEffect(() => {
     const sync = () => setSettings(loadBellSettings(accountId || null));
     sync();
     return subscribeBellSettings(sync);
   }, [accountId]);
+
+  useEffect(() => {
+    const sync = () => setMaster(loadMasterAudio(accountId || null));
+    sync();
+    return subscribeMasterAudio(sync);
+  }, [accountId]);
+
+  const bellOn = settings.unmuted && master;
 
   function commit(next: BellSettings) {
     setSettings(next);
@@ -111,17 +123,26 @@ export function BellDesk() {
           <div>
             <h2 className="font-display text-2xl text-ivory">Sound</h2>
             <p className="mt-1 text-sm text-mist">
-              {settings.unmuted ? "The bell is live across the club." : "Muted until you unmute it."}
+              {bellOn
+                ? "The bell is live across the club. Muting it here keeps the songs playing."
+                : settings.unmuted
+                  ? "The speaker button at the top is muted, so the bell is quiet until you turn it on."
+                  : "Muted until you unmute it. The songs keep their own mute."}
             </p>
           </div>
           <Button
             type="button"
             variant="solid"
             className="rounded-full"
-            onClick={() => commit({ ...settings, unmuted: !settings.unmuted })}
+            aria-pressed={bellOn}
+            data-bell-mute={bellOn ? "on" : "off"}
+            onClick={() => {
+              if (!accountId) return;
+              setChannelSound(accountId, "bell", !bellOn);
+            }}
           >
-            {settings.unmuted ? <Bell className="size-4" /> : <BellOff className="size-4" />}
-            {settings.unmuted ? "Bell on" : "Unmute the bell"}
+            {bellOn ? <Bell className="size-4" /> : <BellOff className="size-4" />}
+            {bellOn ? "Mute the bell" : "Unmute the bell"}
           </Button>
         </div>
 

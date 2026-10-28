@@ -1,3 +1,5 @@
+import { loadMasterAudio } from "@/lib/master-audio";
+
 const SETTINGS_KEY = "morse-bell-v2";
 const SEEN_KEY = "morse-bell-seen-v2";
 const DB_NAME = "morse-bell";
@@ -248,6 +250,8 @@ export async function playBellPreview(accountId: string, fromUsername?: string) 
 
 export async function playChallengeSound(accountId: string, fromUsername: string) {
   const settings = loadBellSettings(accountId);
+  // The speaker button is the master: while it is off the bell stays quiet (the pop-up still shows).
+  if (!loadMasterAudio(accountId)) return;
   if (!shouldRingFor(settings, fromUsername)) return;
   await playBellPreview(accountId, fromUsername);
 }
