@@ -378,3 +378,5 @@ ALTER TABLE `mail` ADD COLUMN `seen` TINYINT(1) NOT NULL DEFAULT 0;
 -- Each player's rating when the game started (coin rule: beating a 1500+ player pays 5, anyone else 2).
 ALTER TABLE `games` ADD COLUMN `white_start_score` INT NULL;
 ALTER TABLE `games` ADD COLUMN `black_start_score` INT NULL;
+-- Football variant: the player's team (name + colour) and the names they gave their pieces, per board.
+ALTER TABLE `profiles` ADD COLUMN `football_json` TEXT NULL;
