@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Bell, BellOff, Music2, Shield, Volume2, VolumeX } from "lucide-react";
-import { loadBellSettings, subscribeBellSettings, toggleBellMute, toggleClubBell } from "@/lib/bell";
+import { loadBellSettings, subscribeBellSettings, toggleClubBell } from "@/lib/bell";
+import { loadMasterAudio, subscribeMasterAudio } from "@/lib/master-audio";
+import { setAllSound } from "@/lib/sound-switch";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { cn } from "@/lib/utils";
 
@@ -15,10 +17,15 @@ export function BellButton({ className }: { className?: string }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const sync = () => setUnmuted(loadBellSettings(accountId).unmuted);
+    const sync = () => setUnmuted(loadBellSettings(accountId).unmuted && loadMasterAudio(accountId));
     sync();
     setReady(true);
-    return subscribeBellSettings(sync);
+    const off = subscribeBellSettings(sync);
+    const offMaster = subscribeMasterAudio(sync);
+    return () => {
+      off();
+      offMaster();
+    };
   }, [accountId]);
 
   return (
@@ -32,32 +39,34 @@ export function BellButton({ className }: { className?: string }) {
   );
 }
 
+/** The speaker button: the master switch for all the club sound (bell + songs). Starts muted. */
 export function BellMuteButton({ className }: { className?: string }) {
   const { user } = useCurrentUserState();
   const accountId = user?.id ?? null;
-  const [unmuted, setUnmuted] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [on, setOn] = useState(false);
 
   useEffect(() => {
-    const sync = () => setUnmuted(loadBellSettings(accountId).unmuted);
+    const sync = () => setOn(loadMasterAudio(accountId));
     sync();
-    setReady(true);
-    return subscribeBellSettings(sync);
+    return subscribeMasterAudio(sync);
   }, [accountId]);
 
   return (
     <button
       type="button"
       disabled={!accountId}
-      aria-label={unmuted ? "Mute the bell" : "Unmute the bell"}
-      title={unmuted ? "Mute" : "Unmute"}
-      className={cn(circle, unmuted && "border-gold-line text-ivory", className)}
+      aria-label={on ? "Mute all sound" : "Turn all sound on"}
+      aria-pressed={on}
+      title={on ? "All sound on: click to mute everything" : "All sound muted: click to turn the bell and the songs on"}
+      data-master-audio={on ? "on" : "off"}
+      className={cn(circle, on && "border-gold-line text-ivory", className)}
       onClick={() => {
         if (!accountId) return;
-        setUnmuted(toggleBellMute(accountId).unmuted);
+        setAllSound(accountId, !on);
+        setOn(!on);
       }}
     >
-      {ready && unmuted ? <Volume2 className="size-4" /> : <VolumeX className="size-4 opacity-80" />}
+      {on ? <Volume2 className="size-4" /> : <VolumeX className="size-4 opacity-80" />}
     </button>
   );
 }

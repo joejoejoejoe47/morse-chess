@@ -12,6 +12,7 @@ import {
 } from "@/lib/bell";
 import { listJoinRequests } from "@/lib/server/clubs";
 import { tapPermissionBell } from "@/lib/avatar/bell-tone";
+import { loadMasterAudio } from "@/lib/master-audio";
 
 export function BellHost() {
   const { user, isPending } = useCurrentUserState();
@@ -70,7 +71,7 @@ export function BellHost() {
             const key = `club-${ask.id}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            tapPermissionBell();
+            if (loadMasterAudio(accountId)) tapPermissionBell();
             toast(`${ask.username} wants to join ${ask.clubName}.`, { description: "Chess club permission" });
           }
           saveSeenIds(accountId, seen);

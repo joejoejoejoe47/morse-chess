@@ -33,6 +33,8 @@ import {
   uploadSoundtrackSong,
   type SoundtrackSettings,
 } from "@/lib/soundtrack";
+import { loadMasterAudio, subscribeMasterAudio } from "@/lib/master-audio";
+import { setChannelSound } from "@/lib/sound-switch";
 
 type Tab = "songs" | "playlists" | "albums" | "studio" | "covers" | "liked" | "uploads" | "history";
 
@@ -87,6 +89,7 @@ export function SoundtrackLibrary({ accountId }: { accountId: string }) {
   const [hideDown, setHideDown] = useState(false);
   const [coverFor, setCoverFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [master, setMaster] = useState(() => loadMasterAudio(accountId));
   const file = useRef<HTMLInputElement>(null);
   const coverFile = useRef<HTMLInputElement>(null);
 
@@ -103,12 +106,17 @@ export function SoundtrackLibrary({ accountId }: { accountId: string }) {
         setDurations((cur) => (cur[next.songId] === next.duration ? cur : { ...cur, [next.songId]: next.duration }));
       }
     });
+    const offMaster = subscribeMasterAudio(() => setMaster(loadMasterAudio(accountId)));
+    setMaster(loadMasterAudio(accountId));
     return () => {
       off();
       offPlayer();
+      offMaster();
       setLibraryHold(false);
     };
   }, [accountId]);
+
+  const musicOn = settings.unmuted && master;
 
   const catalog = useMemo(() => {
     const uploads = settings.songs.filter((song) => !BUILTIN_SONGS.some((built) => built.id === song.id));
@@ -226,7 +234,13 @@ export function SoundtrackLibrary({ accountId }: { accountId: string }) {
       lists: settings.lists.some((item) => item.id === list.id) ? settings.lists.map((item) => (item.id === list.id ? list : item)) : [...settings.lists, list],
       activeId: list.id,
     });
-    void playLibrarySong(accountId, first, ordered);
+    // Songs only: the bell keeps its own mute. If the speaker button was off it comes on for the songs.
+    setChannelSound(accountId, "music", true);
+  }
+
+  function toggleSongs() {
+    if (musicOn) setChannelSound(accountId, "music", false);
+    else startClub();
   }
 
   function toggleDown(id: string) {
@@ -282,10 +296,13 @@ export function SoundtrackLibrary({ accountId }: { accountId: string }) {
         </Link>
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); startClub(); }}
-          className={"rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] " + (settings.unmuted ? "border-gold-line bg-ivory text-ink" : "border-line text-ivory")}
+          onClick={(e) => { e.stopPropagation(); toggleSongs(); }}
+          aria-pressed={musicOn}
+          data-music-mute={musicOn ? "on" : "off"}
+          title={musicOn ? "Mute the songs (the bell keeps its own mute)" : "Unmute the songs: Walking Down the Street In a Car plays first"}
+          className={"rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] " + (musicOn ? "border-gold-line bg-ivory text-ink" : "border-line text-ivory")}
         >
-          {settings.unmuted ? "Unmuted" : "Unmute"}
+          {musicOn ? "Mute" : "Unmute"}
         </button>
         <div className="flex items-center gap-2">
           <input ref={file} type="file" accept="audio/*" className="hidden" onChange={(e) => void onFile(e)} />
