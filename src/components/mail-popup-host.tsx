@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageSquareText, X } from "lucide-react";
+import { MessageSquareText, Reply, Send, X } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { gcPops, gcRead } from "@/lib/server/mail";
+import { gcPops, gcRead, sendMail } from "@/lib/server/mail";
 
-type Slip = { id: string; name: string; text: string };
+type Slip = { id: string; fromId?: string; name: string; text: string };
 
 /** A GC letter, in the same slip MasterGus uses, once the person it was sent to is here. */
 export function MailPopupHost() {
@@ -12,6 +12,49 @@ export function MailPopupHost() {
   const hideTimer = useRef<number | undefined>(undefined);
   const release = useRef<() => void>(() => undefined);
   const userId = user?.id ?? null;
+  // Respond: a quick reply box right in the slip (owner t196u).
+  const [replying, setReplying] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [replyError, setReplyError] = useState("");
+  const replyBox = useRef<HTMLTextAreaElement | null>(null);
+
+  // A new slip starts with the reply box closed.
+  useEffect(() => {
+    setReplying(false);
+    setDraft("");
+    setSending(false);
+    setSent(false);
+    setReplyError("");
+  }, [shown?.key]);
+
+  useEffect(() => {
+    if (replying && !sent) replyBox.current?.focus();
+  }, [replying, sent]);
+
+  function respond() {
+    // Keep the slip up while they write.
+    window.clearTimeout(hideTimer.current);
+    setReplying(true);
+  }
+
+  async function sendReply() {
+    if (!shown?.fromId || !draft.trim() || sending) return;
+    setSending(true);
+    setReplyError("");
+    try {
+      await sendMail({ data: { userId: shown.fromId, body: draft.trim() } });
+      setSent(true);
+      setDraft("");
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = window.setTimeout(() => release.current(), 1800);
+    } catch (err) {
+      setReplyError(err instanceof Error ? err.message : "The reply did not go.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   useEffect(() => {
     if (isPending || !userId) return;
@@ -93,6 +136,59 @@ export function MailPopupHost() {
         {shown.name} says:
       </div>
       <p className="mt-1 text-sm leading-snug break-words">{shown.text}</p>
+      {shown.fromId ? (
+        sent ? (
+          <p data-mail-reply-sent className="mt-2 text-sm font-semibold text-gold-line">
+            Sent to {shown.name}!
+          </p>
+        ) : replying ? (
+          <form
+            className="mt-2 flex items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sendReply();
+            }}
+          >
+            <textarea
+              ref={replyBox}
+              data-mail-reply-box
+              aria-label={`Reply to ${shown.name}`}
+              rows={2}
+              maxLength={2000}
+              value={draft}
+              placeholder={`Reply to ${shown.name}…`}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void sendReply();
+                }
+              }}
+              className="min-h-[44px] flex-1 resize-none border border-line bg-ink/70 px-2 py-1.5 text-sm text-ivory placeholder:text-mist focus:border-gold-line focus:outline-none"
+            />
+            <button
+              type="submit"
+              data-mail-reply-send
+              disabled={sending || !draft.trim()}
+              className="flex h-11 items-center gap-1.5 bg-gold-line px-3 text-sm font-bold text-ink disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" aria-hidden />
+              {sending ? "Sending" : "Send"}
+            </button>
+          </form>
+        ) : (
+          <button
+            type="button"
+            data-mail-respond
+            onClick={respond}
+            className="mt-2 flex h-9 items-center gap-1.5 border border-gold-line/70 px-3 text-sm font-bold text-gold-line hover:bg-gold-line hover:text-ink"
+          >
+            <Reply className="h-4 w-4" aria-hidden />
+            Respond
+          </button>
+        )
+      ) : null}
+      {replyError ? <p className="mt-1 text-xs text-danger">{replyError}</p> : null}
       <button
         type="button"
         aria-label="Close"
