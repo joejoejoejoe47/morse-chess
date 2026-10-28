@@ -9,7 +9,8 @@ import { setPieceStyle } from "@/lib/server/avatar";
 import { boardById } from "@/lib/chess/board-skins";
 import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
 import { cn } from "@/lib/utils";
-import { VariantStage, type Look, type MoveCue, type Scoreboard, type Sky, type StageUnit } from "@/components/variants/stage";
+import { VariantStage, type Look, type MoveCue, type Sky, type StadiumShow, type StageUnit } from "@/components/variants/stage";
+import { CrowdAudio, crowdMuted } from "@/lib/crowd-audio";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -247,8 +248,10 @@ function Grid({
   cue = null,
   stadium = false,
   sel = null,
-  board = null,
+  show = null,
+  onReady,
 }: {
+  onReady?: () => void;
   rows: number;
   cols: number;
   paint: (r: number, f: number) => { bg: string; fg: string; text: string };
@@ -258,7 +261,7 @@ function Grid({
   cue?: MoveCue | null;
   stadium?: boolean;
   sel?: { r: number; f: number; throwing: boolean } | null;
-  board?: Scoreboard | null;
+  show?: StadiumShow | null;
 }) {
   const { look, sky, light, dark } = useContext(LookCtx);
   const plain = new Set(["#e7d3a8", "#b58863", "#cbb892", "#8c6a45"]);
@@ -268,6 +271,7 @@ function Grid({
     return { ...p, bg: (r + f) % 2 === 0 ? light : dark };
   };
   if (look === "2d") {
+    onReady && queueMicrotask(onReady);
     const cells = [];
     for (let r = rows - 1; r >= 0; r--) {
       for (let f = 0; f < cols; f++) {
@@ -318,7 +322,7 @@ function Grid({
   }
   return (
     <div className="h-full w-full">
-      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} board={board} />
+      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} show={show} onReady={onReady} />
     </div>
   );
 }
@@ -859,6 +863,10 @@ function inEnd(side: Side, r: number) {
   return side === "w" ? r >= 12 : r <= 1;
 }
 
+type FFrame = { board: FBoard; loose: [number, number] | null; cue: MoveCue };
+type Phase = "count" | "play" | "celebrate" | "replay";
+const F_WORLD = (r: number, f: number): [number, number] => [f - (F_COLS - 1) / 2, (F_ROWS - 1) / 2 - r];
+
 export function Football({ versus }: { versus: string }) {
   const start = useMemo(() => footballStart(), []);
   const [board, setBoard] = useState<FBoard>(start.board);
@@ -870,9 +878,59 @@ export function Football({ versus }: { versus: string }) {
   const [left, setLeft] = useState(5 * 60);
   const [over, setOver] = useState("");
   const [cue, setCue] = useState<MoveCue | null>(null);
+  // 3, 2, 1, GO! first; nothing moves and the clock waits until it is over
+  const [phase, setPhase] = useState<Phase>("count");
+  const [count, setCount] = useState(3);
+  const [show, setShow] = useState<StadiumShow>({});
+  const [replay, setReplay] = useState<FFrame | null>(null);
+  const [tdBanner, setTdBanner] = useState<Side | null>(null);
+  const [muted, setMutedState] = useState(() => crowdMuted());
+  const phaseRef = useRef<Phase>("count");
+  phaseRef.current = phase;
+  // every play since the last kick-off, for the touchdown replay
+  const drive = useRef<{ board: FBoard; loose: [number, number] | null; plays: FFrame[] }>({ board: start.board, loose: start.loose, plays: [] });
+  const timers = useRef<number[]>([]);
+  const resume = useRef<(() => void) | null>(null);
+  const crowd = useRef<CrowdAudio | null>(null);
+  const later = (fn: () => void, ms: number) => {
+    // __fbSlow only exists with the screenshot test hooks on; it stretches the touchdown show
+    const slow = (window as unknown as { __fbSlow?: number }).__fbSlow ?? 1;
+    timers.current.push(window.setTimeout(fn, ms * slow));
+  };
 
   useEffect(() => {
-    if (over) return;
+    const audio = new CrowdAudio();
+    crowd.current = audio;
+    audio.start();
+    audio.set("count");
+    return () => {
+      timers.current.forEach((id) => window.clearTimeout(id));
+      audio.stop();
+    };
+  }, []);
+  // the countdown starts once the stadium is actually on screen (or after 12 s at most)
+  const [ready, setReady] = useState(false);
+  const [frozen, setFrozen] = useState<number | null>(null);
+  const onReady = useRef(() => setReady(true)).current;
+  useEffect(() => {
+    const id = window.setTimeout(() => setReady(true), 12000);
+    return () => window.clearTimeout(id);
+  }, []);
+  useEffect(() => {
+    if (!ready) return;
+    const ids = [3, 2, 1, 0].map((n, i) => window.setTimeout(() => setCount(n), 400 + i * 1000));
+    ids.push(
+      window.setTimeout(() => {
+        setPhase("play");
+        phaseRef.current = "play";
+        crowd.current?.set("calm");
+      }, 4100),
+    );
+    return () => ids.forEach((id) => window.clearTimeout(id));
+  }, [ready]);
+
+  useEffect(() => {
+    if (over || phase !== "play") return;
     const id = window.setInterval(() => {
       setLeft((n) => {
         if (n <= 1) {
@@ -883,7 +941,24 @@ export function Football({ versus }: { versus: string }) {
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [over]);
+  }, [over, phase]);
+
+  /** A play is happening: the crowd goes quiet, then roars again once it is over. */
+  function playSound(next: MoveCue, b: FBoard) {
+    const audio = crowd.current;
+    if (!audio) return;
+    audio.set("hush");
+    const long = next.thrown && Math.abs(next.to[0] - next.from[0]) >= 4;
+    later(() => {
+      if (phaseRef.current === "play") audio.set("calm");
+    }, 1500);
+    if (next.capture || long) {
+      later(() => {
+        setShow((s) => ({ ...s, hype: { id: Date.now(), level: long ? 0.7 : 0.55 } }));
+      }, 750);
+    }
+    void b;
+  }
 
   function dropKingBall(b: FBoard, side: Side, ball: [number, number] | null) {
     const next = cloneBoard(b) as FBoard;
@@ -927,6 +1002,70 @@ export function Football({ versus }: { versus: string }) {
     if (side === "b" && !over) window.setTimeout(() => botFootball(dropped.board, dropped.loose, scored), 400);
   }
 
+  function record(next: FBoard, ball: [number, number] | null, c: MoveCue) {
+    drive.current.plays.push({ board: cloneBoard(next) as FBoard, loose: ball, cue: c });
+  }
+
+  /** Touchdown: fireworks and a roar, then the replay of the drive, then the kick-off. */
+  function touchdown(scoring: FBoard, scorer: Side, reset: { board: FBoard; loose: [number, number] | null; score: { w: number; b: number } }, mover: Side) {
+    setBoard(scoring);
+    setLoose(null);
+    setScore(reset.score);
+    setSel(null);
+    setThrowing(false);
+    setPhase("celebrate");
+    phaseRef.current = "celebrate";
+    const id = Date.now();
+    later(() => {
+      setTdBanner(scorer);
+      setShow({ hype: { id, level: 1 }, fireworks: { id, z: F_WORLD(scorer === "w" ? 12.5 : 0.5, 0)[1] } });
+      crowd.current?.set("swell");
+    }, 700);
+    const plays = drive.current.plays.slice(-8);
+    const all = drive.current.plays;
+    const first = all.length - plays.length;
+    const before = first > 0 ? { board: all[first - 1].board, loose: all[first - 1].loose } : { board: drive.current.board, loose: drive.current.loose };
+    drive.current = { board: reset.board, loose: reset.loose, plays: [] };
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      timers.current.forEach((t) => window.clearTimeout(t));
+      timers.current = [];
+      resume.current = null;
+      setReplay(null);
+      setTdBanner(null);
+      setShow((s) => ({ hype: s.hype, fireworks: s.fireworks }));
+      setCue(null);
+      setPhase("play");
+      phaseRef.current = "play";
+      crowd.current?.set("calm");
+      finishTurn(reset.board, reset.loose, reset.score, mover);
+    };
+    resume.current = finish;
+    const STEP = 1500;
+    const BEGIN = 3300;
+    later(() => {
+      setTdBanner(null);
+      setPhase("replay");
+      phaseRef.current = "replay";
+      setReplay({ board: before.board, loose: before.loose, cue: { ...plays[0].cue, id: -1 } });
+    }, BEGIN - 500);
+    plays.forEach((play, i) => {
+      later(() => {
+        const last = i === plays.length - 1;
+        const from = F_WORLD(play.cue.from[0], play.cue.from[1]);
+        const to = F_WORLD(play.cue.to[0], play.cue.to[1]);
+        setReplay({ ...play, cue: { ...play.cue, id: id + i + 1 } });
+        setShow((s) => ({
+          ...s,
+          shot: { id: id + i + 1, kind: i % 4, from, to, end: F_WORLD(scorer === "w" ? 12.5 : 0.5, 0)[1], hero: last },
+        }));
+      }, BEGIN + i * STEP);
+    });
+    later(finish, BEGIN + plays.length * STEP + 1600);
+  }
+
   function moveTo(from: [number, number], to: [number, number], live = board, ball = loose, scored = score) {
     const next = cloneBoard(live) as FBoard;
     const u = next[from[0]][from[1]];
@@ -935,7 +1074,7 @@ export function Football({ versus }: { versus: string }) {
     let carry = Boolean(u.ball);
     if (!carry && ball && ball[0] === to[0] && ball[1] === to[1]) carry = true;
     if (victim?.ball) carry = true;
-    setCue({
+    const c: MoveCue = {
       id: Date.now(),
       from,
       to,
@@ -945,18 +1084,19 @@ export function Football({ versus }: { versus: string }) {
       kind: u.kind,
       victim: victim?.kind,
       victimSide: victim?.side,
-    });
+    };
+    setCue(c);
     next[from[0]][from[1]] = null;
     const held = u.kind === "k" && carry ? (u.held ?? 0) + 1 : 0;
     next[to[0]][to[1]] = { ...u, ball: carry, held };
-    let looseNow: [number, number] | null = carry ? null : ball && ball[0] === to[0] && ball[1] === to[1] ? null : ball;
-    let points = scored;
+    const looseNow: [number, number] | null = carry ? null : ball && ball[0] === to[0] && ball[1] === to[1] ? null : ball;
+    record(next, looseNow, c);
+    playSound(c, next);
     if (carry && inEnd(u.side, to[0])) {
-      const reset = scoreReset(next, u.side, scored);
-      finishTurn(reset.board, reset.loose, reset.score, u.side);
+      touchdown(next, u.side, scoreReset(next, u.side, scored), u.side);
       return;
     }
-    finishTurn(next, looseNow, points, u.side);
+    finishTurn(next, looseNow, scored, u.side);
   }
 
   function pass(from: [number, number], to: [number, number], live = board, scored = score) {
@@ -964,18 +1104,21 @@ export function Football({ versus }: { versus: string }) {
     const u = next[from[0]][from[1]];
     const catcher = next[to[0]][to[1]];
     if (!u?.ball || !catcher || catcher.side !== u.side) return;
-    setCue({ id: Date.now(), from, to, capture: false, thrown: true, side: u.side, kind: u.kind });
+    const c: MoveCue = { id: Date.now(), from, to, capture: false, thrown: true, side: u.side, kind: u.kind };
+    setCue(c);
     next[from[0]][from[1]] = { ...u, ball: false, held: 0 };
     next[to[0]][to[1]] = { ...catcher, ball: true, held: catcher.kind === "k" ? 1 : 0 };
+    record(next, null, c);
+    playSound(c, next);
     if (inEnd(catcher.side, to[0])) {
-      const reset = scoreReset(next, catcher.side, scored);
-      finishTurn(reset.board, reset.loose, reset.score, u.side);
+      touchdown(next, catcher.side, scoreReset(next, catcher.side, scored), u.side);
       return;
     }
     finishTurn(next, null, scored, u.side);
   }
 
   function botFootball(live: FBoard, ball: [number, number] | null, scored: { w: number; b: number }) {
+    if (phaseRef.current !== "play") return;
     type Act = { kind: "m" | "t"; from: [number, number]; to: [number, number]; rank: number };
     const acts: Act[] = [];
     for (let r = 0; r < F_ROWS; r++) {
@@ -1008,11 +1151,15 @@ export function Football({ versus }: { versus: string }) {
   }
 
   function onSquare(r: number, f: number) {
-    if (over || turn !== "w") return;
+    if (over || turn !== "w" || phase !== "play") return;
     const u = board[r][f];
     if (throwing && sel) {
       if (catchSquares(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) pass(sel, [r, f]);
       else setThrowing(false);
+      return;
+    }
+    if (sel && sel[0] === r && sel[1] === f) {
+      setSel(null); // tap him again to put him back down
       return;
     }
     if (u?.side === "w") {
@@ -1024,8 +1171,54 @@ export function Football({ versus }: { versus: string }) {
     if (fMoves(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) moveTo(sel, [r, f]);
   }
 
+  // test hooks for screenshots, only when localStorage "morse-fb-debug" is "1"
+  const self = useRef<{ hold: (n: number) => void; td: () => void }>({ hold: () => undefined, td: () => undefined });
+  self.current.hold = (n: number) => setFrozen(n < 0 ? null : n);
+  self.current.td = () => {
+    // a scripted white run down the field (legality ignored), for the replay and fireworks
+    let b = cloneBoard(board) as FBoard;
+    let at: [number, number] | null = null;
+    for (let r = F_ROWS - 1; r >= 0 && !at; r--) for (let f = 0; f < F_COLS && !at; f++) if (b[r][f]?.side === "w") at = [r, f];
+    if (!at) return;
+    const f = at[1];
+    for (let r = at[0] + 1; r < F_ROWS; r++) b[r][f] = null;
+    b[at[0]][f] = { ...b[at[0]][f]!, ball: true };
+    drive.current = { board: cloneBoard(b) as FBoard, loose: null, plays: [] };
+    let r = at[0];
+    let id = Date.now();
+    while (r < 12) {
+      const to = Math.min(12, r + 1);
+      const u = b[r][f]!;
+      b = cloneBoard(b) as FBoard;
+      b[r][f] = null;
+      b[to][f] = u;
+      record(b, null, { id: ++id, from: [r, f], to: [to, f], capture: false, thrown: false, side: "w", kind: u.kind });
+      r = to;
+    }
+    const last = drive.current.plays[drive.current.plays.length - 1];
+    setCue(last.cue);
+    touchdown(b, "w", scoreReset(b, "w", score), "w");
+  };
+  useEffect(() => {
+    let on = false;
+    try {
+      on = localStorage.getItem("morse-fb-debug") === "1";
+    } catch {
+      /* ignore */
+    }
+    if (!on) return;
+    const w = window as unknown as { __fb?: unknown };
+    w.__fb = { hold: (n: number) => self.current.hold(n), td: () => self.current.td(), state: () => ({ phase: phaseRef.current, t: Math.round(performance.now()) }) };
+    return () => {
+      delete w.__fb;
+    };
+  }, []);
+
   const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
   const result = over === "time" ? (score.w === score.b ? "Time. Tie game." : score.w > score.b ? "Time. You win." : `Time. ${versus} wins.`) : over === "kings" ? "King versus king. Tie game." : "";
+  const view = replay ?? { board, loose, cue: cue as MoveCue };
+  const viewCue = replay ? replay.cue.id < 0 ? null : replay.cue : cue;
+  const canAct = phase === "play" && turn === "w" && !over;
 
   return (
     <Shell
@@ -1033,7 +1226,7 @@ export function Football({ versus }: { versus: string }) {
       opp={versus}
       clock={clock}
       hot={turn === "w" && !over}
-      status={`${score.w}–${score.b}${result ? ` · ${result}` : turn === "w" ? " · Your down" : ` · ${versus}`}`}
+      status={`Knights ${score.w} – ${score.b} Phantoms${result ? ` · ${result}` : turn === "w" ? " · Your down" : ` · ${versus}`}`}
       verdict={over === "time" && score.w !== score.b ? (score.w > score.b ? "victory" : "defeat") : null}
     >
       <Grid
@@ -1041,16 +1234,19 @@ export function Football({ versus }: { versus: string }) {
         rows={F_ROWS}
         cols={F_COLS}
         onPick={onSquare}
-        ball={loose ? { r: loose[0], f: loose[1] } : null}
-        units={board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind, ball: u.ball }] : [])))}
-        cue={cue}
-        sel={sel ? { r: sel[0], f: sel[1], throwing } : null}
-        board={{ home: score.w, away: score.b, clock, note: result || (turn === "w" ? "Your down" : `${versus} on offense`), homeName: "Nebula Knights", awayName: "Plasma Phantoms" }}
+        ball={view.loose ? { r: view.loose[0], f: view.loose[1] } : null}
+        units={view.board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind, ball: u.ball }] : [])))}
+        cue={viewCue}
+        sel={sel && !replay ? { r: sel[0], f: sel[1], throwing } : null}
+        show={show}
+        onReady={onReady}
         paint={(r, f) => {
-          const u = board[r][f];
+          const live = view.board;
+          const u = live[r][f];
           const end = r <= 1 || r >= 12;
-          const marked = sel && ((throwing && catchSquares(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (!throwing && fMoves(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (sel[0] === r && sel[1] === f));
-          const ballHere = loose && loose[0] === r && loose[1] === f;
+          const mark = !replay && sel;
+          const marked = mark && sel && ((throwing && catchSquares(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (!throwing && fMoves(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (sel[0] === r && sel[1] === f));
+          const ballHere = view.loose && view.loose[0] === r && view.loose[1] === f;
           let bg = end ? (r + f) % 2 ? "#1f6b3a" : "#185c32" : (r + f) % 2 ? "#2f8f4e" : "#277a42";
           if (marked) bg = "#e6c56a";
           const post = end && f === 3;
@@ -1061,7 +1257,27 @@ export function Football({ versus }: { versus: string }) {
           };
         }}
       />
-      {sel && board[sel[0]][sel[1]]?.ball && turn === "w" && !over ? (
+      {/* the score, small, where the big scoreboard used to stand */}
+      <div className="pointer-events-auto absolute left-3 top-3 z-10 flex items-center gap-2" data-fb-score>
+        <span className="rounded-full border border-line bg-ink/75 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ivory backdrop-blur-sm">
+          <span className="text-[#2ee6ff]">Knights {score.w}</span>
+          <span className="px-1.5 text-mist">·</span>
+          <span className="text-[#ff2d7a]">{score.b} Phantoms</span>
+        </span>
+        <button
+          type="button"
+          aria-label={muted ? "Crowd sound off" : "Crowd sound on"}
+          className="rounded-full border border-line bg-ink/75 px-2.5 py-1 text-xs text-ivory backdrop-blur-sm"
+          onClick={() => {
+            const next = !muted;
+            setMutedState(next);
+            crowd.current?.setMuted(next);
+          }}
+        >
+          {muted ? "🔇 Crowd" : "🔊 Crowd"}
+        </button>
+      </div>
+      {sel && board[sel[0]][sel[1]]?.ball && canAct ? (
         <button
           type="button"
           className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory"
@@ -1070,6 +1286,46 @@ export function Football({ versus }: { versus: string }) {
           {throwing ? "Throwing — pick a teammate" : "Throw the ball"}
         </button>
       ) : null}
+      {phase === "count" || frozen !== null ? (
+        <div className="pointer-events-auto absolute inset-0 z-20 grid place-items-center bg-black/25" data-fb-count>
+          {!ready ? null : <span
+            key={frozen ?? count}
+            className="fb-count select-none font-sans text-[min(38vw,46vh)] font-black leading-none"
+            style={{
+              animation: frozen !== null ? "none" : undefined,
+              color: (frozen ?? count) ? "#ffffff" : "#ffe14a",
+              textShadow: (frozen ?? count) % 2 ? "0 0 28px #2ee6ff, 0 0 80px #2ee6ff, 0 8px 0 #0b2a8a" : "0 0 28px #ff2d7a, 0 0 80px #ff2d7a, 0 8px 0 #5a0a2e",
+            }}
+          >
+            {(frozen ?? count) || "GO!"}
+          </span>}
+        </div>
+      ) : null}
+      {tdBanner ? (
+        <div className="pointer-events-none absolute inset-x-0 top-[22%] z-20 grid place-items-center" data-fb-td>
+          <span
+            className="fb-count select-none font-sans text-[min(14vw,16vh)] font-black uppercase italic leading-none tracking-[0.04em] text-white"
+            style={{ textShadow: `0 0 24px ${tdBanner === "w" ? "#2ee6ff" : "#ff2d7a"}, 0 0 70px ${tdBanner === "w" ? "#2ee6ff" : "#ff2d7a"}, 0 6px 0 #000` }}
+          >
+            Touchdown!
+          </span>
+        </div>
+      ) : null}
+      {phase === "replay" || phase === "celebrate" ? (
+        <div className="absolute inset-x-0 top-14 z-20 flex items-center justify-center gap-3" data-fb-replay>
+          {phase === "replay" ? (
+            <span className="rounded-md bg-[#c8102e] px-3 py-1 text-xs font-black uppercase tracking-[0.25em] text-white shadow-[0_0_18px_rgba(255,45,122,0.7)]">● Replay</span>
+          ) : null}
+          <button
+            type="button"
+            className="min-h-11 rounded-full border border-line bg-ink/85 px-5 text-sm font-semibold uppercase tracking-[0.14em] text-ivory backdrop-blur-sm hover:border-line-strong"
+            onClick={() => resume.current?.()}
+          >
+            Skip ▸▸
+          </button>
+        </div>
+      ) : null}
+      {phase === "replay" ? <div className="pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_0_9999px_rgba(0,0,0,0)] [background:linear-gradient(transparent_88%,rgba(0,0,0,0.55)),linear-gradient(rgba(0,0,0,0.55),transparent_12%)]" /> : null}
     </Shell>
   );
 }

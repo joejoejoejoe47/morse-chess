@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -366,13 +366,77 @@ function selfLit(shader: { fragmentShader: string }) {
   shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n  totalEmissiveRadiance += diffuseColor.rgb * 0.12;");
 }
 
-function Crowd({ hw, hl }: { hw: number; hl: number }) {
+/** A cheer from the crowd: `level` 1 is a touchdown, smaller numbers are big plays. */
+export type Hype = { id: number; level: number };
+
+type CrowdUniforms = { uTime: { value: number }; uWave: { value: number }; uWave2: { value: number }; uWave2On: { value: number }; uHype: { value: number } };
+
+/* The crowd moves on the GPU: every fan has a seat angle around the bowl, and a Mexican wave
+   (one front, two when the crowd is excited) sweeps that angle. Fans under the front stand,
+   throw their arms up and some jump; on big plays everyone jumps and waves. */
+const CROWD_GLSL = `
+uniform float uTime; uniform float uWave; uniform float uWave2; uniform float uWave2On; uniform float uHype;
+attribute vec3 aSeat;
+float crowdFront(float d) { return d > 0.0 ? exp(-(d * d) / 0.035) : exp(-(d * d) / 0.32); }
+float crowdWrap(float a) { return mod(a + 3.14159265, 6.2831853) - 3.14159265; }
+`;
+function crowdMaterial(kind: "body" | "head" | "arm" | "stick", uni: CrowdUniforms) {
+  const mat = kind === "stick" ? new THREE.MeshBasicMaterial({ toneMapped: false }) : new THREE.MeshStandardMaterial({ roughness: kind === "head" ? 0.7 : 0.75 });
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uni);
+    if (kind !== "stick") selfLit(shader);
+    shader.vertexShader = CROWD_GLSL + shader.vertexShader.replace(
+      "#include <begin_vertex>",
+      `#include <begin_vertex>
+      float jitter = 0.05 * sin(aSeat.y * 3.0);
+      float w = crowdFront(crowdWrap(aSeat.x + jitter - uWave));
+      w = max(w, uWave2On * crowdFront(crowdWrap(aSeat.x + jitter - uWave2)));
+      float hop = aSeat.z * smoothstep(0.45, 0.8, w) * abs(sin(uTime * 8.0 + aSeat.y)) * 0.09;
+      hop += uHype * abs(sin(uTime * (6.5 + mod(aSeat.y, 2.0)) + aSeat.y)) * 0.13;
+      float lift = w * 0.13 + hop + 0.012 * sin(uTime * 1.7 + aSeat.y);
+      float raise = max(w, uHype * (0.6 + 0.4 * sin(uTime * 5.0 + aSeat.y * 1.7)));
+      ${kind === "arm" ? "transformed.x += sign(transformed.x) * transformed.y * 0.35 * raise; transformed.y *= raise;" : ""}
+      ${kind === "stick" ? "lift += raise * 0.14;" : ""}
+      transformed.y += lift;`,
+    );
+  };
+  mat.customProgramCacheKey = () => `gfl-crowd-${kind}`;
+  return mat;
+}
+
+function armGeometry() {
+  const parts = [-1, 1].map((side) => {
+    const g = new THREE.BoxGeometry(0.034, 0.17, 0.034);
+    g.translate(side * 0.088, 0.085, 0);
+    return g;
+  });
+  const merged = new THREE.BufferGeometry();
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const idx: number[] = [];
+  let base = 0;
+  for (const g of parts) {
+    const gi = g.index!;
+    pos.push(...(g.attributes.position.array as Float32Array));
+    nor.push(...(g.attributes.normal.array as Float32Array));
+    for (let i = 0; i < gi.count; i++) idx.push(gi.getX(i) + base);
+    base += g.attributes.position.count;
+    g.dispose();
+  }
+  merged.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  merged.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  merged.setIndex(idx);
+  return merged;
+}
+
+function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null }) {
   const bodies = useRef<THREE.InstancedMesh>(null);
   const heads = useRef<THREE.InstancedMesh>(null);
+  const arms = useRef<THREE.InstancedMesh>(null);
   const sticks = useRef<THREE.InstancedMesh>(null);
   const seats = useMemo(() => {
     const rnd = mulberry(42);
-    const list: { x: number; y: number; z: number; team: "w" | "b" | "n"; ph: number; stick: boolean }[] = [];
+    const list: { x: number; y: number; z: number; team: "w" | "b" | "n"; ph: number; stick: boolean; jumper: boolean }[] = [];
     for (let i = 1; i < TIERS; i++) {
       const w = hw + i * STEP_OUT + STEP_OUT * 0.5;
       const l = hl + i * STEP_OUT + STEP_OUT * 0.5;
@@ -383,7 +447,7 @@ function Crowd({ hw, hl }: { hw: number; hl: number }) {
         const z = -p.y + (rnd() - 0.5) * 0.06;
         const side = z > 0 ? "w" : "b";
         const roll = rnd();
-        list.push({ x, y: STEP_UP * (i + 1) - 0.6 + 0.62, z, team: roll < 0.62 ? side : roll < 0.8 ? (side === "w" ? "b" : "w") : "n", ph: rnd() * Math.PI * 2, stick: rnd() < 0.12 });
+        list.push({ x, y: STEP_UP * (i + 1) - 0.6 + 0.62, z, team: roll < 0.62 ? side : roll < 0.8 ? (side === "w" ? "b" : "w") : "n", ph: rnd() * Math.PI * 2, stick: rnd() < 0.12, jumper: rnd() < 0.3 });
       }
     }
     return list;
@@ -397,17 +461,36 @@ function Crowd({ hw, hl }: { hw: number; hl: number }) {
     }),
     [],
   );
+  const uni = useMemo<CrowdUniforms>(() => ({ uTime: { value: 0 }, uWave: { value: 0 }, uWave2: { value: Math.PI }, uWave2On: { value: 0 }, uHype: { value: 0 } }), []);
+  const mats = useMemo(() => ({ body: crowdMaterial("body", uni), head: crowdMaterial("head", uni), arm: crowdMaterial("arm", uni), stick: crowdMaterial("stick", uni) }), [uni]);
+  const armGeo = useMemo(() => armGeometry(), []);
+  useEffect(() => () => { Object.values(mats).forEach((m) => m.dispose()); armGeo.dispose(); }, [mats, armGeo]);
   useEffect(() => {
     const m = new THREE.Matrix4();
     const rnd = mulberry(9);
     const sticksList = seats.filter((s) => s.stick);
+    const seatAttr = (list: typeof seats) => {
+      const a = new Float32Array(list.length * 3);
+      list.forEach((s, i) => {
+        a[i * 3] = Math.atan2(s.z / hl, s.x / hw);
+        a[i * 3 + 1] = s.ph;
+        a[i * 3 + 2] = s.jumper ? 1 : 0;
+      });
+      return new THREE.InstancedBufferAttribute(a, 3);
+    };
+    const all = seatAttr(seats);
+    for (const ref of [bodies, heads, arms]) ref.current?.geometry.setAttribute("aSeat", all);
+    sticks.current?.geometry.setAttribute("aSeat", seatAttr(sticksList));
     seats.forEach((s, i) => {
       const face = Math.atan2(-s.x, -s.z);
       m.makeRotationY(face);
       m.setPosition(s.x, s.y + 0.12, s.z);
       bodies.current?.setMatrixAt(i, m);
-      bodies.current?.setColorAt(i, palette[s.team][Math.floor(rnd() * 5)]);
-      m.makeRotationY(face);
+      const shirt = palette[s.team][Math.floor(rnd() * 5)];
+      bodies.current?.setColorAt(i, shirt);
+      m.setPosition(s.x, s.y + 0.2, s.z);
+      arms.current?.setMatrixAt(i, m);
+      arms.current?.setColorAt(i, shirt);
       m.setPosition(s.x, s.y + 0.29, s.z);
       heads.current?.setMatrixAt(i, m);
       heads.current?.setColorAt(i, palette.skin[Math.floor(rnd() * 5)]);
@@ -417,51 +500,43 @@ function Crowd({ hw, hl }: { hw: number; hl: number }) {
       sticks.current?.setMatrixAt(i, m);
       sticks.current?.setColorAt(i, new THREE.Color(s.team === "b" ? "#ff3b8f" : s.team === "w" ? "#45f0ff" : "#fff1a0"));
     });
-    for (const ref of [bodies, heads, sticks]) {
+    for (const ref of [bodies, heads, arms, sticks]) {
       if (!ref.current) continue;
       ref.current.instanceMatrix.needsUpdate = true;
       if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
       ref.current.computeBoundingSphere();
     }
-  }, [seats, palette]);
-  // the crowd bounces a little: a slice of fans is updated each frame
-  const cursor = useRef(0);
-  const tmp = useMemo(() => new THREE.Matrix4(), []);
-  useFrame(({ clock }) => {
-    const b = bodies.current;
-    const h = heads.current;
-    if (!b || !h) return;
-    const t = clock.elapsedTime;
-    const n = Math.min(400, seats.length);
-    for (let j = 0; j < n; j++) {
-      const i = (cursor.current + j) % seats.length;
-      const s = seats[i];
-      const hop = Math.max(0, Math.sin(t * 5 + s.ph)) * 0.07;
-      const face = Math.atan2(-s.x, -s.z);
-      tmp.makeRotationY(face);
-      tmp.setPosition(s.x, s.y + 0.12 + hop, s.z);
-      b.setMatrixAt(i, tmp);
-      tmp.setPosition(s.x, s.y + 0.29 + hop, s.z);
-      h.setMatrixAt(i, tmp);
-    }
-    cursor.current = (cursor.current + n) % seats.length;
-    b.instanceMatrix.needsUpdate = true;
-    h.instanceMatrix.needsUpdate = true;
+  }, [seats, palette, hw, hl]);
+  const level = useRef(0);
+  const seen = useRef<number | null>(null);
+  useEffect(() => {
+    if (!hype || hype.id === seen.current) return;
+    seen.current = hype.id;
+    level.current = Math.max(level.current, hype.level);
+  }, [hype]);
+  useFrame(({ clock }, raw) => {
+    const dt = Math.min(raw, 0.1);
+    level.current = Math.max(0, level.current - dt * 0.15);
+    const h = level.current;
+    uni.uTime.value = clock.elapsedTime;
+    // the wave laps the bowl in about 8 s; an excited crowd runs two waves, faster
+    uni.uWave.value = (uni.uWave.value + dt * (0.78 + 1.2 * h)) % (Math.PI * 2);
+    uni.uWave2.value = uni.uWave.value + Math.PI;
+    uni.uWave2On.value += ((h > 0.25 ? 1 : 0) - uni.uWave2On.value) * (1 - Math.exp(-3 * dt));
+    uni.uHype.value = Math.min(1, h * 1.15);
   });
   const nSticks = seats.filter((s) => s.stick).length;
   return (
     <group>
-      <instancedMesh ref={bodies} args={[undefined, undefined, seats.length]} frustumCulled={false}>
+      <instancedMesh ref={bodies} args={[undefined, mats.body, seats.length]} frustumCulled={false}>
         <boxGeometry args={[0.15, 0.22, 0.1]} />
-        <meshStandardMaterial roughness={0.75} onBeforeCompile={selfLit} />
       </instancedMesh>
-      <instancedMesh ref={heads} args={[undefined, undefined, seats.length]} frustumCulled={false}>
+      <instancedMesh ref={arms} args={[armGeo, mats.arm, seats.length]} frustumCulled={false} />
+      <instancedMesh ref={heads} args={[undefined, mats.head, seats.length]} frustumCulled={false}>
         <sphereGeometry args={[0.056, 8, 6]} />
-        <meshStandardMaterial roughness={0.7} onBeforeCompile={selfLit} />
       </instancedMesh>
-      <instancedMesh ref={sticks} args={[undefined, undefined, Math.max(1, nSticks)]} frustumCulled={false}>
+      <instancedMesh ref={sticks} args={[undefined, mats.stick, Math.max(1, nSticks)]} frustumCulled={false}>
         <sphereGeometry args={[0.045, 6, 4]} />
-        <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
     </group>
   );
@@ -606,52 +681,6 @@ function Pennant({ position, rotY, text, sub, a, b }: { position: [number, numbe
   );
 }
 
-function Jumbotron({ board, position }: { board: Scoreboard; position: [number, number, number] }) {
-  const canvas = useMemo(() => {
-    const c = document.createElement("canvas");
-    c.width = 1536;
-    c.height = 384;
-    return c;
-  }, []);
-  const tex = useMemo(() => canvasTex(canvas), [canvas]);
-  useEffect(() => {
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, 1536, 384);
-    frame(ctx, 1536, 384, "#2ee6ff", "#ff2d7a", 34);
-    // home block
-    ctx.fillStyle = "rgba(20,120,255,0.18)";
-    ctx.fillRect(30, 30, 520, 324);
-    ctx.fillStyle = "rgba(255,30,110,0.18)";
-    ctx.fillRect(986, 30, 520, 324);
-    glowText(ctx, (board.homeName ?? "NEBULA KNIGHTS").toUpperCase(), 290, 92, 48, "#6ff3ff", "#00a8ff", { spacing: 2 });
-    glowText(ctx, String(board.home), 290, 230, 150, "#ffffff", "#2ee6ff", { italic: false });
-    glowText(ctx, (board.awayName ?? "PLASMA PHANTOMS").toUpperCase(), 1246, 92, 48, "#ff6fc0", "#ff0a6c", { spacing: 2 });
-    glowText(ctx, String(board.away), 1246, 230, 150, "#ffffff", "#ff2d7a", { italic: false });
-    glowText(ctx, "GFL", 768, 112, 130, "#ffffff", "#9a6bff", { spacing: 10 });
-    glowText(ctx, "GALACTIC FOOTBALL LEAGUE", 768, 200, 34, "#d9c8ff", "#9a6bff", { spacing: 4 });
-    glowText(ctx, board.clock, 768, 268, 58, "#ffe14a", "#ff9d00", { italic: false, spacing: 4 });
-    glowText(ctx, board.note.toUpperCase(), 768, 330, 30, "#bfefff", "#2ee6ff", { spacing: 3 });
-    tex.needsUpdate = true;
-  }, [board.home, board.away, board.clock, board.note, board.homeName, board.awayName, canvas, tex]);
-  useEffect(() => () => tex.dispose(), [tex]);
-  const ref = useRef<THREE.Group>(null);
-  const { camera } = useThree();
-  useFrame(() => {
-    const g = ref.current;
-    if (!g) return;
-    // face the camera, but stay upright
-    g.lookAt(camera.position.x, g.position.y + (camera.position.y - g.position.y) * 0.6, camera.position.z);
-  });
-  return (
-    <group ref={ref} position={position}>
-      <mesh>
-        <planeGeometry args={[4.6, 1.15]} />
-        <meshBasicMaterial map={tex} toneMapped={false} side={THREE.DoubleSide} />
-      </mesh>
-    </group>
-  );
-}
-
 /* ── Light ── */
 
 function glowSprite() {
@@ -754,7 +783,7 @@ function Lamp({ at, aim, color }: { at: THREE.Vector3; aim: THREE.Vector3; color
 }
 
 /** Camera: broadside like a TV shot on wide screens, end-on on tall phones. */
-function StadiumCam({ rows }: { rows: number }) {
+function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
   const { camera, size, controls } = useThree();
   const wide = size.width >= size.height * 1.05;
   useEffect(() => {
@@ -773,16 +802,108 @@ function StadiumCam({ rows }: { rows: number }) {
       persp.fov = fov0;
       persp.updateProjectionMatrix();
     };
-  }, [wide, rows, camera, controls]);
+  }, [wide, rows, camera, controls, reset]);
   return null;
 }
 
-export function NeonStadium({ rows, cols, board }: { rows: number; cols: number; board?: Scoreboard | null }) {
+/** One camera set-up of the touchdown replay. `from`/`to` are the moving player's squares in world x/z. */
+export type CamShot = { id: number; kind: number; from: [number, number]; to: [number, number]; end: number; hero?: boolean };
+
+/** The replay director: hard cuts between TV angles, then the camera tracks and slowly pushes in. */
+function CinemaCam({ shot }: { shot: CamShot }) {
+  const { camera, controls } = useThree();
+  const look = useRef(new THREE.Vector3());
+  const born = useRef(0);
+  const cut = useRef<number | null>(null);
+  useEffect(() => {
+    const orbit = controls as unknown as { enabled?: boolean } | null;
+    if (orbit) orbit.enabled = false;
+    const persp = camera as THREE.PerspectiveCamera;
+    const fov0 = persp.fov;
+    persp.fov = 38;
+    persp.updateProjectionMatrix();
+    return () => {
+      if (orbit) orbit.enabled = true;
+      persp.fov = fov0;
+      persp.updateProjectionMatrix();
+    };
+  }, [camera, controls]);
+  function frameAt(u: number, t: number) {
+    const fx = shot.from[0] + (shot.to[0] - shot.from[0]) * u;
+    const fz = shot.from[1] + (shot.to[1] - shot.from[1]) * u;
+    let dx = shot.to[0] - shot.from[0];
+    let dz = shot.to[1] - shot.from[1];
+    const len = Math.hypot(dx, dz) || 1;
+    dx /= len;
+    dz /= len;
+    const target = new THREE.Vector3(fx, 0.45, fz);
+    const push = 1 - Math.min(1, t / 1.6) * 0.22; // a slow push-in during the shot
+    let pos: THREE.Vector3;
+    if (shot.hero) {
+      const a = 0.6 + t * 0.45;
+      pos = new THREE.Vector3(fx + Math.cos(a) * 2.3 * push, 0.95, fz + Math.sin(a) * 2.3 * push);
+      target.y = 0.55;
+    } else if (shot.kind % 4 === 0) {
+      // low on the near sideline, level with the players (the far side has the ribbon wall)
+      pos = new THREE.Vector3(Math.min(4.1, fx + 3.6 * push), 1.0, fz - dz * 1.4);
+    } else if (shot.kind % 4 === 1) {
+      // behind the runner, looking down the field
+      pos = new THREE.Vector3(fx - dx * 2.6 * push + 0.5, 1.35, fz - dz * 2.6 * push - (Math.abs(dz) < 0.3 ? 0 : 0.0));
+      target.set(fx + dx * 1.6, 0.4, fz + dz * 1.6);
+    } else if (shot.kind % 4 === 2) {
+      // from the end zone he is running at
+      pos = new THREE.Vector3(fx * 0.4 + 1.2, 1.7, shot.end + Math.sign(shot.end) * 1.5);
+    } else {
+      // high crane shot
+      pos = new THREE.Vector3(fx + 2.4 * push, 6.2 * push, fz + 3.4 * push);
+    }
+    // stay inside the bowl so no fan or sign fills the lens
+    pos.x = Math.max(-4.1, Math.min(4.1, pos.x));
+    pos.z = Math.max(-7.4, Math.min(7.4, pos.z));
+    return { pos, target };
+  }
+  useFrame(({ clock }, raw) => {
+    const dt = Math.min(raw, 0.1);
+    if (cut.current !== shot.id) {
+      cut.current = shot.id;
+      born.current = clock.elapsedTime;
+      const f = frameAt(0, 0);
+      camera.position.copy(f.pos);
+      look.current.copy(f.target);
+      camera.lookAt(look.current);
+      return;
+    }
+    const t = clock.elapsedTime - born.current;
+    const u = Math.min(1, Math.max(0, (t - 0.05) / 0.72));
+    const f = frameAt(u * u * (3 - 2 * u), t);
+    const k = 1 - Math.exp(-3.2 * dt);
+    camera.position.lerp(f.pos, k);
+    look.current.lerp(f.target, 1 - Math.exp(-5 * dt));
+    camera.lookAt(look.current);
+  });
+  return null;
+}
+
+export type StadiumShow = {
+  hype?: Hype | null;
+  shot?: CamShot | null;
+  fireworks?: { id: number; z: number } | null;
+};
+
+const Fireworks = lazy(() => import("@/components/variants/fireworks"));
+
+export function NeonStadium({ rows, cols, show = null }: { rows: number; cols: number; show?: StadiumShow | null }) {
   const hw = cols / 2 + MARGIN_W + 0.35; // inner wall, across
   const hl = rows / 2 + MARGIN_L + 0.35; // inner wall, along
   const out = (TIERS - 1) * STEP_OUT;
-  const size = useThree((st) => st.size);
-  const wide = size.width >= size.height * 1.05;
+  // when the replay ends, put the normal TV camera back
+  const [reset, setReset] = useState(0);
+  const cinema = Boolean(show?.shot);
+  const was = useRef(false);
+  useEffect(() => {
+    if (was.current && !cinema) setReset((n) => n + 1);
+    was.current = cinema;
+  }, [cinema]);
   return (
     <group>
       <color attach="background" args={["#03040b"]} />
@@ -805,7 +926,7 @@ export function NeonStadium({ rows, cols, board }: { rows: number; cols: number;
       <directionalLight position={[0, 4, 14]} intensity={0.9} color={TEAM.w} />
       <directionalLight position={[0, 4, -14]} intensity={0.9} color={TEAM.b} />
       <pointLight position={[0, 3, 0]} intensity={6} distance={12} decay={1.2} color="#9a7bff" />
-      <StadiumCam rows={rows} />
+      {show?.shot ? <CinemaCam shot={show.shot} /> : <StadiumCam rows={rows} reset={reset} />}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
         <planeGeometry args={[hw * 2 + 0.4, hl * 2 + 0.4]} />
         <meshStandardMaterial color="#04070d" roughness={0.9} />
@@ -813,12 +934,14 @@ export function NeonStadium({ rows, cols, board }: { rows: number; cols: number;
       <Field rows={rows} cols={cols} />
       <NeonWall hw={hw} hl={hl} />
       <Stands hw={hw} hl={hl} />
-      <Crowd hw={hw} hl={hl} />
+      <Crowd hw={hw} hl={hl} hype={show?.hype ?? null} />
       <Rig hw={hw} hl={hl} />
       <TopBanner x={-(hw + out * 0.62)} y={STEP_UP * TIERS * 0.5} />
       <Pennant position={[-(hw + out * 0.55), STEP_UP * TIERS * 0.75, hl + out * 0.55]} rotY={Math.PI * 0.75} text="GFL" sub="CHAMPIONSHIP" a="#2ee6ff" b="#9fd0ff" />
       <Pennant position={[-(hw + out * 0.55), STEP_UP * TIERS * 0.75, -(hl + out * 0.55)]} rotY={Math.PI * 0.25} text="GO" sub="KNIGHTS!" a="#ff2d7a" b="#ffb02e" />
-      {board ? <Jumbotron board={board} position={wide ? [hw + 0.5, 0.8, 0] : [0, 1.9, -(hl + 0.9)]} /> : null}
+      <Suspense fallback={null}>
+        <Fireworks burst={show?.fireworks ?? null} side={cols / 2 + 1.7} />
+      </Suspense>
     </group>
   );
 }
