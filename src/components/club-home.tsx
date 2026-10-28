@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Navigate, useNavigate, Link } from "@tanstack/react-router";
 import { Timer, Wind, X } from "lucide-react";
 import { ClubBrand, ClubHeaderActions, MorseCrest } from "@/components/club-brand";
@@ -51,6 +51,7 @@ export function ClubHome() {
   const [claim, setClaim] = useState("");
   const [target, setTarget] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [otherPulse, setOtherPulse] = useState(0);
   const [busy, setBusy] = useState(false);
   // football: "Change team!" under the username box opens the team card (saved per user)
   const [teamCard, setTeamCard] = useState<{ team: FootballTeam | null } | null>(null);
@@ -157,6 +158,12 @@ export function ClubHome() {
     }
     setFlow({ kind: "idle" });
     void navigate({ to: "/variant/$mode", params: { mode } });
+  }
+
+  function openGame(game: "knights-tour" | "horde" | "breakthrough" | "apocalypse") {
+    setFlow({ kind: "idle" });
+    setError(null);
+    void navigate({ to: "/games/$game", params: { game } });
   }
 
   function pickVariant(mode: VariantId) {
@@ -522,7 +529,7 @@ export function ClubHome() {
       <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
 
       {flow.kind === "select-game" ? (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-[#110d09]">
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-[#110d09]" data-pullup-screen>
           <button
             type="button"
             className="absolute left-4 top-4 z-10 rounded-md border border-[#e7c56a]/50 bg-[#1a140e]/85 px-4 py-2 text-sm font-semibold uppercase tracking-[0.16em] text-[#e7c56a]"
@@ -533,44 +540,76 @@ export function ClubHome() {
           <button
             type="button"
             aria-label="Close"
-            className="absolute right-4 top-4 z-10 grid size-11 place-items-center text-[#e7c56a]"
+            className="absolute right-4 top-16 z-10 grid size-11 place-items-center text-[#e7c56a]"
             onClick={() => { setFlow({ kind: "idle" }); setError(null); }}
           >
             <X className="size-6" />
           </button>
-          <div className="relative w-[min(100vw,calc(100dvh*1024/572))]" style={{ aspectRatio: "1024 / 572" }}>
-            <img src={asset("/pull-up.png")} alt="" className="absolute inset-0 h-full w-full select-none" draggable={false} />
-            <div className="absolute grid grid-cols-3 grid-rows-2 gap-x-[2.4%] gap-y-[2.2%]" style={{ left: "8.2%", right: "7.4%", top: "27.5%", bottom: "13.5%" }}>
-              <button type="button" aria-label="Normal chess" className="rounded-md hover:bg-white/5" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} />
-              {(
-                [
-                  ["3 player", () => setError("Coming soon")],
-                  ["Football", () => pickVariant("football")],
-                  ["Morse Strategy", () => pickVariant("strategy")],
-                  ["Checkmate", () => pickVariant("checkmate")],
-                  ["Snow Day", () => setError("Coming soon")],
-                ] as const
-              ).map(([label, go]) => (
-                <button
-                  key={label}
-                  type="button"
-                  aria-label={label}
-                  disabled={!isMasterUsername(home.profile.username)}
-                  className="relative rounded-md enabled:hover:bg-white/5 disabled:cursor-default"
+          <div className="mx-auto grid max-w-6xl gap-5 px-4 pb-10 pt-20 lg:grid-cols-[minmax(0,1fr)_290px]">
+            <section>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e7c56a]">
+                {flow.intent === "random" ? "Random pull-up" : "Intended pull-up"}
+              </p>
+              <h2 className="mt-1 font-display text-3xl text-ivory">Pick your chess</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2" data-pullup-tiles>
+                <PullTile art="classic" big="Classic" small="1v1 · Normal chess" onClick={() => setFlow({ kind: "pick-mode", intent: flow.intent })} />
+                <PullTile art="horde" big="Horde" small="36 pawns vs an army" onClick={() => openGame("horde")} />
+                <PullTile art="apocalypse" big="Apocalypse" small="Secret moves · 5×5" onClick={() => openGame("apocalypse")} />
+                <PullTile
+                  art="snow"
+                  big="Snow day"
+                  small="Other games →"
                   onClick={() => {
-                    if (!isMasterUsername(home.profile.username)) return;
-                    go();
+                    setOtherPulse((n) => n + 1);
+                    document.querySelector("[data-other-games]")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
                   }}
-                >
-                  {isMasterUsername(home.profile.username) ? null : (
-                    <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/55 px-2 text-center text-sm font-semibold uppercase tracking-[0.16em] text-[#f3e2b6]">
-                      Coming soon
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-            {error ? <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-sm text-[#e7c56a]">{error}</p> : null}
+                />
+              </div>
+              {error ? <p className="mt-3 text-center text-sm text-[#e7c56a]">{error}</p> : null}
+            </section>
+            <aside
+              key={otherPulse}
+              data-other-games
+              className={
+                "self-start rounded-xl border border-[#e7c56a]/35 bg-[linear-gradient(180deg,#1d2a36_0%,#1a140e_55%)] p-4 shadow-2xl lg:mt-9 " +
+                (otherPulse ? "animate-[pulse_0.6s_ease-in-out_2]" : "")
+              }
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#cfe3f2]">❄ Other games</p>
+              <p className="mt-1 text-xs text-mist">Just for fun — no coins.</p>
+              <ul className="mt-3 grid gap-1.5">
+                {(
+                  [
+                    ["football", "Football", "1v1 on the gridiron", true, () => pickVariant("football")],
+                    ["checkmate", "Checkmate", "End game", true, () => pickVariant("checkmate")],
+                    ["strategy", "Morse Strategy", "Morse strategy", true, () => pickVariant("strategy")],
+                    ["knights-tour", "Knight's Tour", "Single player", false, () => openGame("knights-tour")],
+                    ["horde", "Horde Chess", "2 players or vs bot", false, () => openGame("horde")],
+                    ["breakthrough", "Breakthrough", "2 players or vs bot", false, () => openGame("breakthrough")],
+                    ["apocalypse", "Apocalypse", "2 players or vs bot", false, () => openGame("apocalypse")],
+                  ] as const
+                ).map(([id, label, note, masterOnly, go]) => {
+                  const locked = masterOnly && !isMasterUsername(home.profile?.username ?? "");
+                  return (
+                    <li key={id}>
+                      <button
+                        type="button"
+                        data-other-game={id}
+                        disabled={locked}
+                        className="flex w-full items-center justify-between gap-2 rounded-md border border-[#e7c56a]/20 bg-black/25 px-3 py-2 text-left enabled:hover:border-[#e7c56a]/60 enabled:hover:bg-black/40 disabled:cursor-default disabled:opacity-55"
+                        onClick={() => { if (!locked) go(); }}
+                      >
+                        <span>
+                          <span className="block text-sm font-semibold text-ivory">{label}</span>
+                          <span className="block text-[11px] text-mist">{note}</span>
+                        </span>
+                        {locked ? <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f3e2b6]">Coming soon</span> : <span className="text-[#e7c56a]">›</span>}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </aside>
           </div>
         </div>
       ) : null}
@@ -841,47 +880,28 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
   );
 }
 
-function GameCard({
-  title,
-  caption,
-  onClick,
-  disabled,
-  children,
-}: {
-  title: string;
-  caption: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
+function PullTile({ art, big, small, onClick }: { art: "classic" | "horde" | "apocalypse" | "snow"; big: string; small: string; onClick: () => void }) {
   return (
     <button
       type="button"
-      disabled={disabled}
+      data-pullup-tile={art}
+      className="group relative aspect-[16/9] overflow-hidden rounded-xl border border-[#c9a76a]/55 bg-[#1a140e] text-left shadow-xl transition hover:border-[#e7c56a]"
       onClick={onClick}
-      className="relative overflow-hidden rounded-xl border border-[#6d5a32] bg-[#1a140f] text-left shadow-[0_16px_30px_rgba(0,0,0,0.35)] enabled:hover:border-[#e6c56a] disabled:cursor-not-allowed"
     >
-      <div className="aspect-[4/3]">{children}</div>
-      <div className="border-t border-[#3a3024] px-3 py-2">
-        <div className="font-display text-xl leading-none text-ivory">{title}</div>
-        <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-[#b7a88c]">{caption}</div>
-      </div>
+      <img
+        src={asset(`/pullup/${art}.webp`)}
+        alt=""
+        width={768}
+        height={432}
+        decoding="async"
+        className="absolute inset-0 h-full w-full select-none object-cover transition duration-300 group-hover:scale-[1.03]"
+        draggable={false}
+      />
+      <span className="absolute inset-0 bg-gradient-to-tr from-black/75 via-black/20 to-transparent" />
+      <span className="absolute bottom-3 left-4 right-4">
+        <span className="block font-display text-4xl leading-none text-[#f3e2b6] drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] sm:text-5xl">{big}</span>
+        <span className="mt-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#e8dcc4]">{small}</span>
+      </span>
     </button>
-  );
-}
-
-function MiniBoard({ marks, dark, field, wide, wash }: { marks: string[]; dark?: boolean; field?: boolean; wide?: boolean; wash?: boolean }) {
-  return (
-    <div className={"grid h-full grid-cols-4 grid-rows-2 " + (wash ? "opacity-60" : "")}>
-      {marks.slice(0, 8).map((mark, i) => {
-        const light = (Math.floor(i / 4) + (i % 4)) % 2 === 0;
-        const bg = field ? (light ? "#2f8f4e" : "#1f6b3a") : dark ? (light ? "#3a342c" : "#211c18") : light ? "#e7d3a8" : "#b58863";
-        return (
-          <div key={i} className="grid place-items-center font-display text-lg text-[#1a120c]" style={{ background: bg, color: wide || dark ? "#f4e7cb" : "#1a120c" }}>
-            {mark}
-          </div>
-        );
-      })}
-    </div>
   );
 }
