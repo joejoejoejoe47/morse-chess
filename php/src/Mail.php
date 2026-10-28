@@ -122,13 +122,14 @@ final class Mail
     public static function gcPops(string $userId, array $data): mixed
     {
         $rows = Db::all(
-            'SELECT id, from_name, body FROM mail WHERE to_id = ? AND seen = 0 ORDER BY created_at ASC LIMIT 8',
+            'SELECT id, from_id, from_name, body FROM mail WHERE to_id = ? AND seen = 0 ORDER BY created_at ASC LIMIT 8',
             [$userId]
         );
         $letters = [];
         foreach ($rows as $row) {
             $letters[] = [
                 'id' => (string) $row['id'],
+                'fromId' => (string) $row['from_id'],
                 'name' => (string) $row['from_name'],
                 'text' => mb_substr((string) $row['body'], 0, 280),
             ];
