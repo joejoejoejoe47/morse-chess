@@ -80,7 +80,7 @@ export function MorseApp({ onLounge }: { onLounge?: () => void }) {
 
   function shiftGround(dir: -1 | 1) {
     if (coinsRef.current < 10) {
-      setNote("You need 10 Morse coins for another ground.");
+      setNote("You need 10 battle coins for another ground.");
       playDeny();
       return;
     }
@@ -89,7 +89,7 @@ export function MorseApp({ onLounge }: { onLounge?: () => void }) {
     saveCoins(left);
     setCoins(left);
     setGround((current) => (current + dir + GROUNDS.length) % GROUNDS.length);
-    setNote("10 Morse coins — the host marches to new ground.");
+    setNote("10 battle coins — the host marches to new ground.");
     playStep();
   }
 
@@ -181,10 +181,10 @@ export function MorseApp({ onLounge }: { onLounge?: () => void }) {
       }
       playFanfare();
       if (trial >= TRIALS.length - 1) {
-        setResult("The trials are done. +10 Morse coins.");
+        setResult("The trials are done. +10 battle coins.");
         setStatus("The light is finished.");
       } else {
-        setResult(`Trial cleared. +10 Morse coins.`);
+        setResult(`Trial cleared. +10 battle coins.`);
         setStatus(TRIALS[trial].title);
       }
       return;
@@ -208,7 +208,7 @@ export function MorseApp({ onLounge }: { onLounge?: () => void }) {
             ? "Light takes the crown."
             : "Dark takes the crown."
           : playerWon
-            ? "The crown is yours. +25 Morse coins."
+            ? "The crown is yours. +25 battle coins."
             : "The crown falls.",
       );
       setStatus("The field is still.");

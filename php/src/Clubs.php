@@ -365,11 +365,15 @@ final class Clubs
         $white = Util::chance(0.5) ? $a : $b;
         $black = $white === $a ? $b : $a;
         $now = Db::now();
+        // Ratings at the start (Morse coin rule: beating a very high score pays 5, anyone else 2).
+        $wStart = Db::value('SELECT score FROM profiles WHERE user_id = ? LIMIT 1', [$white]);
+        $bStart = Db::value('SELECT score FROM profiles WHERE user_id = ? LIMIT 1', [$black]);
         Db::run(
             "INSERT INTO games (id, white_user_id, black_user_id, mode, fen, status, turn, turn_started_at, created_at,
-                white_clock_ms, black_clock_ms, pull)
-             VALUES (?, ?, ?, 'timed', ?, 'active', 'w', ?, ?, ?, ?, 0)",
-            [$id, $white, $black, self::START_FEN, $now, $now, self::MATCH_MS, self::MATCH_MS]
+                white_clock_ms, black_clock_ms, pull, white_start_score, black_start_score)
+             VALUES (?, ?, ?, 'timed', ?, 'active', 'w', ?, ?, ?, ?, 0, ?, ?)",
+            [$id, $white, $black, self::START_FEN, $now, $now, self::MATCH_MS, self::MATCH_MS,
+             $wStart === null ? null : (int) $wStart, $bStart === null ? null : (int) $bStart]
         );
         return $id;
     }
@@ -381,25 +385,30 @@ final class Clubs
             return;
         }
         $status = !$winnerUserId ? 'draw' : ($winnerUserId === $game['white_user_id'] ? 'white_win' : 'black_win');
-        $changed = Db::run(
-            "UPDATE games SET status = ?, winner_user_id = ?, scored = 1 WHERE id = ? AND status = 'active'",
-            [$status, $winnerUserId, $gameId]
-        );
-        if ($changed === 0) {
-            return;
-        }
-        // Every finished game pays both players 2 Morse coins, draws included.
-        foreach ([(string) $game['white_user_id'], (string) $game['black_user_id']] as $uid) {
-            if ($uid !== '' && !Constants::isBotUserId($uid)) {
-                Mores::countFinishedGame($uid);
+        Db::transaction(static function () use ($gameId, $status, $winnerUserId): void {
+            $changed = Db::run(
+                "UPDATE games SET status = ?, winner_user_id = ?, scored = 1 WHERE id = ? AND status = 'active'",
+                [$status, $winnerUserId, $gameId]
+            );
+            if ($changed === 0) {
+                return;
             }
-        }
-        if (!$winnerUserId) {
-            return;
-        }
-        $loser = $winnerUserId === $game['white_user_id'] ? $game['black_user_id'] : $game['white_user_id'];
-        Db::run('UPDATE profiles SET score = score + 8 WHERE user_id = ?', [$winnerUserId]);
-        Db::run('UPDATE profiles SET score = CASE WHEN score - 8 < 100 THEN 100 ELSE score - 8 END WHERE user_id = ?', [$loser]);
+            $full = Db::one('SELECT * FROM games WHERE id = ? LIMIT 1', [$gameId]) ?? [];
+            // Count the game for both players (no coins for just playing).
+            foreach ([(string) $full['white_user_id'], (string) $full['black_user_id']] as $uid) {
+                if ($uid !== '' && !Constants::isBotUserId($uid)) {
+                    Mores::countFinishedGame($uid);
+                }
+            }
+            if (!$winnerUserId) {
+                return;
+            }
+            // A club match decided at the deadline: the winner is paid like any other win (5 or 2, once).
+            Mores::payWinCoins($full, $winnerUserId, false);
+            $loser = $winnerUserId === $full['white_user_id'] ? $full['black_user_id'] : $full['white_user_id'];
+            Db::run('UPDATE profiles SET score = score + 8 WHERE user_id = ?', [$winnerUserId]);
+            Db::run('UPDATE profiles SET score = CASE WHEN score - 8 < 100 THEN 100 ELSE score - 8 END WHERE user_id = ?', [$loser]);
+        });
     }
 
     private static function seatName(array $queue, mixed $id): string
