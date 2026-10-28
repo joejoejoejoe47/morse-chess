@@ -1208,7 +1208,7 @@ export function Football({ versus }: { versus: string }) {
     }
     if (!on) return;
     const w = window as unknown as { __fb?: unknown };
-    w.__fb = { hold: (n: number) => self.current.hold(n), td: () => self.current.td(), state: () => ({ phase: phaseRef.current, t: Math.round(performance.now()) }) };
+    w.__fb = { hold: (n: number) => self.current.hold(n), td: () => self.current.td(), state: () => ({ phase: phaseRef.current, plays: drive.current.plays.length, t: Math.round(performance.now()) }) };
     return () => {
       delete w.__fb;
     };

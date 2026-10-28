@@ -90,7 +90,7 @@ void main() {
   if (r > 1.0) discard;
   float core = exp(-r * 7.0);
   float glow = exp(-r * 2.2) * 0.55;
-  vec3 col = mix(uColor, vec3(1.0), core * (0.25 + uHot * 0.35));
+  vec3 col = mix(uColor, vec3(1.0), core * (0.12 + uHot * 0.22));
   gl_FragColor = vec4(col * (core * 0.8 + glow) * min(1.0, vAlpha * 1.3) * 0.75, 1.0);
 }`;
 
@@ -192,10 +192,10 @@ export default function Fireworks({ burst, side }: { burst: { id: number; z: num
     seen.current = burst.id;
     const z = burst.z;
     const shells: Shell[] = [
-      { x: -side, z: z - 0.7, color: "#2ee6ff", delay: 0, scale: 0.1, spin: 0.3 },
-      { x: side, z: z + 0.7, color: "#ff2d7a", delay: 0.25, scale: 0.1, spin: 1.9 },
-      { x: -side, z: z + 0.9, color: "#ff2d7a", delay: 0.6, scale: 0.088, spin: 3.4 },
-      { x: side, z: z - 0.9, color: "#2ee6ff", delay: 0.85, scale: 0.088, spin: 4.8 },
+      { x: -side, z: z - 0.7, color: "#2ee6ff", delay: 0, scale: 0.125, spin: 0.3 },
+      { x: side, z: z + 0.7, color: "#ff2d7a", delay: 0.25, scale: 0.095, spin: 1.9 },
+      { x: -side, z: z + 0.9, color: "#ff2d7a", delay: 0.6, scale: 0.11, spin: 3.4 },
+      { x: side, z: z - 0.9, color: "#2ee6ff", delay: 0.85, scale: 0.085, spin: 4.8 },
     ];
     setShows((list) => [...list, { id: burst.id, born: clock.elapsedTime, shells, left: shells.length }]);
   }, [burst, track, side, clock]);

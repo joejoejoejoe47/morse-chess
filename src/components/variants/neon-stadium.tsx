@@ -1346,25 +1346,25 @@ function CinemaCam({ shot }: { shot: CamShot }) {
     let pos: THREE.Vector3;
     if (shot.hero) {
       const a = 0.6 + t * 0.45;
-      pos = new THREE.Vector3(fx + Math.cos(a) * 2.3 * push, 0.95, fz + Math.sin(a) * 2.3 * push);
+      pos = new THREE.Vector3(fx + Math.cos(a) * 2.4 * push, 1.25, fz + Math.sin(a) * 2.4 * push);
       target.y = 0.55;
     } else if (shot.kind % 4 === 0) {
       // low on the near sideline, level with the players (the far side has the ribbon wall)
-      pos = new THREE.Vector3(Math.min(4.1, fx + 3.6 * push), 1.0, fz - dz * 1.4);
+      pos = new THREE.Vector3(Math.min(4.3, fx + 4.2 * push), 1.9, fz - dz * 1.4);
     } else if (shot.kind % 4 === 1) {
       // behind the runner, looking down the field
-      pos = new THREE.Vector3(fx - dx * 2.6 * push + 0.5, 1.35, fz - dz * 2.6 * push - (Math.abs(dz) < 0.3 ? 0 : 0.0));
+      pos = new THREE.Vector3(fx - dx * 3.2 * push + 0.6, 2.2, fz - dz * 3.2 * push);
       target.set(fx + dx * 1.6, 0.4, fz + dz * 1.6);
     } else if (shot.kind % 4 === 2) {
       // from the end zone he is running at
-      pos = new THREE.Vector3(fx * 0.4 + 1.2, 1.7, shot.end + Math.sign(shot.end) * 1.5);
+      pos = new THREE.Vector3(fx * 0.4 + 1.8, 2.2, shot.end + Math.sign(shot.end) * 0.8);
     } else {
       // high crane shot
       pos = new THREE.Vector3(fx + 2.4 * push, 6.2 * push, fz + 3.4 * push);
     }
-    // stay inside the bowl so no fan or sign fills the lens
-    pos.x = Math.max(-4.1, Math.min(4.1, pos.x));
-    pos.z = Math.max(-7.4, Math.min(7.4, pos.z));
+    // stay inside the bowl and in front of the goal posts so nothing fills the lens
+    pos.x = Math.max(-4.1, Math.min(4.3, pos.x));
+    pos.z = Math.max(-6.7, Math.min(6.7, pos.z));
     return { pos, target };
   }
   useFrame(({ clock }, raw) => {
