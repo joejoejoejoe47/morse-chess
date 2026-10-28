@@ -771,12 +771,10 @@ const FILES = "abcdefgh";
 const KIND_NAME: Record<Kind, string> = { k: "King", q: "Queen", r: "Rook", b: "Bishop", n: "Knight", p: "Pawn" };
 /** Start rows by the id's rank digit: white a1..h1 back row, a2..h2 pawns; black a7..h7 pawns, a8..h8 back row. */
 const START_ROW: Record<string, number> = { "1": 5, "2": 6, "7": 8, "8": 9 };
-/** After a touchdown the scorer lines up here for the try (two rows short of the end zone). */
-const TRY_SPOT: Record<Side, [number, number]> = { w: [10, 3], b: [3, 4] };
 const KICKOFF: [number, number] = [7, 3];
 const GAME_SECONDS = 10 * 60;
-/** Owner (v3): every 3 s you wait, the other team gets one extra move. You can still move. */
-const SHOT_CLOCK_MS = 3000;
+/** Owner (v4): every 5 s you wait, the other team gets one extra move. You can still move. */
+const SHOT_CLOCK_MS = 5000;
 
 function footballStart(): { board: FBoard; loose: [number, number] | null } {
   const board = blank(F_ROWS, F_COLS) as FBoard;
@@ -824,7 +822,7 @@ function findBall(b: FBoard): { r: number; f: number; u: FUnit } | null {
   return null;
 }
 
-/** Field goals: the carrier has to be close to the other team's end zone (the try spot is in range),
+/** Field goals: the carrier has to be close to the other team's end zone (four rows out or nearer),
  *  so a kick from midfield is not a free 3 points. */
 function canKick(side: Side, r: number) {
   return side === "w" ? r >= 10 : r <= 3;
@@ -1079,7 +1077,7 @@ export function Football({ versus }: { versus: string }) {
     return () => window.clearInterval(id);
   }, [over, phase]);
 
-  // the 3-second shot clock: while it is your move, every 3 s the other team sneaks in one move
+  // the 5-second shot clock: while it is your move, every 5 s the other team sneaks in one move
   useEffect(() => {
     if (over || phase !== "play" || turn !== "w" || setup) return;
     const id = window.setInterval(() => {
@@ -1119,7 +1117,8 @@ export function Football({ versus }: { versus: string }) {
     return { board: next, loose: looseNow };
   }
 
-  /** Kick-off: everybody walks back to their start square, the ball sits in the middle and the team that conceded goes first. */
+  /** Kick-off (owner, v4: after ANY touchdown): everybody walks back to the midfield lineup on either side of
+ *  the 50, the ball sits on the middle square and the team that conceded goes first. */
   function kickoff(b: FBoard, scored: { w: number; b: number }, first: Side) {
     const next = regroup(b);
     tryRef.current = null;
@@ -1135,35 +1134,6 @@ export function Football({ versus }: { versus: string }) {
     setTurn(first);
     drive.current = { board: next, loose: KICKOFF, plays: [] };
     if (first === "b") later(() => botFootball(next, KICKOFF, scored), 1500);
-  }
-
-  /** The try: back to the start formation, but the scorer waits close to the goal with the ball. */
-  function startTry(b: FBoard, side: Side, unitId: string | undefined, scored: { w: number; b: number }) {
-    const next = regroup(b);
-    let at: [number, number] | null = null;
-    for (let r = 0; r < F_ROWS && !at; r++) for (let f = 0; f < F_COLS && !at; f++) if (next[r][f]?.id && next[r][f]!.id === unitId) at = [r, f];
-    for (let r = 0; r < F_ROWS && !at; r++) for (let f = 0; f < F_COLS && !at; f++) if (next[r][f]?.side === side && next[r][f]!.kind !== "k") at = [r, f];
-    if (!at) {
-      kickoff(b, scored, other(side));
-      return;
-    }
-    const u = next[at[0]][at[1]]!;
-    const [tr, tf] = TRY_SPOT[side];
-    next[at[0]][at[1]] = null;
-    next[tr][tf] = { ...u, ball: true, held: u.kind === "k" ? 1 : 0 };
-    tryRef.current = { side, moves: 0 };
-    setTryFor({ side, moves: 0 });
-    setBoard(next);
-    setLoose(null);
-    setScore(scored);
-    setCue(null);
-    setThrowing(false);
-    setTurn(side);
-    setSel(side === "w" ? [tr, tf] : null);
-    drive.current = { board: next, loose: null, plays: [] };
-    setBanner({ side, text: side === "w" ? "Run it in or kick it!" : `${now.current.away.name} try`, small: true });
-    later(() => setBanner((v) => (v?.small ? null : v)), 2600);
-    if (side === "b") later(() => botFootball(next, null, scored), 1600);
   }
 
   function finishTurn(next: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, mover: Side, bonus = false) {
@@ -1222,7 +1192,7 @@ export function Football({ versus }: { versus: string }) {
     return `${now.current.away.name} ${KIND_NAME[u.kind]}`;
   }
 
-  /** Touchdown: fireworks and a roar, then the last 10 s again (camera on the ball), then the try or the kick-off. */
+  /** Touchdown: fireworks and a roar, then the last 10 s again (camera on the ball), then everyone back to midfield. */
   function touchdown(scoring: FBoard, scorer: Side, scored: { w: number; b: number }, carrier: FUnit) {
     const wasTry = Boolean(tryRef.current);
     tryRef.current = null;
@@ -1272,8 +1242,10 @@ export function Football({ versus }: { versus: string }) {
       setPhase("play");
       phaseRef.current = "play";
       crowd.current?.set("calm");
-      if (wasTry) kickoff(scoring, scored, other(scorer));
-      else startTry(scoring, scorer, carrier.id, scored);
+      void wasTry;
+      kickoff(scoring, scored, other(scorer));
+      setBanner({ side: other(scorer), text: "Back to midfield!", small: true });
+      later(() => setBanner((v) => (v?.small ? null : v)), 2200);
     };
     resume.current = finish;
     const BEGIN = 3300;
