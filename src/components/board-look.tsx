@@ -51,6 +51,9 @@ export function BoardLook({
   const backdropImage = prefs.roomScene === "photo" ? prefs.roomImage : null;
   const board: BoardSkin = boardById(boardId);
   const [owned, setOwned] = useState(ownedBoards);
+  // The page loads the profile after first paint: keep the owned list in step so a bought board shows "Use", not "Buy".
+  const ownedKey = ownedBoards.join(",");
+  useEffect(() => setOwned(ownedBoards), [ownedKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const open = boardUnlocked(score, board, username, owned);
   const peek = boardCanPreview(score, board, username);
   const equipped = equippedBoard === board.id;
@@ -58,6 +61,9 @@ export function BoardLook({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tuning, setTuning] = useState(startTuning && open);
+  /** Classic and Parlor bring their own 3D men, so the AV king is not used there: ask first. */
+  const ownSet = board.id === "classic" || board.id === "parlor";
+  const [warn, setWarn] = useState(false);
 
   useEffect(() => {
     if (startTuning && open) setTuning(true);
@@ -225,9 +231,37 @@ export function BoardLook({
                 people={view === "an"}
                 real={view === "ra"}
                 lego={view === "lg"}
+                heirloom={board.id === "classic" ? "cl" : board.id === "parlor" ? "pa" : null}
+                heirloomPieces={view === "3d"}
               />
           )}
         </div>
+        {warn ? (
+          <div className="absolute inset-0 z-30 grid place-items-center bg-ink/70 px-5" role="dialog" aria-modal="true" aria-labelledby="own-set-title">
+            <div className="w-full max-w-sm rounded-xl border border-line bg-panel p-6 text-center shadow-2xl">
+              <p id="own-set-title" className="font-display text-2xl text-ivory">
+                Use {board.name}?
+              </p>
+              <p className="mt-3 text-[15px] text-mist">
+                If you use this board, your AV king won&apos;t be applied. In 3D you play with the {board.name} set&apos;s own pieces instead.
+              </p>
+              <div className="mt-5 flex justify-center gap-2">
+                <Button variant="outline" onClick={() => setWarn(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="solid"
+                  onClick={() => {
+                    setWarn(false);
+                    setTuning(true);
+                  }}
+                >
+                  Use anyway
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {tuning ? (
           <div className="absolute inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-4 sm:bottom-4">
             <BoardAdjustPanel
@@ -247,7 +281,7 @@ export function BoardLook({
             </div>
             <div className="pointer-events-auto flex gap-2">
               {open ? (
-                <Button variant="solid" onClick={() => setTuning(true)}>
+                <Button variant="solid" onClick={() => (ownSet && !equipped ? setWarn(true) : setTuning(true))}>
                   {equipped ? "Use · adjust" : "Use this board"}
                 </Button>
               ) : (board.coinCost ?? 0) > 0 ? (

@@ -13,6 +13,8 @@ export type AvatarLoadout = {
   mountId: string;
   frameId: string;
   attackId: string;
+  /** LG king attack: "lg-none" (his own punch) or "shield-block". */
+  lgAttackId: string;
   /** Colour finish of the 3D king piece (AV "King pieces" grid). */
   finishId: string;
   /** LG minifig parts. Hair is a hat model. Weapon is a sword, or none. */
@@ -242,9 +244,44 @@ export const FRAMES: GearItem[] = [
   { id: "coin", name: "Morse", price: 5, portrait: "", blurb: "Coins in the corners." },
 ];
 
-export const ATTACKS: GearItem[] = [
-  { id: "march", name: "Normal", price: 0, portrait: "", blurb: "The king stands ready." },
-  { id: "chop", name: "Chop", price: 4, portrait: "", blurb: "One clean cut with the blade." },
+export type AttackItem = GearItem & {
+  /** Clip names tried in order on the king's model (KayKit names first, then the Quaternius ones). */
+  clips: string[];
+  /** Clip speed (1 = as made). */
+  speed?: number;
+  /** The extra effect drawn with the clip. */
+  fx?: "spin" | "leap" | "fire" | "thunder" | "spark";
+  /** How long the king holds the attack on the AN board (default 980ms). */
+  ms?: number;
+};
+
+/**
+ * AN king attacks: each one is a clip the AN units already have, some with an effect on top.
+ * Plain ones are free; the big ones cost a few coins (bought with the same atomic buy as gear).
+ */
+export const ATTACKS: AttackItem[] = [
+  { id: "march", name: "Normal", price: 0, portrait: "", blurb: "One cut with the blade.", clips: ["1H_Melee_Attack_Chop", "Sword_Slash", "Swo"] },
+  { id: "stab", name: "Stab", price: 0, portrait: "", blurb: "A quick straight thrust.", clips: ["1H_Melee_Attack_Stab", "Sword_Slash", "Swo"], speed: 1.45 },
+  { id: "slash", name: "Slash", price: 0, portrait: "", blurb: "A wide cut from the shoulder.", clips: ["1H_Melee_Attack_Slice_Diagonal", "Sword_Slash", "Swo"] },
+  { id: "kick", name: "Kick", price: 0, portrait: "", blurb: "A big boot to the chest.", clips: ["Unarmed_Melee_Attack_Kick", "Kick_Right", "Kick_Left"] },
+  { id: "punch", name: "Punch", price: 0, portrait: "", blurb: "A royal right hook.", clips: ["Unarmed_Melee_Attack_Punch_A", "Punch_Right", "Pun"], speed: 1.4 },
+  { id: "chop", name: "Chop", price: 4, portrait: "", blurb: "Both hands, straight down, with sparks.", clips: ["2H_Melee_Attack_Chop", "Sword_Slash", "Swo"], speed: 1.4, fx: "spark" },
+  { id: "whirl", name: "Whirlwind", price: 6, portrait: "", blurb: "Spins with a ring of gold wind.", clips: ["2H_Melee_Attack_Spin", "Roll"], speed: 1.9, fx: "spin", ms: 1300 },
+  { id: "leap", name: "Sky Leap", price: 8, portrait: "", blurb: "Jumps high and lands with a shockwave.", clips: ["1H_Melee_Attack_Jump_Chop", "2H_Melee_Attack_Slice", "Sword_Slash", "Swo"], fx: "leap", ms: 1350 },
+  { id: "fireball", name: "Fireball", price: 8, portrait: "", blurb: "Throws a ball of fire.", clips: ["Spellcast_Shoot", "Gun_Shoot", "Punch_Right", "Pun"], fx: "fire", ms: 1250 },
+  { id: "thunder", name: "Thunder", price: 10, portrait: "", blurb: "Calls lightning down on the enemy.", clips: ["Spellcast_Raise", "Spellcast_Long", "Wave"], speed: 1.6, fx: "thunder", ms: 1400 },
+];
+
+/** LG king attacks (the Brick Verse kings). */
+export const LG_ATTACKS: GearItem[] = [
+  { id: "lg-none", name: "Normal", price: 0, portrait: "", blurb: "The king's own punch." },
+  {
+    id: "shield-block",
+    name: "Shield Block",
+    price: 8,
+    portrait: "",
+    blurb: "Blocks the enemy's hit, throws his shield, the enemy bursts and the shield flies back. Needs a king with a shield.",
+  },
 ];
 
 export type KingFinish = GearItem & {
@@ -268,7 +305,7 @@ export const FINISHES: KingFinish[] = [
   { id: "king-onyx", name: "Onyx King", price: 0, portrait: "", blurb: "Black and gold. The house king.", body: "#121110", trim: "#d1a740", crown: "#e2b84e", metal: 0.4 },
   { id: "king-sun", name: "Sun King", price: 0, portrait: "", blurb: "Bright polished gold.", body: "#d9a93c", trim: "#f2d27a", crown: "#f2d27a", metal: 1 },
   { id: "king-iron", name: "Iron King", price: 0, portrait: "", blurb: "Dark iron and silver.", body: "#2e3034", trim: "#8d9198", crown: "#a3a7ad", metal: 0.8 },
-  { id: "king-royal-legacy", name: "Royal Legacy King", price: 25000, portrait: "", blurb: "Legendary. Gold, onyx and a ruby cross.", body: "#0b0a09", trim: "#f0c75a", crown: "#ffd66b", metal: 1, legendary: true },
+  { id: "king-royal-legacy", name: "Royal Legacy King", price: 20, portrait: "", blurb: "Legendary. Gold, onyx and a ruby cross.", body: "#0b0a09", trim: "#f0c75a", crown: "#ffd66b", metal: 1, legendary: true },
 ];
 
 export const STARTER_IDS = ["piece", "knight", "none", "poly-band", "plain", "march"];
@@ -283,6 +320,7 @@ export const DEFAULT_LOADOUT: AvatarLoadout = {
   mountId: "none",
   frameId: "plain",
   attackId: "march",
+  lgAttackId: "lg-none",
   finishId: "king-onyx",
   lgBody: "cap",
   lgHead: "cap",
@@ -332,6 +370,7 @@ export const mountById = (id: string) => byId(MOUNTS).get(id) ?? MOUNTS[0];
 export const frameById = (id: string) => byId(FRAMES).get(id) ?? FRAMES[0];
 export const finishById = (id: string) => byId(FINISHES).get(id) ?? FINISHES.find((f) => f.id === "king-onyx")!;
 export const attackById = (id: string) => byId(ATTACKS).get(id) ?? ATTACKS[0];
+export const lgAttackById = (id: string) => byId(LG_ATTACKS).get(id) ?? LG_ATTACKS[0];
 
 export function crownArt(id: string, team: TeamView) {
   const crown = crownById(id);
@@ -355,7 +394,7 @@ export function skeletonFor(id: string) {
 }
 
 export function allGear() {
-  return [...CHARACTERS, ...SWORDS, ...CROWNS, ...MOUNTS, ...FRAMES, ...ATTACKS, ...FINISHES];
+  return [...CHARACTERS, ...SWORDS, ...CROWNS, ...MOUNTS, ...FRAMES, ...ATTACKS, ...LG_ATTACKS, ...FINISHES];
 }
 
 export function gearPrice(id: string) {
@@ -390,6 +429,7 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     mountId: pick(src.mountId, "none", MOUNTS),
     frameId: pick(src.frameId, "plain", FRAMES),
     attackId: pick(attackRaw, "march", ATTACKS),
+    lgAttackId: pick(src.lgAttackId, "lg-none", LG_ATTACKS),
     finishId: pick(src.finishId, "king-onyx", FINISHES),
     lgBody: pick(src.lgBody, "cap", LEGO_PARTS),
     lgHead: pick(src.lgHead, "cap", LEGO_PARTS),
@@ -408,6 +448,7 @@ export function loadoutNeeds(loadout: AvatarLoadout) {
     loadout.mountId,
     loadout.frameId,
     loadout.attackId,
+    loadout.lgAttackId,
     loadout.finishId,
   ];
 }

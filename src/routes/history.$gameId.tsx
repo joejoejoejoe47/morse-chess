@@ -191,7 +191,15 @@ function Replay({ game }: { game: HistoryGame }) {
   const lastMove = last ? { from: last.from, to: last.to } : null;
   const current = verdictAt(ply);
   const judgedCount = judged?.verdicts.length ?? 0;
-  const heirloom = game.style === "cl" || game.style === "pa" ? game.style : null;
+  // Old Classic / Parlor games kept the style; newer ones are the Classic / Parlor board (own men in 3D only).
+  const heirloom =
+    game.style === "cl" || game.style === "pa"
+      ? game.style
+      : skin.id === "classic" && (game.style ?? "3d") === "3d"
+        ? "cl"
+        : skin.id === "parlor" && (game.style ?? "3d") === "3d"
+          ? "pa"
+          : null;
   const pitch = !heirloom && (skin.id === "grassland" || skin.id === "castle") ? GLADE_PITCH : 1;
   const burstMove = burst ? played[burst.ply - 1] : null;
   const burstVerdict = burst ? verdictAt(burst.ply) : undefined;

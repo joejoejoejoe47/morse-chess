@@ -8,6 +8,9 @@ import { StonePerson, WarCorpse, type Gait } from "@/components/chess/stone-peop
 import { LEGO_CHARS, LEGO_ROSTER, LegoWalker, LegoWorld, type LegoCharId } from "@/components/chess/lego-board";
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 import { asset } from "@/lib/base";
+import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type Scoreboard } from "@/components/variants/neon-stadium";
+
+export type { Scoreboard };
 
 export type Look = "2d" | "3d" | "an" | "lg";
 export type Sky = "table" | "lego" | "arena";
@@ -36,11 +39,6 @@ export type MoveCue = {
   victimSide?: "w" | "b";
 };
 
-function StadiumBowl() {
-  const gltf = useGLTF(asset("/arena/coliseum.glb"));
-  const model = useMemo(() => gltf.scene.clone(true), [gltf]);
-  return <primitive object={model} scale={15} position={[0, 4.65, 0]} />;
-}
 function Pigskin() {
   return (
     <mesh scale={[1.2, 0.72, 0.72]} rotation={[0.3, 0.4, 0.5]} castShadow>
@@ -234,6 +232,7 @@ function Deck({
   ball,
   cue,
   stadium = false,
+  sel = null,
 }: {
   rows: number;
   cols: number;
@@ -244,17 +243,22 @@ function Deck({
   ball: { r: number; f: number } | null;
   cue: MoveCue | null;
   stadium?: boolean;
+  sel?: { r: number; f: number; throwing: boolean } | null;
 }) {
   const squares = [];
+  const arcs = [];
   for (let r = 0; r < rows; r++) {
     for (let f = 0; f < cols; f++) {
       const [x, , z] = spot(r, f, rows, cols, 0);
       squares.push(
         stadium && paint(r, f).bg !== "#e6c56a" ? null : stadium ? (
-          <mesh key={`${r}:${f}`} position={[x, 0.16, z]} onClick={(e) => { e.stopPropagation(); onPick(r, f); }}>
-            <sphereGeometry args={[0.16, 16, 12]} />
-            <meshBasicMaterial color="#f4e7b2" />
-          </mesh>
+          <group key={`${r}:${f}`}>
+            <TargetMark position={[x, 0.15, z]} color={sel?.throwing ? "#ffe14a" : TEAM.w} strong={sel?.r === r && sel?.f === f} />
+            <mesh position={[x, 0.16, z]} rotation={[-Math.PI / 2, 0, 0]} onClick={(e) => { e.stopPropagation(); onPick(r, f); }}>
+              <circleGeometry args={[0.48, 20]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+          </group>
         ) : (
           <mesh key={`${r}:${f}`} position={[x, 0.08, z]} receiveShadow onClick={(e) => { e.stopPropagation(); onPick(r, f); }}>
             <boxGeometry args={[0.96, 0.08, 0.96]} />
@@ -262,17 +266,25 @@ function Deck({
           </mesh>
         ),
       );
+      if (stadium && sel && paint(r, f).bg === "#e6c56a" && !(sel.r === r && sel.f === f)) {
+        arcs.push(<Arc key={`a${r}:${f}`} from={spot(sel.r, sel.f, rows, cols, 0.3)} to={spot(r, f, rows, cols, 0.2)} color={sel.throwing ? "#ffe14a" : TEAM.w} opacity={0.85} lift={sel.throwing ? 0.9 : 0.3} />);
+      }
     }
   }
   return (
     <group>
-      {stadium ? <StadiumBowl /> : (
+      {stadium ? null : (
       <mesh position={[0, 0.02, 0]} receiveShadow>
         <boxGeometry args={[cols + 0.8, 0.08, rows + 0.8]} />
         <meshStandardMaterial color="#3c261c" roughness={0.7} />
       </mesh>
       )}
       {squares}
+      {arcs}
+      {stadium && cue ? (
+        <FadingArc key={`cue${cue.id}`} from={spot(cue.from[0], cue.from[1], rows, cols, 0.3)} to={spot(cue.to[0], cue.to[1], rows, cols, 0.2)} color={cue.thrown ? "#ffe14a" : TEAM[cue.side]} />
+      ) : null}
+      {stadium ? units.map((unit) => <TeamRing key={`ring${unit.side}${unit.r}:${unit.f}`} side={unit.side} position={spot(unit.r, unit.f, rows, cols, 0.145)} />) : null}
       {units.map((unit) => {
         const moving = cue && cue.side === unit.side && cue.to[0] === unit.r && cue.to[1] === unit.f && !cue.thrown;
         return (
@@ -314,6 +326,8 @@ export function VariantStage({
   ball = null,
   cue = null,
   stadium = false,
+  sel = null,
+  board = null,
 }: {
   rows: number;
   cols: number;
@@ -325,14 +339,17 @@ export function VariantStage({
   ball?: { r: number; f: number } | null;
   cue?: MoveCue | null;
   stadium?: boolean;
+  sel?: { r: number; f: number; throwing: boolean } | null;
+  board?: Scoreboard | null;
 }) {
   const span = Math.max(rows, cols);
   const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
   return (
     <div className="h-full w-full">
       <Canvas shadows dpr={[1, 1.5]} camera={{ position: cam, fov: 34, near: 0.1, far: 400 }} gl={{ antialias: true, alpha: false }}>
-        <color attach="background" args={[sky === "table" ? "#14110e" : "#87a0c4"]} />
-        {sky === "table" ? (
+        {stadium ? null : <color attach="background" args={[sky === "table" ? "#14110e" : "#87a0c4"]} />}
+        {stadium ? <NeonStadium rows={rows} cols={cols} board={board} /> : null}
+        {!stadium && sky === "table" ? (
           <>
             <hemisphereLight args={["#ffe7c2", "#2a2118", 0.7]} />
             <directionalLight position={[6, 12, 8]} intensity={1.3} castShadow />
@@ -340,8 +357,8 @@ export function VariantStage({
         ) : null}
         {stadium ? null : sky === "lego" ? <LegoWorld /> : null}
         {!stadium && sky === "arena" ? <SkyArenaWorld squaresBottom={0.02} plinth={false} /> : null}
-        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} />
-        <OrbitControls target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.05} minDistance={4} maxDistance={span * 3} />
+        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} />
+        <OrbitControls makeDefault target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.05} minDistance={4} maxDistance={span * 3} />
       </Canvas>
     </div>
   );

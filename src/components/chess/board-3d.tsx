@@ -5,7 +5,7 @@ import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 import * as THREE from "three";
 import { StonePerson, WarCorpse, type Gait, type PeopleCast } from "@/components/chess/stone-people";
 import { Figurine } from "@/components/avatar/figurine";
-import { parseLoadout } from "@/lib/avatar/catalog";
+import { attackById, parseLoadout } from "@/lib/avatar/catalog";
 import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
 import { CastleYard } from "@/components/chess/castle-yard";
 import { arenaNight } from "@/components/chess/arena-bowl";
@@ -16,6 +16,7 @@ import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/l
 import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
 import { ShieldBadge } from "@/components/chess/marks";
 import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
+import { AvPiece, lookLoadout, setPaints, type SetPaint } from "@/components/chess/av-set";
 import { RaCorpse, RaPawn, raUnitUrl } from "@/components/chess/ra-men";
 import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
@@ -482,6 +483,7 @@ function AnimatedPiece({
   duelAt,
   pitch = 1,
   look,
+  paint = null,
   dogAway = false,
 }: {
   square: string;
@@ -505,6 +507,8 @@ function AnimatedPiece({
   duelAt: string | null;
   pitch?: number;
   look?: string;
+  /** The player's AV set (3D only); null keeps the board's own pieces. */
+  paint?: SetPaint | null;
   dogAway?: boolean;
 }) {
   const ref = useRef<THREE.Group>(null);
@@ -516,14 +520,7 @@ function AnimatedPiece({
   const attackUntil = useRef(0);
   const trip = useRef<{ from: THREE.Vector3; to: THREE.Vector3; t: number } | null>(null);
   const [tip, setTip] = useState(false);
-  const gear = useMemo(() => {
-    if (!look) return null;
-    try {
-      return parseLoadout(JSON.parse(look));
-    } catch {
-      return null;
-    }
-  }, [look]);
+  const gear = useMemo(() => lookLoadout(look), [look]);
 
   useFrame((_, raw) => {
     const dt = Math.min(raw, 0.1);
@@ -558,7 +555,7 @@ function AnimatedPiece({
       if (traveling) gait.current.phase += dt * 9;
       if (!traveling && slay && !swung.current) {
         swung.current = true;
-        attackUntil.current = performance.now() + (mounted ? 900 : real && (type === "k" || type === "q" || type === "n") ? 2600 : real ? 1600 : clash || duelAt ? 1900 : 980);
+        attackUntil.current = performance.now() + (mounted ? 900 : real && (type === "k" || type === "q" || type === "n") ? 2600 : real ? 1600 : clash || duelAt ? 1900 : people && gear && type === "k" ? Math.max(980, attackById(gear.attackId).ms ?? 980) : 980);
       }
       const charging = mounted && slay && traveling;
       gait.current.act = performance.now() < attackUntil.current ? "attack" : charging ? "charge" : traveling ? "walk" : "idle";
@@ -650,6 +647,8 @@ function AnimatedPiece({
           flip={false}
         />
         )
+      ) : paint ? (
+        <AvPiece type={type} color={color} paint={paint} />
       ) : (
         <>
           <SculptedPiece
@@ -1527,6 +1526,13 @@ function Scene({
   const cheerTimer = useRef<number | null>(null);
   const set = lego ? null : heirloom;
   const setMen = Boolean(set && heirloomPieces);
+  // Each side's whole 3D set follows its AV king (not on AN / RA / LG, and not on a set's own men).
+  const paints = useMemo(() => setPaints(kings), [kings?.w, kings?.b]);
+  // LG: which side's king has Shield Block equipped (each player's own look, so the opponent sees it too)
+  const shields = useMemo(
+    () => ({ w: lookLoadout(kings?.w)?.lgAttackId === "shield-block", b: lookLoadout(kings?.b)?.lgAttackId === "shield-block" }),
+    [kings?.w, kings?.b],
+  );
   const meadow = !lego && !set && (skin.id === "grassland" || skin.id === "castle");
   const legoWorld = lego || (!set && skin.id === LEGO_BOARD_ID);
   /** A board with its own army replaces the normal pieces and their fight effects. */
@@ -1801,6 +1807,7 @@ function Scene({
             lastMove={lastMove}
             pitch={pitch}
             onSquare={onSquare}
+            shields={shields}
             standIn={(type, color) => (
               <PieceMesh type={type} color={color} geometries={geometries} ivory={ivory} ebony={ebony} skin={skin} outlineOn={outlineOn} />
             )}
@@ -1843,6 +1850,7 @@ function Scene({
           pitch={pitch}
           duelAt={captureSq === p.sq ? duelAside : null}
           look={kings?.[p.color]}
+          paint={paints[p.color]}
           dogAway={Boolean(maul && maul.color === p.color)}
           onClick={() => onSquare(p.sq)}
         />

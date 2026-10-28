@@ -585,7 +585,26 @@ check($avGold['loadout']['finishId'] === 'king-gold', 'free king piece saves');
 check(\Morse\Avatar::getAvatar('dave', [])['loadout']['finishId'] === 'king-gold', 'king piece is remembered');
 $avLegacy = \Morse\Avatar::saveAvatar('dave', ['loadout' => ['style' => '3d', 'finishId' => 'king-royal-legacy']]);
 check($avLegacy['loadout']['finishId'] === 'king-onyx', 'Royal Legacy King stays locked until bought');
-check(\Morse\Catalog::gearPrice('king-royal-legacy') === 25000, 'Royal Legacy King costs 25,000 coins');
+check(\Morse\Catalog::gearPrice('king-royal-legacy') === 20, 'Royal Legacy kit costs 20 coins');
+
+// ── Royal Legacy kit: game looks carry the kit and the username letter ────
+\Morse\Kit::reset();
+$plainLook = \Morse\Kit::look('dave', '{"style":"3d","finishId":"king-gold"}');
+check(!str_contains($plainLook, '"kit"'), 'no kit on the look before the Royal Legacy kit is bought');
+\Morse\Db::run("UPDATE profiles SET coins = 25 WHERE user_id = 'dave'");
+$kitBuy = \Morse\Avatar::buyGear('dave', ['id' => 'king-royal-legacy']);
+check($kitBuy['coins'] === 5 && in_array('king-royal-legacy', $kitBuy['owned'], true), 'Royal Legacy kit takes exactly 20 coins');
+$kitAgain = \Morse\Avatar::buyGear('dave', ['id' => 'king-royal-legacy']);
+check($kitAgain['coins'] === 5, 'buying the kit again does not charge twice');
+\Morse\Kit::reset();
+$kitLook = json_decode(\Morse\Kit::look('dave', '{"style":"3d","finishId":"king-gold"}'), true);
+check(($kitLook['kit'] ?? '') === 'legacy' && ($kitLook['finishId'] ?? '') === 'king-gold', 'kit owner look keeps the loadout and adds the kit');
+check(($kitLook['letter'] ?? '') === \Morse\Kit::letter((string) \Morse\Db::one("SELECT username FROM profiles WHERE user_id = 'dave'")['username']), 'kit letter is the username initial');
+check(\Morse\Kit::letter('rookRocket339') === 'R' && \Morse\Kit::letter('_gb') === 'G' && \Morse\Kit::letter('') === '', 'kit letter is the first letter, upper case');
+$emptyKit = json_decode(\Morse\Kit::look('dave', ''), true);
+check(($emptyKit['kit'] ?? '') === 'legacy', 'kit shows even before an AV loadout is saved');
+$avKitKing = \Morse\Avatar::saveAvatar('dave', ['loadout' => ['style' => '3d', 'finishId' => 'king-royal-legacy']]);
+check($avKitKing['loadout']['finishId'] === 'king-royal-legacy', 'Royal Legacy King can be worn once the kit is bought');
 
 
 finish();

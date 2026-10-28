@@ -79,6 +79,20 @@ export function playLegoHit(big = false) {
   hiss(0.08, 3000, 1500, 0.16, 0, 0.8);
 }
 
+/** A blow ringing off a metal shield (Shield Block). */
+export function playLegoClang() {
+  tone(1320, 1240, 0.55, "triangle", 0.11);
+  tone(1990, 1900, 0.4, "sine", 0.07, 0.01);
+  tone(140, 60, 0.25, "sine", 0.2);
+  hiss(0.1, 4200, 2500, 0.14, 0, 0.8);
+}
+
+/** The thrown shield humming through the air. */
+export function playLegoShieldThrow() {
+  hiss(0.5, 900, 2600, 0.1);
+  tone(520, 760, 0.45, "sine", 0.035);
+}
+
 /** Energy beams: repulsor, Doom blast, zaps. */
 export function playLegoBeam(deep = false) {
   tone(deep ? 260 : 900, deep ? 60 : 300, 0.45, "sawtooth", 0.06);

@@ -203,6 +203,7 @@
       "mountId": "none",
       "frameId": "plain",
       "attackId": "march",
+      "lgAttackId": "lg-none",
       "finishId": "king-onyx"
     },
     "groups": {
@@ -314,14 +315,20 @@
         }
       ],
       "attacks": [
-        {
-          "id": "march",
-          "price": 0
-        },
-        {
-          "id": "chop",
-          "price": 4
-        }
+        { "id": "march", "price": 0 },
+        { "id": "stab", "price": 0 },
+        { "id": "slash", "price": 0 },
+        { "id": "kick", "price": 0 },
+        { "id": "punch", "price": 0 },
+        { "id": "chop", "price": 4 },
+        { "id": "whirl", "price": 6 },
+        { "id": "leap", "price": 8 },
+        { "id": "fireball", "price": 8 },
+        { "id": "thunder", "price": 10 }
+      ],
+      "lgAttacks": [
+        { "id": "lg-none", "price": 0 },
+        { "id": "shield-block", "price": 8 }
       ],
       "finishes": [
         {
@@ -362,7 +369,7 @@
         },
         {
           "id": "king-royal-legacy",
-          "price": 25000
+          "price": 20
         }
       ]
     },

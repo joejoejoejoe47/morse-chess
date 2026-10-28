@@ -8,16 +8,16 @@ import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { Figurine } from "@/components/avatar/figurine";
 import { RaShop } from "@/components/avatar/ra-buy";
 import { PedestalStage, useKingThumbs } from "@/components/avatar/pedestal-king";
-import { RaPawn, raUnitUrl } from "@/components/chess/ra-men";
-import { StonePerson, type Gait } from "@/components/chess/stone-people";
-import { RaCrown, WarDog } from "@/components/chess/war-dog";
 import { FieldStage } from "@/components/avatar/field-stage";
 import { LegoDress } from "@/components/avatar/lego-dress";
 import { NamePlate } from "@/components/avatar/name-plate";
+import { AttackMark } from "@/components/avatar/attack-mark";
+import { BlueRook, CrownFlat, RaPreview } from "@/components/avatar/king-bits";
 import { useClubDoor } from "@/lib/auth/use-club-door";
 import { keepWebGL } from "@/lib/gl-quiet";
 import {
   ATTACKS,
+  LG_ATTACKS,
   CHARACTERS,
   CROWNS,
   DEFAULT_LOADOUT,
@@ -82,6 +82,12 @@ const CATEGORIES: { id: Category; label: string; title: string; sub: string }[] 
 ];
 
 const GRID_FINISHES = FINISHES.filter((item) => !item.legendary);
+
+/** The letter on Royal Legacy pieces: the first letter of the username, upper case. */
+function kitInitial(name: string) {
+  const hit = name.match(/[\p{L}\p{N}]/u);
+  return hit ? hit[0].toUpperCase() : "";
+}
 const LEGACY = FINISHES.find((item) => item.legendary)!;
 
 const GOLD_BTN =
@@ -109,7 +115,9 @@ function AvatarStudio() {
   const [strike, setStrike] = useState(false);
   const [offer, setOffer] = useState(false);
   const [buyingRa, setBuyingRa] = useState(false);
-  const thumbs = useKingThumbs(FINISHES);
+  const ownsKit = owned.includes(LEGACY.id);
+  const kitLetter = kitInitial(username);
+  const thumbs = useKingThumbs(FINISHES, ownsKit, kitLetter);
 
   useEffect(() => {
     try {
@@ -220,7 +228,7 @@ function AvatarStudio() {
     setSaved("idle");
     if (price > 0 && !owned.includes(id)) {
       if (coins < price) {
-        setError(`${LEGACY.name} is legendary: ${price.toLocaleString()} Morse coins. You have ${coins.toLocaleString()}.`);
+        setError(`The Royal Legacy kit costs ${price.toLocaleString()} Morse coins. You have ${coins.toLocaleString()}.`);
         return;
       }
       try {
@@ -330,7 +338,15 @@ function AvatarStudio() {
             <color attach="background" args={["#0f0c0a"]} />
             <fog attach="fog" args={["#0f0c0a", 7, 16]} />
             <ModelSlot>
-              <PedestalStage finish={finish} crownId={loadout.crownId} team={loadout.team} board={board} spin={strike} />
+              <PedestalStage
+                finish={finish}
+                crownId={loadout.crownId}
+                team={loadout.team}
+                board={board}
+                spin={strike}
+                legacy={ownsKit}
+                letter={kitLetter}
+              />
             </ModelSlot>
             <OrbitControls
               ref={controls as never}
@@ -654,8 +670,10 @@ function AvatarStudio() {
                   </svg>
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">{LEGACY.name}</span>
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">Legendary</span>
+                  <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">Royal Legacy kit</span>
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">
+                    {own(LEGACY) ? "Unlocked · Royal Legacy King" : "Legendary · unlock"}
+                  </span>
                 </span>
                 {own(LEGACY) ? (
                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e9c766]">Owned</span>
@@ -666,7 +684,13 @@ function AvatarStudio() {
                   </span>
                 )}
               </button>
-              {loadout.style === "3d" ? <Note>{finish.blurb} Wear it on the pedestal, then press Save avatar.</Note> : null}
+              {loadout.style === "3d" ? (
+                <Note>
+                  {ownsKit
+                    ? `Royal Legacy kit: in 3D games your king is this king and all your pieces are pearl and gold with your letter${kitLetter ? ` "${kitLetter}"` : ""}. Playing black makes the set darker. ${finish.blurb} Press Save avatar to keep it.`
+                    : `In 3D games all your pieces are the colour of this king (darker when you play black). ${finish.blurb} Unlock the Royal Legacy kit for ${LEGACY.price} coins to get the Royal Legacy king and pearl and gold pieces with your letter.`}
+                </Note>
+              ) : null}
             </>
           ) : null}
 
@@ -811,6 +835,27 @@ function AvatarStudio() {
                     <span className="text-xs text-[#a8977a]">{own(item) ? item.blurb : `${item.price} coins · ${item.blurb}`}</span>
                   </span>
                   {loadout.attackId === item.id ? <GoldCheck /> : null}
+                </button>
+              ))}
+              <p className="pt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#d6ad4f]">LG king attacks</p>
+              <Note>Plays in Brick Verse (LG) games when your king captures. Your opponent sees it too.</Note>
+              {LG_ATTACKS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  data-lg-attack={item.id}
+                  onClick={() => void equip("lgAttackId", item.id, item.price)}
+                  className={cn(
+                    "relative flex w-full items-center gap-3 rounded-md border bg-[#16120e] p-2.5 text-left",
+                    loadout.lgAttackId === item.id ? "border-[#e2b84e]" : "border-[#2e261d] hover:border-[#5a4a33]",
+                  )}
+                >
+                  <AttackMark id={item.id} />
+                  <span>
+                    <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">{item.name}</span>
+                    <span className="text-xs text-[#a8977a]">{own(item) ? item.blurb : `${item.price} coins · ${item.blurb}`}</span>
+                  </span>
+                  {loadout.lgAttackId === item.id ? <GoldCheck /> : null}
                 </button>
               ))}
             </>
@@ -1017,72 +1062,6 @@ function Tile({
   );
 }
 
-function RaPreview({ team, crownId, dog }: { team: "w" | "b"; crownId: string; dog: boolean }) {
-  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
-  return (
-    <group>
-      <RaPawn gait={gait} url={raUnitUrl("k")} team={team === "b" ? "red" : "blue"} role="k" />
-      <RaCrown crownId={crownId} team={team} />
-      {dog ? (
-        <group position={[0.75, 0, 0.2]}>
-          <WarDog act="idle" />
-        </group>
-      ) : null}
-    </group>
-  );
-}
-
-function BlueRook() {
-  const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
-  return <StonePerson type="r" white cast="stone" gait={gait} flip={false} />;
-}
-
-
-function CrownFlat({ id, dark }: { id: string; dark: boolean }) {
-  const metal = dark ? "#2a241c" : "#e4c56a";
-  const edge = dark ? "#0c0a08" : "#7a5620";
-  const leaf = dark ? "#3e4a36" : "#8fa56a";
-  const crown =
-    id === "halo"
-      ? ""
-      : id === "royal-crown"
-        ? "M8 58 L16 22 L28 40 L50 8 L72 40 L84 22 L92 58 Z"
-        : id === "poly-arch"
-          ? "M10 58 L22 30 Q50 4 78 30 L90 58 Z"
-          : "M12 58 L18 40 L32 48 L50 28 L68 48 L82 40 L88 58 Z";
-  return (
-    <svg
-      viewBox="0 0 100 70"
-      className="pointer-events-none absolute left-1/2 top-[27%] w-[34%] -translate-x-1/2"
-      aria-hidden
-    >
-      {id === "halo" ? (
-        <ellipse cx="50" cy="36" rx="28" ry="10" fill="none" stroke={metal} strokeWidth="5" />
-      ) : id === "laurel" ? (
-        <g fill={leaf} stroke={edge} strokeWidth="1.2">
-          {[-1, 1].map((side) => (
-            <g key={side} transform={`translate(50 48) scale(${side} 1)`}>
-              {[0, 1, 2, 3, 4].map((i) => (
-                <ellipse
-                  key={i}
-                  cx={8 + i * 6}
-                  cy={-4 + i * 2}
-                  rx="6"
-                  ry="3.2"
-                  transform={`rotate(${-36 + i * 14} ${8 + i * 6} ${-4 + i * 2})`}
-                />
-              ))}
-            </g>
-          ))}
-        </g>
-      ) : (
-        <path d={crown} fill={metal} stroke={edge} strokeWidth="2" strokeLinejoin="round" />
-      )}
-      <rect x="8" y="54" width="84" height="8" rx="1.5" fill={metal} stroke={edge} strokeWidth="1.5" />
-    </svg>
-  );
-}
-
 function GearMark({ id }: { id: string }) {
   const path =
     id === "dual"
@@ -1121,22 +1100,3 @@ function frameChip(id: string) {
   return "border border-line";
 }
 
-function AttackMark({ id }: { id: string }) {
-  const path =
-    id === "slam"
-      ? "M12 3v12M8 11l4 4 4-4"
-      : id === "sweep"
-        ? "M4 16c6-10 10-10 16 0"
-        : id === "charge"
-          ? "M3 14h12l-3-3M15 14l-3 3"
-          : id === "flash"
-            ? "M13 2L6 13h6l-1 9 8-12h-6l0-8z"
-            : id === "bow"
-              ? "M6 18c2-8 10-8 12 0"
-              : "M5 17l7-7 7 7";
-  return (
-    <svg viewBox="0 0 24 24" className="size-10 shrink-0 rounded-lg bg-walnut p-1 text-cream" aria-hidden>
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}

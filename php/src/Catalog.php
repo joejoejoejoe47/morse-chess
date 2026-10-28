@@ -157,6 +157,7 @@ final class Catalog
             'mountId' => $pick($src['mountId'] ?? null, 'none', $groups['mounts']),
             'frameId' => $pick($src['frameId'] ?? null, 'plain', $groups['frames']),
             'attackId' => $pick($attackRaw, 'march', $groups['attacks']),
+            'lgAttackId' => $pick($src['lgAttackId'] ?? null, 'lg-none', $groups['lgAttacks'] ?? []),
             'finishId' => $pick($src['finishId'] ?? null, 'king-onyx', $groups['finishes'] ?? []),
             'lgBody' => $pick($src['lgBody'] ?? null, 'cap', self::legoParts()),
             'lgHead' => $pick($src['lgHead'] ?? null, 'cap', self::legoParts()),

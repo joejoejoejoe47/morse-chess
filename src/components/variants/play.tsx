@@ -9,7 +9,7 @@ import { setPieceStyle } from "@/lib/server/avatar";
 import { boardById } from "@/lib/chess/board-skins";
 import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
 import { cn } from "@/lib/utils";
-import { VariantStage, type Look, type MoveCue, type Sky, type StageUnit } from "@/components/variants/stage";
+import { VariantStage, type Look, type MoveCue, type Scoreboard, type Sky, type StageUnit } from "@/components/variants/stage";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -246,6 +246,8 @@ function Grid({
   ball = null,
   cue = null,
   stadium = false,
+  sel = null,
+  board = null,
 }: {
   rows: number;
   cols: number;
@@ -255,6 +257,8 @@ function Grid({
   ball?: { r: number; f: number } | null;
   cue?: MoveCue | null;
   stadium?: boolean;
+  sel?: { r: number; f: number; throwing: boolean } | null;
+  board?: Scoreboard | null;
 }) {
   const { look, sky, light, dark } = useContext(LookCtx);
   const plain = new Set(["#e7d3a8", "#b58863", "#cbb892", "#8c6a45"]);
@@ -314,7 +318,7 @@ function Grid({
   }
   return (
     <div className="h-full w-full">
-      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} />
+      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} board={board} />
     </div>
   );
 }
@@ -997,7 +1001,8 @@ export function Football({ versus }: { versus: string }) {
       return;
     }
     acts.sort((a, b) => b.rank - a.rank);
-    const pick = acts[Math.floor(Math.random() * Math.min(3, acts.length))];
+    // It picks at random among its 4 best-ranked moves (it used to be the best 3), so it is a small bit easier.
+    const pick = acts[Math.floor(Math.random() * Math.min(4, acts.length))];
     if (pick.kind === "t") pass(pick.from, pick.to, live, scored);
     else moveTo(pick.from, pick.to, live, ball, scored);
   }
@@ -1039,6 +1044,8 @@ export function Football({ versus }: { versus: string }) {
         ball={loose ? { r: loose[0], f: loose[1] } : null}
         units={board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind, ball: u.ball }] : [])))}
         cue={cue}
+        sel={sel ? { r: sel[0], f: sel[1], throwing } : null}
+        board={{ home: score.w, away: score.b, clock, note: result || (turn === "w" ? "Your down" : `${versus} on offense`), homeName: "Nebula Knights", awayName: "Plasma Phantoms" }}
         paint={(r, f) => {
           const u = board[r][f];
           const end = r <= 1 || r >= 12;

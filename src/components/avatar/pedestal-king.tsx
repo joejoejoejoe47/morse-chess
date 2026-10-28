@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { KingCrown } from "@/components/chess/sculpted-piece";
+import { PaintedStaunton, darkFinish } from "@/components/chess/av-set";
 import { asset } from "@/lib/base";
 import type { KingFinish } from "@/lib/avatar/catalog";
 
@@ -32,8 +35,8 @@ const BODY: [number, number][] = [
   [0, 0.975],
 ];
 
-/** Gold shield with an "M" painted on a canvas, mapped on the king's chest. */
-function shieldTexture(trim: string, field: string) {
+/** Gold shield with the owner's letter painted on a canvas (a small cross when there is no letter). */
+export function shieldTexture(trim: string, field: string, letter = "") {
   const c = document.createElement("canvas");
   c.width = 256;
   c.height = 300;
@@ -49,10 +52,22 @@ function shieldTexture(trim: string, field: string) {
   g.fill(path);
   g.restore();
   g.fillStyle = trim;
-  g.font = "bold 150px Georgia, 'Times New Roman', serif";
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillText("M", 128, 158);
+  if (letter) {
+    g.font = "bold 150px Georgia, 'Times New Roman', serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    const wide = g.measureText(letter).width;
+    if (wide > 170) {
+      g.save();
+      g.translate(128, 158);
+      g.scale(170 / wide, 1);
+      g.fillText(letter, 0, 0);
+      g.restore();
+    } else g.fillText(letter, 128, 158);
+  } else {
+    g.fillRect(114, 80, 28, 150);
+    g.fillRect(74, 120, 108, 28);
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
@@ -60,7 +75,7 @@ function shieldTexture(trim: string, field: string) {
 }
 
 /** Builds the king as plain Three.js meshes. coronet=false leaves the head bare for a catalog crown. */
-export function buildKing(finish: KingFinish, coronet: boolean): THREE.Group {
+export function buildKing(finish: KingFinish, coronet: boolean, letter = ""): THREE.Group {
   const king = new THREE.Group();
   const body = new THREE.MeshStandardMaterial({
     color: finish.body,
@@ -87,7 +102,7 @@ export function buildKing(finish: KingFinish, coronet: boolean): THREE.Group {
   const shield = new THREE.Mesh(
     new THREE.PlaneGeometry(0.2, 0.235),
     new THREE.MeshStandardMaterial({
-      map: shieldTexture(finish.trim, finish.body),
+      map: shieldTexture(finish.trim, finish.body, letter),
       transparent: true,
       metalness: 0.6,
       roughness: 0.35,
@@ -96,6 +111,11 @@ export function buildKing(finish: KingFinish, coronet: boolean): THREE.Group {
   shield.position.set(0, 0.43, 0.168);
   shield.rotation.x = -0.12;
   king.add(shield);
+  // The same shield on the back, so both players can read the letter.
+  const back = shield.clone();
+  back.position.set(0, 0.43, -0.168);
+  back.rotation.set(0.12, Math.PI, 0);
+  king.add(back);
 
   if (coronet) {
     const band = add(new THREE.CylinderGeometry(0.185, 0.165, 0.075, 48, 1, true), crownMat, 0.975);
@@ -127,8 +147,8 @@ export function buildKing(finish: KingFinish, coronet: boolean): THREE.Group {
   return king;
 }
 
-function useKing(finish: KingFinish, coronet: boolean) {
-  const king = useMemo(() => buildKing(finish, coronet), [finish, coronet]);
+function useKing(finish: KingFinish, coronet: boolean, letter: string) {
+  const king = useMemo(() => buildKing(finish, coronet, letter), [finish, coronet, letter]);
   useEffect(
     () => () =>
       king.traverse((node) => {
@@ -144,22 +164,31 @@ function useKing(finish: KingFinish, coronet: boolean) {
   return king;
 }
 
-/** The AV centre stage: dark wood, a round pedestal and the chosen king. */
+/**
+ * The AV centre stage: dark wood, a round pedestal and the chosen king.
+ * legacy = the Royal Legacy kit is unlocked: the Royal Legacy king with the player's letter.
+ * Otherwise the normal Staunton king (the one in 3D games), painted the chosen colour.
+ * Black view shows the darker shade the king (and set) gets when playing black.
+ */
 export function PedestalStage({
-  finish,
+  finish: chosen,
   crownId,
   team,
   board,
   spin,
+  legacy = false,
+  letter = "",
 }: {
   finish: KingFinish;
   crownId: string;
   team: "w" | "b";
   board: boolean;
   spin: boolean;
+  legacy?: boolean;
+  letter?: string;
 }) {
-  const coronet = crownId === "poly-band";
-  const king = useKing(finish, coronet);
+  const finish = useMemo(() => (team === "b" ? darkFinish(chosen) : chosen), [chosen, team]);
+  const coronet = legacy && crownId === "poly-band";
   const turn = useRef<THREE.Group>(null);
   const spun = useRef(0);
   useFrame((_, dt) => {
@@ -189,16 +218,34 @@ export function PedestalStage({
         <meshStandardMaterial color="#8a6a2c" metalness={1} roughness={0.35} />
       </mesh>
       <group ref={turn} position={[0, 0.26, 0]} rotation={[0, 0, 0]}>
-        <group scale={1.55} rotation={[0, team === "b" ? Math.PI : 0, 0]}>
-          <primitive object={king} />
-          {coronet ? null : (
-            <group position={[0, 0.94, 0]} scale={1.35}>
-              <KingCrown id={crownId} team={team} />
-            </group>
-          )}
-        </group>
+        {legacy ? (
+          <LegacyKing finish={finish} coronet={coronet} letter={letter} crownId={crownId} team={team} />
+        ) : (
+          <group scale={1.45} rotation={[0, team === "b" ? Math.PI : 0, 0]}>
+            <PaintedStaunton type="k" color="w" finish={finish} />
+            {crownId !== "none" ? (
+              <group position={[0, 0.92, 0]} rotation={[0, Math.PI, 0]}>
+                <KingCrown id={crownId} team={team} />
+              </group>
+            ) : null}
+          </group>
+        )}
       </group>
     </>
+  );
+}
+
+function LegacyKing({ finish, coronet, letter, crownId, team }: { finish: KingFinish; coronet: boolean; letter: string; crownId: string; team: "w" | "b" }) {
+  const king = useKing(finish, coronet, letter);
+  return (
+    <group scale={1.55} rotation={[0, team === "b" ? Math.PI : 0, 0]}>
+      <primitive object={king} />
+      {coronet || crownId === "none" ? null : (
+        <group position={[0, 0.94, 0]} scale={1.35}>
+          <KingCrown id={crownId} team={team} />
+        </group>
+      )}
+    </group>
   );
 }
 
@@ -236,11 +283,53 @@ function BoardFloor() {
   );
 }
 
-/** Renders each king once with an offscreen Three.js renderer and hands back image URLs for the grid. */
-export function useKingThumbs(finishes: KingFinish[]) {
+const STAUNTON_KING = asset("/pieces/01_king_light.glb");
+
+/** A painted copy of the Staunton king for a thumbnail, about 1.12 tall like in games. */
+function paintedKing(src: THREE.Object3D, finish: KingFinish) {
+  const obj = src.clone(true);
+  const metal = Math.min(finish.metal, 0.85);
+  obj.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = new THREE.MeshStandardMaterial({ color: finish.body, metalness: metal, roughness: metal > 0.7 ? 0.26 : 0.34 });
+  });
+  obj.updateMatrixWorld(true);
+  const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+  obj.scale.multiplyScalar(1.12 / (size.y || 1));
+  obj.updateMatrixWorld(true);
+  obj.position.y -= new THREE.Box3().setFromObject(obj).min.y;
+  obj.rotation.y = Math.PI;
+  const holder = new THREE.Group();
+  holder.add(obj);
+  return holder;
+}
+
+/**
+ * Renders each king once with an offscreen Three.js renderer and hands back image URLs for the grid.
+ * legacy: the Royal Legacy king with the letter; otherwise the painted Staunton king.
+ */
+export function useKingThumbs(finishes: KingFinish[], legacy = true, letter = "") {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const key = finishes.map((f) => f.id).join(",");
+  const key = `${finishes.map((f) => f.id).join(",")}|${legacy ? "legacy" : "staunton"}|${letter}`;
+  const [staunton, setStaunton] = useState<THREE.Object3D | null>(null);
   useEffect(() => {
+    if (legacy || staunton) return;
+    let live = true;
+    // the piece GLBs are meshopt-compressed
+    new GLTFLoader()
+      .setMeshoptDecoder(MeshoptDecoder)
+      .loadAsync(STAUNTON_KING)
+      .then((gltf) => {
+        if (live) setStaunton(gltf.scene);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [legacy, staunton]);
+  useEffect(() => {
+    if (!legacy && !staunton) return;
     let renderer: THREE.WebGLRenderer | null = null;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -267,7 +356,7 @@ export function useKingThumbs(finishes: KingFinish[]) {
     camera.lookAt(0, 0.62, 0);
     const out: Record<string, string> = {};
     for (const finish of finishes) {
-      const king = buildKing(finish, true);
+      const king = legacy || !staunton ? buildKing(finish, true, letter) : paintedKing(staunton, finish);
       scene.add(king);
       renderer.render(scene, camera);
       out[finish.id] = renderer.domElement.toDataURL("image/png");
@@ -285,6 +374,6 @@ export function useKingThumbs(finishes: KingFinish[]) {
     renderer.forceContextLoss();
     setThumbs(out);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, staunton]);
   return thumbs;
 }

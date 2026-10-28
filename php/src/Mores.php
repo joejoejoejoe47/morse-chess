@@ -860,8 +860,8 @@ final class Mores
             'coins' => $me['coins'] ?? 0,
             'coinAward' => $fresh['winner_user_id'] === $userId ? self::toInt($fresh['coin_award'] ?? null, 0) : 0,
             'ownedBoards' => self::ownedList($me['owned_boards'] ?? ''),
-            'whiteLook' => ($white['avatar_json'] ?? '') ?: '',
-            'blackLook' => ($black['avatar_json'] ?? '') ?: '',
+            'whiteLook' => Kit::look((string) $fresh['white_user_id'], ($white['avatar_json'] ?? '') ?: ''),
+            'blackLook' => Kit::look((string) $fresh['black_user_id'], ($black['avatar_json'] ?? '') ?: ''),
         ];
     }
 
@@ -1522,8 +1522,8 @@ final class Mores
         $card = self::historyCard($g, $userId);
         $white = self::historyPeople((string) $g['white_user_id']);
         $black = self::historyPeople((string) $g['black_user_id']);
-        $card['whiteLook'] = ($white['avatar_json'] ?? '') ?: '';
-        $card['blackLook'] = ($black['avatar_json'] ?? '') ?: '';
+        $card['whiteLook'] = Kit::look((string) $g['white_user_id'], ($white['avatar_json'] ?? '') ?: '');
+        $card['blackLook'] = Kit::look((string) $g['black_user_id'], ($black['avatar_json'] ?? '') ?: '');
         return $card;
     }
 
