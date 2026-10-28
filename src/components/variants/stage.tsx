@@ -8,6 +8,7 @@ import { StonePerson, WarCorpse, type Gait } from "@/components/chess/stone-peop
 import { LEGO_CHARS, LEGO_ROSTER, LegoWalker, LegoWorld, type LegoCharId } from "@/components/chess/lego-board";
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 import { asset } from "@/lib/base";
+import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
 
 export type { Scoreboard, StadiumShow };
@@ -59,7 +60,10 @@ function Person({ type, white }: { type: PieceSymbol; white: boolean }) {
 
 function LegoFig({ id }: { id: LegoCharId }) {
   const gltf = useGLTF(asset(`/lego/chars/${LEGO_CHARS[id].file}`));
-  const scene = useMemo(() => gltf.scene.clone(true), [gltf]);
+  const scene = useMemo(() => {
+    fixLegoWinding(gltf.scene);
+    return gltf.scene.clone(true);
+  }, [gltf]);
   return <primitive object={scene} scale={LEGO_CHARS[id].height} />;
 }
 

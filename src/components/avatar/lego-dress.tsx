@@ -1,3 +1,4 @@
+import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -213,6 +214,7 @@ function clipMesh(mesh: THREE.Mesh, toFile: THREE.Matrix4, clip: Clip) {
 
 /** Copy the named nodes of a figure (with their place in that file) into a new group, optionally clipped. */
 function lift(scene: THREE.Object3D, names: string[], clip?: Clip) {
+  fixLegoWinding(scene);
   scene.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(scene.matrixWorld).invert();
   const out = new THREE.Group();
