@@ -320,14 +320,59 @@ function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null, d
   ctx.fillRect(0, 0, W, H);
   // turf stripes, every half unit (5 yards); the park field is real daytime grass
   for (let i = 0; i < rows * 2; i++) {
-    ctx.fillStyle = day ? (i % 2 ? "#4e9a3c" : "#5aa846") : i % 2 ? "#0c2a24" : "#0a231f";
+    if (day) {
+      // mown stripes: the mower lays the blades one way, then back, so the light and dark bands soften at the edges
+      const g = ctx.createLinearGradient(X(i / 2), 0, X((i + 1) / 2), 0);
+      const [a, b] = i % 2 ? ["#4a9238", "#3f8531"] : ["#62ad4a", "#58a443"];
+      g.addColorStop(0, a);
+      g.addColorStop(0.5, b);
+      g.addColorStop(1, a);
+      ctx.fillStyle = g;
+    } else ctx.fillStyle = i % 2 ? "#0c2a24" : "#0a231f";
     ctx.fillRect(X(i / 2), top, PX / 2 + 1, bottom - top);
+  }
+  if (day) {
+    // cross-mowing: faint stripes the other way give the checkerboard look of a cared-for field
+    for (let j = 0; j < cols; j++) {
+      if (j % 2) continue;
+      ctx.fillStyle = "rgba(255,255,230,0.045)";
+      ctx.fillRect(X(0), Y(j), X(rows) - X(0), PX);
+    }
+    // worn patches between the hashes, where the play happens most
+    const wear = mulberry(19);
+    for (let i = 0; i < 26; i++) {
+      const x = X(2) + wear() * (X(rows - 2) - X(2));
+      const y = Y(cols * 0.3) + wear() * (Y(cols * 0.7) - Y(cols * 0.3));
+      const r = PX * (0.25 + wear() * 0.5);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, "rgba(120,110,60,0.16)");
+      g.addColorStop(1, "rgba(120,110,60,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
   }
   // fine turf grain
   const rnd = mulberry(7);
-  for (let i = 0; i < (day ? 16000 : 9000); i++) {
-    ctx.fillStyle = day ? `rgba(${rnd() > 0.5 ? "150,210,100" : "20,60,15"},${0.06 + rnd() * 0.08})` : `rgba(${rnd() > 0.5 ? "60,140,110" : "0,0,0"},${0.05 + rnd() * 0.06})`;
-    ctx.fillRect(X(0) + rnd() * (X(rows) - X(0)), top + rnd() * (bottom - top), 2, 2 + rnd() * 4);
+  if (day) {
+    // single blades: thin strokes leaning with the mowing, light tips and dark roots
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 42000; i++) {
+      const x = rnd() * W;
+      const y = rnd() * H;
+      const stripe = Math.floor((x - X(0)) / (PX / 2));
+      const lean = (stripe % 2 ? 1 : -1) * (0.6 + rnd() * 1.4);
+      const len = 2 + rnd() * 4;
+      ctx.strokeStyle = rnd() > 0.45 ? `rgba(170,220,110,${0.08 + rnd() * 0.12})` : `rgba(18,55,14,${0.08 + rnd() * 0.14})`;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + lean, y - len);
+      ctx.stroke();
+    }
+  } else {
+    for (let i = 0; i < 9000; i++) {
+      ctx.fillStyle = `rgba(${rnd() > 0.5 ? "60,140,110" : "0,0,0"},${0.05 + rnd() * 0.06})`;
+      ctx.fillRect(X(0) + rnd() * (X(rows) - X(0)), top + rnd() * (bottom - top), 2, 2 + rnd() * 4);
+    }
   }
   // end zones
   const zone = (k0: number, k1: number, a: string, b: string) => {
@@ -501,7 +546,7 @@ export function canvasTex(c: HTMLCanvasElement) {
   return t;
 }
 
-export function Field({ rows, cols, home, day = false }: { rows: number; cols: number; home: HomeTeam | null; day?: boolean }) {
+export function Field({ rows, cols, home, day = false, grass = null }: { rows: number; cols: number; home: HomeTeam | null; day?: boolean; grass?: THREE.Texture | null }) {
   const tex = useMemo(() => canvasTex(fieldCanvas(rows, cols, home, day)), [rows, cols, home?.name, home?.color, day]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => tex.dispose(), [tex]);
   const L = rows + MARGIN_L * 2;
@@ -510,7 +555,18 @@ export function Field({ rows, cols, home, day = false }: { rows: number; cols: n
     <group rotation={[0, Math.PI / 2, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.125, 0]} receiveShadow>
         <planeGeometry args={[L, Wd]} />
-        <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={day ? 0.14 : 0.62} roughness={0.9} metalness={0} />
+        {/* the park field (t204u): real grass blades in the light, so the sun and shadows read on it */}
+        <meshStandardMaterial
+          key={grass ? "g" : "p"}
+          map={tex}
+          emissiveMap={tex}
+          emissive="#ffffff"
+          emissiveIntensity={day ? (grass ? 0.06 : 0.14) : 0.62}
+          roughness={day ? 0.96 : 0.9}
+          metalness={0}
+          normalMap={grass ?? undefined}
+          normalScale={grass ? new THREE.Vector2(0.9, 0.9) : undefined}
+        />
       </mesh>
     </group>
   );

@@ -2,11 +2,15 @@
  * The Park Field (owner, t192u): a daytime football field in a town park. Real grass with neon
  * lines, the cyan Nebula Knights and purple Plasma Phantoms end zones, the centre crest, wooden
  * bleachers full of fans, team benches, trees, a little town behind and a "GFL CHAMPIONSHIP"
- * jumbotron. Everything is procedural (no downloaded assets) and instanced, so it stays light.
+ * jumbotron. Instanced, so it stays light. The realism pass (owner, t204u): real leafy trees from the
+ * glade model, real bermuda grass on the ground and in the turf, mowing stripes, aluminium bleachers
+ * with rails and cross braces, and a warm afternoon sun whose shadows cover the whole park.
  */
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
+import { asset } from "@/lib/base";
 import {
   CinemaCam,
   Field,
@@ -121,6 +125,198 @@ function clear(x: number, z: number, hw: number, hl: number, padX: number, padZ:
   return Math.abs(x) > hw + padX || Math.abs(z) > hl + padZ;
 }
 
+type TreeSpot = { x: number; z: number; h: number; s: number; yaw: number; pick: number };
+/** where the park trees stand: around the field, never in front of the TV camera */
+function treeSpots(hw: number, hl: number, n: number, seed = 42) {
+  const rnd = mulberry(seed);
+  const out: TreeSpot[] = [];
+  let tries = 0;
+  while (out.length < n && tries++ < 5000) {
+    const x = (rnd() - 0.5) * 74;
+    const z = (rnd() - 0.5) * 68;
+    if (!clear(x, z, hw, hl, 7.5, 4.5)) continue;
+    if (Math.abs(x) < 26 && Math.abs(z) < 4 && x > 0) continue;
+    if (Math.hypot(x, z) > 38) continue;
+    out.push({ x, z, h: 3.6 + rnd() * 2.6, s: 0.85 + rnd() * 0.35, yaw: rnd() * Math.PI * 2, pick: rnd() });
+  }
+  return out;
+}
+
+useGLTF.preload(asset("/glade/trees.glb"));
+
+/** Real trees (t204u): the five leafy glade trees, instanced, each kind once per bark / leaf mesh. */
+function RealTrees({ hw, hl }: { hw: number; hl: number }) {
+  const gltf = useGLTF(asset("/glade/trees.glb"));
+  const parts = useMemo(() => {
+    gltf.scene.updateMatrixWorld(true);
+    const kinds = [1, 2, 3, 4, 5].map((n) => gltf.scene.getObjectByName(`NormalTree_${n}`)).filter((o): o is THREE.Object3D => Boolean(o));
+    const spots = treeSpots(hw, hl, 96);
+    const out: { geo: THREE.BufferGeometry; mat: THREE.Material; list: Inst[]; key: string }[] = [];
+    kinds.forEach((kind, ki) => {
+      const box = new THREE.Box3().setFromObject(kind);
+      const height = Math.max(0.01, box.max.y - box.min.y);
+      const base = new THREE.Matrix4().makeTranslation(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
+      const mine = spots.filter((sp) => Math.floor(sp.pick * kinds.length) === ki);
+      kind.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const local = base.clone().multiply(mesh.matrixWorld);
+        const list = mine.map((sp) => {
+          const k = sp.h / height;
+          return { m: place(sp.x, 0, sp.z, k * sp.s, k, k * sp.s, sp.yaw).multiply(local) };
+        });
+        const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        out.push({ geo: mesh.geometry, mat, list, key: `${ki}-${mesh.uuid}` });
+      });
+    });
+    return out;
+  }, [gltf, hw, hl]);
+  return (
+    <group>
+      {parts.map((p) => (
+        <TreePart key={p.key} geo={p.geo} mat={p.mat} list={p.list} />
+      ))}
+    </group>
+  );
+}
+
+function TreePart({ geo, mat, list }: { geo: THREE.BufferGeometry; mat: THREE.Material; list: Inst[] }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  useInstances(ref, list);
+  if (!list.length) return null;
+  return <instancedMesh ref={ref} args={[geo, mat, list.length]} castShadow receiveShadow frustumCulled={false} />;
+}
+
+/* ── Real grass on the ground ── */
+
+const LAWN = {
+  normalMap: asset("/glade/lawn/textures/grass_bermuda_01_nor_gl_1k.jpg"),
+};
+
+function tiled(t: THREE.Texture, rx: number, ry: number, color = false) {
+  const c = t.clone();
+  c.wrapS = THREE.RepeatWrapping;
+  c.wrapT = THREE.RepeatWrapping;
+  c.repeat.set(rx, ry);
+  c.anisotropy = 8;
+  c.colorSpace = color ? THREE.SRGBColorSpace : THREE.LinearSRGBColorSpace;
+  c.needsUpdate = true;
+  return c;
+}
+
+/** a tileable grass colour: green base, soft clumps and thousands of small blades */
+function grassCanvas(seed: number, base: [number, number, number]) {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d")!;
+  const rnd = mulberry(seed);
+  ctx.fillStyle = `rgb(${base[0]},${base[1]},${base[2]})`;
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 60; i++) {
+    const x = rnd() * 256, y = rnd() * 256, r = 10 + rnd() * 26;
+    const k = (rnd() - 0.5) * 26;
+    for (const dx of [-256, 0, 256]) for (const dy of [-256, 0, 256]) {
+      const g = ctx.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, r);
+      g.addColorStop(0, `rgba(${base[0] + k},${base[1] + k * 1.2},${base[2] + k * 0.5},0.5)`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x + dx - r, y + dy - r, r * 2, r * 2);
+    }
+  }
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 9000; i++) {
+    const x = rnd() * 256, y = rnd() * 256, len = 2 + rnd() * 4, a = (rnd() - 0.5) * 1.4;
+    const k = (rnd() - 0.45) * 60;
+    ctx.strokeStyle = `rgba(${base[0] + k * 0.8},${base[1] + k},${base[2] + k * 0.4},0.55)`;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.sin(a) * len, y - Math.cos(a) * len);
+    ctx.stroke();
+  }
+  return c;
+}
+
+/** mowing stripes for the apron: light / dark bands laid on top of the real grass */
+function stripeCanvas() {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 64;
+  const ctx = c.getContext("2d")!;
+  for (let i = 0; i < 16; i++) {
+    const g = ctx.createLinearGradient(i * 32, 0, i * 32 + 32, 0);
+    const a = i % 2 ? "rgba(255,255,220,0.13)" : "rgba(0,30,0,0.10)";
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(0.2, a);
+    g.addColorStop(0.8, a);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(i * 32, 0, 32, 64);
+  }
+  return c;
+}
+
+function Lawn({ hw, hl, rows, cols, home }: { hw: number; hl: number; rows: number; cols: number; home: HomeTeam | null }) {
+  const maps = useTexture(LAWN);
+  const m = useMemo(() => {
+    const aw = hw * 2 + 9;
+    const al = hl * 2 + 5;
+    const gc = canvasTex(grassCanvas(7, [86, 142, 60]));
+    const ac = canvasTex(grassCanvas(11, [78, 136, 54]));
+    const ground = new THREE.MeshStandardMaterial({ map: tiled(gc, 70, 70, true), normalMap: tiled(maps.normalMap, 120, 120), roughness: 1 });
+    const apron = new THREE.MeshStandardMaterial({ map: tiled(ac, aw / 3, al / 3, true), normalMap: tiled(maps.normalMap, aw / 1.6, al / 1.6), roughness: 1 });
+    const stripes = canvasTex(stripeCanvas());
+    stripes.wrapS = THREE.RepeatWrapping;
+    stripes.repeat.set(aw / 8, 1);
+    const band = new THREE.MeshBasicMaterial({ map: stripes, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
+    const L = rows + MARGIN_L * 2;
+    const Wd = cols + MARGIN_W * 2;
+    const turf = tiled(maps.normalMap, L / 1.2, Wd / 1.2);
+    return { ground, apron, band, turf, aw, al };
+  }, [maps, hw, hl, rows, cols]);
+  useEffect(
+    () => () => {
+      for (const mat of [m.ground, m.apron, m.band]) {
+        (mat as THREE.MeshStandardMaterial).map?.dispose();
+        (mat as THREE.MeshStandardMaterial).normalMap?.dispose();
+        mat.dispose();
+      }
+      m.turf.dispose();
+    },
+    [m],
+  );
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow material={m.ground}>
+        <circleGeometry args={[140, 48]} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.0, 0]} receiveShadow material={m.apron}>
+        <planeGeometry args={[m.aw, m.al]} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, Math.PI / 2]} position={[0, 0.004, 0]} material={m.band}>
+        <planeGeometry args={[m.al, m.aw]} />
+      </mesh>
+      <Field rows={rows} cols={cols} home={home} day grass={m.turf} />
+    </group>
+  );
+}
+
+function PlainLawn({ hw, hl, rows, cols, home }: { hw: number; hl: number; rows: number; cols: number; home: HomeTeam | null }) {
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+        <circleGeometry args={[140, 48]} />
+        <meshStandardMaterial color="#5f9a44" roughness={1} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.0, 0]} receiveShadow>
+        <planeGeometry args={[hw * 2 + 9, hl * 2 + 5]} />
+        <meshStandardMaterial color="#4f8f3a" roughness={1} />
+      </mesh>
+      <Field rows={rows} cols={cols} home={home} day />
+    </group>
+  );
+}
+
+/** the simple stand-in trees while the real ones load */
 function Trees({ hw, hl }: { hw: number; hl: number }) {
   const trunks = useRef<THREE.InstancedMesh>(null);
   const leaves = useRef<THREE.InstancedMesh>(null);
@@ -254,25 +450,70 @@ function Bleachers({ list }: { list: Bleacher[] }) {
   const { b, f } = useMemo(() => {
     const b: Inst[] = [];
     const f: Inst[] = [];
-    const steel = new THREE.Color("#8d969e");
+    // aluminium planks, like real park bleachers (t204u), on a galvanised steel frame
+    const alu = new THREE.Color("#d5dade");
+    const aluDark = new THREE.Color("#aab2b8");
+    const riser = new THREE.Color("#8e979e");
+    const steel = new THREE.Color("#6f777e");
     for (const bl of list) {
       const len = bl.z1 - bl.z0;
       const zc = (bl.z0 + bl.z1) / 2;
       for (let k = 0; k < bl.tiers; k++) {
         const s = seatSpot(bl, k);
-        b.push({ m: place(s.x, s.y, zc, 0.34, 0.06, len), c: k % 2 ? WOOD : WOOD_DARK.clone().lerp(WOOD, 0.6) });
-        b.push({ m: place(s.x - bl.dir * 0.2, s.y - STEP_UP * 0.55, zc, 0.24, 0.04, len), c: WOOD_DARK });
+        // two seat planks with a small gap, a foot plank in front and the riser below it
+        b.push({ m: place(s.x + bl.dir * 0.08, s.y, zc, 0.15, 0.05, len), c: alu });
+        b.push({ m: place(s.x - bl.dir * 0.09, s.y, zc, 0.15, 0.05, len), c: alu });
+        b.push({ m: place(s.x - bl.dir * 0.22, s.y - STEP_UP * 0.55, zc, 0.26, 0.035, len), c: aluDark });
+        b.push({ m: place(s.x - bl.dir * 0.34, s.y - STEP_UP * 0.78, zc, 0.015, STEP_UP * 0.42, len), c: riser });
       }
-      // steel legs and the back rail
       const top = seatSpot(bl, bl.tiers - 1);
-      for (let z = bl.z0; z <= bl.z1 + 1e-3; z += 1.6) {
+      const backX = top.x + bl.dir * 0.24;
+      const step = 1.6;
+      for (let z = bl.z0; z <= bl.z1 + 1e-3; z += step) {
+        // the sloped stringer under the seats
+        const rise = top.y;
+        const run = top.x - seatSpot(bl, 0).x;
+        const sl = Math.hypot(rise, run);
+        const ang = Math.atan2(rise, Math.abs(run));
+        const mid = { x: (seatSpot(bl, 0).x + top.x) / 2, y: rise / 2 + 0.02 };
+        const stringer = new THREE.Matrix4().compose(new THREE.Vector3(mid.x, mid.y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), bl.dir * ang), new THREE.Vector3(sl, 0.07, 0.05));
+        f.push({ m: stringer, c: steel });
+        // legs, every other tier, on little foot plates
         for (let k = 0; k < bl.tiers; k += 2) {
           const s = seatSpot(bl, k);
-          f.push({ m: place(s.x, s.y / 2, z, 0.06, s.y, 0.06), c: steel });
+          f.push({ m: place(s.x, s.y / 2, z, 0.05, s.y, 0.05), c: steel });
+          f.push({ m: place(s.x, 0.01, z, 0.16, 0.02, 0.16), c: steel });
         }
-        f.push({ m: place(top.x + bl.dir * 0.2, top.y + 0.35, z, 0.05, 0.7, 0.05), c: steel });
+        f.push({ m: place(backX, top.y / 2, z, 0.05, top.y, 0.05), c: steel });
+        // X braces between this leg row and the next
+        if (z + step <= bl.z1 + 1e-3) {
+          const h = Math.max(0.3, seatSpot(bl, Math.max(0, bl.tiers - 2)).y * 0.8);
+          const d = Math.hypot(step, h);
+          const a = Math.atan2(h, step);
+          for (const sign of [1, -1]) {
+            const brace = new THREE.Matrix4().compose(new THREE.Vector3(backX - bl.dir * 0.02, h / 2 + 0.05, z + step / 2), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), sign * a), new THREE.Vector3(0.025, 0.025, d));
+            f.push({ m: brace, c: steel });
+          }
+        }
+        // guard rail posts at the back
+        f.push({ m: place(backX, top.y + 0.42, z, 0.04, 0.84, 0.04), c: alu });
       }
-      f.push({ m: place(top.x + bl.dir * 0.2, top.y + 0.7, zc, 0.05, 0.05, len), c: steel });
+      // guard rails: top and middle bars along the back
+      f.push({ m: place(backX, top.y + 0.84, zc, 0.045, 0.045, len), c: alu });
+      f.push({ m: place(backX, top.y + 0.45, zc, 0.03, 0.03, len), c: alu });
+      // hand rails up the aisle ends
+      for (const ze of [bl.z0 - 0.05, bl.z1 + 0.05]) {
+        const run = top.x - seatSpot(bl, 0).x;
+        const rise = top.y;
+        const sl = Math.hypot(rise, run);
+        const ang = Math.atan2(rise, Math.abs(run));
+        const rail = new THREE.Matrix4().compose(new THREE.Vector3((seatSpot(bl, 0).x + top.x) / 2, rise / 2 + 0.85, ze), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), bl.dir * ang), new THREE.Vector3(sl, 0.04, 0.04));
+        f.push({ m: rail, c: alu });
+        for (let k = 0; k < bl.tiers; k += 3) {
+          const s = seatSpot(bl, k);
+          f.push({ m: place(s.x, s.y + 0.42, ze, 0.035, 0.84, 0.035), c: alu });
+        }
+      }
     }
     return { b, f };
   }, [list]);
@@ -282,11 +523,11 @@ function Bleachers({ list }: { list: Bleacher[] }) {
     <group>
       <instancedMesh ref={boards} args={[undefined, undefined, b.length]} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.8} />
+        <meshStandardMaterial roughness={0.32} metalness={0.75} envMapIntensity={0.8} />
       </instancedMesh>
-      <instancedMesh ref={frames} args={[undefined, undefined, f.length]}>
+      <instancedMesh ref={frames} args={[undefined, undefined, f.length]} castShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial roughness={0.4} metalness={0.6} />
+        <meshStandardMaterial roughness={0.45} metalness={0.7} />
       </instancedMesh>
     </group>
   );
@@ -556,39 +797,42 @@ export function ParkField({ rows, cols, show = null, home = null }: { rows: numb
     <group>
       <color attach="background" args={["#bcd9f2"]} />
       <fog attach="fog" args={["#cfe2f1", 40, 120]} />
-      <hemisphereLight args={["#d6ebff", "#4f6e2c", 0.95]} />
-      <ambientLight intensity={0.25} />
+      {/* a warm afternoon sun (t204u): sky fill from above, green bounce from the grass, long soft shadows */}
+      <hemisphereLight args={["#cfe6ff", "#5a7a34", 0.75]} />
+      <ambientLight intensity={0.12} />
       <directionalLight
-        position={[9, 18, 11]}
-        intensity={2.3}
-        color="#fff3dc"
+        position={[13, 17, 9]}
+        intensity={2.9}
+        color="#ffe9c4"
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-14}
-        shadow-camera-right={14}
-        shadow-camera-top={14}
-        shadow-camera-bottom={-14}
-        shadow-bias={-0.0004}
+        shadow-camera-near={1}
+        shadow-camera-far={60}
+        shadow-camera-left={-19}
+        shadow-camera-right={19}
+        shadow-camera-top={17}
+        shadow-camera-bottom={-17}
+        shadow-bias={-0.0005}
+        shadow-normalBias={0.03}
+        shadow-radius={3}
       />
+      {/* a cooler sky light from the other side so the shadow sides are not black */}
+      <directionalLight position={[-10, 8, -6]} intensity={0.35} color="#b8d4ff" />
       {show?.shot ? <CinemaCam shot={show.shot} /> : <StadiumCam rows={rows} reset={reset} />}
       <Sky />
       <Clouds />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-        <circleGeometry args={[140, 48]} />
-        <meshStandardMaterial color="#5f9a44" roughness={1} />
-      </mesh>
-      {/* a mown apron around the field */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.0, 0]} receiveShadow>
-        <planeGeometry args={[hw * 2 + 9, hl * 2 + 5]} />
-        <meshStandardMaterial color="#4f8f3a" roughness={1} />
-      </mesh>
-      <Field rows={rows} cols={cols} home={home} day />
+      {/* real grass: the plain colours show while the grass pictures load */}
+      <Suspense fallback={<PlainLawn hw={hw} hl={hl} rows={rows} cols={cols} home={home} />}>
+        <Lawn hw={hw} hl={hl} rows={rows} cols={cols} home={home} />
+      </Suspense>
       <Fence hw={hw} hl={hl} />
       <Benches cols={cols} />
       <Bleachers list={stands} />
       <Fans list={stands} hype={show?.hype ?? null} home={home?.color ?? TEAM.w} />
       <Jumbotron x={-(hw + 0.45 + 8 * STEP_OUT + 1.0)} z={-(hl - 1.4)} home={home} />
-      <Trees hw={hw} hl={hl} />
+      <Suspense fallback={<Trees hw={hw} hl={hl} />}>
+        <RealTrees hw={hw} hl={hl} />
+      </Suspense>
       <Town hw={hw} hl={hl} />
       <GoalPosts rows={rows} />
       <Suspense fallback={null}>
