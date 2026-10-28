@@ -87,7 +87,8 @@ const RIG: Record<string, Rig> = {
     hipZ: -0.053,
   },
   "gigabot.glb": { skull: skull(0, -0.09, 0.675, 0.123), legs: { x: 0, top: 0.349, w: 0.37, z: -0.056 }, hipZ: -0.036 },
-  "doom-bigbrick.glb": { skull: skull(0, 0.031, 0.614, 0.095, { cut: { r: 1.1 } }), legs: { x: 0, top: 0.272, w: 0.26, z: -0.002 }, hipZ: 0.003 },
+  // Doom's cape is merged into his body mesh, so his hip centre is where his own legs plug in (z 0.024).
+  "doom-bigbrick.glb": { skull: skull(0, 0.031, 0.614, 0.095, { cut: { r: 1.1 } }), legs: { x: 0, top: 0.272, w: 0.26, z: 0.024 }, hipZ: 0.024 },
 };
 export const SKULL: Record<string, Skull> = Object.fromEntries(Object.entries(RIG).map(([f, rig]) => [f, rig.skull]));
 /**
