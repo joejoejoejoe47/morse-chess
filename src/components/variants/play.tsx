@@ -13,6 +13,8 @@ import { VariantStage, type FieldOpts, type HomeTeam, type Look, type MoveCue, t
 import { getFootballPrefs, saveFootballTeam, type FootballPrefs, type FootballTeam } from "@/lib/server/football";
 import { DEFAULT_TEAM, TeamSetup, awayColor, inkOn } from "@/components/variants/team-setup";
 import { CrowdAudio, crowdMuted } from "@/lib/crowd-audio";
+import { playScoreSound, preloadScoreSound, scoreSoundAllowed } from "@/lib/score-sound";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -769,14 +771,10 @@ const F_ROWS = 14;
 const F_COLS = 8;
 const FILES = "abcdefgh";
 const KIND_NAME: Record<Kind, string> = { k: "King", q: "Queen", r: "Rook", b: "Bishop", n: "Knight", p: "Pawn" };
-/** Start rows by the id's rank digit: white a1..h1 back row, a2..h2 pawns; black a7..h7 pawns, a8..h8 back row. */
-const START_ROW: Record<string, number> = { "1": 5, "2": 6, "7": 8, "8": 9 };
-/** After a touchdown the scorer lines up here for the try (two rows short of the end zone). */
-const TRY_SPOT: Record<Side, [number, number]> = { w: [10, 3], b: [3, 4] };
 const KICKOFF: [number, number] = [7, 3];
 const GAME_SECONDS = 10 * 60;
-/** Owner (v3): every 3 s you wait, the other team gets one extra move. You can still move. */
-const SHOT_CLOCK_MS = 3000;
+/** Owner (v4): every 5 s you wait, the other team gets one extra move. You can still move. */
+const SHOT_CLOCK_MS = 5000;
 
 function footballStart(): { board: FBoard; loose: [number, number] | null } {
   const board = blank(F_ROWS, F_COLS) as FBoard;
@@ -790,41 +788,12 @@ function footballStart(): { board: FBoard; loose: [number, number] | null } {
   return { board, loose: KICKOFF };
 }
 
-function startSquare(id?: string): [number, number] | null {
-  if (!id) return null;
-  const f = FILES.indexOf(id[0]);
-  const r = START_ROW[id[1]];
-  return f < 0 || r === undefined ? null : [r, f];
-}
-
-/** Everyone still on the field walks back to their own start square (the ball is taken off them). */
-function regroup(b: FBoard): FBoard {
-  const next = blank(F_ROWS, F_COLS) as FBoard;
-  const spill: FUnit[] = [];
-  for (const row of b) for (const u of row) {
-    if (!u) continue;
-    const sq = startSquare(u.id);
-    const clean = { ...u, ball: false, held: 0 };
-    if (sq && !next[sq[0]][sq[1]]) next[sq[0]][sq[1]] = clean;
-    else spill.push(clean);
-  }
-  // (only without ids) put anyone left over on the nearest free square of their half
-  for (const u of spill) {
-    const rows = u.side === "w" ? [5, 6, 4, 3] : [9, 8, 10, 11];
-    outer: for (const r of rows) for (let f = 0; f < F_COLS; f++) if (!next[r][f]) {
-      next[r][f] = u;
-      break outer;
-    }
-  }
-  return next;
-}
-
 function findBall(b: FBoard): { r: number; f: number; u: FUnit } | null {
   for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (b[r][f]?.ball) return { r, f, u: b[r][f]! };
   return null;
 }
 
-/** Field goals: the carrier has to be close to the other team's end zone (the try spot is in range),
+/** Field goals: the carrier has to be close to the other team's end zone (four rows out or nearer),
  *  so a kick from midfield is not a free 3 points. */
 function canKick(side: Side, r: number) {
   return side === "w" ? r >= 10 : r <= 3;
@@ -1008,6 +977,18 @@ export function Football({ versus }: { versus: string }) {
   const timers = useRef<number[]>([]);
   const resume = useRef<(() => void) | null>(null);
   const crowd = useRef<CrowdAudio | null>(null);
+  const me = useCurrentUser();
+  const meId = useRef<string | null>(null);
+  meId.current = me?.id ?? null;
+  useEffect(() => {
+    if (me?.id && scoreSoundAllowed(me.id)) preloadScoreSound();
+  }, [me?.id]);
+  /** the touchdown show runs once per score: a second call while it is on is ignored */
+  const tdLock = useRef(false);
+  /** Skip the replay. Vs the bot (or alone) one press is enough; a two-player game would need both
+   *  players (owner, v4): then the first press waits for the other side's skip. */
+  const SKIP_NEEDS_BOTH = false;
+  const [skipWait, setSkipWait] = useState(false);
   const slowBy = () => (window as unknown as { __fbSlow?: number }).__fbSlow ?? 1;
   const later = (fn: () => void, ms: number) => {
     // __fbSlow only exists with the screenshot test hooks on; it stretches the touchdown show
@@ -1079,7 +1060,7 @@ export function Football({ versus }: { versus: string }) {
     return () => window.clearInterval(id);
   }, [over, phase]);
 
-  // the 3-second shot clock: while it is your move, every 3 s the other team sneaks in one move
+  // the 5-second shot clock: while it is your move, every 5 s the other team sneaks in one move
   useEffect(() => {
     if (over || phase !== "play" || turn !== "w" || setup) return;
     const id = window.setInterval(() => {
@@ -1119,9 +1100,13 @@ export function Football({ versus }: { versus: string }) {
     return { board: next, loose: looseNow };
   }
 
-  /** Kick-off: everybody walks back to their start square, the ball sits in the middle and the team that conceded goes first. */
+  /** Kick-off (owner, v4: after ANY score): both teams come back at full strength in the midfield lineup on
+ *  either side of the 50, the ball sits on the middle square and the team that conceded goes first. */
   function kickoff(b: FBoard, scored: { w: number; b: number }, first: Side) {
-    const next = regroup(b);
+    // owner (v4): every kick-off brings BOTH full rosters back, tackled players included, in the start lineup
+    void b;
+    const next = footballStart().board;
+    tdLock.current = false;
     tryRef.current = null;
     setTryFor(null);
     setPhase("play");
@@ -1135,35 +1120,6 @@ export function Football({ versus }: { versus: string }) {
     setTurn(first);
     drive.current = { board: next, loose: KICKOFF, plays: [] };
     if (first === "b") later(() => botFootball(next, KICKOFF, scored), 1500);
-  }
-
-  /** The try: back to the start formation, but the scorer waits close to the goal with the ball. */
-  function startTry(b: FBoard, side: Side, unitId: string | undefined, scored: { w: number; b: number }) {
-    const next = regroup(b);
-    let at: [number, number] | null = null;
-    for (let r = 0; r < F_ROWS && !at; r++) for (let f = 0; f < F_COLS && !at; f++) if (next[r][f]?.id && next[r][f]!.id === unitId) at = [r, f];
-    for (let r = 0; r < F_ROWS && !at; r++) for (let f = 0; f < F_COLS && !at; f++) if (next[r][f]?.side === side && next[r][f]!.kind !== "k") at = [r, f];
-    if (!at) {
-      kickoff(b, scored, other(side));
-      return;
-    }
-    const u = next[at[0]][at[1]]!;
-    const [tr, tf] = TRY_SPOT[side];
-    next[at[0]][at[1]] = null;
-    next[tr][tf] = { ...u, ball: true, held: u.kind === "k" ? 1 : 0 };
-    tryRef.current = { side, moves: 0 };
-    setTryFor({ side, moves: 0 });
-    setBoard(next);
-    setLoose(null);
-    setScore(scored);
-    setCue(null);
-    setThrowing(false);
-    setTurn(side);
-    setSel(side === "w" ? [tr, tf] : null);
-    drive.current = { board: next, loose: null, plays: [] };
-    setBanner({ side, text: side === "w" ? "Run it in or kick it!" : `${now.current.away.name} try`, small: true });
-    later(() => setBanner((v) => (v?.small ? null : v)), 2600);
-    if (side === "b") later(() => botFootball(next, null, scored), 1600);
   }
 
   function finishTurn(next: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, mover: Side, bonus = false) {
@@ -1222,8 +1178,11 @@ export function Football({ versus }: { versus: string }) {
     return `${now.current.away.name} ${KIND_NAME[u.kind]}`;
   }
 
-  /** Touchdown: fireworks and a roar, then the last 10 s again (camera on the ball), then the try or the kick-off. */
+  /** Touchdown: fireworks and a roar, then the last 10 s again (camera on the ball), then everyone back to midfield. */
   function touchdown(scoring: FBoard, scorer: Side, scored: { w: number; b: number }, carrier: FUnit) {
+    if (tdLock.current) return;
+    tdLock.current = true;
+    setSkipWait(false);
     const wasTry = Boolean(tryRef.current);
     tryRef.current = null;
     setTryFor(null);
@@ -1238,6 +1197,7 @@ export function Football({ versus }: { versus: string }) {
     const endZ = F_WORLD(scorer === "w" ? 12.5 : 0.5, 0)[1];
     later(() => {
       setBanner({ side: scorer, text: "Touchdown!" });
+      playScoreSound(meId.current);
       setShow({ hype: { id, level: 1 }, fireworks: { id, z: endZ } });
       crowd.current?.set("swell");
     }, 700);
@@ -1263,6 +1223,7 @@ export function Football({ versus }: { versus: string }) {
       timers.current.forEach((t) => window.clearTimeout(t));
       timers.current = [];
       resume.current = null;
+      setSkipWait(false);
       setReplay(null);
       setCaption(null);
       setBanner(null);
@@ -1272,8 +1233,10 @@ export function Football({ versus }: { versus: string }) {
       setPhase("play");
       phaseRef.current = "play";
       crowd.current?.set("calm");
-      if (wasTry) kickoff(scoring, scored, other(scorer));
-      else startTry(scoring, scorer, carrier.id, scored);
+      void wasTry;
+      kickoff(scoring, scored, other(scorer));
+      setBanner({ side: other(scorer), text: "Back to midfield!", small: true });
+      later(() => setBanner((v) => (v?.small ? null : v)), 2200);
     };
     resume.current = finish;
     const BEGIN = 3300;
@@ -1321,6 +1284,7 @@ export function Football({ versus }: { versus: string }) {
     later(() => {
       setScore(s2);
       setBanner({ side: u.side, text: "Field goal!" });
+      playScoreSound(meId.current);
       setShow((s) => ({ ...s, hype: { id, level: 0.85 }, fireworks: { id, z: F_WORLD(u.side === "w" ? 13 : 0, 0)[1] } }));
       crowd.current?.set("swell");
     }, 1300);
@@ -1516,7 +1480,7 @@ export function Football({ versus }: { versus: string }) {
       setup: () => self.current.setup(),
       fight: (gap?: number) => self.current.fight(gap),
       field: (field: "neon" | "park") => setPrefs((p) => (p ? { ...p, field } : p)),
-      state: () => ({ phase: phaseRef.current, plays: drive.current.plays.length, turn: now.current.turn, score: now.current.score, try: tryRef.current, t: Math.round(performance.now()) }),
+      state: () => ({ phase: phaseRef.current, plays: drive.current.plays.length, turn: now.current.turn, score: now.current.score, try: tryRef.current, t: Math.round(performance.now()), men: now.current.board.flat().reduce((n, u) => (u ? { ...n, [u.side]: n[u.side] + 1 } : n), { w: 0, b: 0 }) }),
     };
     return () => {
       delete w.__fb;
@@ -1532,9 +1496,9 @@ export function Football({ versus }: { versus: string }) {
   const hasBall = Boolean(carrier?.ball && carrier.side === "w");
   const kickable = Boolean(sel && hasBall && canKick("w", sel[0]));
   const field = useMemo<FieldOpts>(
-    () => ({ epoch, colors: { w: team.color, b: away.color }, goal: throwing && kickable && canAct, onGoal: () => now.current.sel && fieldGoal(now.current.sel) }),
+    () => ({ epoch, colors: { w: team.color, b: away.color }, goal: throwing && kickable && canAct, onGoal: () => now.current.sel && fieldGoal(now.current.sel), replay: Boolean(replay) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [epoch, team.color, away.color, throwing, kickable, canAct],
+    [epoch, team.color, away.color, throwing, kickable, canAct, Boolean(replay)],
   );
 
   return (
@@ -1649,11 +1613,18 @@ export function Football({ versus }: { versus: string }) {
           {phase === "replay" ? (
             <span className="rounded-md bg-[#c8102e] px-3 py-1 text-xs font-black uppercase tracking-[0.25em] text-white shadow-[0_0_18px_rgba(255,45,122,0.7)]">● Replay</span>
           ) : null}
-          {resume.current ? (
+          {resume.current && skipWait ? (
+            <span className="min-h-11 rounded-full border border-line bg-ink/85 px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-ivory/80 backdrop-blur-sm" data-fb-skip-wait>
+              Waiting for opponent to skip…
+            </span>
+          ) : resume.current ? (
             <button
               type="button"
               className="min-h-11 rounded-full border border-line bg-ink/85 px-5 text-sm font-semibold uppercase tracking-[0.14em] text-ivory backdrop-blur-sm hover:border-line-strong"
-              onClick={() => resume.current?.()}
+              onClick={() => {
+                if (SKIP_NEEDS_BOTH) setSkipWait(true);
+                else resume.current?.();
+              }}
             >
               Skip ▸▸
             </button>
