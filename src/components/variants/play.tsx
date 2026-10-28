@@ -1794,8 +1794,10 @@ export function Strategy({ versus }: { versus: string }) {
     const have = bag[pick];
     if (!have || r > 3) return;
     const next = cloneBoard(board) as SBoard;
-    if (next[r][f]) {
-      setBag((cur) => [...cur, { rank: next[r][f]!.rank, name: rankLabel(next[r][f]!.rank), i: Math.random() }]);
+    const lifted = next[r][f];
+    if (lifted) {
+      // Read the rank now: the state updater runs later, after the square is cleared.
+      setBag((cur) => [...cur, { rank: lifted.rank, name: rankLabel(lifted.rank), i: Math.random() }]);
       next[r][f] = null;
       setBoard(next);
       return;
