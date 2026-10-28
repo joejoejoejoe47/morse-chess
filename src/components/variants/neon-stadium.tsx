@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /* The Galactic Football League stadium: a dark bowl, neon field, crowd and colored spotlights,
    all built from code (canvas textures, instanced meshes and lights). No images. */
@@ -8,7 +9,7 @@ import * as THREE from "three";
 export const TEAM = { w: "#2ee6ff", b: "#ff2d7a" } as const;
 export type Scoreboard = { home: number; away: number; clock: string; note: string; homeName?: string; awayName?: string };
 
-const PX = 128; // canvas pixels per board unit
+const PX = 160; // canvas pixels per board unit (crisp lines up close)
 const FONT = `"Arial Black", "Helvetica Neue", Impact, "DejaVu Sans", sans-serif`;
 const MARGIN_L = 1; // field margin past each end zone (units)
 const MARGIN_W = 0.8; // sideline margin (units)
@@ -123,7 +124,186 @@ function crest(ctx: CanvasRenderingContext2D, cx: number, cy: number, h: number)
   glowText(ctx, "KNIGHTS", cx, cy + h * 0.41, h * 0.12, "#7ff6ff", "#1c8cff", { stroke: "#021a3a", spacing: 3 });
 }
 
-/** Field canvas. Length runs left→right (row 0 on the left), width top→bottom (column 0 at the top). */
+/** End-zone corner emblem: the Knights' cyan helmet in a glowing ring. */
+function helmetEmblem(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = "#2ee6ff";
+  ctx.shadowBlur = s * 0.25;
+  ctx.lineWidth = s * 0.05;
+  ctx.strokeStyle = "#5ff4ff";
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 0.48, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(3,30,60,0.75)";
+  ctx.fill();
+  const r = s * 0.25;
+  // football helmet in profile, facing right: shell, stripe, ear hole and face mask
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.12, -r * 0.05, r * 1.0, r * 0.88, 0, Math.PI * 0.12, Math.PI * 1.98, false);
+  ctx.lineTo(r * 0.55, r * 0.62);
+  ctx.lineTo(-r * 0.2, r * 0.82);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(0, -r, 0, r);
+  g.addColorStop(0, "#e6fdff");
+  g.addColorStop(0.45, "#2ee6ff");
+  g.addColorStop(1, "#0a5fa0");
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffb02e"; // centre stripe
+  ctx.lineWidth = s * 0.045;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.12, -r * 0.05, r * 0.86, r * 0.74, 0, Math.PI * 1.05, Math.PI * 1.78);
+  ctx.stroke();
+  ctx.fillStyle = "#03142a"; // ear hole
+  ctx.beginPath();
+  ctx.arc(-r * 0.12, r * 0.12, r * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#e8f6ff"; // face mask
+  ctx.lineWidth = s * 0.03;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(r * 0.62, -r * 0.05);
+  ctx.lineTo(r * 1.22, -r * 0.05);
+  ctx.moveTo(r * 0.58, r * 0.3);
+  ctx.lineTo(r * 1.22, r * 0.3);
+  ctx.moveTo(r * 1.2, -r * 0.12);
+  ctx.quadraticCurveTo(r * 1.32, r * 0.35, r * 0.95, r * 0.72);
+  ctx.lineTo(r * 0.5, r * 0.66);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** End-zone corner emblem: the Phantoms' flaming magenta ghost. */
+function phantomEmblem(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = "#ff2d7a";
+  ctx.shadowBlur = s * 0.25;
+  ctx.lineWidth = s * 0.05;
+  ctx.strokeStyle = "#ff5fa8";
+  ctx.beginPath();
+  ctx.arc(0, 0, s * 0.48, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(50,3,30,0.75)";
+  ctx.fill();
+  const r = s * 0.3;
+  // flames behind
+  ctx.fillStyle = "#ff8a1e";
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.8, r * 0.2);
+  for (let i = 0; i <= 6; i++) {
+    const x = -r * 0.8 + (i / 6) * r * 1.6;
+    const top = -r * (1.05 + (i % 2 ? 0.45 : 0.1));
+    ctx.quadraticCurveTo(x - r * 0.12, top * 0.7, x, top);
+  }
+  ctx.lineTo(r * 0.8, r * 0.2);
+  ctx.fill();
+  // ghost body
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.65, r * 0.85);
+  ctx.lineTo(-r * 0.65, -r * 0.2);
+  ctx.quadraticCurveTo(-r * 0.65, -r * 0.95, 0, -r * 0.95);
+  ctx.quadraticCurveTo(r * 0.65, -r * 0.95, r * 0.65, -r * 0.2);
+  ctx.lineTo(r * 0.65, r * 0.85);
+  for (let i = 0; i < 4; i++) {
+    const x0 = r * 0.65 - (i / 4) * r * 1.3;
+    ctx.quadraticCurveTo(x0 - r * 0.16, r * 0.55, x0 - r * 0.325, r * 0.85);
+  }
+  ctx.closePath();
+  const g = ctx.createLinearGradient(0, -r, 0, r);
+  g.addColorStop(0, "#ffd0ea");
+  g.addColorStop(0.5, "#ff2d7a");
+  g.addColorStop(1, "#8a0a50");
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#200010"; // eyes and mouth
+  for (const sx of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(sx * r * 0.25, -r * 0.3, r * 0.12, r * 0.18, sx * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.ellipse(0, r * 0.15, r * 0.16, r * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Text set around a circle (the ring of the centre crest). */
+function arcText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, r: number, mid: number, size: number, fill: string, glow: string, under = false) {
+  ctx.save();
+  ctx.font = `900 ${size}px ${FONT}`;
+  ctx.fillStyle = fill;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = size * 0.5;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const chars = [...text];
+  const step = (size * 0.95) / r;
+  const span = step * (chars.length - 1);
+  chars.forEach((ch, i) => {
+    const a = under ? mid + span / 2 - i * step : mid - span / 2 + i * step;
+    ctx.save();
+    ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    ctx.rotate(a + (under ? -Math.PI / 2 : Math.PI / 2));
+    ctx.fillText(ch, 0, 0);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+function star(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 ? r * 0.45 : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** The ring behind the centre crest: two-tone neon, stars and the league name. */
+function crestRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: number) {
+  ctx.save();
+  const bg = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R);
+  bg.addColorStop(0, "rgba(20,40,120,0.55)");
+  bg.addColorStop(1, "rgba(5,8,30,0.85)");
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = R * 0.035;
+  for (const [a0, a1, col] of [[Math.PI / 2, Math.PI * 1.5, "#2ee6ff"], [-Math.PI / 2, Math.PI / 2, "#ff2d7a"]] as const) {
+    ctx.strokeStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = R * 0.12;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, a0, a1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.8, a0, a1);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffb02e";
+  ctx.lineWidth = R * 0.012;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.9, 0, Math.PI * 2);
+  ctx.stroke();
+  arcText(ctx, "GALACTIC FOOTBALL", cx, cy, R * 0.9, -Math.PI / 2, R * 0.1, "#e8f6ff", "#6aa8ff");
+  arcText(ctx, "LEAGUE", cx, cy, R * 0.9, Math.PI / 2, R * 0.1, "#ffe3a0", "#ff8a1e", true);
+  ctx.fillStyle = "#ffe9a8";
+  for (const a of [Math.PI * 0.18, Math.PI * 0.82, Math.PI * 1.82, Math.PI * 1.18]) {
+    star(ctx, cx + Math.cos(a) * R * 0.9, cy + Math.sin(a) * R * 0.9, R * 0.045);
+  }
+  ctx.restore();
+}
+
+/** Field canvas.
+ Length runs left→right (row 0 on the left), width top→bottom (column 0 at the top). */
 function fieldCanvas(rows: number, cols: number) {
   const W = (rows + MARGIN_L * 2) * PX;
   const H = Math.round((cols + MARGIN_W * 2) * PX);
@@ -269,7 +449,18 @@ function fieldCanvas(rows: number, cols: number) {
     void b;
   }
   ctx.restore();
-  // center crest
+  // end-zone corner emblems, read from each end like the lettering
+  for (const [k, draw, rot] of [[1, helmetEmblem, -Math.PI / 2], [rows - 1, phantomEmblem, Math.PI / 2]] as const) {
+    for (const y of [Y(0.85), Y(cols - 0.85)]) {
+      ctx.save();
+      ctx.translate(X(k), y);
+      ctx.rotate(rot);
+      draw(ctx, 0, 0, PX * 1.25);
+      ctx.restore();
+    }
+  }
+  // center crest on its two-tone ring
+  crestRing(ctx, X(rows / 2), (top + bottom) / 2, PX * 1.72);
   crest(ctx, X(rows / 2), (top + bottom) / 2, PX * 2.35);
   return c;
 }
@@ -380,11 +571,11 @@ attribute vec3 aSeat;
 float crowdFront(float d) { return d > 0.0 ? exp(-(d * d) / 0.035) : exp(-(d * d) / 0.32); }
 float crowdWrap(float a) { return mod(a + 3.14159265, 6.2831853) - 3.14159265; }
 `;
-function crowdMaterial(kind: "body" | "head" | "arm" | "stick", uni: CrowdUniforms) {
-  const mat = kind === "stick" ? new THREE.MeshBasicMaterial({ toneMapped: false }) : new THREE.MeshStandardMaterial({ roughness: kind === "head" ? 0.7 : 0.75 });
+function crowdMaterial(kind: "body" | "head" | "arm" | "stick" | "flag", uni: CrowdUniforms) {
+  const mat = kind === "stick" || kind === "flag" ? new THREE.MeshBasicMaterial({ toneMapped: false, side: kind === "flag" ? THREE.DoubleSide : THREE.FrontSide }) : new THREE.MeshStandardMaterial({ roughness: kind === "head" ? 0.7 : 0.75 });
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uni);
-    if (kind !== "stick") selfLit(shader);
+    if (kind !== "stick" && kind !== "flag") selfLit(shader);
     shader.vertexShader = CROWD_GLSL + shader.vertexShader.replace(
       "#include <begin_vertex>",
       `#include <begin_vertex>
@@ -396,7 +587,8 @@ function crowdMaterial(kind: "body" | "head" | "arm" | "stick", uni: CrowdUnifor
       float lift = w * 0.13 + hop + 0.012 * sin(uTime * 1.7 + aSeat.y);
       float raise = max(w, uHype * (0.6 + 0.4 * sin(uTime * 5.0 + aSeat.y * 1.7)));
       ${kind === "arm" ? "transformed.x += sign(transformed.x) * transformed.y * 0.35 * raise; transformed.y *= raise;" : ""}
-      ${kind === "stick" ? "lift += raise * 0.14;" : ""}
+      ${kind === "stick" || kind === "flag" ? "lift += raise * 0.14;" : ""}
+      ${kind === "flag" ? "transformed.z += sin(uTime * (6.0 + uHype * 4.0) + aSeat.y * 3.0 - position.x * 30.0) * 0.03 * max(0.0, position.x) / 0.17;" : ""}
       transformed.y += lift;`,
     );
   };
@@ -429,25 +621,39 @@ function armGeometry() {
   return merged;
 }
 
+/** A hand-held flag: a thin pole with a cloth to its right (the cloth flutters in the shader). */
+function flagGeometry() {
+  const pole = new THREE.BoxGeometry(0.012, 0.34, 0.012);
+  pole.translate(0, 0.17, 0);
+  const cloth = new THREE.PlaneGeometry(0.17, 0.11, 5, 1);
+  cloth.translate(0.085, 0.28, 0);
+  const g = mergeGeometries([pole, cloth])!;
+  pole.dispose();
+  cloth.dispose();
+  return g;
+}
+
 function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null }) {
   const bodies = useRef<THREE.InstancedMesh>(null);
   const heads = useRef<THREE.InstancedMesh>(null);
   const arms = useRef<THREE.InstancedMesh>(null);
   const sticks = useRef<THREE.InstancedMesh>(null);
+  const flags = useRef<THREE.InstancedMesh>(null);
   const seats = useMemo(() => {
     const rnd = mulberry(42);
-    const list: { x: number; y: number; z: number; team: "w" | "b" | "n"; ph: number; stick: boolean; jumper: boolean }[] = [];
+    const list: { x: number; y: number; z: number; team: "w" | "b" | "n"; ph: number; stick: boolean; flag: boolean; jumper: boolean }[] = [];
     for (let i = 1; i < TIERS; i++) {
       const w = hw + i * STEP_OUT + STEP_OUT * 0.5;
       const l = hl + i * STEP_OUT + STEP_OUT * 0.5;
-      for (const p of perimeter(w, l, 1.2 + i * STEP_OUT + STEP_OUT * 0.5, 0.19)) {
+      for (const p of perimeter(w, l, 1.2 + i * STEP_OUT + STEP_OUT * 0.5, 0.165)) {
         if (rnd() < 0.08) continue; // a few empty seats
         // world: shape x → x, shape y → -z after the stands' rotation
         const x = p.x + (rnd() - 0.5) * 0.06;
         const z = -p.y + (rnd() - 0.5) * 0.06;
         const side = z > 0 ? "w" : "b";
         const roll = rnd();
-        list.push({ x, y: STEP_UP * (i + 1) - 0.6 + 0.62, z, team: roll < 0.62 ? side : roll < 0.8 ? (side === "w" ? "b" : "w") : "n", ph: rnd() * Math.PI * 2, stick: rnd() < 0.12, jumper: rnd() < 0.3 });
+        const held = rnd();
+        list.push({ x, y: STEP_UP * (i + 1) - 0.6 + 0.62, z, team: roll < 0.62 ? side : roll < 0.8 ? (side === "w" ? "b" : "w") : "n", ph: rnd() * Math.PI * 2, stick: held < 0.18, flag: held > 0.93, jumper: rnd() < 0.3 });
       }
     }
     return list;
@@ -462,9 +668,10 @@ function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null })
     [],
   );
   const uni = useMemo<CrowdUniforms>(() => ({ uTime: { value: 0 }, uWave: { value: 0 }, uWave2: { value: Math.PI }, uWave2On: { value: 0 }, uHype: { value: 0 } }), []);
-  const mats = useMemo(() => ({ body: crowdMaterial("body", uni), head: crowdMaterial("head", uni), arm: crowdMaterial("arm", uni), stick: crowdMaterial("stick", uni) }), [uni]);
+  const mats = useMemo(() => ({ body: crowdMaterial("body", uni), head: crowdMaterial("head", uni), arm: crowdMaterial("arm", uni), stick: crowdMaterial("stick", uni), flag: crowdMaterial("flag", uni) }), [uni]);
   const armGeo = useMemo(() => armGeometry(), []);
-  useEffect(() => () => { Object.values(mats).forEach((m) => m.dispose()); armGeo.dispose(); }, [mats, armGeo]);
+  const flagGeo = useMemo(() => flagGeometry(), []);
+  useEffect(() => () => { Object.values(mats).forEach((m) => m.dispose()); armGeo.dispose(); flagGeo.dispose(); }, [mats, armGeo, flagGeo]);
   useEffect(() => {
     const m = new THREE.Matrix4();
     const rnd = mulberry(9);
@@ -481,6 +688,14 @@ function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null })
     const all = seatAttr(seats);
     for (const ref of [bodies, heads, arms]) ref.current?.geometry.setAttribute("aSeat", all);
     sticks.current?.geometry.setAttribute("aSeat", seatAttr(sticksList));
+    const flagsList = seats.filter((s) => s.flag);
+    flags.current?.geometry.setAttribute("aSeat", seatAttr(flagsList));
+    flagsList.forEach((s, i) => {
+      m.makeRotationY(Math.atan2(-s.x, -s.z) + Math.PI / 2);
+      m.setPosition(s.x, s.y + 0.22, s.z);
+      flags.current?.setMatrixAt(i, m);
+      flags.current?.setColorAt(i, new THREE.Color(s.team === "b" ? "#ff2d7a" : s.team === "w" ? "#2ee6ff" : "#ffb02e"));
+    });
     seats.forEach((s, i) => {
       const face = Math.atan2(-s.x, -s.z);
       m.makeRotationY(face);
@@ -500,7 +715,7 @@ function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null })
       sticks.current?.setMatrixAt(i, m);
       sticks.current?.setColorAt(i, new THREE.Color(s.team === "b" ? "#ff3b8f" : s.team === "w" ? "#45f0ff" : "#fff1a0"));
     });
-    for (const ref of [bodies, heads, arms, sticks]) {
+    for (const ref of [bodies, heads, arms, sticks, flags]) {
       if (!ref.current) continue;
       ref.current.instanceMatrix.needsUpdate = true;
       if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
@@ -526,6 +741,7 @@ function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null })
     uni.uHype.value = Math.min(1, h * 1.15);
   });
   const nSticks = seats.filter((s) => s.stick).length;
+  const nFlags = seats.filter((s) => s.flag).length;
   return (
     <group>
       <instancedMesh ref={bodies} args={[undefined, mats.body, seats.length]} frustumCulled={false}>
@@ -538,6 +754,7 @@ function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null })
       <instancedMesh ref={sticks} args={[undefined, mats.stick, Math.max(1, nSticks)]} frustumCulled={false}>
         <sphereGeometry args={[0.045, 6, 4]} />
       </instancedMesh>
+      <instancedMesh ref={flags} args={[flagGeo, mats.flag, Math.max(1, nFlags)]} frustumCulled={false} />
     </group>
   );
 }
@@ -569,13 +786,37 @@ function NeonWall({ hw, hl }: { hw: number; hl: number }) {
     t.wrapS = THREE.RepeatWrapping;
     return t;
   }, []);
-  useEffect(() => () => tex.dispose(), [tex]);
+  // the far sideline carries the team names, like the reference: each half in its team's colour
+  const teamTex = useMemo(() => {
+    const make = (name: string, col: string, glow: string) => {
+      const c = document.createElement("canvas");
+      c.width = 2048;
+      c.height = 96;
+      const ctx = c.getContext("2d")!;
+      const g = ctx.createLinearGradient(0, 0, 0, 96);
+      g.addColorStop(0, "#05081a");
+      g.addColorStop(0.5, "#0b0f2a");
+      g.addColorStop(1, "#05081a");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 2048, 96);
+      glowText(ctx, name, 1024, 50, 64, col, glow, { spacing: 14 });
+      ctx.save();
+      ctx.fillStyle = col;
+      ctx.shadowColor = glow;
+      ctx.shadowBlur = 14;
+      for (const x of [160, 300, 1748, 1888]) star(ctx, x, 48, 18);
+      ctx.restore();
+      return canvasTex(c);
+    };
+    return { w: make("NEBULA KNIGHTS", "#9ff8ff", "#1cc8ff"), b: make("PLASMA PHANTOMS", "#ffb3d6", "#ff2d7a") };
+  }, []);
+  useEffect(() => () => { tex.dispose(); teamTex.w.dispose(); teamTex.b.dispose(); }, [tex, teamTex]);
   const h = 0.42;
-  const sides: { pos: [number, number, number]; rot: number; len: number; col: string }[] = [
+  const sides: { pos: [number, number, number]; rot: number; len: number; col: string; team?: "w" | "b" }[] = [
     { pos: [hw, h / 2, hl / 2], rot: -Math.PI / 2, len: hl, col: TEAM.w },
     { pos: [hw, h / 2, -hl / 2], rot: -Math.PI / 2, len: hl, col: TEAM.b },
-    { pos: [-hw, h / 2, hl / 2], rot: Math.PI / 2, len: hl, col: TEAM.w },
-    { pos: [-hw, h / 2, -hl / 2], rot: Math.PI / 2, len: hl, col: TEAM.b },
+    { pos: [-hw, h / 2, hl / 2], rot: Math.PI / 2, len: hl, col: TEAM.w, team: "w" },
+    { pos: [-hw, h / 2, -hl / 2], rot: Math.PI / 2, len: hl, col: TEAM.b, team: "b" },
     { pos: [0, h / 2, hl], rot: Math.PI, len: hw * 2, col: TEAM.w },
     { pos: [0, h / 2, -hl], rot: 0, len: hw * 2, col: TEAM.b },
   ];
@@ -585,7 +826,7 @@ function NeonWall({ hw, hl }: { hw: number; hl: number }) {
         <group key={i} position={s.pos} rotation={[0, s.rot, 0]}>
           <mesh>
             <planeGeometry args={[s.len, h]} />
-            <meshBasicMaterial map={tex} toneMapped={false} side={THREE.DoubleSide} />
+            <meshBasicMaterial map={s.team ? teamTex[s.team] : tex} toneMapped={false} side={THREE.DoubleSide} />
           </mesh>
           <mesh position={[0, h / 2 + 0.02, 0]}>
             <boxGeometry args={[s.len, 0.045, 0.045]} />
@@ -782,6 +1023,270 @@ function Lamp({ at, aim, color }: { at: THREE.Vector3; aim: THREE.Vector3; color
   );
 }
 
+/* ── Stadium dressing: goal posts, sideline teams, upper deck, neon trim, sweeping beams ── */
+
+/** A strip standing on a closed path of points (u runs along it), for lit bands and neon trim. */
+function bandGeometry(pts: THREE.Vector2[], y0: number, y1: number, uPer: number, color?: (x: number, z: number) => THREE.Color) {
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  let d = 0;
+  const n = pts.length;
+  for (let i = 0; i <= n; i++) {
+    const p = pts[i % n];
+    if (i > 0) d += p.distanceTo(pts[(i - 1) % n]);
+    // shape x → world x, shape y → world -z (the stands are rotated the same way)
+    pos.push(p.x, y0, -p.y, p.x, y1, -p.y);
+    uv.push(d / uPer, 0, d / uPer, 1);
+    if (color) {
+      const c = color(p.x, -p.y);
+      col.push(c.r, c.g, c.b, c.r, c.g, c.b);
+    }
+    if (i < n) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  if (color) g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+
+const CYAN = new THREE.Color("#2ee6ff");
+const MAGENTA = new THREE.Color("#ff2d7a");
+const PURPLE = new THREE.Color("#a04bff");
+/** Cyan on the Knights' half (+z), magenta on the Phantoms' half, purple where they meet. */
+const teamTint = (_x: number, z: number) => {
+  const u = THREE.MathUtils.smoothstep(z, -2.5, 2.5);
+  return u > 0.5 ? PURPLE.clone().lerp(CYAN, (u - 0.5) * 2) : MAGENTA.clone().lerp(PURPLE, u * 2);
+};
+
+/** Neon trim on the bowl plus the lit upper deck of suites above the top row. */
+function BowlLights({ hw, hl }: { hw: number; hl: number }) {
+  const parts = useMemo(() => {
+    const ring = (i: number, r: number, pad: number) => {
+      const shape = new THREE.Shape();
+      roundRect(shape, hw + i * STEP_OUT + pad, hl + i * STEP_OUT + pad, r);
+      return shape.getSpacedPoints(240);
+    };
+    const trims = [4, 8].map((i) => bandGeometry(ring(i, 1.2 + i * STEP_OUT, 0.01), STEP_UP * i - 0.02, STEP_UP * i + 0.035, 1, teamTint));
+    const outer = ring(TIERS, 1.4 + (TIERS - 1) * STEP_OUT, 0.03);
+    const y0 = STEP_UP * TIERS;
+    return {
+      trims,
+      suites: bandGeometry(outer, y0, y0 + 0.9, 1.1),
+      rim: bandGeometry(outer, y0 + 0.9, y0 + 0.97, 1, teamTint),
+      roof: bandGeometry(outer, y0 + 1.5, y0 + 1.56, 1, teamTint),
+    };
+  }, [hw, hl]);
+  const windows = useMemo(() => {
+    const t = boardCanvas(256, 64, (ctx) => {
+      ctx.fillStyle = "#070a18";
+      ctx.fillRect(0, 0, 256, 64);
+      const rnd = mulberry(5);
+      for (let i = 0; i < 8; i++) {
+        const warm = rnd() > 0.35;
+        ctx.fillStyle = warm ? `rgba(255,${190 + Math.floor(rnd() * 50)},120,${0.55 + rnd() * 0.4})` : `rgba(120,220,255,${0.5 + rnd() * 0.4})`;
+        ctx.fillRect(i * 32 + 3, 14, 26, 34);
+        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        ctx.fillRect(i * 32 + 3, 14, 26, 4);
+      }
+    });
+    t.wrapS = THREE.RepeatWrapping;
+    return t;
+  }, []);
+  useEffect(
+    () => () => {
+      windows.dispose();
+      parts.trims.forEach((g) => g.dispose());
+      parts.suites.dispose();
+      parts.rim.dispose();
+      parts.roof.dispose();
+    },
+    [windows, parts],
+  );
+  return (
+    <group>
+      {[...parts.trims, parts.rim, parts.roof].map((g, i) => (
+        <mesh key={i} geometry={g}>
+          <meshBasicMaterial vertexColors toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      <mesh geometry={parts.suites}>
+        <meshBasicMaterial map={windows} toneMapped={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Glowing yellow goal posts on both end lines. */
+function GoalPosts({ rows }: { rows: number }) {
+  const sprite = useMemo(() => glowSprite(), []);
+  useEffect(() => () => sprite.dispose(), [sprite]);
+  const gold = "#ffe14a";
+  return (
+    <group>
+      {[rows / 2, -rows / 2].map((z) => {
+        const back = Math.sign(z) * 0.42;
+        return (
+          <group key={z} position={[0, 0.12, z]}>
+            <mesh position={[0, 0.5, back]}>
+              <cylinderGeometry args={[0.05, 0.06, 1.0, 10]} />
+              <meshBasicMaterial color={gold} toneMapped={false} />
+            </mesh>
+            <mesh position={[0, 1.0, back / 2]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.04, 0.04, Math.abs(back), 8]} />
+              <meshBasicMaterial color={gold} toneMapped={false} />
+            </mesh>
+            <mesh position={[0, 1.0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.04, 0.04, 1.9, 10]} />
+              <meshBasicMaterial color={gold} toneMapped={false} />
+            </mesh>
+            {[-0.93, 0.93].map((x) => (
+              <group key={x}>
+                <mesh position={[x, 1.8, 0]}>
+                  <cylinderGeometry args={[0.032, 0.036, 1.6, 8]} />
+                  <meshBasicMaterial color={gold} toneMapped={false} />
+                </mesh>
+                <sprite position={[x, 2.62, 0]} scale={[0.45, 0.45, 1]}>
+                  <spriteMaterial map={sprite} color="#fff08a" blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+                </sprite>
+              </group>
+            ))}
+            <sprite position={[0, 1.0, 0]} scale={[2.6, 0.5, 1]}>
+              <spriteMaterial map={sprite} color="#ffd23a" opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+            </sprite>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+/** Players and coaches standing on both sidelines in front of their benches (instanced, no shadows). */
+function Sidelines({ cols }: { cols: number }) {
+  const bodies = useRef<THREE.InstancedMesh>(null);
+  const heads = useRef<THREE.InstancedMesh>(null);
+  const benches = useRef<THREE.InstancedMesh>(null);
+  const people = useMemo(() => {
+    const rnd = mulberry(77);
+    const list: { x: number; z: number; team: "w" | "b"; coach: boolean; face: number; h: number }[] = [];
+    for (const side of [1, -1] as const) {
+      const team = side > 0 ? "w" : "b";
+      for (let i = 0; i < 14; i++) {
+        const z = -2.9 + i * 0.45 + (rnd() - 0.5) * 0.12;
+        list.push({ x: side * (cols / 2 + 0.42 + (rnd() - 0.5) * 0.1), z, team, coach: false, face: (-side * Math.PI) / 2 + (rnd() - 0.5) * 0.6, h: 0.95 + rnd() * 0.12 });
+      }
+      for (const z of [-0.55, 0.7]) list.push({ x: side * (cols / 2 + 0.18), z, team, coach: true, face: (-side * Math.PI) / 2, h: 1.02 });
+    }
+    return list;
+  }, [cols]);
+  const mats = useMemo(() => {
+    const body = new THREE.MeshStandardMaterial({ roughness: 0.6 });
+    body.onBeforeCompile = selfLit;
+    const head = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.3 });
+    head.onBeforeCompile = selfLit;
+    return { body, head, bench: new THREE.MeshStandardMaterial({ color: "#1b2448", roughness: 0.6, emissive: "#0d1a40", emissiveIntensity: 0.6 }) };
+  }, []);
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+  useEffect(() => {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const jersey = { w: new THREE.Color("#1aa8ff"), b: new THREE.Color("#e0206a") };
+    const helmet = { w: new THREE.Color("#7ff6ff"), b: new THREE.Color("#ff6fb0") };
+    const coat = new THREE.Color("#20232e");
+    const cap = new THREE.Color("#0e1018");
+    people.forEach((p, i) => {
+      q.setFromAxisAngle(up, p.face);
+      m.compose(new THREE.Vector3(p.x, 0.12 + 0.15 * p.h, p.z), q, new THREE.Vector3(p.coach ? 1.1 : 1, p.h, 1));
+      bodies.current?.setMatrixAt(i, m);
+      bodies.current?.setColorAt(i, p.coach ? coat : jersey[p.team]);
+      m.compose(new THREE.Vector3(p.x, 0.12 + 0.3 * p.h + 0.06, p.z), q, new THREE.Vector3(1, 1, 1));
+      heads.current?.setMatrixAt(i, m);
+      heads.current?.setColorAt(i, p.coach ? cap : helmet[p.team]);
+    });
+    [1, -1].forEach((side, i) => {
+      m.makeTranslation(side * (cols / 2 + 0.72), 0.2, 0);
+      benches.current?.setMatrixAt(i, m);
+    });
+    for (const ref of [bodies, heads, benches]) {
+      if (!ref.current) continue;
+      ref.current.instanceMatrix.needsUpdate = true;
+      if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+      ref.current.computeBoundingSphere();
+    }
+  }, [people, cols]);
+  return (
+    <group>
+      <instancedMesh ref={bodies} args={[undefined, mats.body, people.length]}>
+        <boxGeometry args={[0.17, 0.3, 0.11]} />
+      </instancedMesh>
+      <instancedMesh ref={heads} args={[undefined, mats.head, people.length]}>
+        <sphereGeometry args={[0.068, 10, 8]} />
+      </instancedMesh>
+      <instancedMesh ref={benches} args={[undefined, mats.bench, 2]}>
+        <boxGeometry args={[0.16, 0.16, 6.2]} />
+      </instancedMesh>
+    </group>
+  );
+}
+
+/** Coloured spotlights on the roof that sweep slowly over the field (cyan, purple, orange). */
+function SweepBeams({ hw, hl }: { hw: number; hl: number }) {
+  const out = (TIERS - 1) * STEP_OUT;
+  const y = STEP_UP * TIERS + 1.9;
+  const list = useMemo(
+    () => [
+      { at: new THREE.Vector3(-(hw + out * 0.8), y, hl * 0.45), color: "#22d3ff", ph: 0 },
+      { at: new THREE.Vector3(-(hw + out * 0.9), y + 0.4, 0), color: "#a04bff", ph: 2.1 },
+      { at: new THREE.Vector3(-(hw + out * 0.8), y, -hl * 0.45), color: "#ff8a1e", ph: 4.2 },
+    ],
+    [hw, hl, out, y],
+  );
+  const groups = useRef<(THREE.Group | null)[]>([]);
+  const L = 15;
+  const uniforms = useMemo(() => list.map((b) => ({ uColor: { value: new THREE.Color(b.color) }, uOpacity: { value: 0.42 }, uH: { value: L } })), [list]);
+  const sprite = useMemo(() => glowSprite(), []);
+  useEffect(() => () => sprite.dispose(), [sprite]);
+  const aim = useMemo(() => new THREE.Vector3(), []);
+  const down = useMemo(() => new THREE.Vector3(0, -1, 0), []);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    list.forEach((b, i) => {
+      const g = groups.current[i];
+      if (!g) return;
+      aim.set(Math.sin(t * 0.37 + b.ph) * 3.2, 0, b.at.z * 0.6 + Math.cos(t * 0.29 + b.ph * 1.3) * 4.5);
+      g.quaternion.setFromUnitVectors(down, aim.sub(b.at).normalize());
+    });
+  });
+  return (
+    <group>
+      {list.map((b, i) => (
+        <group key={i} position={b.at}>
+          <group ref={(el) => void (groups.current[i] = el)}>
+            <mesh position={[0, -L / 2, 0]} renderOrder={5}>
+              <cylinderGeometry args={[0.07, 1.25, L, 20, 1, true]} />
+              <shaderMaterial vertexShader={beamVert} fragmentShader={beamFrag} uniforms={uniforms[i]} transparent depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+          <sprite scale={[1.3, 1.3, 1]}>
+            <spriteMaterial map={sprite} color={b.color} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+          </sprite>
+          <mesh>
+            <boxGeometry args={[0.36, 0.26, 0.36]} />
+            <meshBasicMaterial color="#ffffff" toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
 /** Camera: broadside like a TV shot on wide screens, end-on on tall phones. */
 function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
   const { camera, size, controls } = useThree();
@@ -936,6 +1441,12 @@ export function NeonStadium({ rows, cols, show = null }: { rows: number; cols: n
       <Stands hw={hw} hl={hl} />
       <Crowd hw={hw} hl={hl} hype={show?.hype ?? null} />
       <Rig hw={hw} hl={hl} />
+      <SweepBeams hw={hw} hl={hl} />
+      <BowlLights hw={hw} hl={hl} />
+      <GoalPosts rows={rows} />
+      <Sidelines cols={cols} />
+      <Pennant position={[2.2, STEP_UP * TIERS * 0.62, hl + out * 0.62]} rotY={2.56} text="GO" sub="KNIGHTS!" a="#2ee6ff" b="#ffb02e" />
+      <Pennant position={[2.2, STEP_UP * TIERS * 0.62, -(hl + out * 0.62)]} rotY={0.585} text="GFL" sub="CHAMPIONSHIP" a="#b04bff" b="#ff2d7a" />
       <TopBanner x={-(hw + out * 0.62)} y={STEP_UP * TIERS * 0.5} />
       <Pennant position={[-(hw + out * 0.55), STEP_UP * TIERS * 0.75, hl + out * 0.55]} rotY={Math.PI * 0.75} text="GFL" sub="CHAMPIONSHIP" a="#2ee6ff" b="#9fd0ff" />
       <Pennant position={[-(hw + out * 0.55), STEP_UP * TIERS * 0.75, -(hl + out * 0.55)]} rotY={Math.PI * 0.25} text="GO" sub="KNIGHTS!" a="#ff2d7a" b="#ffb02e" />
