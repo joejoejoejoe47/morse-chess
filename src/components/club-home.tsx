@@ -24,6 +24,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { TeamSetup } from "@/components/variants/team-setup";
+import { getFootballPrefs, saveFootballTeam, type FootballTeam } from "@/lib/server/football";
 import { SplashSkeleton } from "@/components/auth-screen";
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
@@ -50,6 +52,8 @@ export function ClubHome() {
   const [target, setTarget] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // football: "Change team!" under the username box opens the team card (saved per user)
+  const [teamCard, setTeamCard] = useState<{ team: FootballTeam | null } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const seenInvite = useRef("");
   const now = useNow();
@@ -571,6 +575,21 @@ export function ClubHome() {
         </div>
       ) : null}
 
+      {teamCard ? (
+        <div className="fixed inset-0 z-50">
+          <TeamSetup
+            key={teamCard.team ? `${teamCard.team.name}${teamCard.team.color}` : "new"}
+            initial={teamCard.team}
+            title="Change team!"
+            onClose={() => setTeamCard(null)}
+            onSave={async (team) => {
+              await saveFootballTeam({ data: team });
+              setTeamCard(null);
+            }}
+          />
+        </div>
+      ) : null}
+
       {(flow.kind !== "idle" && flow.kind !== "select-game" || home.queued) && (
         <div className="fixed inset-0 z-40 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
           <div className={"w-full rounded-xl border border-line bg-panel p-6 " + (flow.kind === "select-game" ? "max-w-4xl" : "max-w-md")}>
@@ -638,7 +657,25 @@ export function ClubHome() {
                   <Label htmlFor="variant-user">Username</Label>
                   <Input id="variant-user" autoFocus value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Who sits across from you" />
                 </div>
-                <Button type="submit" variant="solid" size="lg">Sit down</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" variant="solid" size="lg">Sit down</Button>
+                  {flow.mode === "football" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      data-change-team
+                      onClick={() => {
+                        setTeamCard({ team: null });
+                        void getFootballPrefs()
+                          .then((p) => setTeamCard((c) => (c ? { team: p.team } : c)))
+                          .catch(() => undefined);
+                      }}
+                    >
+                      Change team!
+                    </Button>
+                  ) : null}
+                </div>
               </form>
             ) : null}
 

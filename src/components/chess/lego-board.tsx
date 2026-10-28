@@ -13,7 +13,7 @@
  * recoloured); the city is Kenney (CC0).
  * See public/lego/CREDITS.md for the full list.
  */
-import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
@@ -1015,6 +1015,110 @@ function BurstBody({ burst, colors }: { burst: Burst; colors: { color: string; w
         <meshBasicMaterial color="#fff4d6" transparent opacity={0.85} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       <pointLight ref={light} position={[at.x, STAND + height * 0.5, at.z]} color="#fff1cf" intensity={0} distance={5} />
+    </group>
+  );
+}
+
+/* ── Football: a figure driven from outside (stage.tsx plans the moves and attacks) ── */
+
+/** The captured figure's brick burst, for the football field. */
+export const LegoBurst = BrickBurst;
+
+/** What the football field asks a LEGO figure to do this frame. */
+export type LegoDrive = {
+  mode: "idle" | "walk" | "wind" | "strike";
+  /** start and end of the current walk (world x/z, y ignored) */
+  a: THREE.Vector3;
+  b: THREE.Vector3;
+  /** 0..1 progress of the walk, wind-up or strike */
+  u: number;
+  /** facing for the wind-up / strike */
+  yaw: number;
+  side: Color;
+};
+
+/** How long this figure takes to walk `dist`. */
+export function legoMoveTime(id: LegoCharId, dist: number) {
+  const g = LEGO_CHARS[id].gait;
+  return moveTime(g === "portal" ? "walk" : g, dist);
+}
+
+/** Per attack: wind-up, strike, ranged. */
+export function legoAttack(id: LegoCharId) {
+  const atk = LEGO_CHARS[id].attack;
+  return { kind: atk, ...MOVES[atk] };
+}
+
+/**
+ * A LEGO figure on the football field. The parent group is moved by the stage; this applies
+ * the walk / wind-up / strike / idle pose and keeps the feet on the turf. `carry` is held in
+ * the left hand (found from the arm's lowest point in the rest pose).
+ */
+export function LegoRunner({ id, drive, carry = null }: { id: LegoCharId; drive: MutableRefObject<LegoDrive>; carry?: THREE.Object3D | null }) {
+  const spec = LEGO_CHARS[id];
+  const { root, parts } = useFigure(id);
+  const fig = useRef<THREE.Group>(null);
+  const mid = spec.height * 0.45;
+  const seed = useMemo(() => Math.random(), []);
+  const hand = useMemo(() => {
+    const arm = parts.armL;
+    if (!arm) return null;
+    root.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(arm);
+    if (box.isEmpty()) return null;
+    const p = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + (box.max.y - box.min.y) * 0.1, (box.min.z + box.max.z) / 2);
+    return arm.worldToLocal(p);
+  }, [root, parts]);
+  useEffect(() => {
+    root.position.y = -mid;
+  }, [root, mid]);
+  useEffect(() => {
+    const arm = parts.armL;
+    if (!carry || !arm || !hand) return;
+    carry.position.copy(hand);
+    arm.add(carry);
+    return () => {
+      arm.remove(carry);
+    };
+  }, [carry, parts, hand]);
+  const ws = useMemo(() => new THREE.Vector3(), []);
+  useFrame((state) => {
+    const f = fig.current;
+    if (!f) return;
+    const d = drive.current;
+    const now = state.clock.elapsedTime;
+    const gait = spec.gait === "portal" ? "walk" : spec.gait;
+    f.scale.setScalar(1);
+    f.position.x = 0;
+    f.position.z = 0;
+    if (d.mode === "walk") {
+      const m = travel(gait, d.a, d.b, d.u, now);
+      f.position.y = STAND + mid + m.pos.y;
+      f.rotation.set(m.flip, yawTo(d.a, d.b), 0);
+      applyPose(parts, m.pose);
+    } else if (d.mode === "wind" || d.mode === "strike") {
+      const fr = attackFrame(spec.attack, d.mode, d.u);
+      f.position.y = STAND + mid + fr.y;
+      f.rotation.set(0, d.yaw, 0);
+      const l = d.mode === "strike" && !MOVES[spec.attack].ranged ? fr.lunge || 0.12 : 0;
+      f.position.x = Math.sin(d.yaw) * l;
+      f.position.z = Math.cos(d.yaw) * l;
+      applyPose(parts, fr.pose);
+    } else {
+      const idle = idlePose(spec.gait, now, seed);
+      f.position.y = STAND + mid + idle.y;
+      f.rotation.set(0, restYaw(d.side), 0);
+      applyPose(parts, idle.pose);
+    }
+    if (carry && parts.armL) {
+      parts.armL.getWorldScale(ws);
+      carry.scale.set(1 / Math.max(1e-4, ws.x), 1 / Math.max(1e-4, ws.y), 1 / Math.max(1e-4, ws.z));
+    }
+    keepOnBoard(f, root);
+  });
+  return (
+    <group ref={fig}>
+      <primitive object={root} />
     </group>
   );
 }

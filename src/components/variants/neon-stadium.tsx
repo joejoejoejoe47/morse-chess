@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { NeonSkyline } from "@/components/variants/neon-skyline";
 
 /* The Galactic Football League stadium: a dark bowl, neon field, crowd and colored spotlights,
    all built from code (canvas textures, instanced meshes and lights). No images. */
@@ -11,8 +12,8 @@ export type Scoreboard = { home: number; away: number; clock: string; note: stri
 
 const PX = 160; // canvas pixels per board unit (crisp lines up close)
 const FONT = `"Arial Black", "Helvetica Neue", Impact, "DejaVu Sans", sans-serif`;
-const MARGIN_L = 1; // field margin past each end zone (units)
-const MARGIN_W = 0.8; // sideline margin (units)
+export const MARGIN_L = 1; // field margin past each end zone (units)
+export const MARGIN_W = 0.8; // sideline margin (units)
 
 function glowText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, fill: string, glow: string, opts: { italic?: boolean; spacing?: number; stroke?: string } = {}) {
   ctx.save();
@@ -304,7 +305,7 @@ function crestRing(ctx: CanvasRenderingContext2D, cx: number, cy: number, R: num
 
 /** Field canvas.
  Length runs left→right (row 0 on the left), width top→bottom (column 0 at the top). */
-function fieldCanvas(rows: number, cols: number) {
+function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null, day = false) {
   const W = (rows + MARGIN_L * 2) * PX;
   const H = Math.round((cols + MARGIN_W * 2) * PX);
   const c = document.createElement("canvas");
@@ -315,17 +316,17 @@ function fieldCanvas(rows: number, cols: number) {
   const Y = (k: number) => (MARGIN_W + k) * PX; // column boundary k
   const top = Y(0);
   const bottom = Y(cols);
-  ctx.fillStyle = "#050a12";
+  ctx.fillStyle = day ? "#3d7d31" : "#050a12";
   ctx.fillRect(0, 0, W, H);
-  // turf stripes, every half unit (5 yards)
+  // turf stripes, every half unit (5 yards); the park field is real daytime grass
   for (let i = 0; i < rows * 2; i++) {
-    ctx.fillStyle = i % 2 ? "#0c2a24" : "#0a231f";
+    ctx.fillStyle = day ? (i % 2 ? "#4e9a3c" : "#5aa846") : i % 2 ? "#0c2a24" : "#0a231f";
     ctx.fillRect(X(i / 2), top, PX / 2 + 1, bottom - top);
   }
   // fine turf grain
   const rnd = mulberry(7);
-  for (let i = 0; i < 9000; i++) {
-    ctx.fillStyle = `rgba(${rnd() > 0.5 ? "60,140,110" : "0,0,0"},${0.05 + rnd() * 0.06})`;
+  for (let i = 0; i < (day ? 16000 : 9000); i++) {
+    ctx.fillStyle = day ? `rgba(${rnd() > 0.5 ? "150,210,100" : "20,60,15"},${0.06 + rnd() * 0.08})` : `rgba(${rnd() > 0.5 ? "60,140,110" : "0,0,0"},${0.05 + rnd() * 0.06})`;
     ctx.fillRect(X(0) + rnd() * (X(rows) - X(0)), top + rnd() * (bottom - top), 2, 2 + rnd() * 4);
   }
   // end zones
@@ -336,8 +337,13 @@ function fieldCanvas(rows: number, cols: number) {
     ctx.fillStyle = g;
     ctx.fillRect(X(k0), top, X(k1) - X(k0), bottom - top);
   };
-  zone(0, 2, "rgba(10,120,190,0.55)", "rgba(6,60,110,0.35)");
-  zone(rows - 2, rows, "rgba(120,10,70,0.35)", "rgba(200,20,90,0.55)");
+  if (day) {
+    zone(0, 2, "rgba(16,150,215,0.85)", "rgba(10,110,180,0.7)");
+    zone(rows - 2, rows, "rgba(110,40,170,0.75)", "rgba(160,50,200,0.85)");
+  } else {
+    zone(0, 2, "rgba(10,120,190,0.55)", "rgba(6,60,110,0.35)");
+    zone(rows - 2, rows, "rgba(120,10,70,0.35)", "rgba(200,20,90,0.55)");
+  }
   // diagonal energy hatching in the end zones
   ctx.save();
   ctx.lineWidth = 3;
@@ -360,8 +366,20 @@ function fieldCanvas(rows: number, cols: number) {
   ctx.save();
   ctx.translate(X(1), (top + bottom) / 2);
   ctx.rotate(-Math.PI / 2);
-  glowText(ctx, "NEBULA", 0, -PX * 0.36, PX * 0.78, "#5ff4ff", "#00a8ff", { stroke: "#012238", spacing: 10 });
-  glowText(ctx, "KNIGHTS", 0, PX * 0.42, PX * 0.6, "#ffb02e", "#ff7a00", { stroke: "#2a1200", spacing: 10 });
+  if (home) {
+    // the player's own team name in their end zone, in their colour (one or two lines)
+    const words = home.name.toUpperCase().split(" ");
+    const top = words.length > 1 ? words.slice(0, Math.ceil(words.length / 2)).join(" ") : "";
+    const bottom = words.length > 1 ? words.slice(Math.ceil(words.length / 2)).join(" ") : words[0];
+    const fit = (t: string, base: number) => Math.min(base, (PX * 7.4) / Math.max(1, t.length * 0.78));
+    const glow = home.color;
+    const fill = mixHex(home.color, "#ffffff", 0.45);
+    if (top) glowText(ctx, top, 0, -PX * 0.36, fit(top, PX * 0.78), fill, glow, { stroke: "#020814", spacing: 10 });
+    glowText(ctx, bottom, 0, top ? PX * 0.42 : PX * 0.1, fit(bottom, top ? PX * 0.6 : PX * 0.86), fill, glow, { stroke: "#020814", spacing: 10 });
+  } else {
+    glowText(ctx, "NEBULA", 0, -PX * 0.36, PX * 0.78, "#5ff4ff", "#00a8ff", { stroke: "#012238", spacing: 10 });
+    glowText(ctx, "KNIGHTS", 0, PX * 0.42, PX * 0.6, "#ffb02e", "#ff7a00", { stroke: "#2a1200", spacing: 10 });
+  }
   ctx.restore();
   ctx.save();
   ctx.translate(X(rows - 1), (top + bottom) / 2);
@@ -371,7 +389,7 @@ function fieldCanvas(rows: number, cols: number) {
   ctx.restore();
   // faint square grid so moves still read like a board
   ctx.save();
-  ctx.strokeStyle = "rgba(160,255,230,0.07)";
+  ctx.strokeStyle = day ? "rgba(255,255,255,0.12)" : "rgba(160,255,230,0.07)";
   ctx.lineWidth = 2;
   for (let f = 1; f < cols; f++) {
     ctx.beginPath();
@@ -465,7 +483,7 @@ function fieldCanvas(rows: number, cols: number) {
   return c;
 }
 
-function mulberry(seed: number) {
+export function mulberry(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -476,15 +494,15 @@ function mulberry(seed: number) {
   };
 }
 
-function canvasTex(c: HTMLCanvasElement) {
+export function canvasTex(c: HTMLCanvasElement) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;
 }
 
-function Field({ rows, cols }: { rows: number; cols: number }) {
-  const tex = useMemo(() => canvasTex(fieldCanvas(rows, cols)), [rows, cols]);
+export function Field({ rows, cols, home, day = false }: { rows: number; cols: number; home: HomeTeam | null; day?: boolean }) {
+  const tex = useMemo(() => canvasTex(fieldCanvas(rows, cols, home, day)), [rows, cols, home?.name, home?.color, day]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => tex.dispose(), [tex]);
   const L = rows + MARGIN_L * 2;
   const Wd = cols + MARGIN_W * 2;
@@ -492,7 +510,7 @@ function Field({ rows, cols }: { rows: number; cols: number }) {
     <group rotation={[0, Math.PI / 2, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.125, 0]} receiveShadow>
         <planeGeometry args={[L, Wd]} />
-        <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={0.62} roughness={0.82} metalness={0} />
+        <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={day ? 0.14 : 0.62} roughness={0.9} metalness={0} />
       </mesh>
     </group>
   );
@@ -761,7 +779,7 @@ function Crowd({ hw, hl, hype }: { hw: number; hl: number; hype?: Hype | null })
 
 /* ── Neon trims, banners and boards ── */
 
-function NeonWall({ hw, hl }: { hw: number; hl: number }) {
+function NeonWall({ hw, hl, home }: { hw: number; hl: number; home: HomeTeam | null }) {
   // the low wall around the field: an LED ad ribbon, cyan on the Knights' half, magenta on the Phantoms' half
   const tex = useMemo(() => {
     const c = document.createElement("canvas");
@@ -808,14 +826,17 @@ function NeonWall({ hw, hl }: { hw: number; hl: number }) {
       ctx.restore();
       return canvasTex(c);
     };
-    return { w: make("NEBULA KNIGHTS", "#9ff8ff", "#1cc8ff"), b: make("PLASMA PHANTOMS", "#ffb3d6", "#ff2d7a") };
-  }, []);
+    return {
+      w: home ? make(home.name.toUpperCase(), mixHex(home.color, "#ffffff", 0.55), home.color) : make("NEBULA KNIGHTS", "#9ff8ff", "#1cc8ff"),
+      b: make("PLASMA PHANTOMS", "#ffb3d6", "#ff2d7a"),
+    };
+  }, [home?.name, home?.color]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { tex.dispose(); teamTex.w.dispose(); teamTex.b.dispose(); }, [tex, teamTex]);
   const h = 0.42;
   const sides: { pos: [number, number, number]; rot: number; len: number; col: string; team?: "w" | "b" }[] = [
     { pos: [hw, h / 2, hl / 2], rot: -Math.PI / 2, len: hl, col: TEAM.w },
     { pos: [hw, h / 2, -hl / 2], rot: -Math.PI / 2, len: hl, col: TEAM.b },
-    { pos: [-hw, h / 2, hl / 2], rot: Math.PI / 2, len: hl, col: TEAM.w, team: "w" },
+    { pos: [-hw, h / 2, hl / 2], rot: Math.PI / 2, len: hl, col: home?.color ?? TEAM.w, team: "w" },
     { pos: [-hw, h / 2, -hl / 2], rot: Math.PI / 2, len: hl, col: TEAM.b, team: "b" },
     { pos: [0, h / 2, hl], rot: Math.PI, len: hw * 2, col: TEAM.w },
     { pos: [0, h / 2, -hl], rot: 0, len: hw * 2, col: TEAM.b },
@@ -924,7 +945,7 @@ function Pennant({ position, rotY, text, sub, a, b }: { position: [number, numbe
 
 /* ── Light ── */
 
-function glowSprite() {
+export function glowSprite() {
   const c = document.createElement("canvas");
   c.width = c.height = 128;
   const ctx = c.getContext("2d")!;
@@ -1124,7 +1145,7 @@ function BowlLights({ hw, hl }: { hw: number; hl: number }) {
 }
 
 /** Glowing yellow goal posts on both end lines. */
-function GoalPosts({ rows }: { rows: number }) {
+export function GoalPosts({ rows }: { rows: number }) {
   const sprite = useMemo(() => glowSprite(), []);
   useEffect(() => () => sprite.dispose(), [sprite]);
   const gold = "#ffe14a";
@@ -1288,16 +1309,17 @@ function SweepBeams({ hw, hl }: { hw: number; hl: number }) {
 }
 
 /** Camera: broadside like a TV shot on wide screens, end-on on tall phones. */
-function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
+export function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
   const { camera, size, controls } = useThree();
   const wide = size.width >= size.height * 1.05;
   useEffect(() => {
     const persp = camera as THREE.PerspectiveCamera;
     const fov0 = persp.fov;
-    persp.fov = wide ? 44 : 40;
+    persp.fov = wide ? 48 : 40;
     persp.updateProjectionMatrix();
-    const aim = wide ? new THREE.Vector3(-2.2, 0, 0) : new THREE.Vector3(0, 0, -0.4);
-    if (wide) camera.position.set(rows * 0.84, rows * 0.86, 0.001);
+    // a little lower and further back than before, so the city skyline shows above the far stands
+    const aim = wide ? new THREE.Vector3(-rows * 0.257, 0, 0) : new THREE.Vector3(0, 0, -0.4);
+    if (wide) camera.position.set(rows * 1.0, rows * 0.6, 0.001);
     else camera.position.set(0, rows * 1.5, rows * 0.8);
     camera.lookAt(aim);
     const orbit = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null;
@@ -1312,10 +1334,14 @@ function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
 }
 
 /** One camera set-up of the touchdown replay. `from`/`to` are the moving player's squares in world x/z. */
-export type CamShot = { id: number; kind: number; from: [number, number]; to: [number, number]; end: number; hero?: boolean };
+export type CamShot = { id: number; kind: number; from: [number, number]; to: [number, number]; end: number; hero?: boolean; follow?: boolean };
+
+/** Where the ball is right now (world space), written every frame by whoever has it: the carrier,
+ *  the ball in flight or the loose ball. The touchdown replay camera follows it. */
+export const BALL_TRACK = { pos: new THREE.Vector3(), seen: 0, lock: -1 };
 
 /** The replay director: hard cuts between TV angles, then the camera tracks and slowly pushes in. */
-function CinemaCam({ shot }: { shot: CamShot }) {
+export function CinemaCam({ shot }: { shot: CamShot }) {
   const { camera, controls } = useThree();
   const look = useRef(new THREE.Vector3());
   const born = useRef(0);
@@ -1367,8 +1393,28 @@ function CinemaCam({ shot }: { shot: CamShot }) {
     pos.z = Math.max(-6.7, Math.min(6.7, pos.z));
     return { pos, target };
   }
+  const chase = useRef(new THREE.Vector3());
   useFrame(({ clock }, raw) => {
     const dt = Math.min(raw, 0.1);
+    if (shot.follow) {
+      // follow ONLY the ball carrier: a chase camera behind and beside him, looking at the ball
+      const ball = BALL_TRACK.pos;
+      const toward = Math.sign(shot.end) || 1;
+      const t = clock.elapsedTime;
+      const side = 2.5 + Math.sin(t * 0.25) * 0.4;
+      const want = new THREE.Vector3(Math.max(-4.1, Math.min(4.3, ball.x + side)), 2.0, Math.max(-6.7, Math.min(6.7, ball.z - toward * 2.9)));
+      const aim = new THREE.Vector3(ball.x, 0.5, ball.z + toward * 0.6);
+      if (cut.current !== shot.id) {
+        cut.current = shot.id;
+        chase.current.copy(aim);
+        camera.position.copy(want);
+        look.current.copy(aim);
+      }
+      camera.position.lerp(want, 1 - Math.exp(-2.6 * dt));
+      look.current.lerp(aim, 1 - Math.exp(-5.5 * dt));
+      camera.lookAt(look.current);
+      return;
+    }
     if (cut.current !== shot.id) {
       cut.current = shot.id;
       born.current = clock.elapsedTime;
@@ -1395,9 +1441,20 @@ export type StadiumShow = {
   fireworks?: { id: number; z: number } | null;
 };
 
-const Fireworks = lazy(() => import("@/components/variants/fireworks"));
+export const Fireworks = lazy(() => import("@/components/variants/fireworks"));
 
-export function NeonStadium({ rows, cols, show = null }: { rows: number; cols: number; show?: StadiumShow | null }) {
+/** The player's own team (name and colour) painted into their end zone, wall and rings. */
+export type HomeTeam = { name: string; color: string };
+
+/** a + (b - a) * k for #rrggbb colours */
+export function mixHex(a: string, b: string, k: number) {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (sh: number) => Math.round(((pa >> sh) & 255) + ((((pb >> sh) & 255) - ((pa >> sh) & 255)) * k));
+  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, "0")}`;
+}
+
+export function NeonStadium({ rows, cols, show = null, home = null }: { rows: number; cols: number; show?: StadiumShow | null; home?: HomeTeam | null }) {
   const hw = cols / 2 + MARGIN_W + 0.35; // inner wall, across
   const hl = rows / 2 + MARGIN_L + 0.35; // inner wall, along
   const out = (TIERS - 1) * STEP_OUT;
@@ -1428,7 +1485,7 @@ export function NeonStadium({ rows, cols, show = null }: { rows: number; cols: n
         shadow-bias={-0.0004}
       />
       {/* team-colored rim light from each end zone */}
-      <directionalLight position={[0, 4, 14]} intensity={0.9} color={TEAM.w} />
+      <directionalLight position={[0, 4, 14]} intensity={0.9} color={home?.color ?? TEAM.w} />
       <directionalLight position={[0, 4, -14]} intensity={0.9} color={TEAM.b} />
       <pointLight position={[0, 3, 0]} intensity={6} distance={12} decay={1.2} color="#9a7bff" />
       {show?.shot ? <CinemaCam shot={show.shot} /> : <StadiumCam rows={rows} reset={reset} />}
@@ -1436,8 +1493,9 @@ export function NeonStadium({ rows, cols, show = null }: { rows: number; cols: n
         <planeGeometry args={[hw * 2 + 0.4, hl * 2 + 0.4]} />
         <meshStandardMaterial color="#04070d" roughness={0.9} />
       </mesh>
-      <Field rows={rows} cols={cols} />
-      <NeonWall hw={hw} hl={hl} />
+      <NeonSkyline hw={hw + out} hl={hl + out} />
+      <Field rows={rows} cols={cols} home={home} />
+      <NeonWall hw={hw} hl={hl} home={home} />
       <Stands hw={hw} hl={hl} />
       <Crowd hw={hw} hl={hl} hype={show?.hype ?? null} />
       <Rig hw={hw} hl={hl} />
@@ -1445,7 +1503,7 @@ export function NeonStadium({ rows, cols, show = null }: { rows: number; cols: n
       <BowlLights hw={hw} hl={hl} />
       <GoalPosts rows={rows} />
       <Sidelines cols={cols} />
-      <Pennant position={[2.2, STEP_UP * TIERS * 0.62, hl + out * 0.62]} rotY={2.56} text="GO" sub="KNIGHTS!" a="#2ee6ff" b="#ffb02e" />
+      <Pennant position={[2.2, STEP_UP * TIERS * 0.62, hl + out * 0.62]} rotY={2.56} text="GO" sub={`${(home?.name ?? "Knights").toUpperCase()}!`} a={home?.color ?? "#2ee6ff"} b="#ffb02e" />
       <Pennant position={[2.2, STEP_UP * TIERS * 0.62, -(hl + out * 0.62)]} rotY={0.585} text="GFL" sub="CHAMPIONSHIP" a="#b04bff" b="#ff2d7a" />
       <TopBanner x={-(hw + out * 0.62)} y={STEP_UP * TIERS * 0.5} />
       <Pennant position={[-(hw + out * 0.55), STEP_UP * TIERS * 0.75, hl + out * 0.55]} rotY={Math.PI * 0.75} text="GFL" sub="CHAMPIONSHIP" a="#2ee6ff" b="#9fd0ff" />
@@ -1520,8 +1578,8 @@ export function FadingArc({ from, to, color }: { from: [number, number, number];
 }
 
 /** Glowing team disc under a player. */
-export function TeamRing({ side, position }: { side: "w" | "b"; position: [number, number, number] }) {
-  const col = TEAM[side];
+export function TeamRing({ side, position, color }: { side: "w" | "b"; position: [number, number, number]; color?: string }) {
+  const col = color ?? TEAM[side];
   return (
     <group position={position}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>

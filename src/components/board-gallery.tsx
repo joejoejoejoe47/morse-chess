@@ -7,6 +7,7 @@ import { BoardLook } from "@/components/board-look";
 import { cn } from "@/lib/utils";
 import { LegoShop, LegoTile } from "@/components/lego-shop";
 import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
+import { FootballFields } from "@/components/football-fields";
 
 function MiniBoard({ light, dark }: { light: string; dark: string }) {
   return (
@@ -167,6 +168,8 @@ export function BoardGallery({
           </div>
         ) : null;
       })()}
+
+      <FootballFields />
 
       <div className="relative mt-10 flex justify-center pb-10">
         <Button asChild variant="outline" className="rounded-full">

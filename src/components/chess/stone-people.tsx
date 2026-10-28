@@ -8,7 +8,18 @@ import { SpaceCrew } from "@/components/chess/space-crew";
 import { asset } from "@/lib/base";
 
 export type PeopleCast = "stone" | "pipe" | "ring" | "wars" | "mario" | "lotr";
-export type Gait = { phase: number; amp: number; act: "idle" | "walk" | "charge" | "attack" | "death" | "cheer" | "pickup"; fade: number };
+export type Gait = {
+  phase: number;
+  amp: number;
+  act: "idle" | "walk" | "charge" | "attack" | "death" | "cheer" | "pickup";
+  fade: number;
+  /** optional: play this exact GLB clip instead of the act's clip (football tackles: Block, Hit_A, Death_A, Lie_StandUp, Running_A…) */
+  clip?: string;
+  /** with clip: play once and hold the last frame */
+  once?: boolean;
+  /** with clip: playback speed */
+  speed?: number;
+};
 
 const PROP = /sword|shield|axe|knife|crossbow|throw|spell|wand|staff|mug|cape|helmet|hat|hood|cloak|badge/i;
 const BODY = /head|body|arm|leg|eyes|jaw|skull/i;
@@ -149,6 +160,8 @@ function WarUnit({
   clips,
   gait,
   sword = false,
+  blade = false,
+  carry = null,
   clash = false,
   clip = null,
   flip = false,
@@ -160,6 +173,8 @@ function WarUnit({
   clips: Clips;
   gait: MutableRefObject<Gait>;
   sword?: boolean;
+  blade?: boolean;
+  carry?: THREE.Object3D | null;
   clash?: boolean;
   clip?: THREE.Plane | null;
   flip?: boolean;
@@ -197,12 +212,15 @@ function WarUnit({
       }
       if (PROP.test(obj.name) && !BODY.test(obj.name) && !allow.has(obj.name)) obj.visible = false;
     });
-    if (sword) {
+    const blades: THREE.Object3D[] = [];
+    next.userData.blades = blades;
+    if (sword || blade) {
       let found = false;
       next.traverse((obj) => {
-        if (/sword/i.test(obj.name)) {
+        if (/sword/i.test(obj.name) && !/offhand/i.test(obj.name)) {
           obj.visible = true;
           found = true;
+          blades.push(obj);
         }
       });
       if (!found) {
@@ -223,11 +241,22 @@ function WarUnit({
           copy.quaternion.copy(blade.quaternion);
           copy.scale.copy(blade.scale);
           hand.add(copy);
+          blades.push(copy);
         }
       }
     }
     return next;
-  }, [scene, allow, tint, sword, donor.scene, clip]);
+  }, [scene, allow, tint, sword, blade, donor.scene, clip]);
+  // the football: parked in the left hand, kept at a fixed world size whatever the bone scale
+  const carryAt = useMemo(() => clone.getObjectByName("handslot.l") ?? clone.getObjectByName("hand.l") ?? findNamed(clone, /handslot\.l|hand\.l/i), [clone]);
+  useEffect(() => {
+    if (!carry || !carryAt) return;
+    carryAt.add(carry);
+    return () => {
+      carryAt.remove(carry);
+    };
+  }, [carry, carryAt]);
+  const _ws = useMemo(() => new THREE.Vector3(), []);
   const ref = useRef<THREE.Group>(null);
   const mixer = useMemo(() => new THREE.AnimationMixer(clone), [clone]);
   const actions = useMemo(() => {
@@ -236,6 +265,7 @@ function WarUnit({
     return map;
   }, [animations, mixer]);
   const mode = useRef<Gait["act"]>("idle");
+  const playing = useRef<string>(clips.idle);
   const breath = useRef(Math.random() * Math.PI * 2);
   const rate = useRef(0.75 + Math.random() * 0.7);
   const fall = useRef(0);
@@ -259,6 +289,7 @@ function WarUnit({
     if (want === "death") {
       if (mode.current !== "death") {
         mode.current = "death";
+        playing.current = "";
         fall.current = 0;
         laid.current = false;
         air.current = 0;
@@ -323,22 +354,34 @@ function WarUnit({
       return;
     }
     mixer.update(dt);
-    if (want !== mode.current) {
-      const prev = actions[clipName(clips, mode.current)];
-      const next = actions[clipName(clips, want)];
-      prev?.fadeOut(0.1);
+    const forced = gait.current.clip && actions[gait.current.clip] ? gait.current.clip : null;
+    const key = forced ?? clipName(clips, want);
+    if (want !== mode.current || key !== playing.current) {
+      const prev = actions[playing.current];
+      const next = actions[key];
+      if (prev !== next) prev?.fadeOut(forced ? 0.16 : 0.1);
       if (next) {
-        const once = want === "attack" || want === "pickup";
-        const duel = clash && want === "attack";
-        const cheering = want === "cheer";
-        next.timeScale = duel ? 0.7 : 1;
-        next.setLoop(duel || cheering ? THREE.LoopRepeat : once ? THREE.LoopOnce : THREE.LoopRepeat, duel ? 2 : once ? 1 : Infinity);
-        next.clampWhenFinished = once;
-        next.reset();
-        if (want === "idle") next.time = breath.current % next.getClip().duration;
-        next.fadeIn(0.08).play();
+        if (forced) {
+          const once = gait.current.once ?? false;
+          next.timeScale = gait.current.speed ?? 1;
+          next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity);
+          next.clampWhenFinished = once;
+          next.reset();
+          next.fadeIn(0.16).play();
+        } else {
+          const once = want === "attack" || want === "pickup";
+          const duel = clash && want === "attack";
+          const cheering = want === "cheer";
+          next.timeScale = duel ? 0.7 : 1;
+          next.setLoop(duel || cheering ? THREE.LoopRepeat : once ? THREE.LoopOnce : THREE.LoopRepeat, duel ? 2 : once ? 1 : Infinity);
+          next.clampWhenFinished = once;
+          next.reset();
+          if (want === "idle") next.time = breath.current % next.getClip().duration;
+          next.fadeIn(0.08).play();
+        }
       }
       mode.current = want;
+      playing.current = key;
     }
     if (ref.current && want === "idle") {
       const puff = 1 + Math.sin(clock.elapsedTime * rate.current + breath.current) * 0.02;
@@ -346,7 +389,7 @@ function WarUnit({
     } else if (ref.current) {
       ref.current.scale.set(scale, scale, scale);
     }
-    if (want === "walk") {
+    if (want === "walk" || /^(Running|Walking)/.test(key)) {
       for (const name of ["root", "hips", "Bone", "Hips"]) {
         const bone = clone.getObjectByName(name);
         if (!bone) continue;
@@ -355,6 +398,11 @@ function WarUnit({
       }
     }
     if (gait.current.fade < 0.99) paint(clone, gait.current.fade);
+    if (blade && !sword) for (const b of clone.userData.blades as THREE.Object3D[]) b.visible = want === "attack";
+    if (carry && carryAt) {
+      carryAt.getWorldScale(_ws);
+      carry.scale.set(1 / Math.max(1e-4, _ws.x), 1 / Math.max(1e-4, _ws.y), 1 / Math.max(1e-4, _ws.z));
+    }
     if (!ref.current) return;
     if (flip && want === "attack") {
       mixer.timeScale = 1;
@@ -497,6 +545,8 @@ export function StonePerson({
   clip = null,
   gait,
   flip,
+  blade,
+  carry,
 }: {
   type: PieceSymbol;
   white: boolean;
@@ -507,6 +557,10 @@ export function StonePerson({
   clip?: THREE.Plane | null;
   gait: MutableRefObject<Gait>;
   flip?: boolean;
+  /** carry a sword that only shows while attacking (football) */
+  blade?: boolean;
+  /** hold this object in the free (left) hand, e.g. the football */
+  carry?: THREE.Object3D | null;
 }) {
   if (cast === "mario") return <PartySprite type={type} white={white} gait={gait} clip={clip} />;
   if (cast === "wars") {
@@ -523,6 +577,8 @@ export function StonePerson({
       clips={TOY_CLIPS}
       gait={gait}
       sword={sword}
+      blade={blade}
+      carry={carry}
       clash={clash}
       clip={clip}
       flip={flip ?? type === "q"}
@@ -539,6 +595,7 @@ export function WarCorpse({
   wing = "a",
   delay,
   onDone,
+  quick = false,
 }: {
   type: PieceSymbol;
   white: boolean;
@@ -548,6 +605,8 @@ export function WarCorpse({
   wing?: "a" | "b";
   delay: number;
   onDone: () => void;
+  /** football: fall, then fade away fast so nobody ever stands inside a body */
+  quick?: boolean;
 }) {
   const gait = useRef<Gait>({ phase: 0, amp: 0, act: "idle", fade: 1 });
   const born = useRef<number | null>(null);
@@ -557,9 +616,9 @@ export function WarCorpse({
     if (born.current == null) born.current = clock.elapsedTime;
     const t = clock.elapsedTime - born.current;
     const strike = delay;
-    const fall = 1.7;
-    const lie = 3.4;
-    const fade = 3.6;
+    const fall = quick ? 1.25 : 1.7;
+    const lie = quick ? 0.15 : 3.4;
+    const fade = quick ? 0.6 : 3.6;
     if (t < strike) {
       gait.current.act = "idle";
       gait.current.fade = 1;

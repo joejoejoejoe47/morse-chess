@@ -2,9 +2,11 @@ import { asset } from "@/lib/base";
 
 /* The football crowd. One cheering clip (owner supplied, trimmed to its steady 11 s middle and
    re-encoded at 112 kbps) loops for ever: each copy starts 1.6 s before the last one ends and the
-   two are cross-faded with equal-power curves, so the loop has no seam. Levels:
-     countdown / between plays: a steady roar; a play starting: silent within ~0.15 s;
-     touchdown / fireworks: a big swell that settles back. Muting is remembered per browser. */
+   two are cross-faded with equal-power curves, so the loop has no seam. Levels (owner, v3):
+     countdown: a full roar; once the game is on it settles to a lower bed that never stops,
+     moves do NOT quiet it; a big play lifts it a little, a touchdown swells it and it eases back.
+     All level changes glide (setTargetAtTime), so there are no sudden fades or gaps.
+     Muting is remembered per browser. */
 
 const FILE = "/football/crowd-6c291247c7.mp3";
 const XF = 1.6;
@@ -18,8 +20,10 @@ export function crowdMuted() {
   }
 }
 
-type Level = "calm" | "count" | "hush" | "swell";
-const GAIN: Record<Level, number> = { calm: 0.32, count: 0.42, hush: 0, swell: 0.95 };
+type Level = "calm" | "count" | "roar" | "swell";
+const GAIN: Record<Level, number> = { calm: 0.26, count: 0.5, roar: 0.46, swell: 0.95 };
+/** seconds for each level to glide most of the way to its target */
+const GLIDE: Record<Level, number> = { calm: 1.1, count: 0.5, roar: 0.35, swell: 0.4 };
 
 export class CrowdAudio {
   private ctx: AudioContext | null = null;
@@ -27,7 +31,7 @@ export class CrowdAudio {
   private buf: AudioBuffer | null = null;
   private timer = 0;
   private nextAt = 0;
-  private level: Level = "hush";
+  private level: Level = "count";
   private muted = crowdMuted();
   private dead = false;
   private settle = 0;
@@ -94,29 +98,40 @@ export class CrowdAudio {
     }
   }
 
-  private apply(fade: number) {
+  /** Glide the master gain toward the current level: an exponential approach from wherever it is now,
+   *  so a change mid-glide never jumps (no clicks, no dips to silence). */
+  private apply(glide: number) {
     const ctx = this.ctx;
     const m = this.master;
     if (!ctx || !m) return;
     const now = ctx.currentTime;
     const target = this.muted ? 0 : GAIN[this.level];
-    m.gain.cancelScheduledValues(now);
-    m.gain.setValueAtTime(m.gain.value, now);
-    m.gain.linearRampToValueAtTime(target, now + Math.max(0.02, fade));
+    const g = m.gain as AudioParam & { cancelAndHoldAtTime?: (t: number) => void };
+    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(now);
+    else {
+      const v = m.gain.value;
+      m.gain.cancelScheduledValues(now);
+      m.gain.setValueAtTime(v, now);
+    }
+    m.gain.setTargetAtTime(target, now, Math.max(0.02, glide) / 3);
   }
 
-  set(level: Level) {
+  /** "roar" and "swell" are short lifts that ease back down to the steady bed by themselves. */
+  set(level: Level | "hush") {
+    if (level === "hush") level = "calm"; // older callers: moves never quiet the crowd any more
+    if (level === this.level && level !== "swell" && level !== "roar") return;
     window.clearTimeout(this.settle);
-    if (level === this.level && level !== "swell") return;
+    // a small lift never cuts a touchdown swell short
+    if (level === "roar" && this.level === "swell") return;
     this.level = level;
-    this.apply(level === "hush" ? 0.14 : level === "swell" ? 0.45 : 1.1);
-    if (level === "swell") {
+    this.apply(GLIDE[level]);
+    if (level === "swell" || level === "roar") {
       this.settle = window.setTimeout(() => {
-        if (this.level === "swell") {
+        if (this.level === level) {
           this.level = "calm";
-          this.apply(2.2);
+          this.apply(level === "swell" ? 3.2 : 2);
         }
-      }, 5200);
+      }, level === "swell" ? 6000 : 1600);
     }
   }
 

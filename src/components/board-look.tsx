@@ -14,6 +14,7 @@ import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
 import { cn } from "@/lib/utils";
 import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
+import { PieceNames } from "@/components/piece-names";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -64,6 +65,7 @@ export function BoardLook({
   /** Classic and Parlor bring their own 3D men, so the AV king is not used there: ask first. */
   const ownSet = board.id === "classic" || board.id === "parlor";
   const [warn, setWarn] = useState(false);
+  const [naming, setNaming] = useState(false);
 
   useEffect(() => {
     if (startTuning && open) setTuning(true);
@@ -272,6 +274,10 @@ export function BoardLook({
               onClose={() => setTuning(false)}
             />
           </div>
+        ) : naming ? (
+          <div className="absolute inset-x-3 bottom-3 z-20 flex justify-center sm:inset-x-4 sm:bottom-4">
+            <PieceNames boardId={board.id} boardName={board.name} onClose={() => setNaming(false)} />
+          </div>
         ) : (
           <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex flex-col items-center gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="pointer-events-auto max-w-md rounded-xl border border-line bg-ink/75 px-4 py-3 backdrop-blur-sm">
@@ -279,7 +285,12 @@ export function BoardLook({
               <p className="mt-1 text-[15px] text-mist">{board.blurb}</p>
               {error ? <p className="mt-2 text-[13px] text-danger">{error}</p> : null}
             </div>
-            <div className="pointer-events-auto flex gap-2">
+            <div className="pointer-events-auto flex flex-wrap justify-center gap-2">
+              {username ? (
+                <Button variant="outline" onClick={() => setNaming(true)}>
+                  ♘ Name pieces
+                </Button>
+              ) : null}
               {open ? (
                 <Button variant="solid" onClick={() => (ownSet && !equipped ? setWarn(true) : setTuning(true))}>
                   {equipped ? "Use · adjust" : "Use this board"}
