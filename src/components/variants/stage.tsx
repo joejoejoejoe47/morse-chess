@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Html, OrbitControls, useGLTF } from "@react-three/drei";
 import type { PieceSymbol } from "chess.js";
@@ -9,9 +9,10 @@ import { LEGO_CHARS, LEGO_ROSTER, LegoWalker, LegoWorld, type LegoCharId } from 
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 import { asset } from "@/lib/base";
 import { fixLegoWinding } from "@/lib/avatar/lego-winding";
-import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
+import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type HomeTeam, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
+import { FieldActor, FieldThrow, FieldVictim, LooseBall, SELECT_RING } from "@/components/variants/field-units";
 
-export type { Scoreboard, StadiumShow };
+export type { HomeTeam, Scoreboard, StadiumShow };
 
 export type Look = "2d" | "3d" | "an" | "lg";
 export type Sky = "table" | "lego" | "arena";
@@ -26,6 +27,8 @@ export type StageUnit = {
   label?: string;
   hidden?: boolean;
   ball?: boolean;
+  /** football: the same player keeps the same id all game, so moves glide */
+  id?: string;
 };
 
 export type MoveCue = {
@@ -38,6 +41,20 @@ export type MoveCue = {
   kind: PieceSymbol;
   victim?: PieceSymbol;
   victimSide?: "w" | "b";
+  /** football: id of the player who moved */
+  unit?: string;
+  /** football: a kick / throw at the posts */
+  goal?: boolean;
+};
+
+/** Football extras for the field. */
+export type FieldOpts = {
+  /** bump to snap every player to their square (replay start / end, kickoff) */
+  epoch: number;
+  colors: { w: string; b: string };
+  /** throw mode: show the goal-post target (field goal) */
+  goal?: boolean;
+  onGoal?: () => void;
 };
 
 function Pigskin() {
@@ -226,6 +243,31 @@ function Throw({ from, to, rows, cols }: { from: [number, number]; to: [number, 
   );
 }
 
+/** Throw mode: the goal posts light up as a target; tap it to kick / throw a field goal. */
+function GoalTarget({ rows, cols, from }: { rows: number; cols: number; from: { r: number; f: number } }) {
+  const z = -rows / 2 - 0.35;
+  const ref = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (ref.current) ref.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 5) * 0.08);
+  });
+  return (
+    <group>
+      <group ref={ref} position={[0, 0.15, z]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={3}>
+          <ringGeometry args={[0.5, 0.66, 40]} />
+          <meshBasicMaterial color="#ffe14a" transparent opacity={0.95} toneMapped={false} depthWrite={false} />
+        </mesh>
+      </group>
+      {/* a big invisible tap target around the posts */}
+      <mesh position={[0, 1.1, z]} userData={{ pick: "goal" }}>
+        <boxGeometry args={[2.4, 2.4, 1.2]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+      </mesh>
+      <Arc from={spot(from.r, from.f, rows, cols, 0.3)} to={[0, 1.7, z]} color="#ffe14a" opacity={0.9} lift={1.1} />
+    </group>
+  );
+}
+
 function Deck({
   rows,
   cols,
@@ -237,6 +279,7 @@ function Deck({
   cue,
   stadium = false,
   sel = null,
+  field = null,
 }: {
   rows: number;
   cols: number;
@@ -248,7 +291,26 @@ function Deck({
   cue: MoveCue | null;
   stadium?: boolean;
   sel?: { r: number; f: number; throwing: boolean } | null;
+  field?: FieldOpts | null;
 }) {
+  const homeCol = field?.colors.w ?? TEAM.w;
+  const awayCol = field?.colors.b ?? TEAM.b;
+  // recent moves: the fights and throws keep playing even when the next move starts
+  const [recent, setRecent] = useState<MoveCue[]>([]);
+  const [flying, setFlying] = useState<number | null>(null);
+  useEffect(() => {
+    if (!cue || !stadium) return;
+    setRecent((list) => (list.some((c) => c.id === cue.id) ? list : [...list.slice(-5), cue]));
+    if (cue.thrown) setFlying(cue.id);
+    const id = cue.id;
+    const timer = window.setTimeout(() => setRecent((list) => list.filter((c) => c.id !== id)), 6500);
+    return () => window.clearTimeout(timer);
+  }, [cue?.id, stadium]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // a new kickoff / replay: no leftover fights
+    setRecent([]);
+    setFlying(null);
+  }, [field?.epoch]);
   const squares = [];
   const arcs = [];
   for (let r = 0; r < rows; r++) {
@@ -257,7 +319,7 @@ function Deck({
       squares.push(
         stadium && paint(r, f).bg !== "#e6c56a" ? null : stadium ? (
           <group key={`${r}:${f}`}>
-            <TargetMark position={[x, 0.15, z]} color={sel?.throwing ? "#ffe14a" : TEAM.w} strong={sel?.r === r && sel?.f === f} />
+            <TargetMark position={[x, 0.15, z]} color={sel?.throwing ? "#ffe14a" : sel?.r === r && sel?.f === f ? SELECT_RING : homeCol} strong={sel?.r === r && sel?.f === f} />
           </group>
         ) : (
           <mesh key={`${r}:${f}`} position={[x, 0.08, z]} receiveShadow onClick={(e) => { e.stopPropagation(); onPick(r, f); }}>
@@ -267,7 +329,7 @@ function Deck({
         ),
       );
       if (stadium && sel && paint(r, f).bg === "#e6c56a" && !(sel.r === r && sel.f === f)) {
-        arcs.push(<Arc key={`a${r}:${f}`} from={spot(sel.r, sel.f, rows, cols, 0.3)} to={spot(r, f, rows, cols, 0.2)} color={sel.throwing ? "#ffe14a" : TEAM.w} opacity={0.85} lift={sel.throwing ? 0.9 : 0.3} />);
+        arcs.push(<Arc key={`a${r}:${f}`} from={spot(sel.r, sel.f, rows, cols, 0.3)} to={spot(r, f, rows, cols, 0.2)} color={sel.throwing ? "#ffe14a" : homeCol} opacity={0.85} lift={sel.throwing ? 0.9 : 0.3} />);
       }
     }
   }
@@ -284,8 +346,12 @@ function Deck({
     for (const hit of e.intersections) {
       let node: THREE.Object3D | null = hit.object;
       while (node && !node.userData.pick) node = node.parent;
-      const tag = node?.userData.pick as "ground" | [number, number] | undefined;
+      const tag = node?.userData.pick as "ground" | "goal" | [number, number] | undefined;
       if (!tag) continue;
+      if (tag === "goal") {
+        field?.onGoal?.();
+        return;
+      }
       if (tag === "ground") {
         if (!ground) ground = [Math.round((rows - 1) / 2 - hit.point.z), Math.round(hit.point.x + (cols - 1) / 2)];
       } else if (!hitUnit) hitUnit = tag;
@@ -316,11 +382,40 @@ function Deck({
       )}
       {squares}
       {arcs}
-      {stadium && cue ? (
-        <FadingArc key={`cue${cue.id}`} from={spot(cue.from[0], cue.from[1], rows, cols, 0.3)} to={spot(cue.to[0], cue.to[1], rows, cols, 0.2)} color={cue.thrown ? "#ffe14a" : TEAM[cue.side]} />
+      {stadium && cue && !cue.goal ? (
+        <FadingArc key={`cue${cue.id}`} from={spot(cue.from[0], cue.from[1], rows, cols, 0.3)} to={spot(cue.to[0], cue.to[1], rows, cols, 0.2)} color={cue.thrown ? "#ffe14a" : cue.side === "w" ? homeCol : awayCol} />
       ) : null}
-      {stadium ? units.map((unit) => <TeamRing key={`ring${unit.side}${unit.r}:${unit.f}`} side={unit.side} position={spot(unit.r, unit.f, rows, cols, 0.145)} />) : null}
-      {units.map((unit) => {
+      {stadium && field?.goal && sel ? <GoalTarget rows={rows} cols={cols} from={sel} /> : null}
+      {stadium && field
+        ? units.map((unit) => {
+            const mine = unit.id ? [...recent].reverse().find((c) => c.unit === unit.id && !c.thrown) ?? null : null;
+            const caught = Boolean(flying != null && unit.ball);
+            return (
+              <group key={unit.id ?? `${unit.side}${unit.kind}${unit.r}:${unit.f}`} userData={{ pick: [unit.r, unit.f] }}>
+                <FieldActor
+                  unit={unit}
+                  look={look}
+                  rows={rows}
+                  cols={cols}
+                  act={mine}
+                  epoch={field.epoch}
+                  selected={Boolean(sel && sel.r === unit.r && sel.f === unit.f)}
+                  ring={unit.side === "w" ? homeCol : awayCol}
+                  hideBall={caught}
+                />
+              </group>
+            );
+          })
+        : null}
+      {stadium && field
+        ? recent.filter((c) => c.capture && !c.thrown).map((c) => <FieldVictim key={`v${c.id}`} cue={c} look={look} rows={rows} cols={cols} />)
+        : null}
+      {stadium && field
+        ? recent.filter((c) => c.thrown && c.id === flying).map((c) => <FieldThrow key={`t${c.id}`} cue={c} rows={rows} cols={cols} onDone={() => setFlying((f) => (f === c.id ? null : f))} />)
+        : null}
+      {stadium && field && ball && flying == null ? <LooseBall r={ball.r} f={ball.f} rows={rows} cols={cols} /> : null}
+      {stadium && !field && units.length ? units.map((unit) => <TeamRing key={`ring${unit.side}${unit.r}:${unit.f}`} side={unit.side} position={spot(unit.r, unit.f, rows, cols, 0.145)} />) : null}
+      {(stadium && field ? [] : units).map((unit) => {
         const moving = cue && cue.side === unit.side && cue.to[0] === unit.r && cue.to[1] === unit.f && !cue.thrown;
         return (
           <group
@@ -339,13 +434,13 @@ function Deck({
           </group>
         );
       })}
-      {cue?.capture && look === "an" && cue.victim ? (
+      {!field && cue?.capture && look === "an" && cue.victim ? (
         <group key={cue.id} position={spot(cue.to[0], cue.to[1], rows, cols, 0.08)}>
           <WarCorpse type={cue.victim} white={cue.victimSide === "w"} cast="stone" sword={false} clash delay={0.55} onDone={() => undefined} />
         </group>
       ) : null}
-      {cue?.thrown ? <Throw key={cue.id} from={cue.from} to={cue.to} rows={rows} cols={cols} /> : null}
-      {ball && !cue?.thrown ? (
+      {!field && cue?.thrown ? <Throw key={cue.id} from={cue.from} to={cue.to} rows={rows} cols={cols} /> : null}
+      {!field && ball && !cue?.thrown ? (
         <group position={spot(ball.r, ball.f, rows, cols, 0.22)}>
           <Pigskin />
         </group>
@@ -368,6 +463,8 @@ export function VariantStage({
   sel = null,
   show = null,
   onReady,
+  field = null,
+  home = null,
 }: {
   rows: number;
   cols: number;
@@ -382,6 +479,8 @@ export function VariantStage({
   stadium?: boolean;
   sel?: { r: number; f: number; throwing: boolean } | null;
   show?: StadiumShow | null;
+  field?: FieldOpts | null;
+  home?: HomeTeam | null;
 }) {
   const span = Math.max(rows, cols);
   const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
@@ -389,7 +488,7 @@ export function VariantStage({
     <div className="h-full w-full">
       <Canvas shadows dpr={[1, 1.5]} camera={{ position: cam, fov: 34, near: 0.1, far: 400 }} gl={{ antialias: true, alpha: false }}>
         {stadium ? null : <color attach="background" args={[sky === "table" ? "#14110e" : "#87a0c4"]} />}
-        {stadium ? <NeonStadium rows={rows} cols={cols} show={show} /> : null}
+        {stadium ? <NeonStadium rows={rows} cols={cols} show={show} home={home} /> : null}
         {!stadium && sky === "table" ? (
           <>
             <hemisphereLight args={["#ffe7c2", "#2a2118", 0.7]} />
@@ -398,7 +497,7 @@ export function VariantStage({
         ) : null}
         {stadium ? null : sky === "lego" ? <LegoWorld /> : null}
         {!stadium && sky === "arena" ? <SkyArenaWorld squaresBottom={0.02} plinth={false} /> : null}
-        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} />
+        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} field={field} />
         <OrbitControls makeDefault target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.05} minDistance={4} maxDistance={span * 3} />
         {onReady ? <Ready onReady={onReady} /> : null}
       </Canvas>
