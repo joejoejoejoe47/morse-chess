@@ -6,7 +6,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import { asset } from "@/lib/base";
 import { DEFAULT_LOADOUT, finishById, parseLoadout, type AvatarLoadout, type KingFinish } from "@/lib/avatar/catalog";
 import { LEGACY_HEAD, buildKing, shieldTexture } from "@/components/avatar/pedestal-king";
-import { FINIAL_FROM, KingCrown, STAUNTON_HEAD, hideFinial } from "@/components/chess/sculpted-piece";
+import { FINIAL_FROM, KingCrown, STAUNTON_HEAD, crownCoversFinial, hideFinial } from "@/components/chess/sculpted-piece";
 
 /**
  * The AV set: in 3D every piece of a player follows the king they built in AV.
@@ -340,7 +340,8 @@ function KitMan({ type, paint }: { type: Exclude<PieceSymbol, "k">; paint: SetPa
 function KitKing({ paint }: { paint: SetPaint }) {
   const coronet = paint.crownId === "poly-band";
   const bare = coronet || paint.crownId === "none";
-  const king = useMemo(() => buildKing(paint.finish, coronet, paint.letter, bare), [paint.finish, coronet, paint.letter, bare]);
+  const finial = !crownCoversFinial(paint.crownId);
+  const king = useMemo(() => buildKing(paint.finish, coronet, paint.letter, finial), [paint.finish, coronet, paint.letter, finial]);
   return (
     <group scale={0.9}>
       <primitive object={king} />
@@ -354,7 +355,7 @@ function KitKing({ paint }: { paint: SetPaint }) {
 }
 
 /** The Staunton piece, painted in the AV king's colour. */
-/** crowned: a crown is on, so the cross finial is pressed down out of its way. */
+/** crowned: a hat that covers the head is on, so the cross finial is hidden (set invisible). */
 export function PaintedStaunton({ type, color, finish, crowned = false }: { type: PieceSymbol; color: Color; finish: KingFinish; crowned?: boolean }) {
   const gltf = useGLTF(STAUNTON[color][type]);
   const scene = useMemo(() => {
@@ -396,7 +397,7 @@ export function AvPiece({ type, color, paint }: { type: PieceSymbol; color: Colo
   }
   return (
     <>
-      <PaintedStaunton type={type} color={color} finish={paint.finish} crowned={!!paint.crownId && paint.crownId !== "none"} />
+      <PaintedStaunton type={type} color={color} finish={paint.finish} crowned={crownCoversFinial(paint.crownId)} />
       {type === "k" && paint.crownId && paint.crownId !== "none" ? (
         <group position={[0, 0.92, 0]} rotation={[0, color === "w" ? Math.PI : 0, 0]}>
           <KingCrown id={paint.crownId} team={paint.dark ? "b" : "w"} head={STAUNTON_HEAD[color]} />

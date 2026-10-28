@@ -157,28 +157,45 @@ export function KingCrown({ id, team, head = STAUNTON_HEAD.w }: { id: string; te
 /** Where the light and dark Staunton kings' heads end and the cross finial starts (share of height). */
 export const FINIAL_FROM: Record<Color, number> = { w: 0.845, b: 0.865 };
 
-/** Squash a king's cross finial down into the top of its head, for when it wears a crown. */
+/** Crowns and hats with a closed top over the king's head: only these take the cross finial off. */
+const COVERING = new Set(["royal-crown", "clown", "chef", "cappello", "viking"]);
+export const crownCoversFinial = (id?: string | null) => !!id && COVERING.has(id);
+
+/**
+ * Take a king's cross finial off for a hat that covers the head: the triangles above the
+ * head are moved into their own mesh, which is set invisible. Nothing is moved or scaled.
+ */
 export function hideFinial(root: THREE.Object3D, fromTop: number) {
   root.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(root, true);
   const cut = box.min.y + (box.max.y - box.min.y) * fromTop;
   const v = new THREE.Vector3();
+  const meshes: THREE.Mesh[] = [];
   root.traverse((node) => {
-    const mesh = node as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const back = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
-    const geo = mesh.geometry.clone();
-    const pos = geo.getAttribute("position");
-    for (let i = 0; i < pos.count; i += 1) {
-      v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
-      if (v.y <= cut) continue;
-      v.y = cut;
-      v.applyMatrix4(back);
-      pos.setXYZ(i, v.x, v.y, v.z);
-    }
-    pos.needsUpdate = true;
-    geo.computeBoundingBox();
-    geo.computeBoundingSphere();
-    mesh.geometry = geo;
+    if ((node as THREE.Mesh).isMesh) meshes.push(node as THREE.Mesh);
   });
+  for (const mesh of meshes) {
+    const geo = mesh.geometry;
+    const pos = geo.getAttribute("position");
+    const index = geo.getIndex();
+    const tri = index ? Array.from(index.array as ArrayLike<number>) : Array.from({ length: pos.count }, (_, i) => i);
+    const above = new Uint8Array(pos.count);
+    for (let i = 0; i < pos.count; i += 1) above[i] = v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).y > cut ? 1 : 0;
+    const keep: number[] = [];
+    const cross: number[] = [];
+    for (let t = 0; t < tri.length; t += 3) {
+      const a = tri[t], b = tri[t + 1], c = tri[t + 2];
+      (above[a] && above[b] && above[c] ? cross : keep).push(a, b, c);
+    }
+    if (!cross.length) continue;
+    const body = geo.clone();
+    body.setIndex(keep);
+    const top = geo.clone();
+    top.setIndex(cross);
+    mesh.geometry = body;
+    const finial = new THREE.Mesh(top, mesh.material);
+    finial.name = "finial";
+    finial.visible = false;
+    mesh.add(finial);
+  }
 }

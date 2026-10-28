@@ -4,7 +4,7 @@ import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { KingCrown, STAUNTON_HEAD, type KingHead } from "@/components/chess/sculpted-piece";
+import { KingCrown, STAUNTON_HEAD, crownCoversFinial, type KingHead } from "@/components/chess/sculpted-piece";
 import { PaintedStaunton, darkFinish } from "@/components/chess/av-set";
 import { asset } from "@/lib/base";
 import type { KingFinish } from "@/lib/avatar/catalog";
@@ -82,7 +82,7 @@ export const LEGACY_HEAD: KingHead = { r: 0.175 / 1.35, seat: (0.9 - 0.94) / 1.3
 
 /**
  * Builds the king as plain Three.js meshes. coronet=false leaves the head bare for a catalog
- * crown; finial=false leaves off the cross too (a catalog crown is on).
+ * crown; finial=false hides the cross (set invisible) under a hat that covers the head.
  */
 export function buildKing(finish: KingFinish, coronet: boolean, letter = "", finial = true): THREE.Group {
   const king = new THREE.Group();
@@ -150,10 +150,12 @@ export function buildKing(finish: KingFinish, coronet: boolean, letter = "", fin
     ? new THREE.MeshStandardMaterial({ color: "#b3122a", emissive: "#5a0612", metalness: 0.3, roughness: 0.15 })
     : crownMat;
   const top = coronet ? 1.1 : 1.02;
-  if (!finial) return king;
-  add(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 16), crownMat, top);
-  add(new THREE.BoxGeometry(0.05, 0.16, 0.05), crossMat, top + 0.1);
-  add(new THREE.BoxGeometry(0.15, 0.05, 0.05), crossMat, top + 0.12);
+  for (const part of [
+    add(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 16), crownMat, top),
+    add(new THREE.BoxGeometry(0.05, 0.16, 0.05), crossMat, top + 0.1),
+    add(new THREE.BoxGeometry(0.15, 0.05, 0.05), crossMat, top + 0.12),
+  ])
+    part.visible = finial;
   return king;
 }
 
@@ -232,7 +234,7 @@ export function PedestalStage({
           <LegacyKing finish={finish} coronet={coronet} letter={letter} crownId={crownId} team={team} />
         ) : (
           <group scale={1.45} rotation={[0, team === "b" ? Math.PI : 0, 0]}>
-            <PaintedStaunton type="k" color="w" finish={finish} crowned={crownId !== "none"} />
+            <PaintedStaunton type="k" color="w" finish={finish} crowned={crownCoversFinial(crownId)} />
             {crownId !== "none" ? (
               <group position={[0, 0.92, 0]} rotation={[0, Math.PI, 0]}>
                 <KingCrown id={crownId} team={team} head={STAUNTON_HEAD.w} />
@@ -247,7 +249,7 @@ export function PedestalStage({
 
 function LegacyKing({ finish, coronet, letter, crownId, team }: { finish: KingFinish; coronet: boolean; letter: string; crownId: string; team: "w" | "b" }) {
   const bare = coronet || crownId === "none";
-  const king = useKing(finish, coronet, letter, bare);
+  const king = useKing(finish, coronet, letter, !crownCoversFinial(crownId));
   return (
     <group scale={1.55} rotation={[0, team === "b" ? Math.PI : 0, 0]}>
       <primitive object={king} />
