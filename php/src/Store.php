@@ -24,7 +24,7 @@ final class Store
         $q = trim((string) ($data['q'] ?? ''));
         $q = mb_substr($q, 0, 40);
         $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
-        $sql = 'SELECT id, seller_id, seller_name, kind, name, price, blurb, shot, created_at FROM market_listings WHERE status = ?';
+        $sql = 'SELECT id, seller_id, seller_name, kind, name, price, blurb, shot, payload, created_at FROM market_listings WHERE status = ?';
         $params = ['live'];
         if ($q !== '') {
             $sql .= ' AND (name LIKE ? OR seller_name LIKE ?)';
@@ -208,6 +208,8 @@ final class Store
             'price' => (int) $r['price'],
             'blurb' => (string) $r['blurb'],
             'shot' => (string) $r['shot'],
+            // AV listings carry the king's look (a cleaned loadout, no secrets) for the Preview.
+            'look' => (string) $r['kind'] === 'av' && isset($r['payload']) ? (string) $r['payload'] : '',
         ];
     }
 

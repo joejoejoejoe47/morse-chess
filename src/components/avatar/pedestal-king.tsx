@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { KingCrown } from "@/components/chess/sculpted-piece";
 import { PaintedStaunton, darkFinish } from "@/components/chess/av-set";
 import { asset } from "@/lib/base";
@@ -315,7 +316,9 @@ export function useKingThumbs(finishes: KingFinish[], legacy = true, letter = ""
   useEffect(() => {
     if (legacy || staunton) return;
     let live = true;
+    // the piece GLBs are meshopt-compressed
     new GLTFLoader()
+      .setMeshoptDecoder(MeshoptDecoder)
       .loadAsync(STAUNTON_KING)
       .then((gltf) => {
         if (live) setStaunton(gltf.scene);

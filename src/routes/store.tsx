@@ -6,6 +6,9 @@ import { asset } from "@/lib/base";
 import { buyMarketListing, createMarketListing, listMarket, mySellables } from "@/lib/server/store";
 import { ShopPreview, type Look } from "@/components/variants/stage";
 import { GcMail } from "@/components/gc-mail";
+import { KingPreview, type PreviewMode } from "@/components/avatar/king-preview";
+import { getAvatar } from "@/lib/server/avatar";
+import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
 
 export const Route = createFileRoute("/store")({
   component: StoreDoor,
@@ -20,7 +23,19 @@ type Card = {
   price: number;
   blurb: string;
   shot: string;
+  /** AV kings: the king's saved loadout (JSON), for the preview. */
+  look?: string;
 };
+
+/** The loadout an AV listing was saved with, or the viewer's own king if it has none. */
+function cardLoadout(card: Card, mine: AvatarLoadout | null): AvatarLoadout {
+  try {
+    if (card.look) return parseLoadout(JSON.parse(card.look));
+  } catch {
+    /* fall through */
+  }
+  return mine ?? parseLoadout({});
+}
 
 type AvatarRow = { id: string; name: string; loadout?: unknown };
 type BoardRow = { id: string; name: string; count: number };
@@ -96,12 +111,27 @@ function Store() {
   const [look, setLook] = useState<Look>("3d");
   const [seeing, setSeeing] = useState(false);
   const [gc, setGc] = useState(false);
+  const [preview, setPreview] = useState<Card | null>(null);
+  const [me, setMe] = useState<{ loadout: AvatarLoadout | null; ra: boolean; lg: boolean }>({ loadout: null, ra: false, lg: false });
 
   async function refresh(query = q) {
     const row = await listMarket({ data: { q: query } });
     setListings(row.listings ?? []);
     setCoins(row.coins ?? 0);
   }
+
+  useEffect(() => {
+    void getAvatar()
+      .then((row) => {
+        if (!row) return;
+        setMe({
+          loadout: parseLoadout(row.loadout),
+          ra: Boolean(row.raTrial) || (row.owned ?? []).includes("royal"),
+          lg: Boolean(row.lgOk),
+        });
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     void refresh("").catch((err) => setError(err instanceof Error ? err.message : "The store did not open."));
@@ -225,12 +255,22 @@ function Store() {
             <h2 className="mt-3 font-display text-3xl text-ivory">{open.name}</h2>
             <p className="text-sm text-mist">{open.kind === "lg" ? "LG board" : "AV king"} · {open.seller}</p>
             {open.blurb ? <p className="mt-3 text-sm leading-relaxed text-ivory">{open.blurb}</p> : null}
-            <div className="mt-3 flex gap-1">
+            {open.kind === "av" ? (
+              <button
+                type="button"
+                data-preview
+                onClick={() => setPreview(open)}
+                className="mt-3 w-full rounded-md border border-[#6d5a32] bg-[#1b1612] py-2.5 text-sm font-bold uppercase tracking-[0.18em] text-[#f0d68a] hover:border-[#d6ad4f]"
+              >
+                Preview
+              </button>
+            ) : null}
+            {open.kind === "av" ? null : <div className="mt-3 flex gap-1">
               {(["2d", "3d", "an", "lg"] as Look[]).map((id) => (
                 <button key={id} type="button" onClick={() => { setLook(id); setSeeing(true); }} className={"rounded px-2 py-1 text-[10px] uppercase tracking-[0.14em] " + (seeing && look === id ? "bg-walnut text-ivory" : "text-mist")}>{id}</button>
               ))}
-            </div>
-            {seeing ? <div className="mt-2"><ShopPreview kind={open.kind === "lg" ? "lg" : "av"} look={look} /></div> : null}
+            </div>}
+            {seeing && open.kind !== "av" ? <div className="mt-2"><ShopPreview kind="lg" look={look} /></div> : null}
             <button
               type="button"
               disabled={busy || open.mine || coins < open.price}
@@ -241,6 +281,16 @@ function Store() {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {preview ? (
+        <KingPreview
+          loadout={cardLoadout(preview, me.loadout)}
+          name={preview.name}
+          seller={preview.seller}
+          modes={["2d", "3d", "an", ...(me.ra ? ["ra" as PreviewMode] : []), ...(me.lg ? ["lg" as PreviewMode] : [])]}
+          onClose={() => setPreview(null)}
+        />
       ) : null}
 
       {sell ? (

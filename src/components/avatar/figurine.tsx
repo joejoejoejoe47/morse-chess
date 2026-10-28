@@ -3,7 +3,8 @@ import { useAnimations, useFBX, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { characterById, crownById, mountById, skeletonFor, type TeamView } from "@/lib/avatar/catalog";
+import { attackById, characterById, crownById, mountById, skeletonFor, type TeamView } from "@/lib/avatar/catalog";
+import { AttackFx } from "@/components/avatar/attack-fx";
 import { HAT_FIT, softenMetal } from "@/lib/avatar/hat-fit";
 import { asset } from "@/lib/base";
 
@@ -260,10 +261,12 @@ function GlbBody({
   pace = null,
   striking = false,
   dress = null,
+  attackId = "march",
 }: {
   url: string;
   height: number;
   dark: boolean;
+  attackId?: string;
   kit?: string;
   crownId?: string;
   team?: TeamView;
@@ -300,25 +303,36 @@ function GlbBody({
       }
       return;
     }
-    if (!pace && !striking) return;
-    const want = striking || pace?.current.act === "attack" ? "attack" : pace?.current.act === "walk" ? "walk" : "idle";
+    // Back to idle after a preview strike, so the next strike plays again.
+    if (!pace && !striking && clipMode.current === "") return;
+    const base = striking || pace?.current.act === "attack" ? "attack" : pace?.current.act === "walk" ? "walk" : "idle";
+    const want = base === "attack" ? `attack:${attackId}` : base;
     if (want === clipMode.current) return;
     const list = Object.values(actions).filter((clip): clip is NonNullable<typeof clip> => Boolean(clip));
     const named = (clip: { getClip: () => { name: string } }) => clip.getClip().name;
+    const move = attackById(attackId);
+    const chosen =
+      base === "attack"
+        ? move.clips
+            .map((name) => list.find((clip) => named(clip) === name || named(clip).endsWith(`|${name}`)))
+            .find(Boolean)
+        : undefined;
     const next =
-      want === "walk"
+      base === "walk"
         ? list.find((clip) => /\|walk$/i.test(named(clip))) || list.find((clip) => /walk/i.test(named(clip)) && !/back|left|right/i.test(named(clip)))
-        : want === "attack"
-          ? list.find((clip) => /1H_Melee_Attack_Chop/i.test(named(clip))) ||
+        : base === "attack"
+          ? chosen ||
+            list.find((clip) => /1H_Melee_Attack_Chop/i.test(named(clip))) ||
             list.find((clip) => /Melee_Attack_Stab|Melee_Attack_Slice_Horizontal|Unarmed_Melee_Attack_Kick/i.test(named(clip))) ||
             list.find((clip) => /attack/i.test(named(clip)) && !/death|hit|spin|ranged|block/i.test(named(clip)))
           : list.find((clip) => /idle_neutral|\|idle$/i.test(named(clip))) || list.find((clip) => /idle/i.test(named(clip)) && !/sit|gun/i.test(named(clip)));
-    const prev = list.find((clip) => clip.isRunning());
-    prev?.fadeOut(0.15);
+    const prev = list.filter((clip) => clip.isRunning());
+    prev.forEach((clip) => clip !== next && clip.fadeOut(0.15));
     if (next) {
       next.reset();
-      next.setLoop(want === "attack" ? THREE.LoopOnce : THREE.LoopRepeat, want === "attack" ? 1 : Infinity);
-      next.clampWhenFinished = want === "attack";
+      next.setLoop(base === "attack" ? THREE.LoopOnce : THREE.LoopRepeat, base === "attack" ? 1 : Infinity);
+      next.clampWhenFinished = base === "attack";
+      next.timeScale = base === "attack" && chosen ? (move.speed ?? 1) : 1;
       next.fadeIn(0.12).play();
     }
     clipMode.current = want;
@@ -487,6 +501,7 @@ function Body({
   pace = null,
   striking = false,
   dress = null,
+  attackId = "march",
 }: {
   url: string;
   kind: "glb" | "fbx";
@@ -500,9 +515,10 @@ function Body({
   pace?: MutableRefObject<{ act: string }> | null;
   striking?: boolean;
   dress?: string[] | null;
+  attackId?: string;
 }) {
   if (kind === "fbx") return <FbxBody url={url} height={height} dark={dark} />;
-  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} pace={pace} striking={striking} dress={dress} />;
+  return <GlbBody url={url} height={height} dark={dark} kit={kit} crownId={crownId} team={team} sit={sit} wearCrown={wearCrown} pace={pace} striking={striking} dress={dress} attackId={attackId} />;
 }
 
 export function Figurine({
@@ -536,11 +552,38 @@ export function Figurine({
   const riding = Boolean(mount.url && mount.kind && mount.id !== "dog");
   const royal = character.id === "royal";
   const plainKing = character.id === "piece";
+  const move = attackById(attackId);
+  const hopRef = useRef<THREE.Group>(null);
+  /** When the current strike started (clock seconds), -1 when not striking. */
+  const strikeAt = useRef(-1);
+  const wasStriking = useRef(false);
 
   useFrame(({ clock }) => {
     const group = ref.current;
     if (!group) return;
     const t = clock.elapsedTime;
+    const hitting = striking || pace?.current.act === "attack";
+    if (hitting && !wasStriking.current) strikeAt.current = t;
+    if (!hitting && strikeAt.current >= 0 && t - strikeAt.current > 2) strikeAt.current = -1;
+    wasStriking.current = hitting;
+    const age = strikeAt.current < 0 ? -1 : t - strikeAt.current;
+    const hop = hopRef.current;
+    if (hop) {
+      hop.position.set(0, 0, 0);
+      hop.rotation.set(0, 0, 0);
+      if (age >= 0 && move.fx === "leap" && age < 0.62) {
+        hop.position.y = Math.sin((age / 0.62) * Math.PI) * 0.6;
+        hop.position.z = (age / 0.62) * 0.25;
+      } else if (age >= 0 && move.fx === "leap" && age < 0.9) {
+        hop.position.z = 0.25 * (1 - (age - 0.62) / 0.28);
+      }
+      // The plain Staunton king has no clips: he leans in for the hit.
+      if (plainKing && age >= 0 && age < 0.7) {
+        const p = Math.sin((age / 0.7) * Math.PI);
+        if (move.fx === "spin") hop.rotation.y = (age / 0.7) * Math.PI * 2;
+        else hop.rotation.x = p * 0.38;
+      }
+    }
     group.position.x = 0;
     group.position.z = 0;
     group.rotation.x = 0;
@@ -590,6 +633,7 @@ export function Figurine({
           )}
         </group>
       ) : null}
+      <group ref={hopRef}>
       <group ref={riderRef}>
         {plainKing ? (
           <StauntonKing white={!dark} crownId={crownId} team={team} swordId="none" />
@@ -607,9 +651,12 @@ export function Figurine({
             pace={pace}
             striking={striking}
             dress={bones?.show ?? null}
+            attackId={attackId}
           />
         )}
       </group>
+      </group>
+      <AttackFx fx={move.fx} clock={strikeAt} />
     </group>
   );
 }

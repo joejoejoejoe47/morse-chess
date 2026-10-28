@@ -22,7 +22,7 @@ import { asset } from "@/lib/base";
 import { squareToWorld } from "@/lib/chess/board-math";
 import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
 import { activeLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
-import { playLegoBeam, playLegoExplode, playLegoHit, playLegoMagic, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
+import { playLegoBeam, playLegoClang, playLegoExplode, playLegoHit, playLegoMagic, playLegoShieldThrow, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
 import { useResilientGLTF } from "@/lib/resilient-gltf";
 import { LoadGuard, Later } from "@/components/chess/load-guard";
 
@@ -608,7 +608,18 @@ export type Fight = {
   victimSq: Square;
   /** The bishops' aerial tricks after a capture (Blacktron and Iron Man): always 1 or 2, never 3. */
   tricks: Trick[];
+  /** The king's Shield Block (bought on AV): he blocks the victim's hit and throws his shield. */
+  shield?: boolean;
 };
+
+/** Kings whose figure carries a shield (Shield Block only plays for these). */
+export const SHIELD_KINGS: ReadonlySet<LegoCharId> = new Set<LegoCharId>(["cap"]);
+/** The shield's meshes on the arm: the round shield is the Black, White and Red rings in armL. */
+const SHIELD_PART: PartName = "armL";
+const SHIELD_MATS = new Set(["Black", "White", "Red"]);
+
+/** Shield Block timing (seconds from the start of the fight). */
+type ShieldPlan = { swing: number; vWind: number; vStrike: number; block: number; wind: number; release: number; back: number; done: number; reach: number };
 
 /** Per attack: wind-up and strike seconds, ranged or not, and how far the strike lunges. */
 const MOVES: Record<Attack, { wind: number; strike: number; ranged: boolean; lunge: number; shake: number }> = {
@@ -642,6 +653,27 @@ function fightPlan(f: Fight, pitch: number) {
   const d = vic.clone().sub(from);
   const dist = d.length();
   const dir = dist > 1e-4 ? d.clone().divideScalar(dist) : new THREE.Vector3(0, 0, 1);
+  if (f.shield && f.type === "k" && SHIELD_KINGS.has(atkId)) {
+    // Shield Block: the enemy swings first, the king blocks, throws the shield (the enemy bursts
+    // when it hits) and catches it on the way back, then steps onto the square.
+    const vicMv = MOVES[LEGO_CHARS[LEGO_ROSTER[f.color === "w" ? "b" : "w"][f.victimType]].attack];
+    const near = dist > 1.3 ? from.clone().addScaledVector(dir, dist - 1.05) : from.clone();
+    const spot = near.clone();
+    const approach = near.distanceTo(from) > 0.05 ? moveTime(atk.gait, near.distanceTo(from)) : 0.3;
+    const swing = approach + 0.05;
+    const vWind = Math.min(0.5, Math.max(0.3, vicMv.wind));
+    const vStrike = Math.min(0.3, Math.max(0.16, vicMv.strike));
+    const block = swing + vWind + vStrike;
+    const wind = block + 0.34;
+    const release = wind + 0.26;
+    const impact = release + 0.36;
+    const back = impact + 0.5;
+    const done = back + 0.24;
+    const finish = spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
+    const total = Math.max(done + finish, impact + BREAK + 0.1);
+    const sh: ShieldPlan = { swing, vWind, vStrike, block, wind, release, back, done, reach: Math.max(0, near.distanceTo(vic) - 0.62) };
+    return { atkId, atk, mv, from, vic, dest, dir, near, lunge: 0, spot, approach, impact, flight: false, finish, total, sh };
+  }
   let near = from.clone();
   let lunge = 0;
   if (atk.attack === "webkick") {
@@ -657,7 +689,8 @@ function fightPlan(f: Fight, pitch: number) {
   const flight = TRICK_FLYERS.has(atkId);
   const finish = flight ? trickTime(f.tricks.length) : spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
   const total = Math.max(impact + RECOVER + finish, impact + BREAK + 0.1);
-  return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total };
+  const sh: ShieldPlan | null = null;
+  return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total, sh };
 }
 
 export const LEGO_FIGHT_SECONDS = (f: Fight, pitch: number) => fightPlan(f, pitch).total;
@@ -1009,6 +1042,38 @@ function BeamMesh({ color, innerRef }: { color: string; innerRef: React.RefObjec
 
 const TRAIL = 30;
 
+/** The king's body during Shield Block: guard up, the block, the throw and the catch. */
+function shieldFrame(S: ShieldPlan, t: number, now: number, seed: number, gait: Gait): Frame {
+  if (t < S.block - 0.28) {
+    const k = ease(span(t, S.swing, S.block - 0.28));
+    return { ...idlePose(gait, now, seed), pose: { armLx: -0.25 * k, lean: -0.04 * k }, lunge: 0, spin: 0 };
+  }
+  if (t < S.block + 0.12) {
+    // shield up, braced: left arm forward, body turned so the shield covers the chest
+    const k = easeOut(span(t, S.block - 0.28, S.block));
+    const hit = span(t, S.block, S.block + 0.12);
+    return { pose: { armLx: -0.55 * k, armLz: 0.35 * k, twist: -0.35 * k, lean: -0.08 * k - 0.12 * Math.sin(Math.PI * hit), legL: -0.25 * k, legR: 0.25 * k, armRx: 0.3 * k }, lunge: -0.06 * Math.sin(Math.PI * hit), y: 0, spin: 0 };
+  }
+  if (t < S.wind) {
+    // hold the block, then pull the shield back across the body for the throw
+    const k = ease(span(t, S.block + 0.12, S.wind));
+    return { pose: { armLx: -0.55 + 0.25 * k, armLz: 0.35 - 1.25 * k, twist: -0.35 + 0.95 * k, lean: -0.08 + 0.02 * k, legL: -0.25, legR: 0.25, armRx: 0.3 }, lunge: 0, y: 0, spin: 0 };
+  }
+  if (t < S.release + 0.2) {
+    // the throw: whip the arm out flat towards the enemy
+    const k = easeOut(span(t, S.wind, S.release));
+    return { pose: { armLx: -0.3 - 1.2 * k, armLz: -0.9 + 1.5 * k, twist: 0.6 - 1.1 * k, lean: -0.06 + 0.26 * k, legL: -0.25 - 0.2 * k, legR: 0.25 + 0.15 * k, armRx: 0.3 - 0.5 * k }, lunge: 0, y: 0, spin: 0 };
+  }
+  if (t < S.back) {
+    // waiting with the arm out for the shield to come back
+    const k = ease(span(t, S.release + 0.2, S.back));
+    return { pose: { armLx: -1.5 + 0.6 * k, armLz: 0.6 - 0.2 * k, twist: -0.5 + 0.3 * k, lean: 0.2 - 0.15 * k, legL: -0.45, legR: 0.4, armRx: -0.2 }, lunge: 0, y: 0, spin: 0 };
+  }
+  // the catch, then back to standing
+  const k = ease(span(t, S.back, S.done));
+  return { pose: { armLx: -0.9 * (1 - k), armLz: 0.4 * (1 - k), twist: -0.2 * (1 - k), lean: (0.05 - 0.1 * Math.sin(Math.PI * k)) * (1 - k), legL: -0.45 * (1 - k), legR: 0.4 * (1 - k) }, lunge: 0, y: 0, spin: 0 };
+}
+
 function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
   const P = useMemo(() => fightPlan(fight, pitch), [fight, pitch]);
   const { atk, mv, from, vic, dest, dir, near, spot } = P;
@@ -1036,6 +1101,58 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
   const shake = useRef({ amp: 0, off: new THREE.Vector3() });
   const trailPts = useRef<THREE.Vector3[]>([]);
   const [portalOpen, setPortalOpen] = useState(0);
+  const S = P.sh;
+  const flyShield = useRef<THREE.Group>(null);
+  const blockFlash = useRef<THREE.Mesh>(null);
+  const blockLight = useRef<THREE.PointLight>(null);
+  /** Shield Block: the shield's meshes on the arm, and a flying copy centred on the shield. */
+  const shield = useMemo(() => {
+    if (!S) return null;
+    const arm = A.parts[SHIELD_PART];
+    if (!arm) return null;
+    const meshes: THREE.Mesh[] = [];
+    arm.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && SHIELD_MATS.has(matName(o))) meshes.push(o as THREE.Mesh);
+    });
+    if (!meshes.length) return null;
+    // the shield as it sits in the figure (in the figure root's frame, with its size scale)
+    A.root.updateMatrixWorld(true);
+    const rootInv = A.root.matrixWorld.clone().invert();
+    const sc = new THREE.Matrix4().makeScale(A.root.scale.x, A.root.scale.y, A.root.scale.z);
+    const rel = meshes.map((m) => {
+      const r = new THREE.Matrix4().multiplyMatrices(rootInv, m.matrixWorld).premultiply(sc);
+      return r;
+    });
+    const box = new THREE.Box3();
+    meshes.forEach((m, i) => {
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      box.union(m.geometry.boundingBox!.clone().applyMatrix4(rel[i]));
+    });
+    const centre = box.getCenter(new THREE.Vector3());
+    const copy = new THREE.Group();
+    const toCentre = new THREE.Matrix4().makeTranslation(-centre.x, -centre.y, -centre.z);
+    meshes.forEach((m, i) => {
+      const c = new THREE.Mesh(m.geometry, m.material);
+      c.matrixAutoUpdate = false;
+      c.matrix.multiplyMatrices(toCentre, rel[i]);
+      c.castShadow = true;
+      copy.add(c);
+    });
+    // an empty riding on the arm at the shield's centre, so we always know where the shield is
+    const armRel = new THREE.Matrix4().multiplyMatrices(rootInv, arm.matrixWorld).premultiply(sc);
+    const anchor = new THREE.Object3D();
+    anchor.position.copy(centre.clone().applyMatrix4(armRel.invert()));
+    arm.add(anchor);
+    return { meshes, copy, anchor };
+  }, [S, A]);
+  useEffect(
+    () => () => {
+      if (!shield) return;
+      shield.anchor.parent?.remove(shield.anchor);
+      for (const m of shield.meshes) m.visible = true;
+    },
+    [shield],
+  );
 
   const seed = useMemo(() => hash(fight.id), [fight.id]);
   const faceYaw = yawTo(from, vic);
@@ -1073,7 +1190,7 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
     const tWind = P.approach;
     const tStrike = tWind + mv.wind;
     const tHit = P.impact;
-    const tFinish = tHit + RECOVER;
+    const tFinish = S ? S.done : tHit + RECOVER;
     let flying = false;
 
     // ── attacker ──
@@ -1095,6 +1212,9 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
         fr = { ...idlePose(atk.gait, now, seed), lunge: 0, spin: 0 };
         pos = near;
       }
+    } else if (S && t < S.done) {
+      pos = near;
+      fr = shieldFrame(S, t, now, seed, atk.gait);
     } else if (t < tStrike) {
       fr = attackFrame(move, "wind", (t - tWind) / mv.wind);
       pos = near;
@@ -1263,7 +1383,60 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
     }
 
     // ── sounds and the hit ──
-    if (t >= tStrike) {
+    if (S) {
+      // ── Shield Block: block flash, the shield out and back ──
+      const at = _shAt;
+      if (shield) {
+        shield.anchor.getWorldPosition(at);
+        if (space) space.worldToLocal(at);
+      } else at.set(ag.position.x + dir.x * 0.2, STAND + atk.height * 0.5, ag.position.z + dir.z * 0.2);
+      const bk = t - S.block;
+      if (blockFlash.current) {
+        const k = span(bk, 0, 0.32);
+        const on = bk >= 0 && k < 1;
+        blockFlash.current.visible = on;
+        if (on) {
+          blockFlash.current.position.copy(at).addScaledVector(dir, 0.08);
+          blockFlash.current.scale.setScalar(0.1 + k * 0.38);
+          (blockFlash.current.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - k);
+        }
+      }
+      if (blockLight.current) {
+        blockLight.current.position.copy(at).addScaledVector(dir, 0.15);
+        blockLight.current.intensity = bk >= 0 ? 5 * (1 - span(bk, 0, 0.35)) : 0;
+      }
+      if (bk >= 0) {
+        once("block", () => {
+          playLegoClang();
+          shake.current.amp = Math.max(shake.current.amp, 0.07);
+        });
+      }
+      if (t >= S.swing + S.vWind) once("vswing", () => playLegoWhoosh());
+      const out = t >= S.release && t < S.back;
+      if (shield) for (const m of shield.meshes) m.visible = !out;
+      const fs = flyShield.current;
+      if (fs) {
+        fs.visible = out;
+        if (out) {
+          const tgt = _target.set(vic.x, STAND + vSpec.height * 0.5, vic.z);
+          if (t < tHit) {
+            const k = ease(span(t, S.release, tHit));
+            fs.position.lerpVectors(at, tgt, k);
+            fs.position.y += Math.sin(Math.PI * k) * 0.12;
+            fs.position.addScaledVector(side, Math.sin(Math.PI * k) * 0.18);
+          } else {
+            const k = ease(span(t, tHit, S.back));
+            fs.position.lerpVectors(tgt, at, k);
+            fs.position.y += Math.sin(Math.PI * k) * 0.22;
+            fs.position.addScaledVector(side, -Math.sin(Math.PI * k) * 0.32);
+          }
+          // face up, a little tilted, spinning fast like a thrown disc
+          fs.rotation.set(-Math.PI / 2 + 0.35, 0, now * 26);
+        }
+      }
+      if (t >= S.release) once("throw", () => playLegoShieldThrow());
+      if (t >= S.back) once("catch", () => playLegoHit());
+    } else if (t >= tStrike) {
       once("swing", () => {
         if (move === "repulsor" || move === "blast") playLegoBeam(move === "blast");
         else if (move === "spell") playLegoMagic();
@@ -1274,13 +1447,34 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
     if (hitT >= 0) {
       // no synth thud here: the victim's BrickBurst plays the explosion clip at this very moment
       once("hit", () => {
-        shake.current.amp = Math.max(shake.current.amp, mv.shake);
+        shake.current.amp = Math.max(shake.current.amp, S ? 0.13 : mv.shake);
       });
     }
 
     // ── victim ──
     const vYaw = yawTo(vic, from);
-    if (hitT < 0) {
+    if (S && hitT < 0) {
+      // the enemy swings at the king first, the hit rings off the shield, he staggers back
+      const turn = ease(t / Math.max(0.3, Math.min(S.swing, 0.8)));
+      const toward = vic.clone().sub(near).setY(0).normalize();
+      let fv: Frame = { pose: {}, lunge: 0, y: 0, spin: 0 };
+      let reach = 0;
+      if (t >= S.swing && t < S.swing + S.vWind) fv = attackFrame(vSpec.attack, "wind", (t - S.swing) / S.vWind);
+      else if (t >= S.swing + S.vWind && t < S.block) {
+        fv = attackFrame(vSpec.attack, "strike", (t - S.swing - S.vWind) / S.vStrike);
+        reach = fv.lunge;
+      } else if (t >= S.block) {
+        const k = span(t, S.block, S.block + 0.4);
+        fv = { pose: { lean: -0.35 * Math.sin(Math.PI * Math.min(1, k * 1.4)), armLx: -0.6 * (1 - k), armRx: -0.6 * (1 - k), headX: -0.25 }, lunge: 0, y: 0, spin: 0 };
+        reach = 1 - ease(k) * 1.25;
+      }
+      vg.position.set(vic.x, 0, vic.z).addScaledVector(toward, -S.reach * reach);
+      vf.position.set(0, STAND + fv.y, 0);
+      vf.rotation.set(0, restYaw(victimColor) + (((vYaw - restYaw(victimColor) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * turn + fv.spin, 0);
+      applyPose(V.parts, fv.pose);
+      for (const n of PART_NAMES) if (V.parts[n] && V.rest[n]) V.parts[n]!.position.copy(V.rest[n]!);
+      keepOnBoard(vf, V.root);
+    } else if (hitT < 0) {
       vg.position.set(vic.x, 0, vic.z);
       const turn = ease(t / Math.max(0.3, Math.min(tStrike, 0.8)));
       vf.position.set(0, STAND, 0);
@@ -1385,6 +1579,18 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
         <meshBasicMaterial color={move === "smash" ? "#d8ffd0" : atk.fx} transparent opacity={0.8} toneMapped={false} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       <pointLight ref={flash} color={atk.fx} intensity={0} distance={3.5} />
+      {S ? (
+        <>
+          <group ref={flyShield} visible={false}>
+            {shield ? <primitive object={shield.copy} /> : null}
+          </group>
+          <mesh ref={blockFlash} visible={false} raycast={noRaycast}>
+            <sphereGeometry args={[1, 18, 14]} />
+            <meshBasicMaterial color="#dff0ff" transparent opacity={0.9} toneMapped={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+          <pointLight ref={blockLight} color="#bfe0ff" intensity={0} distance={3} />
+        </>
+      ) : null}
       {P.flight ? (
         <instancedMesh ref={trail} args={[undefined, undefined, TRAIL]} raycast={noRaycast} frustumCulled={false}>
           <sphereGeometry args={[1, 10, 8]} />
@@ -1396,6 +1602,7 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
 }
 const _hand = new THREE.Vector3();
 const _target = new THREE.Vector3();
+const _shAt = new THREE.Vector3();
 const _obj = new THREE.Object3D();
 
 // ── the army ───────────────────────────────────────────────────────────────
@@ -1476,11 +1683,14 @@ export function LegoArmy({
   pitch = 1,
   onSquare,
   standIn,
+  shields,
 }: {
   fen: string;
   lastMove: { from: string; to: string } | null;
   pitch?: number;
   onSquare: (sq: Square) => void;
+  /** Which side's king has Shield Block equipped (from each player's look). */
+  shields?: { w?: boolean; b?: boolean };
   /** The standard 3D piece, drawn in place of any figure whose model will not load. */
   standIn?: LegoStandInRender;
 }) {
@@ -1496,6 +1706,8 @@ export function LegoArmy({
   }, [fen]);
   const prev = useRef<P[] | null>(null);
   const seen = useRef("");
+  const shieldRef = useRef(shields);
+  shieldRef.current = shields;
   const [fight, setFight] = useState<Fight | null>(null);
   const [fought, setFought] = useState("");
   const [bursts, setBursts] = useState<Burst[]>([]);
@@ -1545,6 +1757,7 @@ export function LegoArmy({
       victimType: victim.type,
       victimSq: victim.sq,
       tricks: pickTricks(),
+      shield: was.type === "k" && Boolean(shieldRef.current?.[mover.color]) && SHIELD_KINGS.has(LEGO_ROSTER[mover.color].k),
     };
     setFight(f);
     const plan = fightPlan(f, pitch);

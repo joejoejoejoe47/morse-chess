@@ -56,6 +56,7 @@ final class Avatar
             'mountId' => $keep($loadout['mountId'], 'none'),
             'frameId' => $keep($loadout['frameId'], 'plain'),
             'attackId' => $keep($loadout['attackId'], 'march'),
+            'lgAttackId' => $keep($loadout['lgAttackId'] ?? 'lg-none', 'lg-none'),
             'finishId' => $keep($loadout['finishId'] ?? 'king-onyx', 'king-onyx'),
         ]);
     }
@@ -90,7 +91,9 @@ final class Avatar
     /** @param array<string,mixed> $data */
     public static function getAvatar(string $userId, array $data): mixed
     {
-        return self::readRow($userId);
+        $row = self::readRow($userId);
+        // lgOk: the account may wear LG (the store's preview shows the LG tab only then).
+        return $row === null ? null : array_merge($row, ['lgOk' => self::ownsLegoBoard($userId)]);
     }
 
     /** @param array<string,mixed> $data */
