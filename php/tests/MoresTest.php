@@ -607,4 +607,25 @@ $avKitKing = \Morse\Avatar::saveAvatar('dave', ['loadout' => ['style' => '3d', '
 check($avKitKing['loadout']['finishId'] === 'king-royal-legacy', 'Royal Legacy King can be worn once the kit is bought');
 
 
+// ── Royal Legacy kit: "Back to normal" switches it off and on, owned, no coins move ──
+$coinsBefore = (int) \Morse\Db::one("SELECT coins FROM profiles WHERE user_id = 'dave'")['coins'];
+$off = \Morse\Avatar::setLegacyKit('dave', ['on' => false]);
+check($off['legacyOn'] === false && $off['legacyOff'] === true && in_array('king-royal-legacy', $off['owned'], true), 'Back to normal turns the kit off and keeps it owned');
+check($off['coins'] === $coinsBefore, 'Back to normal moves no coins');
+check($off['loadout']['finishId'] === 'king-onyx', 'Back to normal puts the Royal Legacy King away');
+$offLook = \Morse\Kit::look('dave', (string) \Morse\Db::one("SELECT avatar_json FROM profiles WHERE user_id = 'dave'")['avatar_json']);
+check(!str_contains($offLook, '"kit"') && !str_contains($offLook, 'legacyOff') && !str_contains($offLook, 'king-royal-legacy'), 'switched-off kit is gone from game looks');
+$offSaved = \Morse\Avatar::saveAvatar('dave', ['loadout' => ['style' => '3d', 'finishId' => 'king-royal-legacy']]);
+check($offSaved['loadout']['finishId'] === 'king-onyx', 'saving the avatar while off cannot sneak the legendary king back');
+check(\Morse\Avatar::getAvatar('dave', [])['legacyOn'] === false, 'kit stays off after saving the avatar');
+$on = \Morse\Avatar::setLegacyKit('dave', ['on' => true]);
+check($on['legacyOn'] === true && $on['coins'] === $coinsBefore && $on['loadout']['finishId'] === 'king-royal-legacy', 'Use Royal Legacy turns it back on for free');
+\Morse\Kit::reset();
+$onLook = json_decode(\Morse\Kit::look('dave', (string) \Morse\Db::one("SELECT avatar_json FROM profiles WHERE user_id = 'dave'")['avatar_json']), true);
+check(($onLook['kit'] ?? '') === 'legacy', 'kit is back on game looks');
+$threw = false;
+try { \Morse\Avatar::setLegacyKit('bob', ['on' => false]); } catch (\Throwable $e) { $threw = true; }
+check($threw, 'non-owners cannot toggle the kit');
+
+
 finish();

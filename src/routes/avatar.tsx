@@ -35,7 +35,7 @@ import {
   type GearItem,
   type PieceStyle,
 } from "@/lib/avatar/catalog";
-import { buyGear, getAvatar, saveAvatar } from "@/lib/server/avatar";
+import { buyGear, getAvatar, saveAvatar, setLegacyKit } from "@/lib/server/avatar";
 import { listAvatarModels, saveAvatarModel, wearAvatarModel } from "@/lib/server/store";
 import { cn } from "@/lib/utils";
 import { asset } from "@/lib/base";
@@ -115,9 +115,13 @@ function AvatarStudio() {
   const [strike, setStrike] = useState(false);
   const [offer, setOffer] = useState(false);
   const [buyingRa, setBuyingRa] = useState(false);
+  const [legacyOff, setLegacyOff] = useState(false);
+  const [kitBusy, setKitBusy] = useState(false);
   const ownsKit = owned.includes(LEGACY.id);
+  // "Back to normal" switches the kit off: still owned, but the regular king and pieces.
+  const kitOn = ownsKit && !legacyOff;
   const kitLetter = kitInitial(username);
-  const thumbs = useKingThumbs(FINISHES, ownsKit, kitLetter);
+  const thumbs = useKingThumbs(FINISHES, kitOn, kitLetter);
 
   useEffect(() => {
     try {
@@ -136,6 +140,7 @@ function AvatarStudio() {
         setWorn(row.loadout);
         setOwned(row.owned);
         setRaTrial(Boolean(row.raTrial));
+        setLegacyOff(Boolean(row.legacyOff));
         setCoins(row.coins);
         setUsername(row.username || "");
         setReady(true);
@@ -166,6 +171,7 @@ function AvatarStudio() {
       setWorn(row.loadout);
       setCoins(row.coins);
       setOwned(row.owned);
+      setLegacyOff(Boolean(row.legacyOff));
       return row.loadout as AvatarLoadout;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the king.");
@@ -222,10 +228,33 @@ function AvatarStudio() {
     }
   }
 
+  /** Royal Legacy kit on/off for an owner. Free both ways; saved on the server at once. */
+  async function toggleKit(on: boolean) {
+    setError(null);
+    setStrike(false);
+    setKitBusy(true);
+    try {
+      const row = await setLegacyKit({ data: { on } });
+      setLegacyOff(Boolean(row.legacyOff));
+      setWorn(row.loadout);
+      setOwned(row.owned);
+      setCoins(row.coins);
+      setFinishDraft(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not change the Royal Legacy kit.");
+    } finally {
+      setKitBusy(false);
+    }
+  }
+
   /** King pieces: free ones preview at once and are kept by SAVE AVATAR; the legendary one is bought first. */
   async function pickFinish(id: string, price: number) {
     setError(null);
     setSaved("idle");
+    if (id === LEGACY.id && ownsKit && legacyOff) {
+      await toggleKit(true);
+      return;
+    }
     if (price > 0 && !owned.includes(id)) {
       if (coins < price) {
         setError(`The Royal Legacy kit costs ${price.toLocaleString()} Morse coins. You have ${coins.toLocaleString()}.`);
@@ -344,7 +373,7 @@ function AvatarStudio() {
                 team={loadout.team}
                 board={board}
                 spin={strike}
-                legacy={ownsKit}
+                legacy={kitOn}
                 letter={kitLetter}
               />
             </ModelSlot>
@@ -653,17 +682,19 @@ function AvatarStudio() {
                   </button>
                 ))}
               </div>
+              <div className="flex items-stretch gap-2">
               <button
                 type="button"
+                data-legacy-kit
                 onClick={() => void pickFinish(LEGACY.id, LEGACY.price)}
-                aria-pressed={loadout.finishId === LEGACY.id}
+                aria-pressed={kitOn && loadout.finishId === LEGACY.id}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-md border bg-[#16120e] p-3 text-left",
-                  loadout.finishId === LEGACY.id ? "border-[#e2b84e]" : "border-[#3a3024] hover:border-[#5a4a33]",
+                  "flex min-w-0 flex-1 items-center gap-3 rounded-md border bg-[#16120e] p-3 text-left",
+                  kitOn && loadout.finishId === LEGACY.id ? "border-[#e2b84e]" : "border-[#3a3024] hover:border-[#5a4a33]",
                 )}
               >
-                {own(LEGACY) && thumbs[LEGACY.id] ? (
-                  <img src={thumbs[LEGACY.id]} alt="" className="h-12 w-10 object-contain" />
+                {ownsKit && thumbs[LEGACY.id] ? (
+                  <img src={thumbs[LEGACY.id]} alt="" className={cn("h-12 w-10 object-contain", kitOn ? "" : "opacity-50 grayscale")} />
                 ) : (
                   <svg viewBox="0 0 24 24" className="size-9 shrink-0 text-[#cbbd9f]" fill="currentColor" aria-hidden>
                     <path d="M7 10V7a5 5 0 0 1 10 0v3h1.5c.8 0 1.5.7 1.5 1.5v9c0 .8-.7 1.5-1.5 1.5h-13C4.7 22 4 21.3 4 20.5v-9C4 10.7 4.7 10 5.5 10zm2 0h6V7a3 3 0 0 0-6 0z" />
@@ -672,22 +703,40 @@ function AvatarStudio() {
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">Royal Legacy kit</span>
                   <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#a8977a]">
-                    {own(LEGACY) ? "Unlocked · Royal Legacy King" : "Legendary · unlock"}
+                    {!ownsKit ? "Legendary · unlock" : kitOn ? "Owned · on" : "Owned · off"}
                   </span>
                 </span>
-                {own(LEGACY) ? (
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e9c766]">Owned</span>
-                ) : (
+                {ownsKit ? null : (
                   <span className="flex items-center gap-1.5">
                     <img src={asset("/morse-coin.png")} alt="" className="size-5" />
                     <span className="font-display text-lg tabular-nums text-[#f3e6c8]">{LEGACY.price.toLocaleString()}</span>
                   </span>
                 )}
               </button>
+              {ownsKit ? (
+                <button
+                  type="button"
+                  data-legacy-toggle={kitOn ? "off" : "on"}
+                  disabled={kitBusy}
+                  onClick={() => void toggleKit(!kitOn)}
+                  title={kitOn ? "Use the regular king and pieces again. You keep the kit." : "Turn the Royal Legacy kit back on. Free."}
+                  className={cn(
+                    "w-[6.5rem] shrink-0 rounded-md border px-2 text-[11px] font-bold uppercase leading-tight tracking-[0.12em] disabled:opacity-50",
+                    kitOn
+                      ? "border-[#5a4a33] bg-[#1b1612] text-[#e8dcc2] hover:border-[#8a7350]"
+                      : "border-[#d6ad4f] bg-[#3a2c16] text-[#f0d68a] hover:border-[#f0d68a]",
+                  )}
+                >
+                  {kitOn ? "Back to normal" : "Use Royal Legacy"}
+                </button>
+              ) : null}
+              </div>
               {loadout.style === "3d" ? (
                 <Note>
-                  {ownsKit
+                  {kitOn
                     ? `Royal Legacy kit: in 3D games your king is this king and all your pieces are pearl and gold with your letter${kitLetter ? ` "${kitLetter}"` : ""}. Playing black makes the set darker. ${finish.blurb} Press Save avatar to keep it.`
+                    : ownsKit
+                    ? `Back to normal: in 3D games your pieces are the regular ones in the colour of this king (darker when you play black). ${finish.blurb} You still own the Royal Legacy kit. Press Use Royal Legacy to turn it back on for free.`
                     : `In 3D games all your pieces are the colour of this king (darker when you play black). ${finish.blurb} Unlock the Royal Legacy kit for ${LEGACY.price} coins to get the Royal Legacy king and pearl and gold pieces with your letter.`}
                 </Note>
               ) : null}

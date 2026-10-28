@@ -16,6 +16,7 @@ final class Avatar
         Rpc::register('saveAvatar', [self::class, 'saveAvatar']);
         Rpc::register('setPieceStyle', [self::class, 'setPieceStyle']);
         Rpc::register('buyGear', [self::class, 'buyGear']);
+        Rpc::register('setLegacyKit', [self::class, 'setLegacyKit']);
     }
 
     /** @return list<string> insertion-ordered set: stored ids first, then starters */
@@ -61,7 +62,7 @@ final class Avatar
         ]);
     }
 
-    /** @return array{coins:int,username:string,owned:list<string>,loadout:array<string,string>,gamesPlayed:int,raTrial:bool}|null */
+    /** @return array{coins:int,username:string,owned:list<string>,loadout:array<string,string>,gamesPlayed:int,legacyOff:bool,legacyOn:bool,raTrial:bool}|null */
     private static function readRow(string $userId, bool $lock = false): ?array
     {
         $row = Db::one(
@@ -76,7 +77,11 @@ final class Avatar
         $decoded = $json !== '' ? json_decode($json, true) : [];
         $parsed = Catalog::parseLoadout(is_array($decoded) ? $decoded : []);
         $style = in_array($row['piece_style'], ['2d', 'an', 'ra', 'lg', 'cl', 'pa', '3d'], true) ? (string) $row['piece_style'] : '3d';
-        $loadout = self::clampLoadout($parsed, $owned);
+        // "Back to normal": the Royal Legacy kit stays owned but is switched off, so the
+        // king and pieces are the regular ones again, exactly as before unlocking.
+        $legacyOff = is_array($decoded) && !empty($decoded['legacyOff']);
+        $legacyOn = in_array(Kit::LEGACY, $owned, true) && !$legacyOff;
+        $loadout = self::clampLoadout($parsed, self::wearable($owned, $legacyOff));
         $loadout['style'] = $style;
         return [
             'coins' => (int) $row['coins'],
@@ -84,6 +89,8 @@ final class Avatar
             'owned' => $owned,
             'loadout' => $loadout,
             'gamesPlayed' => (int) ($row['games_played'] ?? 0),
+            'legacyOff' => $legacyOff,
+            'legacyOn' => $legacyOn,
             'raTrial' => !in_array('royal', $owned, true) && Catalog::raTrialGame((int) ($row['games_played'] ?? 0) + 1),
         ];
     }
@@ -105,7 +112,7 @@ final class Avatar
             if ($current === null) {
                 throw new RpcError('Claim a username before dressing the king.');
             }
-            $next = self::clampLoadout($wanted, $current['owned']);
+            $next = self::clampLoadout($wanted, self::wearable($current['owned'], $current['legacyOff']));
             $style = $wanted['style'];
             if ($style === 'ra' && !in_array('royal', $current['owned'], true) && !$current['raTrial']) {
                 $style = $current['loadout']['style'] === 'ra' ? '3d' : $current['loadout']['style'];
@@ -114,11 +121,63 @@ final class Avatar
                 $style = $current['loadout']['style'] === 'lg' ? '3d' : $current['loadout']['style'];
             }
             $next['style'] = $style;
+            $stored = $current['legacyOff'] ? array_merge($next, ['legacyOff' => true]) : $next;
             Db::run(
                 'UPDATE profiles SET avatar_json = ?, piece_style = ? WHERE user_id = ?',
-                [json_encode($next, JSON_UNESCAPED_SLASHES), $next['style'], $userId]
+                [json_encode($stored, JSON_UNESCAPED_SLASHES), $next['style'], $userId]
             );
+            Kit::reset();
             return array_merge($current, ['loadout' => $next]);
+        });
+    }
+
+    /**
+     * Gear the king may wear: with the Royal Legacy kit switched off, the Royal Legacy King
+     * finish is put away (it is still owned).
+     * @param list<string> $owned
+     * @return list<string>
+     */
+    private static function wearable(array $owned, bool $legacyOff): array
+    {
+        return $legacyOff ? array_values(array_filter($owned, static fn (string $id): bool => $id !== Kit::LEGACY)) : $owned;
+    }
+
+    /**
+     * Royal Legacy kit on/off for an owner ("Back to normal" / "Use Royal Legacy").
+     * Ownership never changes and no coins move. Kept in the profile next to the saved loadout.
+     * @param array<string,mixed> $data
+     */
+    public static function setLegacyKit(string $userId, array $data): mixed
+    {
+        $on = !empty($data['on']);
+        return Db::transaction(static function () use ($userId, $on): array {
+            $current = self::readRow($userId, true);
+            if ($current === null) {
+                throw new RpcError('Claim a username first.');
+            }
+            if (!in_array(Kit::LEGACY, $current['owned'], true)) {
+                throw new RpcError('Unlock the Royal Legacy kit first.');
+            }
+            $row = Db::one('SELECT avatar_json FROM profiles WHERE user_id = ? LIMIT 1', [$userId]);
+            $json = (string) ($row['avatar_json'] ?? '');
+            $decoded = $json !== '' ? json_decode($json, true) : [];
+            $data = is_array($decoded) ? $decoded : [];
+            if ($data === []) {
+                $data = $current['loadout'];
+            }
+            if ($on) {
+                unset($data['legacyOff']);
+                // Turning it back on wears the Royal Legacy King again.
+                $data['finishId'] = Kit::LEGACY;
+            } else {
+                $data['legacyOff'] = true;
+                if (($data['finishId'] ?? '') === Kit::LEGACY) {
+                    $data['finishId'] = 'king-onyx';
+                }
+            }
+            Db::run('UPDATE profiles SET avatar_json = ? WHERE user_id = ?', [json_encode($data, JSON_UNESCAPED_SLASHES), $userId]);
+            Kit::reset();
+            return self::readRow($userId) ?? $current;
         });
     }
 

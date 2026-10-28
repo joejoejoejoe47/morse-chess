@@ -7,3 +7,5 @@ export const getAvatar = rpc("getAvatar");
 export const saveAvatar = rpc("saveAvatar");
 export const setPieceStyle = rpc("setPieceStyle");
 export const buyGear = rpc("buyGear");
+/** Royal Legacy kit on/off for an owner ("Back to normal"). Free; ownership stays. */
+export const setLegacyKit = rpc("setLegacyKit");
