@@ -396,6 +396,40 @@ foreach (['v1', 'v2'] as $kind) {
     Mores::resignGame('cara', ['gameId' => $gid]);
 }
 
+// bot game colour choice (owner t198u): White / Black / Random
+$coins0 = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['cara']);
+$r = Mores::startBotGame('cara', ['mode' => 'timed', 'bot' => 'v1', 'color' => 'black']);
+check(($r['color'] ?? null) === 'black', 'startBotGame color=black answers black');
+$s = Mores::getGame('cara', ['gameId' => $r['gameId']]);
+check($s['you'] === 'b' && $s['opponentName'] === 'MorseBot', 'player is Black vs MorseBot');
+backdate_turn($r['gameId'], 2000);
+$s = Mores::getGame('cara', ['gameId' => $r['gameId']]);
+check(count($s['moves']) === 1 && $s['turn'] === 'b', 'MorseBot opens when the player is Black');
+$reply = (new Morse\Chess($s['fen']))->moves(true)[0] ?? null;
+$mv = Mores::makeMove('cara', ['gameId' => $r['gameId'], 'from' => $reply['from'] ?? '', 'to' => $reply['to'] ?? '']);
+check($mv['ok'] === true && count($mv['game']['moves']) === 2, 'Black answers the bot opening');
+Mores::resignGame('cara', ['gameId' => $r['gameId']]);
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['cara']) === $coins0, 'resigning a Black bot game changes no coins');
+$r = Mores::startBotGame('cara', ['mode' => 'breeze', 'bot' => 'v2', 'color' => 'white']);
+check(($r['color'] ?? null) === 'white' && Mores::getGame('cara', ['gameId' => $r['gameId']])['you'] === 'w', 'color=white seats the player as White');
+Mores::resignGame('cara', ['gameId' => $r['gameId']]);
+$seen = [];
+for ($i = 0; $i < 24; $i++) {
+    $r = Mores::startBotGame('cara', ['mode' => 'breeze', 'bot' => 'v1', 'color' => 'random']);
+    $you = Mores::getGame('cara', ['gameId' => $r['gameId']])['you'];
+    check($r['color'] === ($you === 'w' ? 'white' : 'black'), 'random answers the side it picked');
+    $seen[$you] = true;
+    Mores::resignGame('cara', ['gameId' => $r['gameId']]);
+}
+check(isset($seen['w'], $seen['b']), 'random gives both sides over 24 games');
+// checkmating MorseBot as Black still pays 5
+$gid = Mores::startBotGame('cara', ['mode' => 'breeze', 'bot' => 'v1', 'color' => 'black'])['gameId'];
+Db::run("UPDATE games SET fen = 'r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1', turn = 'b' WHERE id = ?", [$gid]);
+$mate = Mores::makeMove('cara', ['gameId' => $gid, 'from' => 'a8', 'to' => 'a1']);
+check($mate['ok'] === true && $mate['game']['coinAward'] === 5, 'checkmating MorseBot as Black pays 5');
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['cara']) === $coins0 + 5, 'purse +5 only for the mate');
+Db::run('UPDATE profiles SET coins = ? WHERE user_id = ?', [$coins0, 'cara']);
+
 // bot eval sanity: finds mate in one, and never returns a move when the game is over
 $pick = Mores::pickBotMove('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', 'w', 'v2');
 check($pick !== null && $pick['from'] === 'a1' && $pick['to'] === 'a8', 'bot finds back-rank mate');

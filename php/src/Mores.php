@@ -218,10 +218,11 @@ final class Mores
 
     // ── games ──────────────────────────────────────────────────────────────
 
-    private static function insertGame(string $a, string $b, string $mode, bool $pull = false, int $clockMs = Constants::TURN_MS, string $source = ''): string
+    /** $aColor: 'w' / 'b' puts player $a on that side; null flips a coin. */
+    private static function insertGame(string $a, string $b, string $mode, bool $pull = false, int $clockMs = Constants::TURN_MS, string $source = '', ?string $aColor = null): string
     {
         $id = Util::uuid();
-        $aWhite = Util::chance(0.5);
+        $aWhite = $aColor === 'w' ? true : ($aColor === 'b' ? false : Util::chance(0.5));
         $white = $aWhite ? $a : $b;
         $black = $aWhite ? $b : $a;
         $chess = new Chess();
@@ -1544,7 +1545,11 @@ final class Mores
         $botId = $bot === 'v2' ? Constants::BOT_V2_USER_ID : Constants::BOT_USER_ID;
         // 'sandbox' marks games started from the goblin Sandbox (they stay out of History).
         $source = ($data['source'] ?? null) === 'sandbox' ? 'sandbox' : '';
-        return ['gameId' => self::insertGame($userId, $botId, $mode, false, self::clockMsFrom($data['minutes'] ?? null), $source)];
+        // color: 'white' | 'black' | 'random' (owner t198u). Random is picked here so the player gets a real side.
+        $want = strtolower((string) ($data['color'] ?? 'random'));
+        $color = $want === 'white' || $want === 'w' ? 'w' : ($want === 'black' || $want === 'b' ? 'b' : (Util::chance(0.5) ? 'w' : 'b'));
+        // A bot game with the player as Black: MorseBot opens on the first poll (maybeBotMove).
+        return ['gameId' => self::insertGame($userId, $botId, $mode, false, self::clockMsFrom($data['minutes'] ?? null), $source, $color), 'color' => $color === 'w' ? 'white' : 'black'];
     }
 
     // ── history ────────────────────────────────────────────────────────────
