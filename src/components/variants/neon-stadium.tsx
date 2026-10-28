@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { NeonSkyline } from "@/components/variants/neon-skyline";
 
 /* The Galactic Football League stadium: a dark bowl, neon field, crowd and colored spotlights,
    all built from code (canvas textures, instanced meshes and lights). No images. */
@@ -1309,10 +1310,11 @@ function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
   useEffect(() => {
     const persp = camera as THREE.PerspectiveCamera;
     const fov0 = persp.fov;
-    persp.fov = wide ? 44 : 40;
+    persp.fov = wide ? 48 : 40;
     persp.updateProjectionMatrix();
-    const aim = wide ? new THREE.Vector3(-2.2, 0, 0) : new THREE.Vector3(0, 0, -0.4);
-    if (wide) camera.position.set(rows * 0.84, rows * 0.86, 0.001);
+    // a little lower and further back than before, so the city skyline shows above the far stands
+    const aim = wide ? new THREE.Vector3(-rows * 0.257, 0, 0) : new THREE.Vector3(0, 0, -0.4);
+    if (wide) camera.position.set(rows * 1.0, rows * 0.6, 0.001);
     else camera.position.set(0, rows * 1.5, rows * 0.8);
     camera.lookAt(aim);
     const orbit = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null;
@@ -1486,6 +1488,7 @@ export function NeonStadium({ rows, cols, show = null, home = null }: { rows: nu
         <planeGeometry args={[hw * 2 + 0.4, hl * 2 + 0.4]} />
         <meshStandardMaterial color="#04070d" roughness={0.9} />
       </mesh>
+      <NeonSkyline hw={hw + out} hl={hl + out} />
       <Field rows={rows} cols={cols} home={home} />
       <NeonWall hw={hw} hl={hl} home={home} />
       <Stands hw={hw} hl={hl} />
