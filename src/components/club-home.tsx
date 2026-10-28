@@ -33,6 +33,7 @@ type VariantId = "checkmate" | "football" | "strategy";
 type Flow =
   | { kind: "idle" }
   | { kind: "pick-mode"; intent: "random" | "challenge" | "bot" | "bot-v2" }
+  | { kind: "pick-color"; intent: "bot" | "bot-v2"; mode: GameMode }
   | { kind: "select-game"; intent: "random" | "challenge" }
   | { kind: "variant-name"; intent: "random" | "challenge"; mode: VariantId }
   | { kind: "ask-name"; mode: GameMode; game?: string }
@@ -170,21 +171,35 @@ export function ClubHome() {
       setFlow({ kind: "ask-name", mode });
       return;
     }
+    if (flow.intent === "bot" || flow.intent === "bot-v2") {
+      // Next: White, Black or Random (owner t198u).
+      setFlow({ kind: "pick-color", intent: flow.intent, mode });
+      return;
+    }
     setBusy(true);
     try {
-      if (flow.intent === "bot" || flow.intent === "bot-v2") {
-        const { gameId } = await startBotGame({
-          data: { mode, bot: flow.intent === "bot-v2" ? "v2" : "v1", minutes: botMinutes },
-        });
-        await navigate({ to: "/play/$gameId", params: { gameId } });
-        return;
-      }
       const { gameId } = await joinQueue({ data: { mode } });
       if (gameId) {
         await navigate({ to: "/play/$gameId", params: { gameId } });
         return;
       }
       setFlow({ kind: "searching", mode });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start a match.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function chooseColor(color: "white" | "black" | "random") {
+    if (flow.kind !== "pick-color") return;
+    setError(null);
+    setBusy(true);
+    try {
+      const { gameId } = await startBotGame({
+        data: { mode: flow.mode, bot: flow.intent === "bot-v2" ? "v2" : "v1", minutes: botMinutes, color },
+      });
+      await navigate({ to: "/play/$gameId", params: { gameId } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start a match.");
     } finally {
@@ -566,6 +581,11 @@ export function ClubHome() {
                     Back
                   </button>
                 ) : null}
+                {flow.kind === "pick-color" ? (
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "pick-mode", intent: flow.intent }); }}>
+                    Back
+                  </button>
+                ) : null}
                 {flow.kind === "variant-name" ? (
                   <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "select-game", intent: flow.intent }); }}>
                     Back
@@ -583,6 +603,8 @@ export function ClubHome() {
                     ? "Who sits across the board?"
                   : flow.kind === "pick-mode"
                     ? "How do you want to play?"
+                  : flow.kind === "pick-color"
+                    ? "Which side do you want?"
                     : flow.kind === "ask-name"
                       ? "Who sits across the board?"
                       : flow.kind === "searching" || home.queued
@@ -682,6 +704,38 @@ export function ClubHome() {
               </div>
             ) : null}
 
+            {flow.kind === "pick-color" ? (
+              <div className="mt-5" data-bot-color-chooser>
+                <p className="text-sm text-mist">
+                  vs {flow.intent === "bot-v2" ? BOT_V2_USERNAME : BOT_USERNAME} · {flow.mode === "timed" ? `${botMinutes} min each` : "Breeze"}. White moves first.
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  {(
+                    [
+                      { id: "white", label: "White", note: "You move first", tile: "bg-[#ece3d0] text-[#1c1712]", piece: "k" },
+                      { id: "black", label: "Black", note: "Bot moves first", tile: "bg-[#1c1712] text-[#ece3d0] border border-line", piece: "k" },
+                      { id: "random", label: "Random", note: "Flip a coin", tile: "bg-[linear-gradient(135deg,#ece3d0_50%,#1c1712_50%)] text-[#8a6d3b]", piece: "q" },
+                    ] as const
+                  ).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      data-bot-color={c.id}
+                      disabled={busy}
+                      onClick={() => chooseColor(c.id)}
+                      className="flex flex-col items-center gap-2 rounded-lg border border-line bg-panel-2 px-2 py-3 text-ivory hover:border-gold-line disabled:opacity-60"
+                    >
+                      <span className={"grid size-12 place-items-center rounded-md " + c.tile}>
+                        <PieceMark kind={c.piece} className="size-7" />
+                      </span>
+                      <span className="text-base font-semibold">{c.label}</span>
+                      <span className="text-xs text-mist">{c.note}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {flow.kind === "ask-name" ? (
               <form className="mt-5 space-y-4" onSubmit={submitChallenge}>
                 <Badge>{flow.mode} game</Badge>
@@ -718,7 +772,7 @@ export function ClubHome() {
               </p>
             ) : null}
 
-            {error && (flow.kind === "pick-mode" || flow.kind === "idle") ? (
+            {error && (flow.kind === "pick-mode" || flow.kind === "pick-color" || flow.kind === "idle") ? (
               <p className="mt-3 text-sm text-danger">{error}</p>
             ) : null}
           </div>
