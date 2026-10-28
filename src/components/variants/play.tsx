@@ -15,6 +15,7 @@ import { DEFAULT_TEAM, TeamSetup, awayColor, inkOn } from "@/components/variants
 import { CrowdAudio, crowdMuted } from "@/lib/crowd-audio";
 import { playScoreSound, preloadScoreSound, scoreSoundAllowed } from "@/lib/score-sound";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { FLIGHT, JUMPS, JUMP_WINDOW, fieldSpot } from "@/components/variants/field-units";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -788,6 +789,27 @@ function footballStart(): { board: FBoard; loose: [number, number] | null } {
   return { board, loose: KICKOFF };
 }
 
+/**
+ * A new play from a line of scrimmage (owner, t207u): BOTH full teams line up on either side of row
+ * `row` (the yard line where the ball was), exactly like the kickoff lineup but moved up or down the
+ * field. The team with the ball has it in its king's hands; with nobody holding it, it sits on the line.
+ */
+function lineUp(row: number, holder: Side | null): { board: FBoard; loose: [number, number] | null; line: number } {
+  const L = Math.max(2, Math.min(F_ROWS - 3, row));
+  const board = blank(F_ROWS, F_COLS) as FBoard;
+  const back: Kind[] = ["r", "n", "b", "q", "k", "b", "n", "r"];
+  for (let f = 0; f < 8; f++) {
+    board[L - 2][f] = { side: "w", kind: back[f], id: `${FILES[f]}1` };
+    board[L - 1][f] = { side: "w", kind: "p", id: `${FILES[f]}2` };
+    board[L + 1][f] = { side: "b", kind: "p", id: `${FILES[f]}7` };
+    board[L + 2][f] = { side: "b", kind: back[f], id: `${FILES[f]}8` };
+  }
+  if (!holder) return { board, loose: [L, KICKOFF[1]], line: L };
+  const kr = holder === "w" ? L - 2 : L + 2;
+  board[kr][4] = { ...board[kr][4]!, ball: true, held: 0 };
+  return { board, loose: null, line: L };
+}
+
 function findBall(b: FBoard): { r: number; f: number; u: FUnit } | null {
   for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (b[r][f]?.ball) return { r, f, u: b[r][f]! };
   return null;
@@ -992,8 +1014,12 @@ export function Football({ versus }: { versus: string }) {
   const slowBy = () => (window as unknown as { __fbSlow?: number }).__fbSlow ?? 1;
   const later = (fn: () => void, ms: number) => {
     // __fbSlow only exists with the screenshot test hooks on; it stretches the touchdown show
-    timers.current.push(window.setTimeout(fn, ms * slowBy()));
+    const id = window.setTimeout(fn, ms * slowBy());
+    timers.current.push(id);
+    return id;
   };
+  /** a pass into the end zone waits for the catch before the touchdown: an interception cancels it */
+  const pendingTd = useRef<number | null>(null);
 
   useEffect(() => {
     const audio = new CrowdAudio();
@@ -1088,16 +1114,51 @@ export function Football({ versus }: { versus: string }) {
   function dropKingBall(b: FBoard, side: Side, ball: [number, number] | null) {
     const next = cloneBoard(b) as FBoard;
     let looseNow = ball;
+    let dropped: [number, number] | null = null;
     for (let r = 0; r < F_ROWS; r++) {
       for (let f = 0; f < F_COLS; f++) {
         const u = next[r][f];
         if (u?.side === side && u.kind === "k" && u.ball && (u.held ?? 0) >= 3) {
           next[r][f] = { ...u, ball: false, held: 0 };
           looseNow = [r, f];
+          dropped = [r, f];
         }
       }
     }
-    return { board: next, loose: looseNow };
+    return { board: next, loose: looseNow, dropped };
+  }
+
+  /** The play is over (a tackle, the king losing the ball, a turnover): show it for a moment, then
+   *  everybody, tackled players too, lines up on the line of scrimmage for the next play (owner, t207u). */
+  function deadBall(b: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, mover: Side, row: number, holder: Side | null, text: string, first: Side) {
+    setBoard(b);
+    setLoose(ball);
+    setScore(scored);
+    setSel(null);
+    setThrowing(false);
+    setPhase("kick");
+    phaseRef.current = "kick";
+    setBanner({ side: holder ?? mover, text, small: true });
+    later(() => setBanner((v) => (v?.small ? null : v)), 1900);
+    later(() => scrimmage(row, holder, scored, first), 1500);
+  }
+
+  function scrimmage(row: number, holder: Side | null, scored: { w: number; b: number }, first: Side) {
+    const next = lineUp(row, holder);
+    setBoard(next.board);
+    setLoose(next.loose);
+    setCue(null);
+    setSel(null);
+    setThrowing(false);
+    setTurn(first);
+    drive.current = { board: next.board, loose: next.loose, plays: [] };
+    // a moment to jog into the formation before the snap
+    later(() => {
+      if (phaseRef.current !== "kick") return;
+      setPhase("play");
+      phaseRef.current = "play";
+      if (first === "b") later(() => botFootball(next.board, next.loose, scored), 500);
+    }, 1300);
   }
 
   /** Kick-off (owner, v4: after ANY score): both teams come back at full strength in the midfield lineup on
@@ -1151,6 +1212,11 @@ export function Football({ versus }: { versus: string }) {
     }
     const side = bonus ? "w" : other(mover);
     const dropped = dropKingBall(next, side, ball);
+    if (dropped.dropped && !tryRef.current) {
+      // owner (t207u): the king lost the ball, so the play is dead; line up where he had it
+      deadBall(dropped.board, dropped.loose, scored, mover, dropped.dropped[0], side, "Ball down!", side);
+      return;
+    }
     setBoard(dropped.board);
     setLoose(dropped.loose);
     setScore(scored);
@@ -1329,6 +1395,13 @@ export function Football({ versus }: { versus: string }) {
       touchdown(next, u.side, { ...scored, [u.side]: scored[u.side] + 6 }, u);
       return;
     }
+    if (victim && !tryRef.current) {
+      // owner (t207u): every tackle ends the play; both full teams line up again where the ball is
+      const holder = findBall(next);
+      const row = holder ? holder.r : looseNow ? looseNow[0] : to[0];
+      deadBall(next, looseNow, scored, u.side, row, holder ? holder.u.side : null, victim.ball ? "Tackled! Turnover" : "Tackle!", bonus ? "w" : other(u.side));
+      return;
+    }
     finishTurn(next, looseNow, scored, u.side, bonus);
   }
 
@@ -1346,7 +1419,12 @@ export function Football({ versus }: { versus: string }) {
     if (inEnd(catcher.side, to[0])) {
       // wait for the catch before the party starts
       const scoring = next;
-      later(() => touchdown(scoring, catcher.side, { ...scored, [catcher.side]: scored[catcher.side] + 6 }, catcher), 900);
+      // the wait is the time the ball is in the air (it hangs over anyone it flies over: t204u)
+      const air = 0.55 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
+      pendingTd.current = later(() => {
+        pendingTd.current = null;
+        touchdown(scoring, catcher.side, { ...scored, [catcher.side]: scored[catcher.side] + 6 }, catcher);
+      }, Math.max(900, air * 1000 + 950));
       setBoard(next);
       setLoose(null);
       setSel(null);
@@ -1357,6 +1435,108 @@ export function Football({ versus }: { versus: string }) {
     }
     finishTurn(next, null, scored, u.side, bonus);
   }
+
+  /**
+   * SPACE or right-click (owner, t204u): your player jumps. If a Phantoms pass is hanging over him right
+   * then, he picks it off. Otherwise it is just a jump.
+   */
+  function jump() {
+    const s = now.current;
+    if (s.over || (phaseRef.current !== "play" && pendingTd.current == null)) return;
+    const live = s.board;
+    const fl = FLIGHT;
+    let pick: { r: number; f: number; id: string } | null = null;
+    let steal = false;
+    if (fl.active && fl.side === "b" && !fl.steal) {
+      const under = fl.over
+        .filter((m) => m.side === "w" && Math.abs(m.u - fl.u) <= JUMP_WINDOW && live[m.r]?.[m.f]?.id === m.id)
+        .sort((a, b) => Math.abs(a.u - fl.u) - Math.abs(b.u - fl.u))[0];
+      if (under) {
+        pick = { r: under.r, f: under.f, id: under.id };
+        steal = true;
+      }
+    }
+    if (!pick && s.sel) {
+      const u = live[s.sel[0]]?.[s.sel[1]];
+      if (u?.side === "w" && u.id) pick = { r: s.sel[0], f: s.sel[1], id: u.id };
+    }
+    if (!pick && fl.active) {
+      // nobody picked: whoever of yours is nearest the ball
+      const br = (F_ROWS - 1) / 2 - fl.pos.z;
+      const bf = fl.pos.x + (F_COLS - 1) / 2;
+      let best = 2.2;
+      for (let r = 0; r < F_ROWS; r++)
+        for (let f = 0; f < F_COLS; f++) {
+          const u = live[r][f];
+          const d = Math.hypot(r - br, f - bf);
+          if (u?.side === "w" && u.id && d < best) {
+            best = d;
+            pick = { r, f, id: u.id };
+          }
+        }
+    }
+    if (!pick) return;
+    JUMPS.set(pick.id, performance.now() / 1000);
+    if (steal) intercept(pick);
+  }
+
+  function intercept(pick: { r: number; f: number; id: string }) {
+    const live = now.current.board;
+    const [tr, tf] = FLIGHT.to;
+    const catcher = live[tr]?.[tf];
+    const j = live[pick.r]?.[pick.f];
+    if (!catcher?.ball || catcher.side !== "b" || !j || j.side !== "w") return;
+    const next = cloneBoard(live) as FBoard;
+    next[tr][tf] = { ...catcher, ball: false, held: 0 };
+    next[pick.r][pick.f] = { ...j, ball: true, held: j.kind === "k" ? 1 : 0 };
+    // the ball leaves its line and goes into his hands, up in the air
+    FLIGHT.steal = { id: pick.id, at: fieldSpot(pick.r, pick.f, F_ROWS, F_COLS, 1.15) };
+    if (pendingTd.current != null) {
+      window.clearTimeout(pendingTd.current);
+      pendingTd.current = null;
+      setPhase("play");
+      phaseRef.current = "play";
+    }
+    record(next, null, { id: Date.now(), unit: j.id, from: FLIGHT.from, to: [pick.r, pick.f], capture: false, thrown: true, side: "b", kind: catcher.kind });
+    crowd.current?.set("roar");
+    setBoard(next);
+    setLoose(null);
+    setTurn("w");
+    setSel([pick.r, pick.f]);
+    setThrowing(false);
+    setShotTick((n) => n + 1);
+    setBanner({ side: "w", text: "Interception!", small: true });
+    later(() => setBanner((v) => (v?.small ? null : v)), 1600);
+    if (inEnd("w", pick.r)) {
+      later(() => touchdown(next, "w", { ...now.current.score, w: now.current.score.w + 6 }, next[pick.r][pick.f]!), 700);
+      return;
+    }
+    // a turnover ends the play too (owner, t207u): new line of scrimmage where he caught it, your ball
+    if (!tryRef.current) later(() => deadBall(next, null, now.current.score, "b", pick.r, "w", "Interception!", "w"), 650);
+  }
+  const jumpRef = useRef(jump);
+  jumpRef.current = jump;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.code !== "Space" && e.key !== " ") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      if (!e.repeat) jumpRef.current();
+    };
+    const menu = (e: MouseEvent) => {
+      // right-click on the field is the jump button, not the browser menu
+      if ((e.target as HTMLElement | null)?.tagName !== "CANVAS") return;
+      e.preventDefault();
+      jumpRef.current();
+    };
+    window.addEventListener("keydown", key);
+    window.addEventListener("contextmenu", menu);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("contextmenu", menu);
+    };
+  }, []);
 
   function botFootball(live: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, bonus = false) {
     if (phaseRef.current !== "play") return;
@@ -1423,7 +1603,7 @@ export function Football({ versus }: { versus: string }) {
   }
 
   // test hooks for screenshots, only when localStorage "morse-fb-debug" is "1"
-  const self = useRef<{ hold: (n: number) => void; td: () => void; setup: () => void; fight: (gap?: number) => void }>({ hold: () => undefined, td: () => undefined, setup: () => undefined, fight: () => undefined });
+  const self = useRef<{ hold: (n: number) => void; td: () => void; setup: () => void; fight: (gap?: number) => void; lob: (gap?: number) => void }>({ hold: () => undefined, td: () => undefined, setup: () => undefined, fight: () => undefined, lob: () => undefined });
   self.current.hold = (n: number) => setFrozen(n < 0 ? null : n);
   self.current.setup = () => setSetup(true);
   // stage a tackle for the screenshots: a black player steps in front of a white one, who then takes him on
@@ -1439,6 +1619,32 @@ export function Football({ versus }: { versus: string }) {
     b[k[0]][k[1]] = null;
     setBoard(b);
     later(() => moveTo(w!, at, b), 1500);
+  };
+  // a Phantoms pass straight over one of your players, for the jump / interception screenshots
+  self.current.lob = (gap = 3) => {
+    const b = cloneBoard(board) as FBoard;
+    for (const row of b) for (let f = 0; f < row.length; f++) if (row[f]?.ball) row[f] = { ...row[f]!, ball: false };
+    let w: [number, number] | null = null;
+    const free = (r: number, f: number) => !b[r][f] || b[r][f]!.kind !== "k";
+    for (let r = gap; r < F_ROWS - gap && !w; r++) for (let f = 1; f < F_COLS - 1 && !w; f++) if (b[r][f]?.side === "w" && b[r][f]?.kind !== "k" && free(r + gap, f) && free(r - gap, f)) w = [r, f];
+    const blacks: [number, number][] = [];
+    for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (b[r][f]?.side === "b" && b[r][f]?.kind !== "k") blacks.push([r, f]);
+    if (!w || blacks.length < 2) return;
+    const from: [number, number] = [w[0] + gap, w[1]];
+    const to: [number, number] = [w[0] - gap, w[1]];
+    // the two blacks must not sit on the spots we clear
+    const pool = blacks.filter(([r, f]) => !(f === w![1] && (r === from[0] || r === to[0])));
+    const src = pool.length >= 2 ? pool : blacks;
+    const qb = b[src[0][0]][src[0][1]]!;
+    const wr = b[src[1][0]][src[1][1]]!;
+    b[src[0][0]][src[0][1]] = null;
+    b[src[1][0]][src[1][1]] = null;
+    b[from[0]][from[1]] = { ...qb, ball: true };
+    b[to[0]][to[1]] = { ...wr, ball: false };
+    setBoard(b);
+    setLoose(null);
+    setTurn("b");
+    later(() => pass(from, to, b, now.current.score), 1400);
   };
   self.current.td = () => {
     // a scripted white run down the field (legality ignored), for the replay and fireworks
@@ -1479,6 +1685,9 @@ export function Football({ versus }: { versus: string }) {
       td: () => self.current.td(),
       setup: () => self.current.setup(),
       fight: (gap?: number) => self.current.fight(gap),
+      lob: (gap?: number) => self.current.lob(gap),
+      jump: () => jumpRef.current(),
+      flight: () => ({ active: FLIGHT.active, u: Math.round(FLIGHT.u * 100) / 100, over: FLIGHT.over.map((m) => `${m.side}${m.r},${m.f}@${Math.round(m.u * 100) / 100}`), stolen: Boolean(FLIGHT.steal) }),
       field: (field: "neon" | "park") => setPrefs((p) => (p ? { ...p, field } : p)),
       state: () => ({ phase: phaseRef.current, plays: drive.current.plays.length, turn: now.current.turn, score: now.current.score, try: tryRef.current, t: Math.round(performance.now()), men: now.current.board.flat().reduce((n, u) => (u ? { ...n, [u.side]: n[u.side] + 1 } : n), { w: 0, b: 0 }) }),
     };

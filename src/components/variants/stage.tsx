@@ -306,7 +306,7 @@ function Deck({
     setRecent((list) => (list.some((c) => c.id === cue.id) ? list : [...list.slice(-5), cue]));
     if (cue.thrown) setFlying(cue.id);
     const id = cue.id;
-    const timer = window.setTimeout(() => setRecent((list) => list.filter((c) => c.id !== id)), 6500);
+    const timer = window.setTimeout(() => setRecent((list) => list.filter((c) => c.id !== id)), cue.thrown ? 30000 : 6500); // a slow device must not lose a ball mid-air
     return () => window.clearTimeout(timer);
   }, [cue?.id, stadium]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -383,14 +383,15 @@ function Deck({
         <meshStandardMaterial color="#3c261c" roughness={0.7} />
       </mesh>
       )}
-      {squares}
-      {arcs}
+      {field?.replay ? null : squares}
+      {field?.replay ? null : arcs}
       {stadium && cue && !cue.goal && !field?.replay ? (
         <FadingArc key={`cue${cue.id}`} from={spot(cue.from[0], cue.from[1], rows, cols, 0.3)} to={spot(cue.to[0], cue.to[1], rows, cols, 0.2)} color={cue.thrown ? "#ffe14a" : cue.side === "w" ? homeCol : awayCol} />
       ) : null}
-      {stadium && field?.goal && sel ? <GoalTarget rows={rows} cols={cols} from={sel} /> : null}
+      {stadium && field?.goal && sel && !field.replay ? <GoalTarget rows={rows} cols={cols} from={sel} /> : null}
       {stadium && field
         ? units.map((unit) => {
+            const inAir = flying != null ? recent.find((c) => c.id === flying) ?? null : null;
             const mine = unit.id ? [...recent].reverse().find((c) => c.unit === unit.id && !c.thrown) ?? null : null;
             const caught = Boolean(flying != null && unit.ball);
             return (
@@ -405,6 +406,8 @@ function Deck({
                   selected={Boolean(sel && sel.r === unit.r && sel.f === unit.f)}
                   ring={unit.side === "w" ? homeCol : awayCol}
                   hideBall={caught}
+                  receive={caught && inAir && !inAir.goal ? inAir.from : null}
+                  bare={Boolean(field.replay)}
                 />
               </group>
             );
@@ -414,7 +417,7 @@ function Deck({
         ? recent.filter((c) => c.capture && !c.thrown).map((c) => <FieldVictim key={`v${c.id}`} cue={c} look={look} rows={rows} cols={cols} taken={units} />)
         : null}
       {stadium && field
-        ? recent.filter((c) => c.thrown && c.id === flying).map((c) => <FieldThrow key={`t${c.id}`} cue={c} rows={rows} cols={cols} onDone={() => setFlying((f) => (f === c.id ? null : f))} />)
+        ? recent.filter((c) => c.thrown && c.id === flying).map((c) => <FieldThrow key={`t${c.id}`} cue={c} rows={rows} cols={cols} units={units} onDone={() => setFlying((f) => (f === c.id ? null : f))} />)
         : null}
       {stadium && field && ball && flying == null ? <LooseBall r={ball.r} f={ball.f} rows={rows} cols={cols} /> : null}
       {stadium && !field && units.length ? units.map((unit) => <TeamRing key={`ring${unit.side}${unit.r}:${unit.f}`} side={unit.side} position={spot(unit.r, unit.f, rows, cols, 0.145)} />) : null}

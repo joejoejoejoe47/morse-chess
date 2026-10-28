@@ -3,7 +3,7 @@
  * move glides, captures are fought at a stand-off distance (AN: sword swing, LG: lasers / bombs /
  * bullets, 3D: a shove) and nobody ever stands inside anybody else.
  */
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
@@ -31,8 +31,8 @@ export type FieldCue = {
   victimSide?: "w" | "b";
 };
 
-/** AN players are a little smaller on the football field (owner, 2026-10-28). */
-export const AN_FIELD_SCALE = 0.84;
+/** AN players are a little smaller on the football field (owner, 2026-10-28; a tiny bit smaller again in t204u). */
+export const AN_FIELD_SCALE = 0.77;
 export const SELECT_RING = "#ffe14a";
 const FIELD_Y = 0.14;
 
@@ -129,6 +129,57 @@ export function Pigskin() {
   return <primitive object={ball} />;
 }
 
+/**
+ * The ball in the air (owner, t204u): where it is, who it is flying over and whether somebody jumped and
+ * picked it off. FieldThrow writes it every frame; the page reads it when SPACE / right-click is pressed.
+ */
+export type OverMan = { id: string; r: number; f: number; side: "w" | "b"; u: number };
+export const FLIGHT = {
+  id: 0,
+  active: false,
+  side: "w" as "w" | "b",
+  from: [0, 0] as [number, number],
+  to: [0, 0] as [number, number],
+  u: 0,
+  pos: new THREE.Vector3(),
+  over: [] as OverMan[],
+  /** set by the page when a jump picks the ball off: the ball flies into this player's hands */
+  steal: null as null | { id: string; at: THREE.Vector3 },
+};
+/** how close (in flight progress) the ball has to be overhead for a jump to get it */
+export const JUMP_WINDOW = 0.17;
+/** the slow-motion band either side of a player the ball passes over, and how slow it goes there */
+const SLOW_BAND = 0.15;
+const SLOW_SPEED = 0.32;
+/** unit id → when (performance.now() seconds) that player jumped */
+export const JUMPS = new Map<string, number>();
+const JUMP_TIME = 0.75;
+/** Screenshot slow-motion: only set by the test hooks (window.__fbSlow); 1 in a real game. */
+const slowMo = () => (typeof window === "undefined" ? 1 : ((window as unknown as { __fbSlow?: number }).__fbSlow ?? 1));
+const nowS = () => performance.now() / 1000;
+
+/** Who stands under the line of a pass (not the thrower or the catcher), and where along it. */
+export function overMen(from: [number, number], to: [number, number], units: FieldUnitLike[]): OverMan[] {
+  const ax = from[1];
+  const az = from[0];
+  const dx = to[1] - ax;
+  const dz = to[0] - az;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-6) return [];
+  const out: OverMan[] = [];
+  for (const u of units) {
+    if (!u.id) continue;
+    if ((u.r === from[0] && u.f === from[1]) || (u.r === to[0] && u.f === to[1])) continue;
+    const t = ((u.f - ax) * dx + (u.r - az) * dz) / len2;
+    if (t <= 0.04 || t >= 0.96) continue;
+    const px = ax + dx * t - u.f;
+    const pz = az + dz * t - u.r;
+    if (Math.hypot(px, pz) > 0.62) continue;
+    out.push({ id: u.id, r: u.r, f: u.f, side: u.side, u: t });
+  }
+  return out.sort((a, b) => a.u - b.u);
+}
+
 function restYaw(side: "w" | "b") {
   return side === "w" ? Math.PI : 0;
 }
@@ -146,6 +197,8 @@ export function FieldActor({
   selected,
   ring,
   hideBall = false,
+  receive = null,
+  bare = false,
 }: {
   unit: FieldUnitLike;
   look: FieldLook;
@@ -158,8 +211,14 @@ export function FieldActor({
   selected: boolean;
   ring: string;
   hideBall?: boolean;
+  /** the ball is flying to this player from this square: turn round to face it, hands up (t204u) */
+  receive?: [number, number] | null;
+  /** the touchdown replay (owner, t206u): no rings or marks at all except the ball carrier's yellow one */
+  bare?: boolean;
 }) {
   const home = fieldSpot(unit.r, unit.f, rows, cols);
+  const wasReceiving = useRef(false);
+  const caughtAt = useRef(-10);
   const node = useRef<THREE.Group>(null);
   const pos = useRef(home.clone());
   const trip = useRef<Trip | null>(null);
@@ -284,6 +343,28 @@ export function FieldActor({
         else trip.current = null;
       }
     }
+    // the catch (t204u): face the thrower with hands ready while the ball is in the air, then take it in
+    const tNow = nowS();
+    const receiving = Boolean(receive) && !tr;
+    if (receiving && receive) {
+      const from = fieldSpot(receive[0], receive[1], rows, cols);
+      yaw = Math.atan2(from.x - pos.current.x, from.z - pos.current.z);
+    }
+    if (wasReceiving.current && !receive) caughtAt.current = tNow;
+    wasReceiving.current = Boolean(receive);
+    const catching = !tr && Boolean(unit.ball) && tNow - caughtAt.current < 0.7;
+    // a jump for the ball (SPACE / right-click)
+    const jumpedAt = unit.id ? JUMPS.get(unit.id) : undefined;
+    const jt = jumpedAt != null ? tNow - jumpedAt : -1;
+    const jumpTime = JUMP_TIME * slowMo();
+    const jumping = jt >= 0 && jt < jumpTime;
+    if (jumping) hop = Math.max(hop, Math.sin((jt / jumpTime) * Math.PI) * (look === "lg" ? 0.75 : 0.62));
+    else if (jumpedAt != null && unit.id) JUMPS.delete(unit.id);
+    if (catching && !jumping && look !== "an" && look !== "lg") {
+      // 3D: a little give as the ball arrives
+      const k = (tNow - caughtAt.current) / 0.7;
+      lean = -Math.sin(k * Math.PI) * 0.18;
+    } else if (receiving && look !== "an" && look !== "lg") lean = -0.12;
     const walking = mode === "walk";
     // 3D pieces bob along at a jog instead of sliding
     const jog = look === "3d" && walking && hop === 0 ? Math.abs(Math.sin(gait.current.phase * 2.2)) * 0.05 : 0;
@@ -301,7 +382,7 @@ export function FieldActor({
       g.rotation.y = 0;
     } else {
       const body = g.children[1] as THREE.Object3D | undefined;
-      const want = walking || attacking || lunge.current !== 0 || (tr && tr.cap) ? yaw : restYaw(unit.side);
+      const want = walking || attacking || receiving || lunge.current !== 0 || (tr && tr.cap) ? yaw : restYaw(unit.side);
       // turn smoothly instead of snapping round
       let d = want - yawNow.current;
       d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -312,7 +393,20 @@ export function FieldActor({
       gait.current.act = attacking ? "attack" : walking ? "walk" : "idle";
       if (look === "an") {
         const span = tr ? (tr.cap ? tr.cap.from.distanceTo(tr.cap.near) : tr.from.distanceTo(tr.to)) : 0;
-        if (walking && hop > 0) {
+        if (jumping) {
+          gait.current.clip = "Jump_Full_Short";
+          gait.current.once = true;
+          gait.current.speed = 1.5;
+        } else if (receiving) {
+          // hands up, watching the ball come in
+          gait.current.clip = "Blocking";
+          gait.current.once = false;
+          gait.current.speed = 1;
+        } else if (catching) {
+          gait.current.clip = "Block_Hit";
+          gait.current.once = true;
+          gait.current.speed = 1.3;
+        } else if (walking && hop > 0) {
           gait.current.clip = "Jump_Idle";
           gait.current.once = false;
           gait.current.speed = 1;
@@ -334,9 +428,9 @@ export function FieldActor({
   return (
     <group ref={node} position={home.toArray()}>
       <group>
-        <TeamRing side={unit.side} color={selected || unit.ball ? SELECT_RING : ring} position={[0, 0.006, 0]} />
+        {bare && !unit.ball ? null : <TeamRing side={unit.side} color={selected || unit.ball ? SELECT_RING : ring} position={[0, 0.006, 0]} />}
         {unit.ball ? <CarrierHalo /> : null}
-        {selected ? <SelectPulse /> : null}
+        {selected && !bare ? <SelectPulse /> : null}
       </group>
       <group>
         {look === "lg" ? (
@@ -662,10 +756,11 @@ function FieldShot({ plan, color }: { plan: CapPlan; color: string }) {
 }
 
 /** The ball in the air: to a teammate (who catches it) or over the posts for a field goal. */
-export function FieldThrow({ cue, rows, cols, onDone }: { cue: FieldCue; rows: number; cols: number; onDone: () => void }) {
+export function FieldThrow({ cue, rows, cols, onDone, units = [] }: { cue: FieldCue; rows: number; cols: number; onDone: () => void; units?: FieldUnitLike[] }) {
   const ref = useRef<THREE.Group>(null);
-  const born = useRef<number | null>(null);
+  const prog = useRef(0);
   const done = useRef(false);
+  const grab = useRef<null | { t: number; from: THREE.Vector3; to: THREE.Vector3 }>(null);
   const a = fieldSpot(cue.from[0], cue.from[1], rows, cols, 0.72);
   // field goal: through the uprights, above the crossbar, and on past the end line
   const posts = cue.side === "w" ? -rows / 2 : rows / 2;
@@ -673,20 +768,56 @@ export function FieldThrow({ cue, rows, cols, onDone }: { cue: FieldCue; rows: n
   const dist = Math.hypot(b.x - a.x, b.z - a.z);
   const dur = cue.goal ? 0.9 + dist * 0.07 : 0.55 + dist * 0.06;
   const lift = cue.goal ? 1.2 + dist * 0.12 : 0.55 + dist * 0.16;
-  useFrame(({ clock }) => {
+  // who the ball flies over (owner, t204u): it hangs in the air over them so they can jump for it
+  const over = useMemo(() => (cue.goal ? [] : overMen(cue.from, cue.to, units)), [cue.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    FLIGHT.id = cue.id;
+    FLIGHT.active = true;
+    FLIGHT.side = cue.side ?? "w";
+    FLIGHT.from = cue.from;
+    FLIGHT.to = cue.to;
+    FLIGHT.u = 0;
+    FLIGHT.over = over;
+    FLIGHT.steal = null;
+    return () => {
+      if (FLIGHT.id === cue.id) {
+        FLIGHT.active = false;
+        FLIGHT.over = [];
+        FLIGHT.steal = null;
+      }
+    };
+  }, [cue.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useFrame(({ clock }, rawDt) => {
     const node = ref.current;
     if (!node) return;
     const now = clock.elapsedTime;
-    if (born.current == null) born.current = now;
-    const u = Math.min(1, (now - born.current) / dur);
-    node.position.set(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u + Math.sin(u * Math.PI) * lift, a.z + (b.z - a.z) * u);
-    node.rotation.set(0, Math.atan2(b.x - a.x, b.z - a.z), 0);
-    node.rotateX(u * 14);
+    const dt = Math.min(0.05, rawDt) / slowMo();
+    const st = FLIGHT.id === cue.id ? FLIGHT.steal : null;
+    if (st && !grab.current) grab.current = { t: 0, from: node.position.clone(), to: st.at.clone() };
+    const g = grab.current;
+    if (g) {
+      // picked off: the ball snaps into the jumper's hands
+      g.t += dt / 0.2;
+      node.position.lerpVectors(g.from, g.to, Math.min(1, g.t));
+      node.rotateX(dt * 10);
+    } else {
+      const slow = over.some((m) => Math.abs(prog.current - m.u) < SLOW_BAND);
+      prog.current = Math.min(1, prog.current + (dt / dur) * (slow ? SLOW_SPEED : 1));
+      const u = prog.current;
+      node.position.set(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u + Math.sin(u * Math.PI) * lift, a.z + (b.z - a.z) * u);
+      node.rotation.set(0, Math.atan2(b.x - a.x, b.z - a.z), 0);
+      node.rotateX(u * 14);
+      if (FLIGHT.id === cue.id) {
+        FLIGHT.u = u;
+        FLIGHT.pos.copy(node.position);
+      }
+    }
     BALL_TRACK.pos.copy(node.position);
     BALL_TRACK.seen = now;
     BALL_TRACK.lock = now + 0.05;
-    if (u >= 1 && !done.current) {
+    if ((g ? g.t >= 1 : prog.current >= 1) && !done.current) {
       done.current = true;
+      if (FLIGHT.id === cue.id) FLIGHT.active = false;
       onDone();
     }
   });
