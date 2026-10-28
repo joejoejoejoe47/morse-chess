@@ -22,36 +22,74 @@ import { crownById, legoPartById } from "@/lib/avatar/catalog";
  * Picking all five from one figure gives back that figure exactly.
  */
 
-/** Bare skull of each figure in its own file (figure height 1, facing +z): centre x/z, top y, radius. */
 /**
- * `gear`: the head is a helmet or mask with no bare skull under it. It stays as it is and
- * a hat sits on top of it instead, at the gear's top and width.
- * `cut`: where hidden headgear starts, when it differs from the skull (top y, radius share).
+ * The minifig skeleton of every figure file (figure height 1, facing +z), measured from
+ * its geometry (tools: lgtable.mjs), not guessed:
+ * - `skull`: the bare head that sits on the neck: centre x/z, `y` the bottom of the head
+ *   (where it meets the torso: the neck), `r` its radius. `top` (the head's top, under the
+ *   stud) is worked out from those. A body figure's skull is also where its neck is.
+ * - `legs`: the figure's own pair of legs: centre `x`, hip height `top` (floor is y=0),
+ *   width `w`, and `z` the hip axle the legs swing on.
+ * - `hipZ`: the centre of the hips (the bottom of the torso piece), front to back.
+ *
+ * Every minifig head is the same size next to its torso (skull radius is a third of the
+ * hip width, in every file that has a plain head), so a borrowed head is scaled to the body
+ * figure's own skull. Several files carry their legs set back from the hips (the Space
+ * Police, Blacktron and Bomb Glider files have them 0.065 behind), so legs are placed by
+ * the hips, not by where the body figure's own legs were.
  */
 type Skull = {
   x: number;
   z: number;
-  top: number;
+  /** Bottom of the head: the neck. */
+  y: number;
   r: number;
+  /** Top of the head (below the stud): where a hat sits. */
+  top: number;
+  /** The head is a helmet or mask that stays on; a hat sits on top of it, at the gear's top and width. */
   gear?: { top: number; r: number };
+  /** Where hidden headgear starts, when it differs from the skull (top y, radius share). */
   cut?: { top?: number; r?: number };
-  /** Shrink an oversized helmet head to minifig size (gear heads only). */
-  size?: number;
 };
-export const SKULL: Record<string, Skull> = {
-  "captain-america.glb": { x: -0.07, z: -0.155, top: 0.968, r: 0.13 },
-  "spiderman.glb": { x: -0.006, z: -0.043, top: 0.95, r: 0.12 },
-  "ironman.glb": { x: 0, z: -0.01, top: 0.97, r: 0.13, gear: { top: 1.0, r: 0.155 } },
-  "blackpanther.glb": { x: -0.01, z: -0.01, top: 0.95, r: 0.13, gear: { top: 0.97, r: 0.165 }, size: 0.88 },
-  "wizard.glb": { x: 0.13, z: -0.047, top: 0.8, r: 0.105 },
-  "space-police.glb": { x: 0.028, z: -0.035, top: 0.88, r: 0.112, cut: { top: 0.9, r: 0.98 } },
-  "widow.glb": { x: 0.01, z: -0.17, top: 0.93, r: 0.1 },
-  "skeleton.glb": { x: 0, z: 0, top: 0.84, r: 0.125, cut: { top: 0.76, r: 1.0 } },
-  "blacktron.glb": { x: 0, z: 0, top: 0.93, r: 0.12, gear: { top: 0.99, r: 0.15 } },
-  "insectoid.glb": { x: 0, z: 0, top: 0.92, r: 0.12, gear: { top: 1.0, r: 0.165 } },
-  "gigabot.glb": { x: 0, z: 0, top: 0.92, r: 0.12 },
-  "doom-bigbrick.glb": { x: 0, z: 0.05, top: 0.86, r: 0.11, cut: { r: 0.95 } },
+type Rig = { skull: Skull; legs: { x: number; top: number; w: number; z: number }; hipZ: number };
+const skull = (x: number, z: number, y: number, r: number, more: Partial<Skull> = {}): Skull => ({ x, z, y, r, top: y + 1.9 * r, ...more });
+const RIG: Record<string, Rig> = {
+  "captain-america.glb": { skull: skull(-0.072, -0.173, 0.72, 0.13), legs: { x: -0.072, top: 0.368, w: 0.39, z: -0.174 }, hipZ: -0.173 },
+  "spiderman.glb": { skull: skull(0, -0.043, 0.713, 0.126), legs: { x: 0, top: 0.366, w: 0.381, z: -0.043 }, hipZ: -0.043 },
+  "ironman.glb": {
+    skull: skull(0, -0.018, 0.665, 0.118, { gear: { top: 1.0, r: 0.155 } }),
+    legs: { x: 0, top: 0.341, w: 0.355, z: -0.012 },
+    hipZ: -0.018,
+  },
+  // A mask with no bare skull under it, much bigger than a minifig head: its radius here is
+  // the skull it stands for, so it comes out helmet-sized.
+  "blackpanther.glb": {
+    skull: skull(0, -0.03, 0.52, 0.17, { top: 0.84, gear: { top: 0.97, r: 0.2 } }),
+    legs: { x: -0.001, top: 0.172, w: 0.373, z: -0.029 },
+    hipZ: -0.033,
+  },
+  "wizard.glb": { skull: skull(0.127, -0.05, 0.616, 0.111), legs: { x: 0.127, top: 0.314, w: 0.334, z: -0.05 }, hipZ: -0.05 },
+  "space-police.glb": {
+    skull: skull(-0.004, -0.055, 0.685, 0.118, { cut: { top: 0.9, r: 0.98 } }),
+    legs: { x: -0.004, top: 0.339, w: 0.357, z: -0.12 },
+    hipZ: -0.055,
+  },
+  "widow.glb": { skull: skull(-0.014, -0.202, 0.682, 0.123), legs: { x: -0.014, top: 0.348, w: 0.369, z: -0.203 }, hipZ: -0.202 },
+  "skeleton.glb": { skull: skull(0, 0, 0.629, 0.116, { cut: { top: 0.76, r: 1.08 } }), legs: { x: 0, top: 0.3, w: 0.321, z: 0.031 }, hipZ: 0 },
+  "blacktron.glb": {
+    skull: skull(0.009, -0.054, 0.691, 0.119, { gear: { top: 0.99, r: 0.15 } }),
+    legs: { x: 0.009, top: 0.342, w: 0.36, z: -0.119 },
+    hipZ: -0.054,
+  },
+  "insectoid.glb": {
+    skull: skull(0, -0.053, 0.686, 0.116, { gear: { top: 1.0, r: 0.165 } }),
+    legs: { x: 0, top: 0.329, w: 0.349, z: -0.116 },
+    hipZ: -0.053,
+  },
+  "gigabot.glb": { skull: skull(0, -0.09, 0.675, 0.123), legs: { x: 0, top: 0.349, w: 0.37, z: -0.056 }, hipZ: -0.036 },
+  "doom-bigbrick.glb": { skull: skull(0, 0.031, 0.614, 0.095, { cut: { r: 1.1 } }), legs: { x: 0, top: 0.272, w: 0.26, z: -0.002 }, hipZ: 0.003 },
 };
+export const SKULL: Record<string, Skull> = Object.fromEntries(Object.entries(RIG).map(([f, rig]) => [f, rig.skull]));
 /**
  * Things a figure carries in its arm meshes, by material: `held` sits in the right hand
  * (hidden when a weapon is chosen), `face` belongs to that figure's own head (hidden when
@@ -76,7 +114,14 @@ const HEADGEAR: Record<string, { gear: string[]; back?: string[]; behind?: numbe
 const propNames = (file: string) => [...(PROPS[file]?.held ?? []), ...(PROPS[file]?.face ?? [])];
 const matName = (mesh: THREE.Mesh) => ((Array.isArray(mesh.material) ? mesh.material[0]?.name : mesh.material?.name) ?? "").trim();
 
-const skullOf = (file: string): Skull => SKULL[file] ?? { x: 0, z: 0, top: 0.95, r: 0.12 };
+const rigOf = (file: string): Rig => RIG[file] ?? RIG["spiderman.glb"];
+/** Ironman's hips are modelled inside his right leg (in the body's red). */
+/** Standard minifig leg proportion: hip height over hip width. */
+const LEG_RATIO = 0.94;
+/** Largest borrowed-head skull radius, as a share of the torso's hip width. */
+const MAX_HEAD_PER_HIP = 0.34;
+
+const HIP_IN_LEGS: Record<string, string> = { "ironman.glb": "Color_154" };
 
 
 const partFile = (id: string) => legoPartById(id).file;
@@ -213,11 +258,15 @@ export function LegoDress({
 
   const fig = useMemo(() => {
     const bodyFile = partFile(body);
-    const skullB = skullOf(bodyFile);
+    const legsFile = partFile(legs);
+    const headFile = partFile(head);
+    const B = rigOf(bodyFile);
+    const L = rigOf(legsFile);
+    const skullB = B.skull;
+    const skullH = rigOf(headFile).skull;
     const root = new THREE.Group();
 
     // Torso, arms and anything worn on them (cape, shield) come from the body figure.
-    const slotB = boxOf(bodyG.scene, LEGS);
     root.add(lift(bodyG.scene, ["body"].filter((n) => bodyG.scene.getObjectByName(n)), undefined));
     const torso = root.children[0];
     // The body's own head is not used here; the head figure provides it.
@@ -229,25 +278,35 @@ export function LegoDress({
       const mesh = node as THREE.Mesh;
       if (mesh.isMesh && hide.includes(matName(mesh))) mesh.visible = false;
     });
+    // Hips modelled inside a leg belong to the torso: keep them with their body, not with the legs.
+    const onlyMat = (group: THREE.Object3D, mat: string, keep: boolean) =>
+      group.traverse((node) => {
+        const mesh = node as THREE.Mesh;
+        if (mesh.isMesh && (matName(mesh) === mat) !== keep) mesh.visible = false;
+      });
+    if (HIP_IN_LEGS[bodyFile] && legsFile !== bodyFile) {
+      const hips = lift(bodyG.scene, LEGS);
+      onlyMat(hips, HIP_IN_LEGS[bodyFile], true);
+      root.add(hips);
+    }
 
-    // Legs: the leg figure's legs fill the body figure's leg space.
+    // Legs: scaled to the body's hip width, hip axle under the centre of the hips, tops at the
+    // hip line, and the whole figure is then stood on the floor. Legs are scaled evenly, except
+    // a pair modelled squatter than a standard minifig leg (hip height ~0.94 x hip width, e.g.
+    // Black Panther's) is drawn out to standard height so every figure stands the same.
     const legsL = lift(legsG.scene, LEGS);
-    const slotL = boxOf(legsG.scene, LEGS);
-    const sB = slotB.getSize(new THREE.Vector3());
-    const sL = slotL.getSize(new THREE.Vector3());
-    const cB = slotB.getCenter(new THREE.Vector3());
-    const cL = slotL.getCenter(new THREE.Vector3());
-    const k = new THREE.Vector3(sB.x / (sL.x || 1), sB.y / (sL.y || 1), sB.z / (sL.z || 1));
+    if (HIP_IN_LEGS[legsFile] && legsFile !== bodyFile) onlyMat(legsL, HIP_IN_LEGS[legsFile], false);
+    const k = B.legs.w / L.legs.w;
     const legsHolder = new THREE.Group();
     legsHolder.add(legsL);
-    legsL.position.set(-cL.x, -slotL.min.y, -cL.z);
-    legsHolder.scale.copy(k);
-    legsHolder.position.set(cB.x, slotB.min.y, cB.z);
+    legsL.position.set(-L.legs.x, -L.legs.top, -L.legs.z);
+    const ky = k * Math.max(1, (LEG_RATIO * L.legs.w) / L.legs.top);
+    legsHolder.scale.set(k, ky, k);
+    legsHolder.position.set(B.legs.x, B.legs.top, B.hipZ);
     root.add(legsHolder);
+    const floor = B.legs.top - L.legs.top * ky;
 
-    // Head: the head figure's skull lands on the body figure's skull.
-    const headFile = partFile(head);
-    const skullH = skullOf(headFile);
+    // Head: scaled to the body's own head size, the bottom of the skull centred on the neck.
     const headN = lift(headG.scene, ["head"], hasHat && !skullH.gear ? { skull: skullH } : undefined);
     if (hasHat)
       headN.traverse((node) => {
@@ -271,25 +330,27 @@ export function LegoDress({
           mesh.material = Array.isArray(mesh.material) ? two : two[0];
         }
       });
-    const hk = (skullB.r / skullH.r) * (skullH.gear ? (skullH.size ?? 1) : 1);
+    // A borrowed head is never bigger than a standard minifig head for the torso (skull radius
+    // ~1/3 of hip width): Black Panther's own oversized cat head stays only on its own body.
+    const headR = headFile === bodyFile ? skullB.r : Math.min(skullB.r, MAX_HEAD_PER_HIP * B.legs.w);
+    const hk = headR / skullH.r;
     const headHolder = new THREE.Group();
     headHolder.add(headN);
-    headN.position.set(-skullH.x, -(skullH.top - 2 * skullH.r), -skullH.z);
+    headN.position.set(-skullH.x, -skullH.y, -skullH.z);
     headHolder.scale.setScalar(hk);
-    headHolder.position.set(skullB.x, skullB.top - 2 * skullB.r, skullB.z);
+    headHolder.position.set(skullB.x, skullB.y, skullB.z);
     root.add(headHolder);
 
     // Where the hat goes: on the skull, or on top of a helmet the head keeps.
-    const hatAt: Skull = skullH.gear
-      ? { x: skullB.x, z: skullB.z, top: skullB.top + (skullH.gear.top - skullH.top) * hk, r: skullH.gear.r * hk }
-      : skullB;
-    const unit = sB.x;
-    return { root, skull: skullB, hatAt, hand: handOf(bodyG.scene, unit, propNames(bodyFile)), unit };
-  }, [bodyG.scene, headG.scene, legsG.scene, body, head, hasHat, weapon]);
+    const top = skullH.gear ?? skullH;
+    const hatAt: Skull = { x: skullB.x, z: skullB.z, y: skullB.y, top: skullB.y + (top.top - skullH.y) * hk, r: top.r * hk };
+    const unit = B.legs.w;
+    return { root, skull: skullB, floor, hatAt, hand: handOf(bodyG.scene, unit, propNames(bodyFile)), unit };
+  }, [bodyG.scene, headG.scene, legsG.scene, body, head, legs, hasHat, weapon]);
 
   return (
     <group position={[0, 0, 1.2]} scale={1.15}>
-      <group position={[-fig.skull.x, 0, -fig.skull.z]}>
+      <group position={[-fig.skull.x, -fig.floor, -fig.skull.z]}>
         <primitive object={fig.root} />
         {hasHat ? (
           <group position={[fig.hatAt.x, fig.hatAt.top, fig.hatAt.z]}>

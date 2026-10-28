@@ -15,7 +15,7 @@ import type { Side } from "@/lib/mores-constants";
 import { boardById, boardUsesFinePieces, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
 import { ShieldBadge } from "@/components/chess/marks";
-import { SculptedPiece, KingCrown } from "@/components/chess/sculpted-piece";
+import { SculptedPiece, KingCrown, STAUNTON_HEAD } from "@/components/chess/sculpted-piece";
 import { AvPiece, lookLoadout, setPaints, type SetPaint } from "@/components/chess/av-set";
 import { RaCorpse, RaPawn, raUnitUrl } from "@/components/chess/ra-men";
 import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
@@ -655,10 +655,11 @@ function AnimatedPiece({
             type={type}
             color={color}
             ink={INK_BOARDS.has(skin.id) ? (color === "w" ? "#f7f4ee" : "#14110e") : undefined}
+            crowned={type === "k" && !!gear?.crownId && gear.crownId !== "none"}
           />
           {type === "k" && gear?.crownId && gear.crownId !== "none" ? (
             <group position={[0, 0.92, 0]} rotation={[0, color === "w" ? Math.PI : 0, 0]}>
-              <KingCrown id={gear.crownId} team={color} />
+              <KingCrown id={gear.crownId} team={color} head={STAUNTON_HEAD[color]} />
             </group>
           ) : null}
         </>
