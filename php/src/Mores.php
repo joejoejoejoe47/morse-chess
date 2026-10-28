@@ -236,12 +236,17 @@ final class Mores
         };
         [$wBoard, $wStyle] = $look($white);
         [$bBoard, $bStyle] = $look($black);
+        // Ratings as the game starts: the coin rule pays 5 for beating a player who was "very high" at the start.
+        $wStart = Db::value('SELECT score FROM profiles WHERE user_id = ? LIMIT 1', [$white]);
+        $bStart = Db::value('SELECT score FROM profiles WHERE user_id = ? LIMIT 1', [$black]);
         Db::run(
             "INSERT INTO games (id, white_user_id, black_user_id, mode, fen, status, turn, turn_started_at, created_at,
-                                white_clock_ms, black_clock_ms, pull, clock_ms, white_board, black_board, white_style, black_style, source)
-             VALUES (?, ?, ?, ?, ?, 'active', 'w', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                white_clock_ms, black_clock_ms, pull, clock_ms, white_board, black_board, white_style, black_style, source,
+                                white_start_score, black_start_score)
+             VALUES (?, ?, ?, ?, ?, 'active', 'w', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [$id, $white, $black, $mode, $chess->fen(), $now, $now, $clockMs, $clockMs, $pull ? 1 : 0,
-             $clockMs, $wBoard, $bBoard, $wStyle, $bStyle, $source]
+             $clockMs, $wBoard, $bBoard, $wStyle, $bStyle, $source,
+             $wStart === null ? null : (int) $wStart, $bStart === null ? null : (int) $bStart]
         );
         return $id;
     }
@@ -320,12 +325,12 @@ final class Mores
         $game['scored'] = 1;
     }
 
-    private static function finishGame(array &$game, string $status, ?string $winnerUserId): void
+    private static function finishGame(array &$game, string $status, ?string $winnerUserId, bool $checkmate = false): void
     {
         if ($game['status'] !== 'active') {
             return;
         }
-        $applied = Db::transaction(static function () use (&$game, $status, $winnerUserId): bool {
+        $applied = Db::transaction(static function () use (&$game, $status, $winnerUserId, $checkmate): bool {
             $changed = Db::run(
                 "UPDATE games SET status = ?, winner_user_id = ?, scored = 1 WHERE id = ? AND status = 'active'",
                 [$status, $winnerUserId, $game['id']]
@@ -333,6 +338,7 @@ final class Mores
             if ($changed === 0) {
                 return false; // someone else already settled this game
             }
+            self::payWinCoins($game, $winnerUserId, $checkmate);
             self::settleElo($game, $status, $winnerUserId);
             $game['status'] = $status;
             $game['winner_user_id'] = $winnerUserId;
@@ -365,53 +371,84 @@ final class Mores
             Db::run('UPDATE profiles SET bot_streak = 0 WHERE user_id = ?', [$humanId]);
             return;
         }
-        $row = Db::one('SELECT bot_streak FROM profiles WHERE user_id = ? LIMIT 1' . Db::forUpdate(), [$humanId]);
-        $streak = self::toInt($row['bot_streak'] ?? null, 0) + 1;
-        $award = 0;
-        $next = $streak;
-        if ($streak >= 6) {
-            $award = 5;
-            $next = 0;
-        }
-        Db::run('UPDATE profiles SET bot_streak = ?, coins = coins + ? WHERE user_id = ?', [$next, $award, $humanId]);
-        if ($award > 0) {
-            Db::run('UPDATE games SET coin_award = ? WHERE id = ?', [$award, $game['id']]);
-            $game['coin_award'] = $award;
-        }
+        // Win streak vs the bots is only counted now; it no longer pays coins (owner rule, Oct 28).
+        Db::run('UPDATE profiles SET bot_streak = bot_streak + 1 WHERE user_id = ?', [$humanId]);
     }
 
     /**
-     * Every finished game pays each human player 2 Morse coins (any piece style),
-     * counts the game toward the RA free-trial schedule, and ends a used RA trial.
+     * Counts a finished game for each human player (RA free-trial schedule) and ends a used RA trial.
+     * No coins here: coins come only from payWinCoins.
      */
     private static function awardStyleCoin(array &$game, ?string $winnerUserId): void
     {
-        $mine = 0;
         foreach ([(string) $game['white_user_id'], (string) $game['black_user_id']] as $uid) {
             if ($uid === '' || Constants::isBotUserId($uid)) {
                 continue;
             }
             self::countFinishedGame($uid);
-            if ($uid === $winnerUserId) {
-                $mine = 2;
-            }
         }
-        if ($mine === 0) {
-            return;
-        }
-        $next = self::toInt($game['coin_award'] ?? null, 0) + $mine;
-        Db::run('UPDATE games SET coin_award = ? WHERE id = ?', [$next, $game['id']]);
-        $game['coin_award'] = $next;
     }
 
-    /** +2 coins, +1 game played; a player who used a free RA trial goes back to 3d. */
+    /**
+     * The ONE place game coins are paid (owner rule, Oct 28):
+     *  - the winner gets COINS_WIN_HIGH (5) if the loser's rating at game start was >= HIGH_SCORE_AT, else COINS_WIN (2);
+     *  - losers, draws and bots get nothing; nobody pays a stake to play;
+     *  - "aborted" games (resign / clock before COINS_MIN_PLIES half-moves) pay nothing; checkmate always counts;
+     *  - vs MorseBot / MorseBotv2: paid by the bot's rating like anyone else, but only for checkmate
+     *    (a bot only "runs out of time" when the player stops watching the game);
+     *  - paid at most once per game: games.coin_award is set with a conditional UPDATE in the same transaction.
+     * Must run inside the transaction that moves the game out of 'active', before Elo changes the ratings.
+     */
+    public static function payWinCoins(array &$game, ?string $winnerUserId, bool $checkmate): int
+    {
+        $white = (string) $game['white_user_id'];
+        $black = (string) $game['black_user_id'];
+        if ($winnerUserId === null || $winnerUserId === '' || $white === $black) {
+            return 0;
+        }
+        if ($winnerUserId !== $white && $winnerUserId !== $black) {
+            return 0;
+        }
+        if (Constants::isBotUserId($winnerUserId)) {
+            return 0;
+        }
+        $loserId = $winnerUserId === $white ? $black : $white;
+        $vsBot = Constants::isBotUserId($loserId);
+        if (!$checkmate) {
+            if ($vsBot) {
+                return 0;
+            }
+            $plies = (int) Db::value('SELECT COUNT(*) FROM game_moves WHERE game_id = ?', [$game['id']]);
+            if ($plies < Constants::COINS_MIN_PLIES) {
+                return 0;
+            }
+        }
+        $startKey = $loserId === $white ? 'white_start_score' : 'black_start_score';
+        $start = $game[$startKey] ?? null;
+        if ($start === null || $start === '') {
+            // Games started before the start ratings were stored: the loser's rating before this result.
+            $start = Db::value('SELECT score FROM profiles WHERE user_id = ? LIMIT 1', [$loserId]);
+        }
+        $amount = self::toInt($start, Constants::START_SCORE) >= Constants::HIGH_SCORE_AT
+            ? Constants::COINS_WIN_HIGH
+            : Constants::COINS_WIN;
+        $claimed = Db::run('UPDATE games SET coin_award = ? WHERE id = ? AND coin_award = 0', [$amount, $game['id']]);
+        if ($claimed !== 1) {
+            return 0; // already paid
+        }
+        Db::run('UPDATE profiles SET coins = coins + ? WHERE user_id = ?', [$amount, $winnerUserId]);
+        $game['coin_award'] = $amount;
+        return $amount;
+    }
+
+    /** +1 game played; a player who used a free RA trial goes back to 3d. */
     public static function countFinishedGame(string $userId): void
     {
         $row = Db::one('SELECT piece_style, owned_gear FROM profiles WHERE user_id = ? LIMIT 1' . Db::forUpdate(), [$userId]);
         if ($row === null) {
             return;
         }
-        Db::run('UPDATE profiles SET coins = coins + 2, games_played = games_played + 1 WHERE user_id = ?', [$userId]);
+        Db::run('UPDATE profiles SET games_played = games_played + 1 WHERE user_id = ?', [$userId]);
         $owned = self::ownedList($row['owned_gear'] ?? '');
         if ((string) ($row['piece_style'] ?? '') === 'ra' && !in_array('royal', $owned, true)) {
             Db::run("UPDATE profiles SET piece_style = '3d' WHERE user_id = ?", [$userId]);
@@ -713,6 +750,9 @@ final class Mores
             $game['winner_user_id'] = $winner;
 
             if ($status === 'white_win' || $status === 'black_win' || $status === 'draw') {
+                if ($winner !== null) {
+                    self::payWinCoins($game, $winner, true);
+                }
                 self::settleElo($game, $status, $winner);
             }
             return null;
@@ -771,7 +811,7 @@ final class Mores
             }
             if ($position->isCheckmate()) {
                 $winner = (string) ($botSide === 'w' ? $game['black_user_id'] : $game['white_user_id']);
-                self::finishGame($game, $botSide === 'w' ? 'black_win' : 'white_win', $winner);
+                self::finishGame($game, $botSide === 'w' ? 'black_win' : 'white_win', $winner, true);
             } else {
                 self::finishGame($game, 'draw', null);
             }

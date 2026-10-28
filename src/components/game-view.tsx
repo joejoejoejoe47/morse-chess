@@ -249,6 +249,9 @@ function ResultOverlay({ game }: { game: GameSnapshot }) {
               : `Elo ${formatEloDelta(game.scorePrize ?? 0)} for the loss.`}
         </p>
         <p className="mt-1 font-mono text-lg tabular-nums text-ivory">Elo {game.myScore}</p>
+        {won && game.coinAward > 0 ? (
+          <p className="mt-2 text-base text-[#f6e7b2]">+{game.coinAward} Morse coins</p>
+        ) : null}
         {again ? (
           <div className="mt-6 space-y-2">
             <p className="text-sm text-mist">Asking everyone at the boards.</p>

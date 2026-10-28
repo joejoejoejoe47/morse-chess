@@ -194,31 +194,108 @@ check(Db::value('SELECT COUNT(*) FROM game_moves WHERE game_id = ?', [$gid]) == 
 Mores::resignGame($white, ['gameId' => $gid]);
 check((int) Db::value("SELECT score FROM profiles WHERE user_id = ?", [$black]) === $eloAfter[1], 'resign after mate does not re-score');
 
-// ── resign (coins for the winner on the 3d piece style) ────────────────────
+// ── coins (owner rule Oct 28): win vs 1500+ at start = 5, win vs anyone else = 2, else nothing ──
+function purse(string $u): int
+{
+    return (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', [$u]);
+}
+/** Play $n quiet half-moves (knights out and back) so a resign is not an "aborted" game. */
+function shuffle_knights(string $gid, string $white, string $black, int $n): void
+{
+    $w = [['g1', 'f3'], ['f3', 'g1']];
+    $b = [['g8', 'f6'], ['f6', 'g8']];
+    for ($i = 0; $i < $n; $i++) {
+        $m = $i % 2 === 0 ? $w[intdiv($i, 2) % 2] : $b[intdiv($i, 2) % 2];
+        $r = Mores::makeMove($i % 2 === 0 ? $white : $black, ['gameId' => $gid, 'from' => $m[0], 'to' => $m[1]]);
+        check($r['ok'] === true, "shuffle move $i");
+    }
+}
+// the fool's mate above: black won by checkmate vs a 1200 player -> +2, white (loser) nothing
+check((int) Db::value('SELECT coin_award FROM games WHERE id = ?', [$gid]) === 2, 'checkmate win vs a normal score pays 2');
+
+// resign after a real game, normal opponent -> winner +2, loser 0
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
-$coinsBefore = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']);
-$aliceCoinsBefore = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['alice']);
+Db::run('UPDATE profiles SET score = 1200 WHERE user_id IN (?, ?)', ['alice', 'bob']);
+Db::run('UPDATE games SET white_start_score = 1200, black_start_score = 1200 WHERE id = ?', [$gid]);
+shuffle_knights($gid, $white, $black, 6);
+$coinsBefore = purse('bob');
+$aliceCoinsBefore = purse('alice');
 $bobPlayedBefore = (int) Db::value('SELECT games_played FROM profiles WHERE user_id = ?', ['bob']);
 Db::run("UPDATE profiles SET piece_style = 'an' WHERE user_id IN ('alice', 'bob')");
 $snap = Mores::resignGame('alice', ['gameId' => $gid]);
 check($snap['status'] === ($white === 'alice' ? 'black_win' : 'white_win') && $snap['winnerUserId'] === 'bob', 'resign hands the win to the other side');
-check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']) === $coinsBefore + 2, 'winner gets +2 Morse coins');
+check(purse('bob') === $coinsBefore + 2, 'win vs a normal score: +2 Morse coins');
 $bobSnap = Mores::getGame('bob', ['gameId' => $gid]);
 $aliceSnap = Mores::getGame('alice', ['gameId' => $gid]);
 check($bobSnap['coinAward'] === 2 && $aliceSnap['coinAward'] === 0, 'coinAward shown to winner only');
 check($bobSnap['coins'] === $coinsBefore + 2, 'snapshot carries purse');
-check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['alice']) === $aliceCoinsBefore + 2, 'loser also gets +2 Morse coins');
+check(purse('alice') === $aliceCoinsBefore, 'loser (resigned) gets 0 coins');
 check((int) Db::value('SELECT games_played FROM profiles WHERE user_id = ?', ['bob']) === $bobPlayedBefore + 1, 'finished game counts toward games played');
 check(Mores::resignGame('cara', ['gameId' => $gid]) === null, 'outsider resign -> null');
 check(Mores::resignGame('alice', ['gameId' => 'zzz']) === null, 'resign unknown -> null');
+// double submit: resign again, timeout claim, direct payout call -> still paid once
+Mores::resignGame('alice', ['gameId' => $gid]);
+Mores::resignGame('bob', ['gameId' => $gid]);
+Mores::claimTimeout('bob', ['gameId' => $gid]);
+$row = Db::one('SELECT * FROM games WHERE id = ?', [$gid]);
+check(Mores::payWinCoins($row, 'bob', true) === 0, 'payWinCoins refuses a game that already paid');
+check(purse('bob') === $coinsBefore + 2 && purse('alice') === $aliceCoinsBefore, 'double submit pays once');
 
-// 2d piece style: coins too (every finished game pays 2)
+// win vs a very high score (rating at START >= 1500) -> +5
+[$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
+Db::run('UPDATE games SET white_start_score = ?, black_start_score = ? WHERE id = ?',
+    [$white === 'alice' ? 1600 : 1200, $white === 'alice' ? 1200 : 1600, $gid]);
+Db::run("UPDATE profiles SET score = 1200 WHERE user_id = 'alice'"); // dropped since the start: the start rating counts
+shuffle_knights($gid, $white, $black, 6);
+$coinsBefore = purse('bob');
+$aliceCoinsBefore = purse('alice');
+Mores::resignGame('alice', ['gameId' => $gid]);
+check(purse('bob') === $coinsBefore + 5, 'win vs a very high score (1600 at start): +5');
+check(purse('alice') === $aliceCoinsBefore, 'high-score loser gets 0');
+check(Mores::getGame('bob', ['gameId' => $gid])['coinAward'] === 5, 'coinAward 5 shown');
+
+// exactly at the line: 1500 counts as very high; 1499 does not
+[$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
+Db::run('UPDATE games SET white_start_score = 1499, black_start_score = 1499 WHERE id = ?', [$gid]);
+shuffle_knights($gid, $white, $black, 6);
+$coinsBefore = purse('bob');
+Mores::resignGame('alice', ['gameId' => $gid]);
+check(purse('bob') === $coinsBefore + 2, '1499 is normal: +2');
+[$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
+check(Db::value('SELECT white_start_score FROM games WHERE id = ?', [$gid]) !== null, 'start rating stored when the game starts');
+Db::run('UPDATE games SET white_start_score = 1500, black_start_score = 1500 WHERE id = ?', [$gid]);
+shuffle_knights($gid, $white, $black, 6);
+$coinsBefore = purse('bob');
+Mores::resignGame('alice', ['gameId' => $gid]);
+check(purse('bob') === $coinsBefore + 5, '1500 is very high: +5');
+
+// aborted: resign before 6 half-moves -> nobody gets coins
+[$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
+shuffle_knights($gid, $white, $black, 2);
+$coinsBefore = purse('bob');
+$aliceCoinsBefore = purse('alice');
+Mores::resignGame('alice', ['gameId' => $gid]);
+check(purse('bob') === $coinsBefore && purse('alice') === $aliceCoinsBefore, 'early resign (aborted game) pays 0');
+
+// 2d piece style: same rule
 Db::run("UPDATE profiles SET piece_style = '2d' WHERE user_id = 'bob'");
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
-$coinsBefore = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']);
+Db::run('UPDATE games SET white_start_score = 1200, black_start_score = 1200 WHERE id = ?', [$gid]);
+shuffle_knights($gid, $white, $black, 6);
+$coinsBefore = purse('bob');
 Mores::resignGame('alice', ['gameId' => $gid]);
-check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['bob']) === $coinsBefore + 2, '2d style also earns 2 coins');
+check(purse('bob') === $coinsBefore + 2, '2d style: win pays 2');
 Db::run("UPDATE profiles SET piece_style = '3d' WHERE user_id = 'bob'");
+
+// draw pays nothing
+[$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby');
+$a0 = purse('alice');
+$b0 = purse('bob');
+Db::run("UPDATE games SET fen = '7k/5Q2/6K1/8/8/8/8/8 w - - 0 1' WHERE id = ?", [$gid]);
+$wq = Mores::makeMove($white, ['gameId' => $gid, 'from' => 'g6', 'to' => 'h6']);
+$st = Mores::getGame($white, ['gameId' => $gid])['status'];
+check($st === 'draw', "stalemate is a draw ($st)");
+check(purse('alice') === $a0 && purse('bob') === $b0, 'draw pays 0 coins');
 
 // ── timeout claim ──────────────────────────────────────────────────────────
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby', 'timed');
@@ -325,7 +402,7 @@ check($pick !== null && $pick['from'] === 'a1' && $pick['to'] === 'a8', 'bot fin
 check(Mores::pickBotMove('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1', 'b', 'v1') === null, 'no move in stalemate');
 check(Mores::pickBotMove('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'b', 'v1') === null, 'bot refuses to move out of turn');
 
-// bot streak + 5 coins after six bot wins (bot flags on its own clock)
+// bots: a bot flagging (player stopped watching) pays nothing, even on a long streak
 Db::run('UPDATE profiles SET bot_streak = 5, coins = 0 WHERE user_id = ?', ['cara']);
 $gid = Mores::startBotGame('cara', ['mode' => 'timed', 'bot' => 'v1'])['gameId'];
 $g = Mores::getGame('cara', ['gameId' => $gid]);
@@ -336,8 +413,32 @@ if ($g['you'] === 'w') {
     Db::run('UPDATE games SET turn_started_at = ?, white_clock_ms = 1000 WHERE id = ?', [Db::ts(Db::nowMs() - 2000), $gid]);
 }
 $s = Mores::claimTimeout('cara', ['gameId' => $gid]);
-check($s['winnerUserId'] === 'cara' && $s['coinAward'] === 7, 'sixth win in a row pays 5 + 2 Morse coins');
-check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['cara']) === 7 && (int) Db::value('SELECT bot_streak FROM profiles WHERE user_id = ?', ['cara']) === 0, 'streak resets after payout');
+check($s['winnerUserId'] === 'cara' && $s['coinAward'] === 0, 'bot timeout win pays 0 (no streak bonus either)');
+check((int) Db::value('SELECT coins FROM profiles WHERE user_id = ?', ['cara']) === 0, 'no coins from bot streaks');
+// checkmating MorseBot pays by the bot's start rating (both bots are 1500+ -> 5)
+$gid = Mores::startBotGame('cara', ['mode' => 'breeze', 'bot' => 'v1'])['gameId'];
+$g = Mores::getGame('cara', ['gameId' => $gid]);
+$botStart = (int) Db::value('SELECT ' . ($g['you'] === 'w' ? 'black' : 'white') . '_start_score FROM games WHERE id = ?', [$gid]);
+check($botStart >= Constants::HIGH_SCORE_AT, "MorseBot starts very high ($botStart)");
+if ($g['you'] === 'w') {
+    Db::run("UPDATE games SET fen = '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', turn = 'w' WHERE id = ?", [$gid]);
+    $mate = Mores::makeMove('cara', ['gameId' => $gid, 'from' => 'a1', 'to' => 'a8']);
+} else {
+    Db::run("UPDATE games SET fen = 'r5k1/8/8/8/8/8/5PPP/6K1 b - - 0 1', turn = 'b' WHERE id = ?", [$gid]);
+    $mate = Mores::makeMove('cara', ['gameId' => $gid, 'from' => 'a8', 'to' => 'a1']);
+}
+check($mate['ok'] === true && $mate['game']['winnerUserId'] === 'cara', 'checkmated the bot');
+check(purse('cara') === 5 && $mate['game']['coinAward'] === 5, 'checkmate vs MorseBot (1500+) pays 5');
+Mores::resignGame('cara', ['gameId' => $gid]);
+check(purse('cara') === 5, 'resign after the mate changes nothing');
+// losing to the bot: no stake, no coins
+$gid = Mores::startBotGame('cara', ['mode' => 'breeze', 'bot' => 'v2'])['gameId'];
+check(purse('cara') === 5, 'starting a bot game takes no stake');
+Mores::resignGame('cara', ['gameId' => $gid]);
+check(purse('cara') === 5, 'losing to the bot pays 0');
+// self-play is never paid
+$self = ['id' => 'selfgame', 'white_user_id' => 'cara', 'black_user_id' => 'cara', 'white_start_score' => 9000, 'black_start_score' => 9000];
+check(Mores::payWinCoins($self, 'cara', true) === 0, 'self-play pays 0');
 // bot elo moves too
 check((int) Db::value("SELECT score FROM profiles WHERE user_id = 'bot-mores'") !== 1840, 'bot Elo is settled like any other player');
 
@@ -627,5 +728,15 @@ $threw = false;
 try { \Morse\Avatar::setLegacyKit('bob', ['on' => false]); } catch (\Throwable $e) { $threw = true; }
 check($threw, 'non-owners cannot toggle the kit');
 
+// ── Morse store sale still pays the seller (the one other way to get coins) ──
+\Morse\Store::register();
+Db::run("UPDATE profiles SET coins = 3 WHERE user_id = 'alice'");
+Db::run("UPDATE profiles SET coins = 10 WHERE user_id = 'bob'");
+$listing = \Morse\Store::createMarketListing('alice', ['kind' => 'av', 'name' => 'Test king', 'price' => 4, 'shot' => 'data:image/png;base64,' . str_repeat('A', 40), 'loadout' => []]);
+$sold = \Morse\Store::buyMarketListing('bob', ['id' => $listing['id']]);
+check($sold['coins'] === 6 && purse('bob') === 6, 'buyer pays the listing price');
+check(purse('alice') === 7, 'seller receives the coins for a store sale');
+check(fails(call([\Morse\Store::class, 'buyMarketListing'], 'bob', ['id' => $listing['id']]), 'That listing is gone.'), 'a sold listing cannot be bought twice');
+check(purse('alice') === 7 && purse('bob') === 6, 'second buy moves no coins');
 
 finish();

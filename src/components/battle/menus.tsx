@@ -76,7 +76,7 @@ export function MorseMenus(props: MenuProps) {
             </div>
           </div>
           <p className="purse">
-            <Coin /> {props.coins.toLocaleString()} Morse coins
+            <Coin /> {props.coins.toLocaleString()} battle coins
           </p>
           {props.note ? <p className="note">{props.note}</p> : null}
         </div>

@@ -38,12 +38,12 @@ export function CoinDock() {
     };
     pull();
     const timer = window.setInterval(pull, 4000);
-    const onAward = (event: Event) => {
-      const detail = (event as CustomEvent<{ coins: number }>).detail;
-      if (!detail) return;
+    // A win or a purchase just happened: play the coin flight, then show the server's purse
+    // (never a number worked out in the browser, so the counter can't jump around).
+    const onAward = () => {
       setFly(true);
       window.setTimeout(() => {
-        setCoins(detail.coins);
+        pull();
         setFly(false);
       }, 1200);
     };
