@@ -5,8 +5,8 @@ import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { asset } from "@/lib/base";
 import { DEFAULT_LOADOUT, finishById, parseLoadout, type AvatarLoadout, type KingFinish } from "@/lib/avatar/catalog";
-import { buildKing, shieldTexture } from "@/components/avatar/pedestal-king";
-import { KingCrown } from "@/components/chess/sculpted-piece";
+import { LEGACY_HEAD, buildKing, shieldTexture } from "@/components/avatar/pedestal-king";
+import { FINIAL_FROM, KingCrown, STAUNTON_HEAD, hideFinial } from "@/components/chess/sculpted-piece";
 
 /**
  * The AV set: in 3D every piece of a player follows the king they built in AV.
@@ -339,13 +339,14 @@ function KitMan({ type, paint }: { type: Exclude<PieceSymbol, "k">; paint: SetPa
 
 function KitKing({ paint }: { paint: SetPaint }) {
   const coronet = paint.crownId === "poly-band";
-  const king = useMemo(() => buildKing(paint.finish, coronet, paint.letter), [paint.finish, coronet, paint.letter]);
+  const bare = coronet || paint.crownId === "none";
+  const king = useMemo(() => buildKing(paint.finish, coronet, paint.letter, bare), [paint.finish, coronet, paint.letter, bare]);
   return (
     <group scale={0.9}>
       <primitive object={king} />
-      {coronet || paint.crownId === "none" ? null : (
+      {bare ? null : (
         <group position={[0, 0.94, 0]} scale={1.35}>
-          <KingCrown id={paint.crownId} team={paint.dark ? "b" : "w"} />
+          <KingCrown id={paint.crownId} team={paint.dark ? "b" : "w"} head={LEGACY_HEAD} />
         </group>
       )}
     </group>
@@ -353,7 +354,8 @@ function KitKing({ paint }: { paint: SetPaint }) {
 }
 
 /** The Staunton piece, painted in the AV king's colour. */
-export function PaintedStaunton({ type, color, finish }: { type: PieceSymbol; color: Color; finish: KingFinish }) {
+/** crowned: a crown is on, so the cross finial is pressed down out of its way. */
+export function PaintedStaunton({ type, color, finish, crowned = false }: { type: PieceSymbol; color: Color; finish: KingFinish; crowned?: boolean }) {
   const gltf = useGLTF(STAUNTON[color][type]);
   const scene = useMemo(() => {
     const obj = cloneSkeleton(gltf.scene);
@@ -372,12 +374,13 @@ export function PaintedStaunton({ type, color, finish }: { type: PieceSymbol; co
     });
     obj.updateMatrixWorld(true);
     const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+    if (crowned && type === "k") hideFinial(obj, FINIAL_FROM[color]);
     obj.scale.multiplyScalar(HEIGHT[type] / (size.y || 1));
     obj.updateMatrixWorld(true);
     obj.position.y -= new THREE.Box3().setFromObject(obj).min.y;
     obj.rotation.y = color === "w" ? Math.PI : 0;
     return obj;
-  }, [gltf.scene, type, color, finish.body, finish.metal]);
+  }, [gltf.scene, type, color, finish.body, finish.metal, crowned]);
   return <primitive object={scene} />;
 }
 
@@ -393,10 +396,10 @@ export function AvPiece({ type, color, paint }: { type: PieceSymbol; color: Colo
   }
   return (
     <>
-      <PaintedStaunton type={type} color={color} finish={paint.finish} />
+      <PaintedStaunton type={type} color={color} finish={paint.finish} crowned={!!paint.crownId && paint.crownId !== "none"} />
       {type === "k" && paint.crownId && paint.crownId !== "none" ? (
         <group position={[0, 0.92, 0]} rotation={[0, color === "w" ? Math.PI : 0, 0]}>
-          <KingCrown id={paint.crownId} team={paint.dark ? "b" : "w"} />
+          <KingCrown id={paint.crownId} team={paint.dark ? "b" : "w"} head={STAUNTON_HEAD[color]} />
         </group>
       ) : null}
     </>
