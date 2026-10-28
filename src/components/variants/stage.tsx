@@ -56,6 +56,8 @@ export type FieldOpts = {
   /** throw mode: show the goal-post target (field goal) */
   goal?: boolean;
   onGoal?: () => void;
+  /** the touchdown replay: players just move, no path/trail lines (owner, v4) */
+  replay?: boolean;
 };
 
 function Pigskin() {
@@ -383,7 +385,7 @@ function Deck({
       )}
       {squares}
       {arcs}
-      {stadium && cue && !cue.goal ? (
+      {stadium && cue && !cue.goal && !field?.replay ? (
         <FadingArc key={`cue${cue.id}`} from={spot(cue.from[0], cue.from[1], rows, cols, 0.3)} to={spot(cue.to[0], cue.to[1], rows, cols, 0.2)} color={cue.thrown ? "#ffe14a" : cue.side === "w" ? homeCol : awayCol} />
       ) : null}
       {stadium && field?.goal && sel ? <GoalTarget rows={rows} cols={cols} from={sel} /> : null}
