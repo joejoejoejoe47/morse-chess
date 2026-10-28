@@ -23,10 +23,6 @@ final class Kit
         if ($userId === '') {
             return $raw;
         }
-        $kit = self::of($userId);
-        if (!$kit['legacy']) {
-            return $raw;
-        }
         $data = [];
         if ($raw !== '') {
             $decoded = json_decode($raw, true);
@@ -34,6 +30,19 @@ final class Kit
                 return $raw;
             }
             $data = $decoded;
+        }
+        $off = !empty($data['legacyOff']);
+        unset($data['legacyOff']);
+        $kit = self::of($userId);
+        if (!$kit['legacy'] || $off) {
+            // Switched off ("Back to normal"): the regular set, and the legendary finish put away.
+            if ($off && ($data['finishId'] ?? '') === self::LEGACY) {
+                $data['finishId'] = 'king-onyx';
+            }
+            if (!$off) {
+                return $raw;
+            }
+            return $data === [] ? '' : (string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         }
         $data['kit'] = 'legacy';
         $data['letter'] = $kit['letter'];
