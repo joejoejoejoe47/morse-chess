@@ -383,3 +383,17 @@ ALTER TABLE `profiles` ADD COLUMN `football_json` TEXT NULL;
 -- Chess variants (owner t205u): '' = normal chess, else a Variants::IDS id. No coins, no rating.
 ALTER TABLE `games` ADD COLUMN `variant` VARCHAR(16) NOT NULL DEFAULT '';
 ALTER TABLE `challenges` ADD COLUMN `variant` VARCHAR(16) NOT NULL DEFAULT '';
+-- Football player vs player (owner t234u): the whole game, kept by the server (FootballMatch.php).
+CREATE TABLE IF NOT EXISTS `football_games` (
+  `id` VARCHAR(64) NOT NULL,
+  `white_user_id` VARCHAR(64) NOT NULL,
+  `black_user_id` VARCHAR(64) NOT NULL,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'active',
+  `state` MEDIUMTEXT NOT NULL,
+  `rev` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL,
+  `updated_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `football_games_white_idx` (`white_user_id`, `status`),
+  KEY `football_games_black_idx` (`black_user_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

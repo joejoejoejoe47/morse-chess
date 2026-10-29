@@ -7,11 +7,15 @@ import { getHomeState } from "@/lib/server/mores";
 import { canPlayGame } from "@/lib/games/release";
 
 export const Route = createFileRoute("/variant/$mode")({
+  // ?game=<id>: a Football game vs another player (t234u), kept by the server
+  validateSearch: (search: Record<string, unknown>): { game?: string } =>
+    typeof search.game === "string" && /^[A-Za-z0-9-]{8,64}$/.test(search.game) ? { game: search.game } : {},
   component: VariantDoor,
 });
 
 function VariantDoor() {
   const { mode } = Route.useParams();
+  const { game } = Route.useSearch();
   const door = useClubDoor();
   const versus = useMemo(() => {
     try {
@@ -52,5 +56,5 @@ function VariantDoor() {
       </main>
     );
   }
-  return <VariantPlay mode={mode} versus={versus} />;
+  return <VariantPlay mode={mode} versus={versus} game={mode === "football" ? game : undefined} />;
 }

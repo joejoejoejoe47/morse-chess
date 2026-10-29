@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { TeamSetup } from "@/components/variants/team-setup";
-import { getFootballPrefs, saveFootballTeam, type FootballTeam } from "@/lib/server/football";
+import { getFootballPrefs, saveFootballTeam, sendFootballChallenge, type FootballTeam } from "@/lib/server/football";
 import { SplashSkeleton } from "@/components/auth-screen";
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
@@ -41,7 +41,7 @@ type Flow =
   | { kind: "variant-name"; intent: "random" | "challenge"; mode: VariantId }
   | { kind: "ask-name"; mode: GameMode; game?: string; variant?: RuleVariant }
   | { kind: "searching"; mode: GameMode }
-  | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string; variant?: RuleVariant };
+  | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string; variant?: RuleVariant; football?: boolean };
 
 /** The UNRANKED pull-up has two screens: the main 3x2 grid and "Other games" (owner t209u). */
 type PullScreen = "main" | "other";
@@ -87,6 +87,9 @@ export function ClubHome() {
         }
         if (next.activeGameId) {
           void navigate({ to: "/play/$gameId", params: { gameId: next.activeGameId } });
+        } else if (next.footballGameId) {
+          // a Football challenge was accepted (or you are still in that game): open it (t234u)
+          void navigate({ to: "/variant/$mode", params: { mode: "football" }, search: { game: next.footballGameId } });
         }
       } catch (e) {
         if (live) setLoadError(e instanceof Error ? e.message : "Could not load the club.");
@@ -107,7 +110,10 @@ export function ClubHome() {
       seenInvite.current = flow.challengeId;
       return;
     }
-    if (seenInvite.current === flow.challengeId) setFlow({ kind: "idle" });
+    if (seenInvite.current === flow.challengeId) {
+      if (flow.football && row?.status === "declined") setError(`${flow.username} said no to Football this time.`);
+      setFlow({ kind: "idle" });
+    }
   }, [home, flow]);
 
   // Sender side: the invitation lapsed (4 minutes) — clear the waiting state right away.
@@ -161,6 +167,33 @@ export function ClubHome() {
     }
     setFlow({ kind: "idle" });
     void navigate({ to: "/variant/$mode", params: { mode } });
+  }
+
+  /** Football with a username (t234u): a real challenge to that player. No name (or the bot) = vs the bot here. */
+  async function challengeFootball(name: string) {
+    const who = name.trim();
+    if (!who || /^morsebot/i.test(who)) {
+      launchVariant("football", who || "MorseBot");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await sendFootballChallenge({ data: { username: who } });
+      if (!res.ok) {
+        setError(res.error ?? "Could not send the challenge.");
+      } else if (res.bot) {
+        launchVariant("football", res.username ?? who);
+      } else if (res.gameId) {
+        void navigate({ to: "/variant/$mode", params: { mode: "football" }, search: { game: res.gameId } });
+      } else {
+        setFlow({ kind: "waiting", mode: "timed", username: res.username ?? who, challengeId: res.challengeId, football: true });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send the challenge.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openGame(game: "knights-tour" | "horde" | "breakthrough" | "apocalypse") {
@@ -443,7 +476,11 @@ export function ClubHome() {
                   className="flex flex-col gap-3 rounded-md border border-line bg-ink-soft p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <p className="text-sm text-ivory">
-                    {c.kind === "pull" ? (
+                    {c.kind === "football" ? (
+                      <span data-inbox-football>
+                        <span className="font-medium">{c.fromUsername}</span> wants to play <span className="font-medium">Football</span> with you (no coins, no Elo).
+                      </span>
+                    ) : c.kind === "pull" ? (
                       <>
                         Random pull-up — <span className="font-medium">{c.fromUsername}</span> is asking
                         everyone. The first yes sits. {c.mode}.
@@ -462,8 +499,12 @@ export function ClubHome() {
                       variant="solid"
                       onClick={async () => {
                         const res = await respondChallenge({ data: { id: c.id, accept: true } });
-                        if (res.ok && res.gameId) {
+                        if (res.ok && res.gameId && c.kind === "football") {
+                          await navigate({ to: "/variant/$mode", params: { mode: "football" }, search: { game: res.gameId } });
+                        } else if (res.ok && res.gameId) {
                           await navigate({ to: "/play/$gameId", params: { gameId: res.gameId } });
+                        } else if (!res.ok && res.error) {
+                          setError(res.error);
                         }
                       }}
                     >
@@ -488,7 +529,7 @@ export function ClubHome() {
                   className="flex items-center justify-between gap-3 rounded-md border border-line p-4"
                 >
                   <p className="text-sm text-mist">
-                    Waiting on {c.toUsername} for a {c.mode}{c.variant ? ` ${VARIANT_INFO[c.variant].name}` : ""} game.
+                    {c.kind === "football" ? `Waiting on ${c.toUsername} for a Football game.` : <>Waiting on {c.toUsername} for a {c.mode}{c.variant ? ` ${VARIANT_INFO[c.variant].name}` : ""} game.</>}
                   </p>
                   {c.deadline != null ? <ChallengeCountdown deadline={c.deadline} now={now} /> : null}
                   <Button size="sm" variant="ghost" onClick={() => cancelChallenge({ data: { id: c.id } })}>
@@ -629,6 +670,8 @@ export function ClubHome() {
                 className="grid size-9 place-items-center rounded-md text-mist hover:bg-panel-2 hover:text-ivory"
                 onClick={async () => {
                   if (home.queued) await leaveQueue();
+                  // closing a Football challenge you are waiting on takes it back (t234u)
+                  if (flow.kind === "waiting" && flow.football && flow.challengeId) await cancelChallenge({ data: { id: flow.challengeId } }).catch(() => undefined);
                   setFlow({ kind: "idle" });
                   setError(null);
                 }}
@@ -643,7 +686,8 @@ export function ClubHome() {
                 className="mt-5 space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  launchVariant(flow.mode, target);
+                  if (flow.mode === "football") void challengeFootball(target);
+                  else launchVariant(flow.mode, target);
                 }}
               >
                 <div className="space-y-2">
@@ -651,7 +695,7 @@ export function ClubHome() {
                   <Input id="variant-user" autoFocus value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Who sits across from you" />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="submit" variant="solid" size="lg">Sit down</Button>
+                  <Button type="submit" variant="solid" size="lg" disabled={busy}>{flow.mode === "football" && target.trim() ? "Send" : "Sit down"}</Button>
                   {flow.mode === "football" ? (
                     <Button
                       type="button"
@@ -804,7 +848,28 @@ export function ClubHome() {
               <SearchingPanel score={home.profile.score} mode={flow.kind === "searching" ? flow.mode : home.queueMode} />
             ) : null}
 
-            {flow.kind === "waiting" ? (
+            {flow.kind === "waiting" && flow.football ? (
+              <div className="mt-5 text-sm text-mist" data-football-waiting>
+                Football challenge sent to <span className="text-ivory">{flow.username}</span>. Waiting for their yes — the game opens by itself when they sit down.
+                {waitingRow?.deadline ? (
+                  <span className="mt-2 block">
+                    <ChallengeCountdown deadline={waitingRow.deadline} now={now} />
+                  </span>
+                ) : null}
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  variant="secondary"
+                  data-cancel-football
+                  onClick={async () => {
+                    if (flow.challengeId) await cancelChallenge({ data: { id: flow.challengeId } }).catch(() => undefined);
+                    setFlow({ kind: "idle" });
+                  }}
+                >
+                  Cancel challenge
+                </Button>
+              </div>
+            ) : flow.kind === "waiting" ? (
               <p className="mt-5 text-sm text-mist">
                 {home.profile.username} wants to battle {flow.username} in a {flow.mode}{" "}
                 {flow.variant ? VARIANT_INFO[flow.variant].name : "chess"} game. Waiting for
@@ -817,7 +882,7 @@ export function ClubHome() {
               </p>
             ) : null}
 
-            {error && (flow.kind === "pick-mode" || flow.kind === "pick-color" || flow.kind === "idle") ? (
+            {error && (flow.kind === "pick-mode" || flow.kind === "pick-color" || flow.kind === "idle" || flow.kind === "variant-name") ? (
               <p className="mt-3 text-sm text-danger">{error}</p>
             ) : null}
           </div>

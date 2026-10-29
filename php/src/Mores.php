@@ -1305,7 +1305,7 @@ final class Mores
                 'mode' => self::parseMode($r['mode']),
                 'status' => (string) $r['status'],
                 'createdAt' => Db::iso($r['created_at']),
-                'kind' => ($r['kind'] ?? null) === 'pull' ? 'pull' : 'named',
+                'kind' => self::kindOf($r),
                 'expiresInMs' => self::namedExpiry($r),
                 'variant' => Variants::valid($r['variant'] ?? null) ? (string) $r['variant'] : null,
             ], $inboxRows),
@@ -1316,11 +1316,13 @@ final class Mores
                 'mode' => self::parseMode($r['mode']),
                 'status' => (string) $r['status'],
                 'createdAt' => Db::iso($r['created_at']),
-                'kind' => 'named',
+                'kind' => self::kindOf($r) === 'football' ? 'football' : 'named',
                 'expiresInMs' => self::namedExpiry($r),
                 'variant' => Variants::valid($r['variant'] ?? null) ? (string) $r['variant'] : null,
             ], $outRows),
             'activeGameId' => $matched ?? ($active !== null ? (string) $active['id'] : null),
+            // Football vs a player (t234u): the challenger's home page opens the game once it is accepted
+            'footballGameId' => FootballMatch::activeIdFor($userId),
             'queued' => $queued,
             'queueMode' => $queueMode,
             'queueMiss' => $queueMiss,
@@ -1453,6 +1455,9 @@ final class Mores
             Db::run("UPDATE challenges SET status = 'declined' WHERE id = ?", [$ch['id']]);
             return ['ok' => true];
         }
+        if (($ch['kind'] ?? null) === 'football') {
+            return FootballMatch::accept($ch);
+        }
         $from = (string) $ch['from_user_id'];
         $to = (string) $ch['to_user_id'];
         $isPull = ($ch['kind'] ?? null) === 'pull';
@@ -1477,6 +1482,13 @@ final class Mores
             Db::run('UPDATE challenges SET game_id = ? WHERE id = ?', [$gameId, $ch['id']]);
             return ['ok' => true, 'gameId' => $gameId];
         });
+    }
+
+    /** @param array<string,mixed> $r a challenges row */
+    private static function kindOf(array $r): string
+    {
+        $k = $r['kind'] ?? null;
+        return $k === 'pull' ? 'pull' : ($k === 'football' ? 'football' : 'named');
     }
 
     /** @param array<string,mixed> $data */
@@ -1930,7 +1942,7 @@ final class Mores
         return array_map(static fn (array $r): array => [
             'id' => (string) $r['id'],
             'fromUsername' => (string) $r['username'],
-            'kind' => ($r['kind'] ?? null) === 'pull' ? 'pull' : 'named',
+            'kind' => self::kindOf($r),
             'expiresInMs' => self::namedExpiry($r),
         ], $rows);
     }

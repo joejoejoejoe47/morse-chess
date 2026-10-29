@@ -52,7 +52,7 @@ export function BellHost() {
           if (shouldRingFor(settings, card.fromUsername)) {
             void playChallengeSound(accountId, card.fromUsername);
             const left = card.expiresInMs;
-            toast(`${card.fromUsername} wants to sit down and play chess.`, {
+            toast(card.kind === "football" ? `${card.fromUsername} wants to play Football with you.` : `${card.fromUsername} wants to sit down and play chess.`, {
               id: card.id,
               description:
                 card.kind === "pull"
