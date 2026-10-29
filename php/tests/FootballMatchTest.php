@@ -69,18 +69,18 @@ $ballAt = static function (array $b): ?array {
     }
     return null;
 };
-// t238u: each team on its own side, the ball in the king's hands
+// t239u: the teams lined up two empty rows apart, the ball in the white king's hands
 $hb = $ballAt($s['board']);
-check($s['loose'] === null && $hb[0] === 2 && $hb[1] === 4 && $hb[2]['kind'] === 'k' && $hb[2]['side'] === 'w', 'start: the white king has the ball (t238u)');
-check(($s['board'][3][0]['kind'] ?? '') === 'p' && ($s['board'][10][0]['side'] ?? '') === 'b' && ($s['board'][11][4]['kind'] ?? '') === 'k' && count($men($s['board'])) === 32, 'start: chess formation on each side');
-check(FM::act($s, 'b', ['t' => 'move', 'from' => [10, 3], 'to' => [9, 3]], $t + 100) === 'Wait for your turn.', 'no moving out of turn');
-check(FM::act($s, 'w', ['t' => 'move', 'from' => [3, 3], 'to' => [4, 3]], $t + 200) === null && $s['turn'] === 'b', 'pawn steps up, their turn');
+check($s['loose'] === null && $hb[0] === 4 && $hb[1] === 4 && $hb[2]['kind'] === 'k' && $hb[2]['side'] === 'w', 'start: the white king has the ball');
+check(($s['board'][5][0]['kind'] ?? '') === 'p' && ($s['board'][8][0]['side'] ?? '') === 'b' && ($s['board'][9][4]['kind'] ?? '') === 'k' && count($men($s['board'])) === 32 && array_filter(array_merge($s['board'][6], $s['board'][7])) === [], 'start: lined up facing each other, two empty rows apart (t239u)');
+check(FM::act($s, 'b', ['t' => 'move', 'from' => [8, 3], 'to' => [7, 3]], $t + 100) === 'Wait for your turn.', 'no moving out of turn');
+check(FM::act($s, 'w', ['t' => 'move', 'from' => [5, 3], 'to' => [6, 3]], $t + 200) === null && $s['turn'] === 'b', 'pawn steps up, their turn');
 // the 5-second rule: after 5 s the waiting side may sneak in one move
-check(FM::act($s, 'w', ['t' => 'move', 'from' => [3, 0], 'to' => [4, 0]], $t + 3000) === 'Wait for your turn.', 'no bonus before 5 s');
-check(FM::act($s, 'w', ['t' => 'move', 'from' => [3, 0], 'to' => [4, 0]], $t + 5300) === null, 'bonus move after 5 s');
+check(FM::act($s, 'w', ['t' => 'move', 'from' => [5, 0], 'to' => [6, 0]], $t + 3000) === 'Wait for your turn.', 'no bonus before 5 s');
+check(FM::act($s, 'w', ['t' => 'move', 'from' => [5, 0], 'to' => [6, 0]], $t + 5300) === null, 'bonus move after 5 s');
 check($s['turn'] === 'b', 'still their turn after a bonus move');
-check(FM::act($s, 'w', ['t' => 'move', 'from' => [4, 0], 'to' => [5, 0]], $t + 5400) !== null, 'only one bonus per 5 s');
-check(FM::act($s, 'b', ['t' => 'move', 'from' => [10, 4], 'to' => [9, 4]], $t + 5500) === null && $s['board'][4][3]['id'] === 'd2', 'players stay where they are between moves (t238u)');
+check(FM::act($s, 'w', ['t' => 'move', 'from' => [6, 0], 'to' => [7, 0]], $t + 5400) !== null, 'only one bonus per 5 s');
+check(FM::act($s, 'b', ['t' => 'move', 'from' => [8, 4], 'to' => [7, 4]], $t + 5500) === null && $s['board'][6][3]['id'] === 'd2', 'players stay where they are between moves (t238u)');
 
 /** a made-up position, ready to play */
 $at = static function (array $board, string $turn, int $when) use ($s): array {
@@ -106,7 +106,7 @@ $sP = $at($b, 'b', $t + 10000);
 check(FM::act($sP, 'b', ['t' => 'move', 'from' => [6, 1], 'to' => [5, 0]], $t + 10100) === null, 'plain tackle');
 check($sP['phase'] === 'play' && $sP['turn'] === 'w' && ($sP['board'][5][0]['id'] ?? '') === 'b7' && !in_array('a2', $men($sP['board']), true), 'plain tackle: he is out, the tackler stays, play goes on');
 
-// the ball carrier is tackled, no fumble: both teams slide to that yard line, the king gets the ball (t238u)
+// the ball carrier is tackled, no fumble: everyone left lines up at that yard line, the king gets the ball (t239u)
 $b = $empty;
 $b[1][4] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1'];
 $b[0][0] = ['side' => 'w', 'kind' => 'r', 'id' => 'a1'];
@@ -121,33 +121,35 @@ check(FM::act($sT, 'b', ['t' => 'move', 'from' => [7, 4], 'to' => [6, 3]], $t + 
 FM::advance($sT, $t + 11100 + 1500);
 $g = $sT['board'];
 check($sT['phase'] === 'snap' && $sT['turn'] === 'w', 'the tackled team goes next');
-check(($g[3][4]['id'] ?? '') === 'e1' && ($g[2][0]['id'] ?? '') === 'a1' && ($g[6][1]['id'] ?? '') === 'b1', 'offense slid up to the yard line, same shape');
-check(($g[7][3]['id'] ?? '') === 'e7' && ($g[13][4]['id'] ?? '') === 'e8' && ($g[13][7]['id'] ?? '') === 'h8', 'defense slid back past the line');
-check(!empty($g[3][4]['ball']) && count($men($g)) === 6, 'the king has the ball, the tackled carrier stays out');
+check(($g[5][4]['id'] ?? '') === 'e1' && ($g[5][0]['id'] ?? '') === 'a1' && ($g[5][1]['id'] ?? '') === 'b1', 'offense lined up on its side of the tackle line');
+check(($g[9][4]['id'] ?? '') === 'e7' && ($g[10][4]['id'] ?? '') === 'e8' && ($g[10][7]['id'] ?? '') === 'h8' && array_filter(array_merge($g[7], $g[8])) === [], 'defense lined up two empty rows away');
+check(!empty($g[5][4]['ball']) && count($men($g)) === 6, 'the king has the ball, the tackled carrier stays out');
 check(($sT['events'][count($sT['events']) - 1]['fresh'] ?? true) === false, 'nobody comes back');
-// same tackle, the dice say fumble: turnover, everyone back, their king has it and they start
+// same tackle, the dice say fumble: their ball, everyone left lines up at the tackle spot, their king has it (t239u)
 check(FM::risk($sF['board'], [6, 3], 'b', 'tackle') >= 10, 'tackle risk');
 FM::$dice = static fn (): float => 0.0;
 check(FM::act($sF, 'b', ['t' => 'move', 'from' => [7, 4], 'to' => [6, 3]], $t + 11100) === null, 'tackle (fumble)');
 FM::$dice = static fn (): float => 99.0;
 FM::advance($sF, $t + 11100 + 1500);
 $hbF = $ballAt($sF['board']);
-check(count($men($sF['board'])) === 32 && $hbF[0] === 11 && $hbF[1] === 4 && $hbF[2]['side'] === 'b' && $sF['turn'] === 'b', 'fumble = turnover: everyone back, their king has the ball');
-check(($sF['events'][count($sF['events']) - 1]['fresh'] ?? false) === true, 'turnover lineup says everyone is back');
+$gF = $sF['board'];
+check(count($men($gF)) === 6 && $hbF[0] === 7 && $hbF[1] === 4 && $hbF[2]['side'] === 'b' && $sF['turn'] === 'b', 'fumble on a tackle: their king has the ball at the tackle spot');
+check(($gF[6][4]['id'] ?? '') === 'e7' && ($gF[2][4]['id'] ?? '') === 'e1' && array_filter(array_merge($gF[4], $gF[5])) === [], 'fumble lineup: black on its side of the line, white two rows away');
+check(($sF['events'][count($sF['events']) - 1]['fresh'] ?? true) === false, 'tackled players stay out');
 FM::advance($sF, $t + 11100 + 1500 + 1300);
 check($sF['phase'] === 'play', 'snap');
 
-// shift for black (the board is flipped for them)
+// a lineup for black (the board is flipped for them)
 $b = $empty;
 $b[12][4] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
 $b[9][0] = ['side' => 'b', 'kind' => 'p', 'id' => 'a7'];
 $b[9][3] = ['side' => 'w', 'kind' => 'p', 'id' => 'd2'];
 $b[1][4] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1'];
-$g = FM::shift($b, 8, 'b');
-check(($g[8][0]['id'] ?? '') === 'a7' && ($g[11][4]['id'] ?? '') === 'e8' && !empty($g[11][4]['ball']) && ($g[7][3]['id'] ?? '') === 'd2' && ($g[0][4]['id'] ?? '') === 'e1', 'black shift: up to row 8, white back past it');
-// a crowded shift still puts everybody somewhere on his own side
+$g = FM::lineUpAt($b, 8, 'b');
+check(($g[8][0]['id'] ?? '') === 'a7' && ($g[9][4]['id'] ?? '') === 'e8' && !empty($g[9][4]['ball']) && ($g[5][3]['id'] ?? '') === 'd2' && ($g[4][4]['id'] ?? '') === 'e1', 'black lineup at row 8, white two rows away');
+// a lineup near the goal line still puts everybody somewhere on his own side
 $full = FM::formation('w');
-$g = FM::shift($full, 12, 'w');
+$g = FM::lineUpAt($full, 12, 'w');
 $okSide = true;
 foreach ($g as $r => $row) {
     foreach ($row as $u) {
@@ -156,7 +158,7 @@ foreach ($g as $r => $row) {
         }
     }
 }
-check(count($men($g)) === 32 && $okSide, 'a shift near the end zone keeps everyone, each on his side');
+check(count($men($g)) === 32 && $okSide, 'a lineup near the end zone keeps everyone, each on his side');
 
 // passes: only the king throws forward (t238u)
 $b = $empty;
@@ -197,7 +199,7 @@ check(!empty($s3['board'][5][3]['ball']) && empty($s3['board'][8][3]['ball']) &&
 check(!empty($s3['next']['all']) && $s3['next']['holder'] === 'b', 'an interception is a turnover: everyone comes back');
 FM::advance($s3, $t + 20900 + 2200);
 $hb3 = $ballAt($s3['board']);
-check($hb3[0] === 11 && $hb3[2]['kind'] === 'k' && $hb3[2]['side'] === 'b', 'after the interception their king has the ball');
+check($hb3[0] === 9 && $hb3[2]['kind'] === 'k' && $hb3[2]['side'] === 'b', 'after the interception their king has the ball');
 $s4 = $s2;
 check(FM::act($s4, 'b', ['t' => 'intercept', 'id' => 'd7'], $t + 20100 + 9000) === 'Too late!', 'too late after the ball landed');
 // pick-off without a jump: a queen right next to the catcher
@@ -245,7 +247,7 @@ FM::$dice = static fn (): float => 3.0;
 check(FM::act($s6r, 'w', ['t' => 'move', 'from' => [6, 3], 'to' => [7, 3]], $t + 40000) === null && $s6r['phase'] === 'dead' && $s6r['next']['holder'] === 'b' && !empty($s6r['next']['all']), 'fumble on the run: their ball, everyone back');
 FM::$dice = static fn (): float => 99.0;
 
-// the king held it 3 moves: ball down, a shift at his yard line, he keeps it
+// the king held it 3 moves: ball down, everyone lines up at his yard line, he keeps it (t239u lineup)
 $b = $empty;
 $b[4][4] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1', 'ball' => true, 'held' => 3];
 $b[6][0] = ['side' => 'w', 'kind' => 'p', 'id' => 'a2'];
@@ -254,16 +256,15 @@ $b[12][4] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
 $sD = $at($b, 'b', $t + 41000);
 check(FM::act($sD, 'b', ['t' => 'move', 'from' => [12, 4], 'to' => [12, 3]], $t + 41100) === null && $sD['phase'] === 'dead', 'ball down');
 FM::advance($sD, $t + 41100 + 1500);
-// (the king is on the line already; his pawn past the line comes back to it)
-check(!empty($sD['board'][4][4]['ball']) && (int) $sD['board'][4][4]['held'] === 0 && ($sD['board'][4][0]['id'] ?? '') === 'a2' && $sD['turn'] === 'w', 'ball down: line at the king, he keeps it');
+check(!empty($sD['board'][3][4]['ball']) && (int) $sD['board'][3][4]['held'] === 0 && ($sD['board'][4][0]['id'] ?? '') === 'a2' && ($sD['board'][7][0]['id'] ?? '') === 'a7' && ($sD['board'][8][4]['id'] ?? '') === 'e8' && $sD['turn'] === 'w', 'ball down: lineup at the king, he keeps it');
 
-// a receiver already downfield comes back to the line, the rest still move up to it
+// a receiver already downfield comes back to the line too
 $b = $empty;
 $b[2][4] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1'];
 $b[8][0] = ['side' => 'w', 'kind' => 'p', 'id' => 'a2'];
 $b[12][4] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
-$sh = FM::shift($b, 5, 'w');
-check(($sh[5][4]['id'] ?? '') === 'e1' && !empty($sh[5][4]['ball']) && ($sh[5][0]['id'] ?? '') === 'a2' && ($sh[12][4]['id'] ?? '') === 'e8', 'shift: a man past the line comes back to it, the rest move up');
+$sh = FM::lineUpAt($b, 5, 'w');
+check(($sh[4][4]['id'] ?? '') === 'e1' && !empty($sh[4][4]['ball']) && ($sh[5][0]['id'] ?? '') === 'a2' && ($sh[9][4]['id'] ?? '') === 'e8', 'lineup: a man past the line comes back to it');
 
 // touchdown, skip needs both, everyone back
 $b = $empty;
@@ -280,7 +281,7 @@ check($s5['phase'] === 'celebrate', 'one skip is not enough');
 FM::act($s5, 'b', ['t' => 'skip'], $t + 31100);
 check($s5['phase'] === 'play' && $s5['turn'] === 'b', 'both skipped: kick-off, the other team first');
 $hb5 = $ballAt($s5['board']);
-check(count($men($s5['board'])) === 32 && $hb5[0] === 11 && $hb5[2]['kind'] === 'k' && $hb5[2]['side'] === 'b', 'after a touchdown everyone is back, their king has the ball');
+check(count($men($s5['board'])) === 32 && $hb5[0] === 9 && $hb5[2]['kind'] === 'k' && $hb5[2]['side'] === 'b', 'after a touchdown everyone is back, their king has the ball');
 
 // field goals: the king only, from anywhere, odds by distance (t238u)
 check(FM::fieldGoalOdds('w', 11) === 95 && FM::fieldGoalOdds('w', 0) === 5 && FM::fieldGoalOdds('b', 2) === 95 && FM::fieldGoalOdds('b', 13) === 5, 'field goal odds: 95% close in, 5% from your own end');
