@@ -817,19 +817,40 @@ function footballStart(holder: Side = "w", line = FB_KICK_LINE, alive: FBoard | 
   const rows: Record<Side, { back: number; pawns: number }> = holder === "w"
     ? { w: { back: row(y - 1), pawns: row(y) }, b: { back: row(defFront + 1), pawns: row(defFront) } }
     : { b: { back: row(y - 1), pawns: row(y) }, w: { back: row(defFront + 1), pawns: row(defFront) } };
-  const ids = alive ? new Set(alive.flat().filter(Boolean).map((u) => u!.id)) : null;
-  for (let f = 0; f < 8; f++) {
-    const put: [Side, "back" | "pawns", Kind, string][] = [
-      ["w", "back", back[f], `${FILES[f]}1`],
-      ["w", "pawns", "p", `${FILES[f]}2`],
-      ["b", "pawns", "p", `${FILES[f]}7`],
-      ["b", "back", back[f], `${FILES[f]}8`],
-    ];
-    for (const [side, which, kind, id] of put) if (!ids || ids.has(id)) board[rows[side][which]][f] = { side, kind, id };
+  type U = { u: FUnit; home: number };
+  const units: U[] = [];
+  if (!alive) {
+    for (let f = 0; f < 8; f++) {
+      units.push({ u: { side: "w", kind: back[f], id: `${FILES[f]}1` }, home: f }, { u: { side: "w", kind: "p", id: `${FILES[f]}2` }, home: f });
+      units.push({ u: { side: "b", kind: "p", id: `${FILES[f]}7` }, home: f }, { u: { side: "b", kind: back[f], id: `${FILES[f]}8` }, home: f });
+    }
+  } else {
+    alive.forEach((cells) =>
+      cells.forEach((u, f) => {
+        if (!u) return;
+        // back to his own file in the line (a1..h8 ids), else the file he is on
+        const m = /^([a-h])[1278]$/.exec(u.id ?? "");
+        units.push({ u: { side: u.side, kind: u.kind, id: u.id }, home: m ? FILES.indexOf(m[1]) : f });
+      }),
+    );
   }
-  const kr = rows[holder].back;
-  let at: [number, number] | null = board[kr][4]?.kind === "k" ? [kr, 4] : null;
-  board.forEach((cells, r) => cells.forEach((u, f) => { if (!at && u && u.side === holder) at = [r, f]; }));
+  // kings first, so each one gets his own square in the middle of the back row
+  units.sort((p, q) => (p.u.kind === "k" ? 0 : 1) - (q.u.kind === "k" ? 0 : 1));
+  let at: [number, number] | null = null;
+  for (const { u, home } of units) {
+    let spot: [number, number] | null = null;
+    for (const which of u.kind === "p" ? (["pawns", "back"] as const) : (["back", "pawns"] as const)) {
+      const r = rows[u.side][which];
+      for (const d of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7]) {
+        const ff = home + d;
+        if (ff >= 0 && ff < F_COLS && !board[r][ff]) { spot = [r, ff]; break; }
+      }
+      if (spot) break;
+    }
+    if (!spot) continue;
+    board[spot[0]][spot[1]] = u;
+    if (u.side === holder && (!at || (u.kind === "k" && board[at[0]][at[1]]?.kind !== "k"))) at = spot;
+  }
   if (at) { const [r, f] = at; board[r][f] = { ...board[r][f]!, ball: true, held: 0 }; }
   return { board, loose: null };
 }

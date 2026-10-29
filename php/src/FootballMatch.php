@@ -370,33 +370,49 @@ final class FootballMatch
             $holder => ['back' => $row($y - 1), 'pawns' => $row($y)],
             self::other($holder) => ['back' => $row($defFront + 1), 'pawns' => $row($defFront)],
         ];
-        $ids = null;
-        if ($alive !== null) {
-            $ids = [];
+        $units = [];
+        if ($alive === null) {
+            for ($f = 0; $f < 8; $f++) {
+                $c = self::FILES[$f];
+                $units[] = [['side' => 'w', 'kind' => self::BACK[$f], 'id' => "{$c}1"], $f];
+                $units[] = [['side' => 'w', 'kind' => 'p', 'id' => "{$c}2"], $f];
+                $units[] = [['side' => 'b', 'kind' => 'p', 'id' => "{$c}7"], $f];
+                $units[] = [['side' => 'b', 'kind' => self::BACK[$f], 'id' => "{$c}8"], $f];
+            }
+        } else {
             foreach ($alive as $cells) {
-                foreach ($cells as $u) {
+                foreach ($cells as $f => $u) {
                     if ($u !== null) {
-                        $ids[$u['id']] = true;
+                        // back to his own file in the line (a1..h8 ids), else the file he is on
+                        $home = preg_match('/^([a-h])[1278]$/', (string) $u['id'], $m) ? strpos(self::FILES, $m[1]) : $f;
+                        $units[] = [['side' => $u['side'], 'kind' => $u['kind'], 'id' => $u['id']], (int) $home];
                     }
                 }
             }
         }
+        // kings first, so each one gets his own square in the middle of the back row
+        usort($units, static fn (array $p, array $q): int => ($p[0]['kind'] === 'k' ? 0 : 1) <=> ($q[0]['kind'] === 'k' ? 0 : 1));
         $board = self::blank();
-        for ($f = 0; $f < 8; $f++) {
-            $c = self::FILES[$f];
-            foreach ([['w', 'back', self::BACK[$f], "{$c}1"], ['w', 'pawns', 'p', "{$c}2"], ['b', 'pawns', 'p', "{$c}7"], ['b', 'back', self::BACK[$f], "{$c}8"]] as [$side, $which, $kind, $id]) {
-                if ($ids === null || isset($ids[$id])) {
-                    $board[$rows[$side][$which]][$f] = ['side' => $side, 'kind' => $kind, 'id' => $id];
+        $at = null;
+        foreach ($units as [$u, $home]) {
+            $want = $u['kind'] === 'p' ? ['pawns', 'back'] : ['back', 'pawns'];
+            $spot = null;
+            foreach ($want as $which) {
+                $r = $rows[$u['side']][$which];
+                foreach ([0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7] as $d) {
+                    $ff = $home + $d;
+                    if ($ff >= 0 && $ff < self::COLS && $board[$r][$ff] === null) {
+                        $spot = [$r, $ff];
+                        break 2;
+                    }
                 }
             }
-        }
-        $kr = $rows[$holder]['back'];
-        $at = ($board[$kr][4]['kind'] ?? null) === 'k' ? [$kr, 4] : null;
-        foreach ($board as $r => $cells) {
-            foreach ($cells as $f => $u) {
-                if ($at === null && $u !== null && $u['side'] === $holder) {
-                    $at = [$r, $f];
-                }
+            if ($spot === null) {
+                continue;
+            }
+            $board[$spot[0]][$spot[1]] = $u;
+            if ($u['side'] === $holder && ($at === null || ($u['kind'] === 'k' && $board[$at[0]][$at[1]]['kind'] !== 'k'))) {
+                $at = $spot;
             }
         }
         if ($at !== null) {
