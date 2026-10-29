@@ -799,74 +799,45 @@ const GAME_SECONDS = 10 * 60;
 const SHOT_CLOCK_MS = 5000;
 
 /** Owner (t238u): each team on its own side, like a chess board; the team with the ball has it in its king's hands. */
-function footballStart(holder: Side = "w"): { board: FBoard; loose: [number, number] | null } {
+/** Owner t239u: at a kickoff the offense's front row stands on this yard line (w rows 4-5, b rows 8-9). */
+const FB_KICK_LINE = 5;
+
+/**
+ * The line-up (owner t239u): both teams in rows facing each other, two empty rows apart, like the original
+ * football start. `line` = the yard line of the offense's front row, counted from its own end; the defense's
+ * front row is two empty rows past it (closer near the goal line). Only players on `alive` line up (tackled
+ * players stay out). `holder`'s king has the ball. Same as FootballMatch::formation on the server.
+ */
+function footballStart(holder: Side = "w", line = FB_KICK_LINE, alive: FBoard | null = null): { board: FBoard; loose: [number, number] | null } {
   const board = blank(F_ROWS, F_COLS) as FBoard;
   const back: Kind[] = ["r", "n", "b", "q", "k", "b", "n", "r"];
+  const y = Math.max(2, Math.min(F_ROWS - 4, line));
+  const defFront = Math.min(y + 3, F_ROWS - 2);
+  const row = (yy: number) => (holder === "w" ? yy : F_ROWS - 1 - yy);
+  const rows: Record<Side, { back: number; pawns: number }> = holder === "w"
+    ? { w: { back: row(y - 1), pawns: row(y) }, b: { back: row(defFront + 1), pawns: row(defFront) } }
+    : { b: { back: row(y - 1), pawns: row(y) }, w: { back: row(defFront + 1), pawns: row(defFront) } };
+  const ids = alive ? new Set(alive.flat().filter(Boolean).map((u) => u!.id)) : null;
   for (let f = 0; f < 8; f++) {
-    board[2][f] = { side: "w", kind: back[f], id: `${FILES[f]}1` };
-    board[3][f] = { side: "w", kind: "p", id: `${FILES[f]}2` };
-    board[10][f] = { side: "b", kind: "p", id: `${FILES[f]}7` };
-    board[11][f] = { side: "b", kind: back[f], id: `${FILES[f]}8` };
+    const put: [Side, "back" | "pawns", Kind, string][] = [
+      ["w", "back", back[f], `${FILES[f]}1`],
+      ["w", "pawns", "p", `${FILES[f]}2`],
+      ["b", "pawns", "p", `${FILES[f]}7`],
+      ["b", "back", back[f], `${FILES[f]}8`],
+    ];
+    for (const [side, which, kind, id] of put) if (!ids || ids.has(id)) board[rows[side][which]][f] = { side, kind, id };
   }
-  const kr = holder === "w" ? 2 : 11;
-  board[kr][4] = { ...board[kr][4]!, ball: true, held: 0 };
+  const kr = rows[holder].back;
+  let at: [number, number] | null = board[kr][4]?.kind === "k" ? [kr, 4] : null;
+  board.forEach((cells, r) => cells.forEach((u, f) => { if (!at && u && u.side === holder) at = [r, f]; }));
+  if (at) { const [r, f] = at; board[r][f] = { ...board[r][f]!, ball: true, held: 0 }; }
   return { board, loose: null };
 }
 
-/**
- * Owner (t238u): the ball carrier was tackled without a fumble on row `row` (or the king put the ball down there).
- * `off` keeps the ball. The players still in the game slide together, keeping their shape: the offense so its
- * front man stands on that yard line, the defense back so it is just past it. Then the king takes the ball
- * (only he may throw it forward). Same as FootballMatch::shift on the server.
- */
+/** Owner t239u: the ball carrier was tackled on row `row` (or the king put the ball down there): everyone still
+ *  in the game lines up there, `off` (the team with the ball now) on its side. Same as FootballMatch::lineUpAt. */
 function shiftBoard(b: FBoard, row: number, off: Side): FBoard {
-  const y = (r: number) => (off === "w" ? r : F_ROWS - 1 - r);
-  const rowOf = (yy: number) => (off === "w" ? yy : F_ROWS - 1 - yy);
-  const line = Math.max(1, Math.min(F_ROWS - 3, y(row)));
-  type E = { u: FUnit; y: number; f: number };
-  const mine: E[] = [];
-  const theirs: E[] = [];
-  b.forEach((cells, r) =>
-    cells.forEach((u, f) => {
-      if (!u) return;
-      const e = { u: { ...u, ball: false, held: 0 }, y: y(r), f };
-      (u.side === off ? mine : theirs).push(e);
-    }),
-  );
-  // the men at or behind the line move up so the front one is on it; anyone already past it comes back to it
-  const behind = mine.map((e) => e.y).filter((v) => v <= line);
-  const dOff = behind.length ? line - Math.max(...behind) : 0;
-  const dDef = theirs.length ? Math.max(0, line + 1 - Math.min(...theirs.map((e) => e.y))) : 0;
-  mine.sort((p, q) => q.y - p.y || p.f - q.f);
-  theirs.sort((p, q) => p.y - q.y || p.f - q.f);
-  const out = blank(F_ROWS, F_COLS) as FBoard;
-  const place = (e: E, target: number, lo: number, hi: number) => {
-    const ty = Math.max(lo, Math.min(hi, target));
-    let best: [number, number] | null = null;
-    let bestD = Infinity;
-    for (const [a, z] of [[lo, hi], [0, F_ROWS - 1]]) {
-      for (let yy = a; yy <= z; yy++) {
-        const r = rowOf(yy);
-        for (let ff = 0; ff < F_COLS; ff++) {
-          const d = Math.abs(yy - ty) + Math.abs(ff - e.f) * 1.1;
-          if (!out[r][ff] && d < bestD) {
-            bestD = d;
-            best = [r, ff];
-          }
-        }
-      }
-      if (best) break;
-    }
-    if (best) out[best[0]][best[1]] = e.u;
-  };
-  for (const e of mine) place(e, e.y + dOff, 0, line);
-  for (const e of theirs) place(e, e.y + dDef, line + 1, F_ROWS - 1);
-  let at: [number, number] | null = null;
-  out.forEach((cells, r) => cells.forEach((u, f) => {
-    if (u && u.side === off && (!at || u.kind === "k")) at = [r, f];
-  }));
-  if (at) out[at[0]][at[1]] = { ...out[at[0]][at[1]]!, ball: true, held: 0 };
-  return out;
+  return footballStart(off, off === "w" ? row : F_ROWS - 1 - row, b).board;
 }
 
 /** Field goal odds in % (owner t238u): the king may kick from anywhere; 95% next to the end zone, 5% from his own end.
@@ -1314,8 +1285,8 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }
 
   function scrimmage(row: number, holder: Side, scored: { w: number; b: number }, first: Side, alive: FBoard, all = false) {
-    // owner t236u/t238u: a turnover brings everyone back, the new team's king has the ball;
-    // otherwise both teams slide to the yard line and the king takes the ball
+    // an interception or a fumble on a run brings everyone back; a tackled ball carrier (owner t239u) means
+    // everyone left lines up at that yard line, the king of the team with the ball holding it
     const next = all ? footballStart(holder) : { board: shiftBoard(alive, row, holder), loose: null };
     if (all) {
       setBanner({ side: first, text: "Everyone's back!", small: true });
@@ -1587,7 +1558,8 @@ export function Football({ versus, online }: { versus: string; online?: string }
     if (sack && !tryRef.current) {
       // the carrier is tackled and out (t235u). Fumble = turnover, everyone back; no fumble = his team keeps it there
       // (a fumble is a fresh drive: the team that won the ball starts it, like on the server)
-      if (fumble) deadBall(next, null, scored, u.side, to[0], u.side, "Fumble! Turnover", u.side, true);
+      // owner t239u: fumble or not, everyone left lines up at the tackle spot
+      if (fumble) deadBall(next, null, scored, u.side, to[0], u.side, "Fumble! Turnover", u.side);
       else deadBall(next, null, scored, u.side, to[0], other(u.side), "Tackled! Ball kept", first);
       return;
     }
