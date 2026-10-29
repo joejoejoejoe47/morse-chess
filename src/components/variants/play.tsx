@@ -323,6 +323,7 @@ function Grid({
             style={{ background: stadium ? "transparent" : p.bg }}
           >
             {dot ? <span className="pointer-events-none size-[28%] rounded-full bg-[#f4e7b2] shadow-[0_0_12px_rgba(244,231,178,0.9)]" /> : null}
+            {stadium && p.bg === PASS_BG ? <span className="pointer-events-none absolute inset-[4%] animate-pulse rounded-full border-[3px] border-[#ffe14a] bg-[#ffe14a]/20 shadow-[0_0_16px_rgba(255,225,74,0.95)]" /> : null}
             {p.text ? (
               <span
                 className="pointer-events-none select-none font-display leading-none"
