@@ -9,7 +9,7 @@ import { attackById, parseLoadout } from "@/lib/avatar/catalog";
 import { GLADE_PITCH, MeadowField, gladeHeight } from "@/components/chess/glade-field";
 import { CastleYard } from "@/components/chess/castle-yard";
 import { arenaNight } from "@/components/chess/arena-bowl";
-import { FILES, squareToWorld } from "@/lib/chess/board-math";
+import { FILES, boardSize, onSizedBoard, setBoardSize, squareToWorld } from "@/lib/chess/board-math";
 import { chessOf, type BoardRules } from "@/lib/chess/fen-board";
 import { keepWebGL } from "@/lib/gl-quiet";
 import type { Side } from "@/lib/mores-constants";
@@ -701,8 +701,14 @@ function BoardSquares({
   ghost = false,
   pitch = 1,
   dimmed,
+  size = 8,
+  labels,
+  tints,
 }: {
   dimmed?: ReadonlySet<string>;
+  size?: number;
+  labels?: Readonly<Record<string, string>>;
+  tints?: Readonly<Record<string, string>>;
   selected: string | null;
   legal: Set<string>;
   lastMove: { from: string; to: string } | null;
@@ -717,14 +723,15 @@ function BoardSquares({
 }) {
   const squares = useMemo(() => {
     const list: { sq: Square; x: number; z: number; light: boolean }[] = [];
-    for (let r = 0; r < 8; r++) {
-      for (let f = 0; f < 8; f++) {
+    const mid = (size - 1) / 2;
+    for (let r = 0; r < size; r++) {
+      for (let f = 0; f < size; f++) {
         const sq = `${FILES[f]}${r + 1}` as Square;
-        list.push({ sq, x: (f - 3.5) * pitch, z: (3.5 - r) * pitch, light: (f + r) % 2 === 1 });
+        list.push({ sq, x: (f - mid) * pitch, z: (mid - r) * pitch, light: (f + r) % 2 === 1 });
       }
     }
     return list;
-  }, [pitch]);
+  }, [pitch, size]);
 
   const group = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
@@ -754,9 +761,11 @@ function BoardSquares({
             ? skin.select
             : isLast
               ? skin.last
-              : light
-                ? skin.lightSq
-                : skin.darkSq;
+              : tints?.[sq]
+                ? tints[sq]
+                : light
+                  ? skin.lightSq
+                  : skin.darkSq;
         return (
           <group key={sq}>
             {meadow || ghost ? (
@@ -788,7 +797,7 @@ function BoardSquares({
             <mesh
               position={[x, 0.08, z]}
               receiveShadow
-              userData={{ light, lock: isCheck || isSel || isLast }}
+              userData={{ light, lock: isCheck || isSel || isLast || Boolean(tints?.[sq]) }}
               onClick={(e) => {
                 e.stopPropagation();
                 onSquare(sq);
@@ -804,12 +813,19 @@ function BoardSquares({
               <boxGeometry args={[0.98, 0.08, 0.98]} />
               <meshStandardMaterial
                 color={color}
-                map={isCheck || isSel || isLast ? null : light ? lightMap ?? null : darkMap ?? null}
+                map={isCheck || isSel || isLast || tints?.[sq] ? null : light ? lightMap ?? null : darkMap ?? null}
                 roughness={skin.sqRough}
                 metalness={skin.sqMetal}
               />
             </mesh>
             )}
+            {labels?.[sq] ? (
+              <Html center position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.2, z]} style={{ pointerEvents: "none" }} zIndexRange={[6, 0]}>
+                <span data-square-label={labels[sq]} className="select-none font-display text-lg font-semibold text-[#fff4d6] drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                  {labels[sq]}
+                </span>
+              </Html>
+            ) : null}
             {legal.has(sq) ? (
               <mesh position={[x, (meadow ? gladeHeight(x, z) : 0) + 0.3, z]} renderOrder={2}>
                 <sphereGeometry args={[0.18, 24, 16]} />
@@ -1498,6 +1514,9 @@ function Scene({
   heirloomPieces = true,
   dimmed,
   blast,
+  size = 8,
+  labels,
+  tints,
 }: BoardRules & {
   fen: string;
   you: Side;
@@ -1566,10 +1585,10 @@ function Scene({
     for (const sq of chess.board().flatMap((row, rankFromTop) =>
       row.map((p, file) => ({ p, sq: `${FILES[file]}${8 - rankFromTop}` as Square })),
     )) {
-      if (sq.p) list.push({ sq: sq.sq, type: sq.p.type, color: sq.p.color });
+      if (sq.p && onSizedBoard(sq.sq, size)) list.push({ sq: sq.sq, type: sq.p.type, color: sq.p.color });
     }
     return list;
-  }, [fen]);
+  }, [fen, size]);
 
   const prevPieces = useRef<typeof pieces | null>(null);
   const seenCapture = useRef("");
@@ -1826,7 +1845,9 @@ function Scene({
         <ModelSlot>
           <CastleYard />
         </ModelSlot>
-      ) : skin.tableKind === "walnut" ? (
+      ) : (
+        <group scale={size < 8 ? [(size + 2) / 10, 1, (size + 2) / 10] : [1, 1, 1]}>
+      {skin.tableKind === "walnut" ? (
         <WalnutTable map={wood?.slab ?? null} />
       ) : skin.tableKind === "studio" ? (
         <StudioTable map={wood?.slab ?? null} brass={skin.collar ?? "#c4a06a"} />
@@ -1847,6 +1868,8 @@ function Scene({
           />
         </mesh>
       )}
+        </group>
+      )}
       <BoardSquares
         selected={selected}
         legal={interactive ? legal : new Set()}
@@ -1860,6 +1883,9 @@ function Scene({
         ghost={Boolean(plate || set)}
         pitch={pitch}
         dimmed={dimmed}
+        size={size}
+        labels={labels}
+        tints={tints}
       />
       {blast ? <AtomicBlast key={blast.id} sq={blast.sq} pitch={pitch} /> : null}
       <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
@@ -2004,7 +2030,7 @@ function Scene({
         enableZoom
         minPolarAngle={0.32}
         maxPolarAngle={1.28}
-        minDistance={meadow ? 5 : set ? HEIRLOOM[set].zoom.min : arena ? SKY_ARENA_ZOOM.min : legoWorld ? LEGO_ZOOM.min : 8}
+        minDistance={meadow ? 5 : set ? HEIRLOOM[set].zoom.min : arena ? SKY_ARENA_ZOOM.min : legoWorld ? LEGO_ZOOM.min : size < 8 ? 5 : 8}
         maxDistance={meadow ? 160 : set ? HEIRLOOM[set].zoom.max : arena ? SKY_ARENA_ZOOM.max : legoWorld ? LEGO_ZOOM.max : 22}
         target={[0, 0.2, 0]}
         enableDamping
@@ -2036,7 +2062,7 @@ function stepAside(from: Square, to: Square, taken: Set<string>): Square {
     if (df === 0 && dr === 0) continue;
     const file = tf + df;
     const rank = tr + dr;
-    if (file < 0 || file > 7 || rank < 1 || rank > 8) continue;
+    if (file < 0 || file > boardSize() - 1 || rank < 1 || rank > boardSize()) continue;
     const sq = `${FILES[file]}${rank}` as Square;
     if (sq === from || taken.has(sq)) continue;
     return sq;
@@ -2216,6 +2242,10 @@ export function ChessBoard3D({
   checkSq,
   dimmed,
   blast,
+  size = 8,
+  pick = null,
+  labels,
+  tints,
 }: BoardRules & {
   fen: string;
   you: Side;
@@ -2246,14 +2276,23 @@ export function ChessBoard3D({
   heirloom?: HeirloomId | null;
   heirloomPieces?: boolean;
 }) {
-  const [selected, setSelected] = useState<Square | null>(null);
+  const n = size >= 3 && size <= 8 ? size : 8;
+  // Every square-to-world lookup inside this canvas (pieces, Lego / RA men, duels) centres an N×N board.
+  setBoardSize(n);
+  useEffect(() => {
+    setBoardSize(n);
+    return () => setBoardSize(8);
+  }, [n]);
+  const [ownSel, setSelected] = useState<Square | null>(null);
+  const selected = (pick ? pick.selected : ownSel) as Square | null;
   const dragged = useRef(false);
   const chess = useMemo(() => chessOf(fen), [fen]);
   const legal = useMemo(() => {
+    if (pick) return new Set<string>(pick.legal);
     if (!selected) return new Set<string>();
     if (legalFor) return new Set(legalFor(selected));
     return new Set(chess.moves({ square: selected, verbose: true }).map((m) => m.to));
-  }, [chess, selected, legalFor]);
+  }, [chess, selected, legalFor, pick]);
   const checkSquare = useMemo(() => {
     if (checkSq !== undefined) return checkSq as Square | null;
     if (!chess.isCheck()) return null;
@@ -2275,6 +2314,10 @@ export function ChessBoard3D({
 
   function onSquare(sq: Square) {
     if (dragged.current) return;
+    if (pick) {
+      if (!disabled) pick.onSquare(sq);
+      return;
+    }
     if (disabled || !myTurn) {
       setSelected(null);
       return;
@@ -2294,8 +2337,9 @@ export function ChessBoard3D({
 
   // LG always plays on the Lego Universe balcony, whatever board is equipped.
   const resolved = lego ? boardById(LEGO_BOARD_ID) : skin ?? boardById("lodge");
-  const set = lego ? null : heirloom;
-  const cam: [number, number, number] = set
+  // Classic / Parlor are fixed 8x8 board models: a smaller game uses a plain table instead.
+  const set = lego || n < 8 ? null : heirloom;
+  const far: [number, number, number] = set
     ? HEIRLOOM[set].camera[you === "w" ? "w" : "b"]
     : lego || resolved.id === LEGO_BOARD_ID
       ? LEGO_CAMERA[you === "w" ? "w" : "b"]
@@ -2308,6 +2352,9 @@ export function ChessBoard3D({
         : you === "w"
         ? [0, 15.2, 11.2]
         : [0, 15.2, -11.2];
+  // A smaller board sits closer to the camera so its squares look as big as on 8x8.
+  const near = n < 8 ? (n + 3) / 11 : 1;
+  const cam: [number, number, number] = [far[0] * near, far[1] * near, far[2] * near];
 
   return (
     <div className="h-full w-full touch-none">
@@ -2362,6 +2409,9 @@ export function ChessBoard3D({
           heirloomPieces={heirloomPieces}
           dimmed={dimmed}
           blast={blast}
+          size={n}
+          labels={labels}
+          tints={tints}
         />
         </LoadGuard>
         {overlay}

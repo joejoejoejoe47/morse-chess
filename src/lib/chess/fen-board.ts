@@ -22,4 +22,15 @@ export type BoardRules = {
   dimmed?: ReadonlySet<string>;
   /** Atomic: an explosion centred on this square (id changes per blast). */
   blast?: { sq: string; id: string } | null;
+  /** Squares per side (default 8). Small games (5x5) live in the a1 corner of the FEN. */
+  size?: number;
+  /**
+   * Local games that run their own click logic (Apocalypse, Knight's Tour): the board just
+   * reports every square click and shows the given selection / targets.
+   */
+  pick?: { selected: string | null; legal: readonly string[]; onSquare: (sq: string) => void } | null;
+  /** Small text drawn on a square (Knight's Tour move numbers, Apocalypse centre marks). */
+  labels?: Readonly<Record<string, string>>;
+  /** Square colour overrides (Apocalypse: gold = White's move, red = Black's, crash). */
+  tints?: Readonly<Record<string, string>>;
 };

@@ -11,7 +11,8 @@ namespace Morse;
  */
 final class Variants
 {
-    public const IDS = ['horde', 'atomic', 'koth', 'breakthrough', 'heist', 'parade', 'cavalry'];
+    // mini = Gardner minichess on 5x5 (owner t220u), played in the a1-e5 corner of a normal 8x8 FEN.
+    public const IDS = ['horde', 'atomic', 'koth', 'breakthrough', 'heist', 'parade', 'cavalry', 'mini'];
 
     public const START_FEN = [
         'horde' => 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1',
@@ -21,7 +22,16 @@ final class Variants
         'heist' => 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
         'parade' => 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
         'cavalry' => 'rnbqkbnr/nnnnnnnn/8/8/8/8/NNNNNNNN/RNBQKBNR w KQkq - 0 1',
+        'mini' => '8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1',
     ];
+
+    /** Squares per side of the board moves are generated on (5 while generating Minichess moves). */
+    private static int $n = 8;
+
+    public static function size(string $v): int
+    {
+        return $v === 'mini' ? 5 : 8;
+    }
 
     private const KN = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
     private const KG = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
@@ -49,14 +59,14 @@ final class Variants
 
     public static function name(string $v): string
     {
-        return ['horde' => 'Horde', 'atomic' => 'Atomic', 'koth' => 'King of the Hill', 'breakthrough' => 'Breakthrough', 'heist' => 'Queen Heist', 'parade' => 'Pawn Parade', 'cavalry' => 'Cavalry Charge'][$v] ?? 'Chess';
+        return ['horde' => 'Horde', 'atomic' => 'Atomic', 'koth' => 'King of the Hill', 'breakthrough' => 'Breakthrough', 'heist' => 'Queen Heist', 'parade' => 'Pawn Parade', 'cavalry' => 'Cavalry Charge', 'mini' => 'Minichess 5×5'][$v] ?? 'Chess';
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
 
     private static function on(int $r, int $f): bool
     {
-        return $r >= 0 && $r < 8 && $f >= 0 && $f < 8;
+        return $r >= 0 && $r < self::$n && $f >= 0 && $f < self::$n;
     }
 
     private static function other(string $c): string
@@ -239,6 +249,18 @@ final class Variants
     /** @return list<array<string,mixed>> */
     private static function pseudo(string $v, array $s): array
     {
+        // Moves stay on the variant's N×N board (Minichess: a1-e5).
+        $keep = self::$n;
+        self::$n = self::size($v);
+        try {
+            return self::pseudoOn($v, $s);
+        } finally {
+            self::$n = $keep;
+        }
+    }
+
+    private static function pseudoOn(string $v, array $s): array
+    {
         $b = $s['board'];
         $turn = $s['turn'];
         $out = [];
@@ -271,7 +293,7 @@ final class Variants
             }
             return $out;
         }
-        $last = $turn === 'w' ? 7 : 0;
+        $last = $turn === 'w' ? self::$n - 1 : 0;
         $ep = $s['ep'] !== null ? self::pos($s['ep']) : null;
         for ($r = 0; $r < 8; $r++) {
             for ($f = 0; $f < 8; $f++) {
@@ -295,7 +317,8 @@ final class Variants
                     $d = $turn === 'w' ? 1 : -1;
                     if (self::on($r + $d, $f) && $b[$r + $d][$f] === '') {
                         $add($r + $d, $f);
-                        $canDouble = $turn === 'w' ? ($r === 1 || ($v === 'horde' && $r === 0)) : $r === 6;
+                        // Minichess pawns never double-step.
+                        $canDouble = $v === 'mini' ? false : ($turn === 'w' ? ($r === 1 || ($v === 'horde' && $r === 0)) : $r === 6);
                         if ($canDouble && self::on($r + 2 * $d, $f) && $b[$r + 2 * $d][$f] === '') {
                             $out[] = ['from' => $from, 'to' => self::sq($r + 2 * $d, $f), 'double' => true];
                         }
@@ -337,7 +360,7 @@ final class Variants
                         $ks = $turn === 'w' ? 'K' : 'k';
                         $qs = $turn === 'w' ? 'Q' : 'q';
                         $rook = $turn === 'w' ? 'R' : 'r';
-                        if ($r === $home && $f === 4 && !self::inCheck($v, $s, $turn)) {
+                        if ($v !== 'mini' && $r === $home && $f === 4 && !self::inCheck($v, $s, $turn)) {
                             $safe = static function (int $ff) use ($v, $s, $b, $home, $turn): bool {
                                 if ($v !== 'atomic') {
                                     return !self::attacked($b, $home, $ff, self::other($turn));
@@ -725,6 +748,8 @@ final class Variants
     {
         $b = $s['board'];
         $score = 0.0;
+        $n = self::size($v);
+        $mid = ($n - 1) / 2;
         for ($r = 0; $r < 8; $r++) {
             for ($f = 0; $f < 8; $f++) {
                 $p = $b[$r][$f];
@@ -733,8 +758,8 @@ final class Variants
                 }
                 $c = self::col($p);
                 $t = self::typ($p);
-                $adv = $c === 'w' ? $r : 7 - $r;
-                $centre = 3.5 - max(abs(3.5 - $r), abs(3.5 - $f));
+                $adv = $c === 'w' ? $r : $n - 1 - $r;
+                $centre = $mid - max(abs($mid - $r), abs($mid - $f));
                 $val = self::VAL[$t];
                 if ($v === 'breakthrough') {
                     $val = 100 + $adv * $adv * 6 + ($f === 0 || $f === 7 ? 0 : 4);

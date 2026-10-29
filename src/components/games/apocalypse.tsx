@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { PieceMark } from "@/components/chess/marks";
 import { apoBot, apoMoves, apoResolve, apoStart, centerCount, countKind, type ABoard, type AMove, type Color } from "@/lib/games/apocalypse";
-import { GameFrame, RulesModal, SquareBoard, StatusBar } from "./shared";
+import { GameFrame, RulesModal, StatusBar } from "./shared";
+import { cornerFen, ModeBoard, rfOf, sqOf } from "./mode-board";
 
 const APO_RULES = [
   "A 5×5 board. Each side starts with 2 knights and 3 pawns on its back row (knights in the corners).",
@@ -17,7 +17,11 @@ type Mode = "hotseat" | "bot-w" | "bot-b";
 type Phase = "pick" | "pass" | "reveal" | "over";
 
 const same = (a: [number, number] | undefined | null, r: number, f: number) => !!a && a[0] === r && a[1] === f;
-const isCenter = (r: number, f: number) => r >= 1 && r <= 3 && f >= 1 && f <= 3;
+/** The 9 centre squares (b2-d4) carry a ◆. */
+const CENTRE_LABELS: Record<string, string> = Object.fromEntries(
+  [1, 2, 3].flatMap((r) => [1, 2, 3].map((f) => [sqOf(r, f), "◆"])),
+);
+const TINT = { hint: "#5aa9e6", white: "#e0b84a", black: "#c0506a", crash: "#d42a2a" };
 
 export function Apocalypse() {
   const [started, setStarted] = useState(false);
@@ -115,6 +119,20 @@ export function Apocalypse() {
         : phase === "pass"
           ? "Pass the device to Black"
           : `Round ${round} · ${name(picker)}, choose your secret move${pending ? " — then lock it in" : ""}`;
+  const tints: Record<string, string> = {};
+  if (pending) {
+    tints[sqOf(pending.from[0], pending.from[1])] = TINT.hint;
+    tints[sqOf(pending.to[0], pending.to[1])] = TINT.hint;
+  } else if ((phase === "reveal" || phase === "over") && locked.w !== undefined) {
+    if (locked.b) {
+      tints[sqOf(locked.b.from[0], locked.b.from[1])] = TINT.black;
+      tints[sqOf(locked.b.to[0], locked.b.to[1])] = TINT.black;
+    }
+    if (locked.w) {
+      tints[sqOf(locked.w.from[0], locked.w.from[1])] = TINT.white;
+      tints[sqOf(locked.w.to[0], locked.w.to[1])] = crashed ? TINT.crash : TINT.white;
+    }
+  }
   return (
     <GameFrame
       title="Apocalypse"
@@ -135,29 +153,16 @@ export function Apocalypse() {
           White {countKind(board, "w", "p")}♟ {countKind(board, "w", "n")}♞ · centre {centerCount(board, "w")} — Black {countKind(board, "b", "p")}♟ {countKind(board, "b", "n")}♞ · centre {centerCount(board, "b")}
         </p>
         {showBoard ? (
-          <SquareBoard
+          <ModeBoard
             size={5}
-            flipped={mode === "bot-b" || (mode === "hotseat" && picker === "b" && phase === "pick")}
-            onClick={click}
-            cell={(r, f) => {
-              const p = board[r][f];
-              const tgt = from.find((m) => same(m.to, r, f));
-              let mark: "sel" | "hint" | "white" | "black" | "crash" | undefined;
-              if (same(sel, r, f)) mark = "sel";
-              else if (pending && (same(pending.from, r, f) || same(pending.to, r, f))) mark = "hint";
-              else if ((phase === "reveal" || phase === "over") && locked.w !== undefined) {
-                if (crashed && same(locked.w!.to, r, f)) mark = "crash";
-                else if (locked.w && (same(locked.w.from, r, f) || same(locked.w.to, r, f))) mark = "white";
-                else if (locked.b && (same(locked.b.from, r, f) || same(locked.b.to, r, f))) mark = "black";
-              }
-              return {
-                content: p ? <PieceMark kind={p.t} tone={p.c} className="size-[78%]" /> : null,
-                dot: !!tgt && !p,
-                ring: !!tgt && !!p,
-                mark,
-                label: isCenter(r, f) ? "◆" : undefined,
-              };
-            }}
+            you={mode === "bot-b" || (mode === "hotseat" && picker === "b" && phase === "pick") ? "b" : "w"}
+            fen={cornerFen(5, (r, f) => board[r][f], picker)}
+            selected={sel ? sqOf(sel[0], sel[1]) : null}
+            legal={from.map((m) => sqOf(m.to[0], m.to[1]))}
+            onSquare={(sq) => click(...rfOf(sq))}
+            disabled={phase !== "pick"}
+            labels={CENTRE_LABELS}
+            tints={tints}
           />
         ) : (
           <div data-apo-pass className="mx-auto grid aspect-square w-[min(92vw,calc(100dvh-230px),560px)] place-items-center rounded-lg border-4 border-[#3a2a1a] bg-[#1a140e] p-6 text-center">

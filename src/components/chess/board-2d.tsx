@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Square } from "chess.js";
-import { FILES } from "@/lib/chess/board-math";
+import { FILES, isLightSquare } from "@/lib/chess/board-math";
 import { chessOf, type BoardRules } from "@/lib/chess/fen-board";
 import type { Side } from "@/lib/mores-constants";
 import { boardById, mysteryPair, type BoardSkin } from "@/lib/chess/board-skins";
 import { cn } from "@/lib/utils";
 
 /** The capture square and its 8 neighbours (Atomic explosion). */
-export function blastZone(sq: string): Set<string> {
+export function blastZone(sq: string, n = 8): Set<string> {
   const f = sq.charCodeAt(0) - 97;
   const r = Number(sq[1]) - 1;
   const out = new Set<string>();
@@ -15,7 +15,7 @@ export function blastZone(sq: string): Set<string> {
     for (let dr = -1; dr <= 1; dr++) {
       const nf = f + df;
       const nr = r + dr;
-      if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8) out.add(`${String.fromCharCode(97 + nf)}${nr + 1}`);
+      if (nf >= 0 && nf < n && nr >= 0 && nr < n) out.add(`${String.fromCharCode(97 + nf)}${nr + 1}`);
     }
   return out;
 }
@@ -43,6 +43,10 @@ export function ChessBoard2D({
   checkSq,
   dimmed,
   blast,
+  size = 8,
+  pick = null,
+  labels,
+  tints,
 }: BoardRules & {
   fen: string;
   you: Side;
@@ -54,13 +58,15 @@ export function ChessBoard2D({
   skin?: BoardSkin;
   outlineOn?: boolean;
 }) {
-  const [selected, setSelected] = useState<Square | null>(null);
+  const [ownSel, setSelected] = useState<Square | null>(null);
+  const selected = (pick ? pick.selected : ownSel) as Square | null;
   const chess = useMemo(() => chessOf(fen), [fen]);
   const legal = useMemo(() => {
+    if (pick) return new Set<string>(pick.legal);
     if (!selected) return new Set<string>();
     if (legalFor) return new Set(legalFor(selected));
     return new Set(chess.moves({ square: selected, verbose: true }).map((m) => m.to));
-  }, [chess, selected, legalFor]);
+  }, [chess, selected, legalFor, pick]);
   const checkSquare = useMemo(() => {
     if (checkSq !== undefined) return checkSq as Square | null;
     if (!chess.isCheck()) return null;
@@ -80,8 +86,10 @@ export function ChessBoard2D({
     setSelected(null);
   }, [fen]);
 
-  const ranks = you === "w" ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
-  const files = you === "w" ? [...FILES] : [...FILES].reverse();
+  const n = size >= 3 && size <= 8 ? size : 8;
+  const up = Array.from({ length: n }, (_, i) => i + 1);
+  const ranks = you === "w" ? [...up].reverse() : up;
+  const files = you === "w" ? [...FILES.slice(0, n)] : [...FILES.slice(0, n)].reverse();
   const lightRoom = appearance === "light";
   const look = skin ?? boardById("lodge");
   const lodge = boardById("lodge");
@@ -99,6 +107,10 @@ export function ChessBoard2D({
   const darkSq = fade?.[1] ?? look.darkSq;
 
   function onSquare(sq: Square) {
+    if (pick) {
+      if (!disabled) pick.onSquare(sq);
+      return;
+    }
     if (disabled || !myTurn) {
       setSelected(null);
       return;
@@ -126,11 +138,15 @@ export function ChessBoard2D({
           boxShadow: look.ring ? `0 0 40px ${look.fillLight}55, 0 24px 60px rgba(0,0,0,0.45)` : undefined,
         }}
       >
-        <div className="grid h-full w-full grid-cols-8 grid-rows-8">
+        <div
+          className="grid h-full w-full"
+          data-board-size={n}
+          style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${n}, minmax(0, 1fr))` }}
+        >
           {ranks.map((rank, ri) =>
             files.map((file, fi) => {
               const sq = `${file}${rank}` as Square;
-              const light = (fi + ri) % 2 === 0;
+              const light = isLightSquare(sq);
               const piece = chess.get(sq);
               const isSel = selected === sq;
               const isLast = lastMove?.from === sq || lastMove?.to === sq;
@@ -149,7 +165,9 @@ export function ChessBoard2D({
                         ? look.select
                         : isLast
                           ? look.last
-                          : light
+                          : tints?.[sq]
+                            ? tints[sq]
+                            : light
                             ? lightSq
                             : darkSq,
                   }}
@@ -179,7 +197,12 @@ export function ChessBoard2D({
                   {dimmed?.has(sq) ? (
                     <span data-dimmed-square className="pointer-events-none absolute inset-0 bg-black/70" />
                   ) : null}
-                  {blast && blastZone(blast.sq).has(sq) ? (
+                  {labels?.[sq] && !piece ? (
+                    <span data-square-label={labels[sq]} className="pointer-events-none select-none font-display text-[38cqmin] font-semibold leading-none text-[#2a1f14]/80">
+                      {labels[sq]}
+                    </span>
+                  ) : null}
+                  {blast && blastZone(blast.sq, n).has(sq) ? (
                     <span
                       key={blast.id}
                       data-blast-square
@@ -203,7 +226,7 @@ export function ChessBoard2D({
                       {rank}
                     </span>
                   ) : null}
-                  {ri === 7 ? (
+                  {ri === n - 1 ? (
                     <span
                       className={cn(
                         "pointer-events-none absolute bottom-0.5 right-1 text-[10px] font-medium",

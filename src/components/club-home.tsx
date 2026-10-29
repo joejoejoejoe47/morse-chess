@@ -681,6 +681,14 @@ export function ClubHome() {
                     {flow.intent === "random" ? "MorseBot sits across." : "Your friend plays the same rules."} Unranked — no Elo, no coins.
                   </p>
                 ) : null}
+                {flow.variant ? (
+                  // The game's rules, read before the first move (owner t220u).
+                  <ol data-pick-rules={flow.variant} className="list-decimal space-y-1 rounded-lg border border-[#e7c56a]/25 bg-black/20 py-3 pl-8 pr-3 text-[13px] leading-snug text-cream">
+                    {VARIANT_INFO[flow.variant].rules.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ol>
+                ) : null}
                 {flow.intent === "challenge" && target ? (
                   <p className="text-sm text-mist">
                     Sitting across <span className="text-ivory">{target}</span>. Timed or breeze?
@@ -903,7 +911,7 @@ function PullUpScreen({
     rules("horde", "main"),
     rules("atomic", "main"),
     rules("koth", "main"),
-    { id: "other", art: "other", big: "Other games", small: "8 more ways to play", state: "play", go: () => onScreen("other") },
+    { id: "other", art: "other", big: "Other games", small: "9 more ways to play", state: "play", go: () => onScreen("other") },
   ];
   const football: TileState = isMasterUsername(username) ? "preview" : "soon";
   const other: TileSpec[] = [
@@ -915,6 +923,7 @@ function PullUpScreen({
     rules("heist", "other"),
     rules("parade", "other"),
     rules("cavalry", "other"),
+    rules("mini", "other"),
   ];
   const tiles = screen === "other" ? other : main;
   return (

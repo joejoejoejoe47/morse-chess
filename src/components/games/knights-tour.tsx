@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { PieceMark } from "@/components/chess/marks";
 import { ktEmpty, ktHint, ktTargets, type KTBoard } from "@/lib/games/knights-tour";
-import { GameFrame, RulesModal, SquareBoard, StatusBar } from "./shared";
+import { GameFrame, RulesModal, StatusBar } from "./shared";
+import { cornerFen, ModeBoard, rfOf, sqOf } from "./mode-board";
 
 const KT_RULES = [
   "You play alone with one knight on an empty board.",
@@ -49,6 +49,17 @@ export function KnightsTour() {
     setHint(null);
   }
 
+  // Visited squares show their move number on a gold square; the hint glows blue.
+  const labels: Record<string, string> = {};
+  const tints: Record<string, string> = {};
+  board.forEach((row, r) =>
+    row.forEach((n, f) => {
+      if (!n) return;
+      if (!at || at[0] !== r || at[1] !== f) labels[sqOf(r, f)] = String(n);
+      tints[sqOf(r, f)] = "#c9a24e";
+    }),
+  );
+  if (hint) tints[sqOf(hint[0], hint[1])] = "#5aa9e6";
   return (
     <GameFrame
       title="Knight's Tour"
@@ -61,23 +72,15 @@ export function KnightsTour() {
       onReset={reset}
     >
       <div className="px-3 py-4">
-        <SquareBoard
+        <ModeBoard
           size={8}
-          onClick={click}
-          cell={(r, f) => {
-            const n = board[r][f];
-            const here = at && at[0] === r && at[1] === f;
-            const isTarget = targets.some(([tr, tf]) => tr === r && tf === f);
-            return {
-              content: here ? (
-                <PieceMark kind="n" tone="w" className="size-[80%]" />
-              ) : n ? (
-                <span data-kt-num={n} className="font-display text-lg font-semibold text-[#2a1f14]/80 sm:text-xl">{n}</span>
-              ) : null,
-              dot: isTarget,
-              mark: here ? "sel" : hint && hint[0] === r && hint[1] === f ? "hint" : n ? "last" : undefined,
-            };
-          }}
+          fen={cornerFen(8, (r, f) => (at && at[0] === r && at[1] === f ? { c: "w", t: "n" } : null))}
+          selected={at ? sqOf(at[0], at[1]) : null}
+          legal={targets.map(([r, f]) => sqOf(r, f))}
+          onSquare={(sq) => click(...rfOf(sq))}
+          disabled={done || stuck}
+          labels={labels}
+          tints={tints}
         />
         <StatusBar tone={done ? "win" : stuck ? "lose" : "info"}>
           {done
