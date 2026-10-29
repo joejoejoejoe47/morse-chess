@@ -50,7 +50,8 @@ export type ChallengeCard = {
   mode: GameMode;
   status: string;
   createdAt: string;
-  kind: "named" | "pull";
+  /** "football" = a Football game vs that player (t234u), not chess */
+  kind: "named" | "pull" | "football";
   /** Chess variant of the challenge, or null for normal chess. */
   variant?: VariantId | null;
   /** Ms left before a named challenge lapses (null for pull-ups), relative to when the server answered. */
@@ -67,6 +68,8 @@ export type HomeState = {
   inbox: ChallengeCard[];
   outgoing: ChallengeCard[];
   activeGameId: string | null;
+  /** the Football game vs a player this user is in (t234u) */
+  footballGameId?: string | null;
   queued: boolean;
   queueMode: GameMode | null;
   queueMiss: boolean;
