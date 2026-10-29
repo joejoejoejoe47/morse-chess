@@ -1364,7 +1364,7 @@ function SweepBeams({ hw, hl }: { hw: number; hl: number }) {
   );
 }
 
-/** Camera: broadside like a TV shot on wide screens, end-on on tall phones. */
+/** Camera: end-on from behind your own team (owner t244u). */
 export function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
   const { camera, size, controls } = useThree();
   const wide = size.width >= size.height * 1.05;
@@ -1374,8 +1374,10 @@ export function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
     persp.fov = wide ? 48 : 40;
     persp.updateProjectionMatrix();
     // a little lower and further back than before, so the city skyline shows above the far stands
-    const aim = wide ? new THREE.Vector3(-rows * 0.257, 0, 0) : new THREE.Vector3(0, 0, -0.4);
-    if (wide) camera.position.set(rows * 1.0, rows * 0.6, 0.001);
+    // owner t244u: always end-on from behind your own team (your end at the bottom), so you play away from yourself
+    // toward the end zone you score in at the far end (your side is always white / row 0 here; online the away board is flipped)
+    const aim = wide ? new THREE.Vector3(0, 0, -1.2) : new THREE.Vector3(0, 0, -0.4);
+    if (wide) camera.position.set(0, rows * 0.95, rows * 0.95);
     else camera.position.set(0, rows * 1.5, rows * 0.8);
     camera.lookAt(aim);
     const orbit = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null;
