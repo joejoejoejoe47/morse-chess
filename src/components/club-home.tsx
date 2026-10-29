@@ -6,7 +6,6 @@ import { CheckTile, PieceMark } from "@/components/chess/marks";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { sandboxUrlFor } from "@/lib/master-sandbox";
 import { asset } from "@/lib/base";
-import { isMasterUsername } from "@/lib/chess/board-skins";
 import { canPlayGame, isOwnerPreview } from "@/lib/games/release";
 import { VARIANT_INFO, type VariantId as RuleVariant } from "@/lib/variants/engine";
 import {
@@ -913,7 +912,7 @@ function PullUpScreen({
     rules("koth", "main"),
     { id: "other", art: "other", big: "Other games", small: "9 more ways to play", state: "play", go: () => onScreen("other") },
   ];
-  const football: TileState = isMasterUsername(username) ? "preview" : "soon";
+  const football: TileState = gate("football");
   const other: TileSpec[] = [
     { id: "football", art: "football", big: "Football", small: "1v1 on the gridiron", state: football, go: () => onClassic("football") },
     { id: "checkmate", art: "checkmate", big: "Checkmate", small: "End game", state: gate("checkmate"), go: () => onClassic("checkmate") },

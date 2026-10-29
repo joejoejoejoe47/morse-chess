@@ -8,9 +8,9 @@ import { isMasterUsername } from "@/lib/chess/board-skins";
  *
  * To approve a game for everyone: add its id here AND to Variants::RELEASED in
  * php/src/Variants.php (the server refuses unreleased variants), then build + deploy.
- * Football keeps its own MasterGus-only rule in club-home.tsx.
+ * Football has no server variant lock (it is not in Variants::IDS), so this list alone opens it.
  */
-export const RELEASED_GAMES: ReadonlySet<string> = new Set<string>([]);
+export const RELEASED_GAMES: ReadonlySet<string> = new Set<string>(["football"]); // football released by the owner (t227u)
 
 export type GameId =
   | "horde"
