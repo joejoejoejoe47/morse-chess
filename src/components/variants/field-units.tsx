@@ -25,6 +25,8 @@ export type FieldCue = {
   capture: boolean;
   thrown: boolean;
   goal?: boolean;
+  /** a missed field goal: the kick sails wide of the posts (owner t238u) */
+  miss?: boolean;
   side: "w" | "b";
   kind: PieceSymbol;
   victim?: PieceSymbol;
@@ -764,7 +766,7 @@ export function FieldThrow({ cue, rows, cols, onDone, units = [] }: { cue: Field
   const a = fieldSpot(cue.from[0], cue.from[1], rows, cols, 0.72);
   // field goal: through the uprights, above the crossbar, and on past the end line
   const posts = cue.side === "w" ? -rows / 2 : rows / 2;
-  const b = cue.goal ? new THREE.Vector3(0, 1.75, posts + Math.sign(posts) * 0.35) : fieldSpot(cue.to[0], cue.to[1], rows, cols, 0.66);
+  const b = cue.goal ? new THREE.Vector3(cue.miss ? 2.4 : 0, 1.75, posts + Math.sign(posts) * 0.35) : fieldSpot(cue.to[0], cue.to[1], rows, cols, 0.66);
   const dist = Math.hypot(b.x - a.x, b.z - a.z);
   const dur = cue.goal ? 0.9 + dist * 0.07 : 0.55 + dist * 0.06;
   const lift = cue.goal ? 1.2 + dist * 0.12 : 0.55 + dist * 0.16;

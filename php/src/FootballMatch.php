@@ -12,8 +12,11 @@ namespace Morse;
  *  - board 14 x 8, the home side ('w', the challenger) runs up the rows, 'b' runs down; the rules are a
  *    port of the bot game in src/components/variants/play.tsx (moves, throws, field goals, tackles,
  *    the king dropping the ball after 3 moves, interceptions, the 5-second rule, the 10-minute clock);
- *  - a tackled player is out until the next touchdown or turnover (owner t235u/t236u); a touchdown, or
- *    tackling the ball carrier (turnover), brings everyone back;
+ *  - owner t238u: each team starts on its own side with the ball in its king's hands; players stay where
+ *    they are between plays and a tackler stays on the tackle square. A tackled player is out until the next
+ *    touchdown or turnover. When the ball carrier is tackled without a fumble his team keeps the ball, both
+ *    teams slide to that yard line (shift()) and the king takes the ball. Only the king throws forward; the
+ *    king may kick a field goal from anywhere, the odds falling with the distance;
  *  - the replay after a touchdown ends early only when BOTH players press Skip;
  *  - no Elo, no coins. A player who closes the game for STALE_MS loses by forfeit; Leave = resign.
  *
@@ -33,7 +36,10 @@ final class FootballMatch
     public const READY_WAIT_MS = 90000;
     private const FILES = 'abcdefgh';
     private const BACK = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
-    private const KICKOFF = [7, 3];
+    /** the rows of the start formation (owner t238u): each team on its own side, like a chess board */
+    private const HOME = ['w' => ['back' => 2, 'pawns' => 3], 'b' => ['back' => 11, 'pawns' => 10]];
+    /** Field goal odds in % (owner t238u): `near` one row from the end zone, down to `far` from `span` rows out. */
+    public const FG = ['near' => 95, 'far' => 5, 'span' => 12];
     private const KEEP_EVENTS = 80;
     /**
      * Turnover risk (owner t237u): every run, tackle of the ball carrier and pass may go wrong. The chance (in %)
@@ -141,7 +147,7 @@ final class FootballMatch
         $start = self::startBoard();
         $state = [
             'board' => $start,
-            'loose' => self::KICKOFF,
+            'loose' => null,
             'turn' => 'w',
             'score' => ['w' => 0, 'b' => 0],
             'phase' => 'count',
@@ -341,66 +347,114 @@ final class FootballMatch
     /** @return list<list<array<string,mixed>|null>> */
     public static function startBoard(): array
     {
-        return self::lineUp(7, null, null)['board'];
+        return self::formation('w');
     }
 
     /**
-     * The kickoff formation moved to row $row; only players still in $alive line up (t235u), and with
-     * just the two kings left everyone comes back. The team with the ball has it in its king's hands.
-     * @param list<list<array<string,mixed>|null>>|null $alive
-     * @return array{board: list<list<array<string,mixed>|null>>, loose: ?array{int,int}, fresh: bool}
+     * Everyone on the field in the start formation, each team on its own side; the team with the ball
+     * has it in its king's hands (owner t238u: no more loose ball at midfield).
+     * @return list<list<array<string,mixed>|null>>
      */
-    public static function lineUp(int $row, ?string $holder, ?array $alive): array
+    public static function formation(string $holder): array
     {
-        $L = max(2, min(self::ROWS - 3, $row));
         $board = self::blank();
-        $ids = null;
-        $fresh = false;
-        if ($alive !== null) {
-            $ids = [];
-            foreach ($alive as $r) {
-                foreach ($r as $u) {
-                    if ($u !== null) {
-                        $ids[$u['id']] = true;
-                    }
-                }
-            }
-            $fresh = self::onlyKings($alive);
-        }
-        $keep = static fn (string $id): bool => $ids === null || $fresh || isset($ids[$id]);
         for ($f = 0; $f < 8; $f++) {
             $c = self::FILES[$f];
-            if ($keep("{$c}1")) {
-                $board[$L - 2][$f] = ['side' => 'w', 'kind' => self::BACK[$f], 'id' => "{$c}1"];
-            }
-            if ($keep("{$c}2")) {
-                $board[$L - 1][$f] = ['side' => 'w', 'kind' => 'p', 'id' => "{$c}2"];
-            }
-            if ($keep("{$c}7")) {
-                $board[$L + 1][$f] = ['side' => 'b', 'kind' => 'p', 'id' => "{$c}7"];
-            }
-            if ($keep("{$c}8")) {
-                $board[$L + 2][$f] = ['side' => 'b', 'kind' => self::BACK[$f], 'id' => "{$c}8"];
+            $board[self::HOME['w']['back']][$f] = ['side' => 'w', 'kind' => self::BACK[$f], 'id' => "{$c}1"];
+            $board[self::HOME['w']['pawns']][$f] = ['side' => 'w', 'kind' => 'p', 'id' => "{$c}2"];
+            $board[self::HOME['b']['pawns']][$f] = ['side' => 'b', 'kind' => 'p', 'id' => "{$c}7"];
+            $board[self::HOME['b']['back']][$f] = ['side' => 'b', 'kind' => self::BACK[$f], 'id' => "{$c}8"];
+        }
+        $kr = self::HOME[$holder]['back'];
+        $board[$kr][4]['ball'] = true;
+        $board[$kr][4]['held'] = 0;
+        return $board;
+    }
+
+    /**
+     * The ball carrier was tackled without a fumble on row $row (or the king put the ball down there):
+     * $off keeps the ball (owner t238u). The players still in the game slide together, keeping their shape:
+     * the offense so its front man stands on that yard line, the defense back so it is just past it. Then the
+     * king takes the ball (he is the only one who may throw it forward), at or behind the line.
+     * @return list<list<array<string,mixed>|null>>
+     */
+    public static function shift(array $b, int $row, string $off): array
+    {
+        // y = how far up the field from the offense's own end
+        $y = static fn (int $r): int => $off === 'w' ? $r : self::ROWS - 1 - $r;
+        $line = max(1, min(self::ROWS - 3, $y($row)));
+        $mine = [];
+        $theirs = [];
+        foreach ($b as $r => $cells) {
+            foreach ($cells as $f => $u) {
+                if ($u === null) {
+                    continue;
+                }
+                $u['ball'] = false;
+                $u['held'] = 0;
+                $e = ['u' => $u, 'y' => $y($r), 'f' => $f];
+                if ($u['side'] === $off) {
+                    $mine[] = $e;
+                } else {
+                    $theirs[] = $e;
+                }
             }
         }
-        if ($holder === null) {
-            return ['board' => $board, 'loose' => [$L, self::KICKOFF[1]], 'fresh' => $fresh];
+        // the men at or behind the line move up so the front one is on it; anyone already past it comes back to it
+        $behind = array_filter(array_column($mine, 'y'), static fn (int $v): bool => $v <= $line);
+        $dOff = $behind === [] ? 0 : $line - max($behind);
+        $dDef = $theirs === [] ? 0 : max(0, $line + 1 - min(array_column($theirs, 'y')));
+        usort($mine, static fn (array $p, array $q): int => [$q['y'], $p['f']] <=> [$p['y'], $q['f']]);
+        usort($theirs, static fn (array $p, array $q): int => [$p['y'], $p['f']] <=> [$q['y'], $q['f']]);
+        $out = self::blank();
+        $place = static function (array $e, int $ty, int $lo, int $hi) use (&$out, $off): void {
+            $ty = max($lo, min($hi, $ty));
+            $best = null;
+            $bestD = INF;
+            foreach ([[$lo, $hi], [0, self::ROWS - 1]] as [$a, $z]) {
+                for ($yy = $a; $yy <= $z; $yy++) {
+                    $r = $off === 'w' ? $yy : self::ROWS - 1 - $yy;
+                    for ($ff = 0; $ff < self::COLS; $ff++) {
+                        $d = abs($yy - $ty) + abs($ff - $e['f']) * 1.1;
+                        if ($out[$r][$ff] === null && $d < $bestD) {
+                            $bestD = $d;
+                            $best = [$r, $ff];
+                        }
+                    }
+                }
+                if ($best !== null) {
+                    break;
+                }
+            }
+            if ($best !== null) {
+                $out[$best[0]][$best[1]] = $e['u'];
+            }
+        };
+        foreach ($mine as $e) {
+            $place($e, $e['y'] + $dOff, 0, $line);
         }
-        $kr = $holder === 'w' ? $L - 2 : $L + 2;
-        $at = $board[$kr][4] !== null ? [$kr, 4] : null;
-        for ($r = 0; $r < self::ROWS && $at === null; $r++) {
-            for ($f = 0; $f < self::COLS && $at === null; $f++) {
-                if (($board[$r][$f]['side'] ?? null) === $holder) {
+        foreach ($theirs as $e) {
+            $place($e, $e['y'] + $dDef, $line + 1, self::ROWS - 1);
+        }
+        $at = null;
+        foreach ($out as $r => $cells) {
+            foreach ($cells as $f => $u) {
+                if ($u !== null && $u['side'] === $off && ($at === null || $u['kind'] === 'k')) {
                     $at = [$r, $f];
                 }
             }
         }
-        if ($at === null) {
-            return ['board' => $board, 'loose' => [$L, self::KICKOFF[1]], 'fresh' => $fresh];
+        if ($at !== null) {
+            $out[$at[0]][$at[1]]['ball'] = true;
         }
-        $board[$at[0]][$at[1]]['ball'] = true;
-        $board[$at[0]][$at[1]]['held'] = 0;
-        return ['board' => $board, 'loose' => null, 'fresh' => $fresh];
+        return $out;
+    }
+
+    /** Field goal chance in % for $side's king on row $r (owner t238u): sure from close in, a long shot from far. */
+    public static function fieldGoalOdds(string $side, int $r): int
+    {
+        $d = max(1, min(self::FG['span'], $side === 'w' ? 12 - $r : $r - 1));
+        return (int) round(self::FG['near'] - ($d - 1) * (self::FG['near'] - self::FG['far']) / (self::FG['span'] - 1));
     }
 
     /** @return list<list<null>> */
@@ -422,11 +476,6 @@ final class FootballMatch
     public static function inEnd(string $side, int $r): bool
     {
         return $side === 'w' ? $r >= 12 : $r <= 1;
-    }
-
-    public static function canKick(string $side, int $r): bool
-    {
-        return $side === 'w' ? $r >= 10 : $r <= 3;
     }
 
     /** @return list<array{int,int}> */
@@ -531,6 +580,10 @@ final class FootballMatch
                 if ($t === null || $t['side'] !== $u['side'] || ($rr === $r && $ff === $f)) {
                     continue;
                 }
+                // owner t238u: only the king throws forward; everyone else throws back (or sideways)
+                if ($u['kind'] !== 'k' && ($u['side'] === 'w' ? $rr > $r : $rr < $r)) {
+                    continue;
+                }
                 if ($u['kind'] === 'q' || $u['kind'] === 'k' || max(abs($rr - $r), abs($ff - $f)) <= $reach) {
                     $out[] = [$rr, $ff];
                 }
@@ -570,25 +623,6 @@ final class FootballMatch
     private static function roll(): float
     {
         return self::$dice !== null ? (float) (self::$dice)() : random_int(0, 9999) / 100;
-    }
-
-    public static function onlyKings(array $b): bool
-    {
-        $k = ['w' => 0, 'b' => 0];
-        $rest = 0;
-        foreach ($b as $row) {
-            foreach ($row as $u) {
-                if ($u === null) {
-                    continue;
-                }
-                if ($u['kind'] === 'k') {
-                    $k[$u['side']]++;
-                } else {
-                    $rest++;
-                }
-            }
-        }
-        return $k['w'] > 0 && $k['b'] > 0 && $rest === 0;
     }
 
     /** @return ?array{int,int} */
@@ -713,17 +747,18 @@ final class FootballMatch
             $at = (int) $s['until'];
             $next = $s['next'] ?? [];
             if ($ph === 'dead') {
-                // a turnover (ball carrier tackled) brings everyone back (owner t236u)
+                // a turnover brings everyone back in the start formation (t236u/t238u); otherwise the
+                // ball carrier was stopped and both teams slide to that yard line (t238u)
                 $all = !empty($next['all']);
-                $line = self::lineUp((int) $next['row'], $next['holder'], $all ? null : $s['board']);
-                $s['board'] = $line['board'];
-                $s['loose'] = $line['loose'];
+                $holder = (string) $next['holder'];
+                $s['board'] = $all ? self::formation($holder) : self::shift($s['board'], (int) $next['row'], $holder);
+                $s['loose'] = null;
                 $s['turn'] = (string) $next['first'];
                 $s['drive'] = [];
                 $s['flight'] = null;
                 $s['phase'] = 'snap';
                 $s['until'] = $at + 1300;
-                self::event($s, 'lineup', $at, ['fresh' => $all || $line['fresh']]);
+                self::event($s, 'lineup', $at, ['fresh' => $all]);
             } elseif ($ph === 'snap') {
                 self::startPlay($s, $at);
                 self::event($s, 'snap', $at);
@@ -741,19 +776,20 @@ final class FootballMatch
                 $fl = $s['flight'];
                 self::pickOff($s, (string) $fl['steal']['side'], $fl['steal'], $at, true);
             } elseif ($ph === 'goal') {
-                self::kickoff($s, (string) $next['first'], $at, false, 'goal');
+                self::kickoff($s, (string) $next['first'], $at, 'goal');
             } elseif ($ph === 'celebrate') {
-                self::kickoff($s, (string) $next['first'], $at, true, 'td');
+                self::kickoff($s, (string) $next['first'], $at, 'td');
             } else {
                 return;
             }
         }
     }
 
-    private static function kickoff(array &$s, string $first, int $at, bool $full, string $after): void
+    /** After a score (or a missed kick): everyone back in the start formation, $first's king has the ball. */
+    private static function kickoff(array &$s, string $first, int $at, string $after): void
     {
-        $s['board'] = $full ? self::startBoard() : self::lineUp(7, null, $s['board'])['board'];
-        $s['loose'] = self::KICKOFF;
+        $s['board'] = self::formation($first);
+        $s['loose'] = null;
         $s['turn'] = $first;
         $s['drive'] = [];
         $s['flight'] = null;
@@ -763,14 +799,14 @@ final class FootballMatch
         self::event($s, 'kickoff', $at, ['first' => $first, 'after' => $after]);
     }
 
-    private static function deadBall(array &$s, int $at, int $wait, int $row, ?string $holder, string $first, string $text, string $mover, bool $all = false): void
+    private static function deadBall(array &$s, int $at, int $wait, int $row, string $holder, string $first, string $text, string $mover, bool $all = false): void
     {
         self::stopClock($s, $at);
         $s['phase'] = 'dead';
         $s['until'] = $at + $wait;
         $s['next'] = ['row' => $row, 'holder' => $holder, 'first' => $first, 'all' => $all];
         $s['flight'] = null;
-        self::event($s, 'dead', $at, ['text' => $text, 'side' => $holder ?? $mover]);
+        self::event($s, 'dead', $at, ['text' => $text, 'side' => $holder]);
     }
 
     /** Same replay length as touchdown() in play.tsx: up to 10 s of the drive, long pauses trimmed. */
@@ -867,7 +903,7 @@ final class FootballMatch
                 self::event($s, 'skip', $now, ['side' => $side]);
             }
             if ($s['skip']['w'] && $s['skip']['b']) {
-                self::kickoff($s, (string) $s['next']['first'], $now, true, 'td');
+                self::kickoff($s, (string) $s['next']['first'], $now, 'td');
             }
             return null;
         }
@@ -892,19 +928,25 @@ final class FootballMatch
         }
         $s['drive'][] = $now;
         if ($t === 'goal') {
-            if (empty($u['ball']) || !self::canKick($side, $from[0])) {
-                return 'Get closer to kick a field goal.';
+            // owner t238u: the king may kick from anywhere; the farther out, the smaller the chance.
+            // Make it or miss it, the other team gets the ball.
+            if (empty($u['ball']) || $u['kind'] !== 'k') {
+                return 'Only the king can kick a field goal.';
             }
+            $pct = self::fieldGoalOdds($side, $from[0]);
+            $good = self::roll() < $pct;
             $s['board'][$from[0]][$from[1]]['ball'] = false;
             $s['board'][$from[0]][$from[1]]['held'] = 0;
             $s['loose'] = null;
             self::stopClock($s, $now);
-            $s['score'][$side] += 3;
+            if ($good) {
+                $s['score'][$side] += 3;
+            }
             $s['phase'] = 'goal';
             $s['until'] = $now + 4200;
             $s['next'] = ['first' => self::other($side)];
             $s['flight'] = null;
-            self::event($s, 'goal', $now, ['cue' => ['from' => $from, 'to' => [$side === 'w' ? 13 : 0, 3], 'unit' => $u['id'], 'side' => $side, 'kind' => $u['kind'], 'goal' => true]]);
+            self::event($s, 'goal', $now, ['good' => $good, 'pct' => $pct, 'cue' => ['from' => $from, 'to' => [$side === 'w' ? 13 : 0, 3], 'unit' => $u['id'], 'side' => $side, 'kind' => $u['kind'], 'goal' => true, 'miss' => !$good]]);
             return null;
         }
         $to = $sq($a['to'] ?? null);
@@ -984,9 +1026,10 @@ final class FootballMatch
         $first = $bonus ? $s['turn'] : self::other($side);
         if ($sack) {
             // the carrier is tackled and out (t235u). Fumble = turnover, everyone comes back (t236u/t237u);
-            // no fumble = his team keeps the ball and lines up right there
+            // no fumble = his team keeps the ball and both teams slide to this yard line (t238u)
             if ($fumble) {
-                self::deadBall($s, $now, 1500, $to[0], $side, $first, 'Fumble! Turnover', $side, true);
+                // a fresh drive: the team that won the ball starts it (t238u)
+                self::deadBall($s, $now, 1500, $to[0], $side, $side, 'Fumble! Turnover', $side, true);
             } else {
                 self::deadBall($s, $now, 1500, $to[0], $def, $first, 'Tackled! Ball kept', $side);
             }
@@ -1000,14 +1043,8 @@ final class FootballMatch
             self::deadBall($s, $now, 1500, $to[0], $def, $first, 'Fumble! Turnover', $def, true);
             return null;
         }
-        if ($victim !== null) {
-            // every tackle ends the play; the tackled player is out until the next touchdown or turnover (t235u/t237u)
-            $hb = self::findBall($s['board']);
-            $holder = $hb !== null ? (string) $s['board'][$hb[0]][$hb[1]]['side'] : null;
-            $row = $hb !== null ? $hb[0] : ($s['loose'] !== null ? $s['loose'][0] : $to[0]);
-            self::deadBall($s, $now, 1500, $row, $holder, $first, 'Tackle!', $side);
-            return null;
-        }
+        // owner t238u: any other tackle does not stop play. The tackled player is out (until a touchdown or a
+        // turnover) and the tackler stays on his square.
         self::finishTurn($s, $side, $bonus, $now);
         return null;
     }
@@ -1020,6 +1057,10 @@ final class FootballMatch
             return 'Too late!';
         }
         if (!empty($fl['tried'][$side])) {
+            return 'Missed it!';
+        }
+        // owner t238u: a pass to a man in the end zone with no defender near him is a sure touchdown
+        if ($s['phase'] === 'tdpass' && (int) $fl['risk'] === 0) {
             return 'Missed it!';
         }
         $pick = null;

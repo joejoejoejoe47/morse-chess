@@ -46,6 +46,8 @@ export type MoveCue = {
   unit?: string;
   /** football: a kick / throw at the posts */
   goal?: boolean;
+  /** football: the kick missed (owner t238u) */
+  miss?: boolean;
 };
 
 /** Football extras for the field. */
