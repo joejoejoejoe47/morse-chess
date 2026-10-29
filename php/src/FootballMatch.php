@@ -14,8 +14,9 @@ namespace Morse;
  *    the king dropping the ball after 3 moves, interceptions, the 5-second rule, the 10-minute clock);
  *  - owner t238u: each team starts on its own side with the ball in its king's hands; players stay where
  *    they are between plays and a tackler stays on the tackle square. A tackled player is out until the next
- *    touchdown or turnover. When the ball carrier is tackled without a fumble his team keeps the ball, both
- *    teams slide to that yard line (shift()) and the king takes the ball. Only the king throws forward; the
+ *    touchdown or turnover. Owner t239u: the teams line up facing each other two empty rows apart; when
+ *    the ball carrier is tackled everyone left lines up again at that yard line (lineUpAt()), the king
+ *    (of the team that has the ball now) holding it. Only the king throws forward; the
  *    king may kick a field goal from anywhere, the odds falling with the distance;
  *  - the replay after a touchdown ends early only when BOTH players press Skip;
  *  - no Elo, no coins. A player who closes the game for STALE_MS loses by forfeit; Leave = resign.
@@ -36,8 +37,8 @@ final class FootballMatch
     public const READY_WAIT_MS = 90000;
     private const FILES = 'abcdefgh';
     private const BACK = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
-    /** the rows of the start formation (owner t238u): each team on its own side, like a chess board */
-    private const HOME = ['w' => ['back' => 2, 'pawns' => 3], 'b' => ['back' => 11, 'pawns' => 10]];
+    /** owner t239u: at a kickoff the offense's front row is on this yard line (w rows 4-5, b rows 8-9) */
+    public const KICK_LINE = 5;
     /** Field goal odds in % (owner t238u): `near` one row from the end zone, down to `far` from `span` rows out. */
     public const FG = ['near' => 95, 'far' => 5, 'span' => 12];
     private const KEEP_EVENTS = 80;
@@ -351,103 +352,84 @@ final class FootballMatch
     }
 
     /**
-     * Everyone on the field in the start formation, each team on its own side; the team with the ball
-     * has it in its king's hands (owner t238u: no more loose ball at midfield).
+     * The line-up (owner t239u): both teams in rows facing each other, two empty rows apart, like the
+     * original football start. $line is the yard line of the offense's front row, counted up the field from
+     * its own end (KICK_LINE at a kickoff). The offense's back row is right behind it, the defense's front row
+     * is two empty rows past it (closer near the goal line). Only players in $alive (a board) line up; tackled
+     * players stay out. The king of $holder has the ball.
+     * @param list<list<array<string,mixed>|null>>|null $alive
      * @return list<list<array<string,mixed>|null>>
      */
-    public static function formation(string $holder): array
+    public static function formation(string $holder, int $line = self::KICK_LINE, ?array $alive = null): array
     {
-        $board = self::blank();
-        for ($f = 0; $f < 8; $f++) {
-            $c = self::FILES[$f];
-            $board[self::HOME['w']['back']][$f] = ['side' => 'w', 'kind' => self::BACK[$f], 'id' => "{$c}1"];
-            $board[self::HOME['w']['pawns']][$f] = ['side' => 'w', 'kind' => 'p', 'id' => "{$c}2"];
-            $board[self::HOME['b']['pawns']][$f] = ['side' => 'b', 'kind' => 'p', 'id' => "{$c}7"];
-            $board[self::HOME['b']['back']][$f] = ['side' => 'b', 'kind' => self::BACK[$f], 'id' => "{$c}8"];
+        $y = max(2, min(self::ROWS - 4, $line));
+        $defFront = min($y + 3, self::ROWS - 2);
+        // offense yards -> board row
+        $row = static fn (int $yy): int => $holder === 'w' ? $yy : self::ROWS - 1 - $yy;
+        $rows = [
+            $holder => ['back' => $row($y - 1), 'pawns' => $row($y)],
+            self::other($holder) => ['back' => $row($defFront + 1), 'pawns' => $row($defFront)],
+        ];
+        $units = [];
+        if ($alive === null) {
+            for ($f = 0; $f < 8; $f++) {
+                $c = self::FILES[$f];
+                $units[] = [['side' => 'w', 'kind' => self::BACK[$f], 'id' => "{$c}1"], $f];
+                $units[] = [['side' => 'w', 'kind' => 'p', 'id' => "{$c}2"], $f];
+                $units[] = [['side' => 'b', 'kind' => 'p', 'id' => "{$c}7"], $f];
+                $units[] = [['side' => 'b', 'kind' => self::BACK[$f], 'id' => "{$c}8"], $f];
+            }
+        } else {
+            foreach ($alive as $cells) {
+                foreach ($cells as $f => $u) {
+                    if ($u !== null) {
+                        // back to his own file in the line (a1..h8 ids), else the file he is on
+                        $home = preg_match('/^([a-h])[1278]$/', (string) $u['id'], $m) ? strpos(self::FILES, $m[1]) : $f;
+                        $units[] = [['side' => $u['side'], 'kind' => $u['kind'], 'id' => $u['id']], (int) $home];
+                    }
+                }
+            }
         }
-        $kr = self::HOME[$holder]['back'];
-        $board[$kr][4]['ball'] = true;
-        $board[$kr][4]['held'] = 0;
+        // kings first, so each one gets his own square in the middle of the back row
+        usort($units, static fn (array $p, array $q): int => ($p[0]['kind'] === 'k' ? 0 : 1) <=> ($q[0]['kind'] === 'k' ? 0 : 1));
+        $board = self::blank();
+        $at = null;
+        foreach ($units as [$u, $home]) {
+            $want = $u['kind'] === 'p' ? ['pawns', 'back'] : ['back', 'pawns'];
+            $spot = null;
+            foreach ($want as $which) {
+                $r = $rows[$u['side']][$which];
+                foreach ([0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7] as $d) {
+                    $ff = $home + $d;
+                    if ($ff >= 0 && $ff < self::COLS && $board[$r][$ff] === null) {
+                        $spot = [$r, $ff];
+                        break 2;
+                    }
+                }
+            }
+            if ($spot === null) {
+                continue;
+            }
+            $board[$spot[0]][$spot[1]] = $u;
+            if ($u['side'] === $holder && ($at === null || ($u['kind'] === 'k' && $board[$at[0]][$at[1]]['kind'] !== 'k'))) {
+                $at = $spot;
+            }
+        }
+        if ($at !== null) {
+            $board[$at[0]][$at[1]]['ball'] = true;
+            $board[$at[0]][$at[1]]['held'] = 0;
+        }
         return $board;
     }
 
     /**
-     * The ball carrier was tackled without a fumble on row $row (or the king put the ball down there):
-     * $off keeps the ball (owner t238u). The players still in the game slide together, keeping their shape:
-     * the offense so its front man stands on that yard line, the defense back so it is just past it. Then the
-     * king takes the ball (he is the only one who may throw it forward), at or behind the line.
+     * The ball carrier was tackled on board row $row (or the king put the ball down there), owner t239u:
+     * everyone still in the game lines up there, $off (the team with the ball now) on its side of that line.
      * @return list<list<array<string,mixed>|null>>
      */
-    public static function shift(array $b, int $row, string $off): array
+    public static function lineUpAt(array $b, int $row, string $off): array
     {
-        // y = how far up the field from the offense's own end
-        $y = static fn (int $r): int => $off === 'w' ? $r : self::ROWS - 1 - $r;
-        $line = max(1, min(self::ROWS - 3, $y($row)));
-        $mine = [];
-        $theirs = [];
-        foreach ($b as $r => $cells) {
-            foreach ($cells as $f => $u) {
-                if ($u === null) {
-                    continue;
-                }
-                $u['ball'] = false;
-                $u['held'] = 0;
-                $e = ['u' => $u, 'y' => $y($r), 'f' => $f];
-                if ($u['side'] === $off) {
-                    $mine[] = $e;
-                } else {
-                    $theirs[] = $e;
-                }
-            }
-        }
-        // the men at or behind the line move up so the front one is on it; anyone already past it comes back to it
-        $behind = array_filter(array_column($mine, 'y'), static fn (int $v): bool => $v <= $line);
-        $dOff = $behind === [] ? 0 : $line - max($behind);
-        $dDef = $theirs === [] ? 0 : max(0, $line + 1 - min(array_column($theirs, 'y')));
-        usort($mine, static fn (array $p, array $q): int => [$q['y'], $p['f']] <=> [$p['y'], $q['f']]);
-        usort($theirs, static fn (array $p, array $q): int => [$p['y'], $p['f']] <=> [$q['y'], $q['f']]);
-        $out = self::blank();
-        $place = static function (array $e, int $ty, int $lo, int $hi) use (&$out, $off): void {
-            $ty = max($lo, min($hi, $ty));
-            $best = null;
-            $bestD = INF;
-            foreach ([[$lo, $hi], [0, self::ROWS - 1]] as [$a, $z]) {
-                for ($yy = $a; $yy <= $z; $yy++) {
-                    $r = $off === 'w' ? $yy : self::ROWS - 1 - $yy;
-                    for ($ff = 0; $ff < self::COLS; $ff++) {
-                        $d = abs($yy - $ty) + abs($ff - $e['f']) * 1.1;
-                        if ($out[$r][$ff] === null && $d < $bestD) {
-                            $bestD = $d;
-                            $best = [$r, $ff];
-                        }
-                    }
-                }
-                if ($best !== null) {
-                    break;
-                }
-            }
-            if ($best !== null) {
-                $out[$best[0]][$best[1]] = $e['u'];
-            }
-        };
-        foreach ($mine as $e) {
-            $place($e, $e['y'] + $dOff, 0, $line);
-        }
-        foreach ($theirs as $e) {
-            $place($e, $e['y'] + $dDef, $line + 1, self::ROWS - 1);
-        }
-        $at = null;
-        foreach ($out as $r => $cells) {
-            foreach ($cells as $f => $u) {
-                if ($u !== null && $u['side'] === $off && ($at === null || $u['kind'] === 'k')) {
-                    $at = [$r, $f];
-                }
-            }
-        }
-        if ($at !== null) {
-            $out[$at[0]][$at[1]]['ball'] = true;
-        }
-        return $out;
+        return self::formation($off, $off === 'w' ? $row : self::ROWS - 1 - $row, $b);
     }
 
     /** Field goal chance in % for $side's king on row $r (owner t238u): sure from close in, a long shot from far. */
@@ -747,11 +729,12 @@ final class FootballMatch
             $at = (int) $s['until'];
             $next = $s['next'] ?? [];
             if ($ph === 'dead') {
-                // a turnover brings everyone back in the start formation (t236u/t238u); otherwise the
-                // ball carrier was stopped and both teams slide to that yard line (t238u)
+                // an interception or a fumble on a run brings everyone back in the start formation; a tackled
+                // ball carrier (fumble or not) or a king putting the ball down = everyone still in the game
+                // lines up at that yard line (owner t239u)
                 $all = !empty($next['all']);
                 $holder = (string) $next['holder'];
-                $s['board'] = $all ? self::formation($holder) : self::shift($s['board'], (int) $next['row'], $holder);
+                $s['board'] = $all ? self::formation($holder) : self::lineUpAt($s['board'], (int) $next['row'], $holder);
                 $s['loose'] = null;
                 $s['turn'] = (string) $next['first'];
                 $s['drive'] = [];
@@ -1028,8 +1011,8 @@ final class FootballMatch
             // the carrier is tackled and out (t235u). Fumble = turnover, everyone comes back (t236u/t237u);
             // no fumble = his team keeps the ball and both teams slide to this yard line (t238u)
             if ($fumble) {
-                // a fresh drive: the team that won the ball starts it (t238u)
-                self::deadBall($s, $now, 1500, $to[0], $side, $side, 'Fumble! Turnover', $side, true);
+                // the team that won the ball starts from the tackle spot (owner t239u)
+                self::deadBall($s, $now, 1500, $to[0], $side, $side, 'Fumble! Turnover', $side);
             } else {
                 self::deadBall($s, $now, 1500, $to[0], $def, $first, 'Tackled! Ball kept', $side);
             }
