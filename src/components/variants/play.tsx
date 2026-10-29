@@ -9,7 +9,7 @@ import { setPieceStyle } from "@/lib/server/avatar";
 import { boardById } from "@/lib/chess/board-skins";
 import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
 import { cn } from "@/lib/utils";
-import { VariantStage, type FieldOpts, type HomeTeam, type Look, type MoveCue, type Sky, type StadiumShow, type StageUnit } from "@/components/variants/stage";
+import { PASS_BG, VariantStage, type FieldOpts, type HomeTeam, type Look, type MoveCue, type Sky, type StadiumShow, type StageUnit } from "@/components/variants/stage";
 import {
   footballSync,
   getFootballPrefs,
@@ -1019,18 +1019,19 @@ function Scoreboard({ home, away, score, clock, shot }: { home: FootballTeam; aw
 
 /* ── Football vs a player (owner t234u): the server keeps the game, this screen shows it ── */
 
-/** The rules, shown under the "Rules" button (owner t235u–t238u). */
+/** The rules, shown under the "Rules" button (owner t235u–t239u). */
 const FOOTBALL_RULES = [
-  "Each team starts on its own side with the ball in its king's hands. Carry it into the other end zone for a touchdown (6 points).",
+  "The teams start lined up facing each other, two empty rows apart, with the ball in the king's hands. Carry it into the other end zone for a touchdown (6 points).",
   "Pick a player and move him like his chess piece. Players stay where they are after every move. There are no downs.",
-  "Passing: the king can throw to any of his players, forward too. Everyone else can only throw backward or sideways.",
+  "Passing: tap your ball carrier. The teammates you can pass to glow yellow with a 🏈 over them: tap one and the ball goes to him. A teammate right next to him = a hand-off. (Or press 🏈 Pass to see only the pass targets.)",
+  "The king can throw to any of his players, forward too. Everyone else can only throw backward or sideways.",
   "Land on an enemy player to tackle him. He is out until the next touchdown or turnover, and the tackler stays on that square.",
-  "Tackle the player with the ball and he might fumble. Fumble = turnover: the tacklers get the ball. No fumble = his team keeps it: both teams slide to that yard line, the defense just past it, and the king gets the ball.",
+  "Tackle the player with the ball and the play stops: everyone still in the game lines up again at that yard line, two rows apart. He might fumble: then the tacklers' king gets the ball, otherwise his own king does.",
   "Every run and every pass is a risk: the more (and the stronger) enemy players are near, the bigger the chance of a fumble or an interception. A queen is scarier than a pawn! The risk is shown before you move.",
   "Throw to a teammate who is already in the end zone: touchdown! Unless a defender is near him, then it can be intercepted.",
   "Jump with SPACE or a right-click while an enemy pass flies over one of your players: it makes an interception much more likely.",
   "The king can kick a field goal (3 points) from anywhere. The closer he is, the better the chance (shown on the button). Make it or miss it, the other team gets the ball.",
-  "After a touchdown, a field goal or a turnover (a fumble or an interception), everyone on both teams comes back.",
+  "After a touchdown, a field goal, an interception or a fumble on a run, everyone on both teams comes back in the start line-up.",
   "Kings cannot be tackled. A king who holds the ball for 3 moves puts it down: both teams line up at his yard line and he gets it back.",
   "Take more than 5 seconds and the other team sneaks in one bonus move. The game lasts 10 minutes.",
 ];
@@ -1795,11 +1796,14 @@ export function Football({ versus, online }: { versus: string; online?: string }
   function onSquare(r: number, f: number) {
     if (over || !(turn === "w" || bonusReady()) || phase !== "play" || setup) return;
     const u = board[r][f];
+    // owner t239u: with the ball carrier picked, tapping a glowing teammate passes to him (next to him = a hand-off)
+    if (sel && board[sel[0]][sel[1]]?.side === "w" && catchSquares(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) {
+      if (online) void send({ t: "pass", from: mSq(sel, mp.current.flip), to: mSq([r, f], mp.current.flip) });
+      else pass(sel, [r, f]);
+      return;
+    }
     if (throwing && sel) {
-      if (catchSquares(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) {
-        if (online) void send({ t: "pass", from: mSq(sel, mp.current.flip), to: mSq([r, f], mp.current.flip) });
-        else pass(sel, [r, f]);
-      } else setThrowing(false);
+      setThrowing(false);
       return;
     }
     if (sel && sel[0] === r && sel[1] === f) {
@@ -2221,6 +2225,17 @@ export function Football({ versus, online }: { versus: string; online?: string }
   // owner t238u: only the king kicks, from anywhere; the button shows his chance
   const kickable = Boolean(sel && hasBall && carrier?.kind === "k");
   const fgPct = kickable && sel ? fgOdds("w", sel[0]) : null;
+  // owner t239u: the teammates the ball carrier can pass to (next to him = a hand-off) glow, with a football on them
+  const passTo: [number, number][] = canAct && sel && hasBall && !replay && !tryFor ? catchSquares(board, sel[0], sel[1]) : [];
+  const passHint = canAct && sel && hasBall && !replay && !tryFor
+    ? passTo.length
+      ? throwing
+        ? "Tap a glowing 🏈 teammate to pass to him"
+        : "Tap a glowing 🏈 teammate to pass (next to him = hand-off), or a gold square to run"
+      : carrier?.kind === "k"
+        ? "No teammate to pass to: run with him or kick"
+        : "Nobody to pass to: only the king throws forward. Run with him!"
+    : null;
   // owner t237u: show the fumble / interception risk before you move
   let riskText: string | null = null;
   if (canAct && sel && carrier?.side === "w" && !replay && !tryFor) {
@@ -2298,15 +2313,16 @@ export function Football({ versus, online }: { versus: string; online?: string }
           const u = live[r][f];
           const end = r <= 1 || r >= 12;
           const mark = !replay && sel;
-          const marked = mark && sel && ((throwing && catchSquares(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (!throwing && fMoves(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (sel[0] === r && sel[1] === f));
+          const passHere = passTo.some(([rr, ff]) => rr === r && ff === f);
+          const marked = mark && sel && (passHere || (!throwing && fMoves(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (sel[0] === r && sel[1] === f));
           const ballHere = view.loose && view.loose[0] === r && view.loose[1] === f;
           let bg = end ? (r + f) % 2 ? "#1f6b3a" : "#185c32" : (r + f) % 2 ? "#2f8f4e" : "#277a42";
-          if (marked) bg = "#e6c56a";
+          if (marked) bg = passHere ? PASS_BG : "#e6c56a";
           const post = end && f === 3;
           return {
             bg,
             fg: u?.side === "b" ? "#14110e" : "#fffaf0",
-            text: `${post && !u ? "⊓" : ""}${u ? GLYPH[u.kind] : ""}${u?.ball || ballHere ? "●" : ""}`,
+            text: `${post && !u ? "⊓" : ""}${u ? GLYPH[u.kind] : ""}${u?.ball || ballHere ? "●" : ""}${passHere && !replay ? "🏈" : ""}`,
           };
         }}
       />
@@ -2370,6 +2386,11 @@ export function Football({ versus, online }: { versus: string; online?: string }
           <span className="rounded-xl bg-black/70 px-5 py-3 text-lg font-semibold text-ivory">Waiting for {vsName} to get ready…</span>
         </div>
       ) : null}
+      {passHint && !note ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[9.4rem] z-10 flex justify-center px-4 sm:bottom-[4.6rem]" data-fb-pass-hint>
+          <span className="rounded-full bg-black/80 px-4 py-1.5 text-sm font-bold text-[#ffe14a] shadow-lg">{passHint}</span>
+        </div>
+      ) : null}
       {hasBall && canAct ? (
         <div className="pointer-events-auto absolute inset-x-0 bottom-[5.2rem] z-10 flex justify-center gap-2 sm:bottom-5" data-fb-throw>
           <button
@@ -2380,7 +2401,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
             )}
             onClick={() => setThrowing((v) => !v)}
           >
-            {throwing ? "Pick a teammate ✕" : "🏈 Throw ball"}
+            {throwing ? "Cancel pass ✕" : "🏈 Pass"}
           </button>
           {kickable ? (
             <button

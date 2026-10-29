@@ -273,6 +273,28 @@ function GoalTarget({ rows, cols, from }: { rows: number; cols: number; from: { 
   );
 }
 
+/** Football (owner t239u): a square painted PASS_BG is a teammate you can pass / hand the ball to. */
+export const PASS_BG = "#ffe14a";
+const markBg = (bg: string) => bg === "#e6c56a" || bg === PASS_BG;
+
+/** A glowing ring under a teammate who can catch a pass, with a bobbing football over his head. */
+function PassMark({ position }: { position: [number, number, number] }) {
+  const ball = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (ball.current) ball.current.position.y = 1.45 + Math.sin(clock.elapsedTime * 4) * 0.08;
+  });
+  return (
+    <group position={position}>
+      <TargetMark position={[0, 0, 0]} color={PASS_BG} strong />
+      <group ref={ball}>
+        <Html center zIndexRange={[5, 0]} style={{ pointerEvents: "none", fontSize: 26, filter: "drop-shadow(0 0 6px #ffe14a)" }}>
+          🏈
+        </Html>
+      </group>
+    </group>
+  );
+}
+
 function Deck({
   rows,
   cols,
@@ -322,7 +344,9 @@ function Deck({
     for (let f = 0; f < cols; f++) {
       const [x, , z] = spot(r, f, rows, cols, 0);
       squares.push(
-        stadium && paint(r, f).bg !== "#e6c56a" ? null : stadium ? (
+        stadium && !markBg(paint(r, f).bg) ? null : stadium && paint(r, f).bg === PASS_BG ? (
+          <PassMark key={`${r}:${f}`} position={[x, 0.15, z]} />
+        ) : stadium ? (
           <group key={`${r}:${f}`}>
             <TargetMark position={[x, 0.15, z]} color={sel?.throwing ? "#ffe14a" : sel?.r === r && sel?.f === f ? SELECT_RING : homeCol} strong={sel?.r === r && sel?.f === f} />
           </group>
@@ -333,15 +357,16 @@ function Deck({
           </mesh>
         ),
       );
-      if (stadium && sel && paint(r, f).bg === "#e6c56a" && !(sel.r === r && sel.f === f)) {
-        arcs.push(<Arc key={`a${r}:${f}`} from={spot(sel.r, sel.f, rows, cols, 0.3)} to={spot(r, f, rows, cols, 0.2)} color={sel.throwing ? "#ffe14a" : homeCol} opacity={0.85} lift={sel.throwing ? 0.9 : 0.3} />);
+      if (stadium && sel && markBg(paint(r, f).bg) && !(sel.r === r && sel.f === f)) {
+        const toss = sel.throwing || paint(r, f).bg === PASS_BG;
+        arcs.push(<Arc key={`a${r}:${f}`} from={spot(sel.r, sel.f, rows, cols, 0.3)} to={spot(r, f, rows, cols, 0.2)} color={toss ? "#ffe14a" : homeCol} opacity={0.85} lift={toss ? 0.9 : 0.3} />);
       }
     }
   }
   // Stadium picking: one handler for the whole field. A tap is read against the
   // invisible ground plane AND every player it passes through, so a tall player
   // standing in front of a gold target square can no longer swallow the tap.
-  const marked = (r: number, f: number) => r >= 0 && r < rows && f >= 0 && f < cols && paint(r, f).bg === "#e6c56a";
+  const marked = (r: number, f: number) => r >= 0 && r < rows && f >= 0 && f < cols && markBg(paint(r, f).bg);
   const stadiumPick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     // A drag that spins the camera is not a tap (fingers wobble a little, so allow some).
