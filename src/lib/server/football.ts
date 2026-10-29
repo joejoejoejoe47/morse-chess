@@ -31,6 +31,8 @@ export type FootballMatchCue = {
   kind: FootballMatchUnit["kind"];
   thrown?: boolean;
   goal?: boolean;
+  /** goal: the kick missed (owner t238u) */
+  miss?: boolean;
   capture?: boolean;
   victim?: FootballMatchUnit["kind"] | null;
   victimSide?: "w" | "b" | null;
@@ -57,6 +59,9 @@ export type FootballMatchEvent = {
   fresh?: boolean;
   /** pass: the pick-off chance in % (owner t237u) */
   risk?: number;
+  /** goal: made or missed, and the chance it had in % (owner t238u) */
+  good?: boolean;
+  pct?: number;
   /** intercept: picked off without a jump */
   auto?: boolean;
   why?: string;
