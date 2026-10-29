@@ -410,7 +410,8 @@ function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null, d
   // end zone names, read along the zone
   ctx.save();
   ctx.translate(X(1), (top + bottom) / 2);
-  ctx.rotate(-Math.PI / 2);
+  // owner t244u: the camera now sits behind your own end zone, so your team name reads the right way up from there
+  ctx.rotate(Math.PI / 2);
   if (home) {
     // the player's own team name in their end zone, in their colour (one or two lines)
     const words = home.name.toUpperCase().split(" ");
