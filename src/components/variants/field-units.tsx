@@ -543,6 +543,11 @@ export function FieldVictim({ cue, look, rows, cols, taken = [] }: { cue: FieldC
     const g = node.current;
     if (!g || gone) return;
     const after = t - plan.hit;
+    // owner t244u: in football a tackled player is gone the instant the hit lands (no fall, fade or burst)
+    if (after >= 0) {
+      setGone(true);
+      return;
+    }
     const at = (k: number, y = FIELD_Y) => g.position.set(plan.to.x + way.v.x * knock * k, y, plan.to.z + way.v.z * knock * k);
     if (look === "an") {
       const G = gait.current;
