@@ -5,8 +5,12 @@
  * php/src/Variants.php is a line-by-line copy of this file; keep the two in step.
  */
 // heist, parade and cavalry are Morse originals (owner t209u: "make up 2-3 of your own games").
-export type VariantId = "horde" | "atomic" | "koth" | "breakthrough" | "heist" | "parade" | "cavalry";
-export const VARIANTS: VariantId[] = ["horde", "atomic", "koth", "breakthrough", "heist", "parade", "cavalry"];
+// mini = Gardner minichess on 5x5 (owner t220u). It plays in the a1-e5 corner of a normal 8x8 FEN.
+export type VariantId = "horde" | "atomic" | "koth" | "breakthrough" | "heist" | "parade" | "cavalry" | "mini";
+export const VARIANTS: VariantId[] = ["horde", "atomic", "koth", "breakthrough", "heist", "parade", "cavalry", "mini"];
+
+/** Squares per side of the variant's board (8, or 5 for Minichess). */
+export const sizeOf = (v: VariantId): number => (v === "mini" ? 5 : 8);
 export type Color = "w" | "b";
 export type Kind = "k" | "q" | "r" | "b" | "n" | "p";
 export type Piece = { c: Color; t: Kind };
@@ -39,6 +43,7 @@ export const START_FEN: Record<VariantId, string> = {
   heist: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
   parade: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
   cavalry: "rnbqkbnr/nnnnnnnn/8/8/8/8/NNNNNNNN/RNBQKBNR w KQkq - 0 1",
+  mini: "8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1",
 };
 
 export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rules: string[] }> = {
@@ -106,6 +111,17 @@ export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rule
     rules: [
       "A Morse original. Your 8 pawns are replaced by 8 more knights: 10 knights a side!",
       "Everything else is normal chess: checkmate wins, castling works once the knights get out of the way.",
+    ],
+  },
+  mini: {
+    name: "Minichess 5×5",
+    short: "Chess on a 5×5 board",
+    rules: [
+      "Gardner minichess: a 5×5 board, files a–e and ranks 1–5.",
+      "Each side has one rook, knight, bishop, queen and king on its back row, and five pawns in front.",
+      "Pieces move like normal chess. Pawns move one square only (no double step, so no en passant).",
+      "A pawn that reaches the far row promotes to a queen, rook, bishop or knight. There is no castling.",
+      "Checkmate wins. Stalemate is a draw.",
     ],
   },
 };
@@ -221,6 +237,9 @@ export function inCheck(v: VariantId, s: VState, c: Color = s.turn): boolean {
 function pseudo(v: VariantId, s: VState): VMove[] {
   const { board, turn } = s;
   const out: VMove[] = [];
+  const n = sizeOf(v);
+  // Moves stay on the variant's N×N board (Minichess: a1-e5).
+  const on = (r: number, f: number) => r >= 0 && r < n && f >= 0 && f < n;
   if (v === "breakthrough") {
     const d = turn === "w" ? 1 : -1;
     for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
@@ -238,7 +257,7 @@ function pseudo(v: VariantId, s: VState): VMove[] {
     }
     return out;
   }
-  const last = turn === "w" ? 7 : 0;
+  const last = turn === "w" ? n - 1 : 0;
   const ep = s.ep ? sqPos(s.ep) : null;
   for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
     const p = board[r][f];
@@ -254,7 +273,8 @@ function pseudo(v: VariantId, s: VState): VMove[] {
       if (on(r + d, f) && !board[r + d][f]) {
         add(r + d, f);
         // Horde: White pawns on ranks 1 and 2 may double-step.
-        const canDouble = turn === "w" ? r === 1 || (v === "horde" && r === 0) : r === 6;
+        // Minichess pawns never double-step.
+        const canDouble = v === "mini" ? false : turn === "w" ? r === 1 || (v === "horde" && r === 0) : r === 6;
         if (canDouble && on(r + 2 * d, f) && !board[r + 2 * d][f]) out.push({ from, to: sqName(r + 2 * d, f), double: true });
       }
       for (const df of [-1, 1]) {
@@ -280,7 +300,7 @@ function pseudo(v: VariantId, s: VState): VMove[] {
       if (p.t === "k") {
         const home = turn === "w" ? 0 : 7;
         const [ks, qs] = turn === "w" ? ["K", "Q"] : ["k", "q"];
-        if (r === home && f === 4 && !inCheck(v, s, turn)) {
+        if (v !== "mini" && r === home && f === 4 && !inCheck(v, s, turn)) {
           const safe = (ff: number) => {
             if (v !== "atomic") return !attacked(board, home, ff, other(turn));
             const b2 = board.map((row) => row.slice());
@@ -501,11 +521,13 @@ const VAL: Record<Kind, number> = { p: 100, n: 310, b: 330, r: 500, q: 950, k: 0
 /** Score for White (positive = good for White). */
 export function evaluate(v: VariantId, s: VState): number {
   let score = 0;
+  const n = sizeOf(v);
+  const mid = (n - 1) / 2;
   for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
     const p = s.board[r][f];
     if (!p) continue;
-    const adv = p.c === "w" ? r : 7 - r;
-    const centre = 3.5 - Math.max(Math.abs(3.5 - r), Math.abs(3.5 - f));
+    const adv = p.c === "w" ? r : n - 1 - r;
+    const centre = mid - Math.max(Math.abs(mid - r), Math.abs(mid - f));
     let val = VAL[p.t];
     if (v === "breakthrough") val = 100 + adv * adv * 6 + (f === 0 || f === 7 ? 0 : 4);
     else if (p.t === "p") val += v === "parade" ? adv * adv * 9 : adv * (v === "horde" && p.c === "w" ? 5 : 8);

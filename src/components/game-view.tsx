@@ -26,6 +26,7 @@ import {
   legalTargets,
   needsPromotion,
   parseFen,
+  sizeOf,
   status as variantStatus,
   toFen,
   tryMove,
@@ -722,6 +723,8 @@ export function GameView({ gameId }: { gameId: string }) {
     skin,
     outlineOn: prefs.outline,
     ...rules,
+    // Minichess is 5×5 (owner t220u); every other game is 8×8.
+    size: variant ? sizeOf(variant) : 8,
     blast: variant === "atomic" ? blast : null,
   };
   const preview = variant ? isOwnerPreview(variant, myName) : false;
