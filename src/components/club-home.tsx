@@ -31,7 +31,7 @@ import { SplashSkeleton } from "@/components/auth-screen";
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 
-type VariantId = "checkmate" | "football" | "strategy";
+type VariantId = "checkmate" | "football" | "strategy" | "basketball";
 
 type Flow =
   | { kind: "idle" }
@@ -975,11 +975,12 @@ function PullUpScreen({
     rules("horde", "main"),
     rules("atomic", "main"),
     rules("koth", "main"),
-    { id: "other", art: "other", big: "Other games", small: "9 more ways to play", state: "play", go: () => onScreen("other") },
+    { id: "other", art: "other", big: "Other games", small: "10 more ways to play", state: "play", go: () => onScreen("other") },
   ];
   const football: TileState = gate("football");
   const other: TileSpec[] = [
     { id: "football", art: "football", big: "Football", small: "1v1 on the gridiron", state: football, go: () => onClassic("football") },
+    { id: "basketball", art: "basketball", big: "Basketball", small: "Five a side", state: gate("basketball"), go: () => onClassic("basketball") },
     { id: "checkmate", art: "checkmate", big: "Checkmate", small: "End game", state: gate("checkmate"), go: () => onClassic("checkmate") },
     { id: "strategy", art: "strategy", big: "Strategy", small: "Morse", state: gate("strategy"), go: () => onClassic("strategy") },
     { id: "knights-tour", art: "knights-tour", big: "Knight's Tour", small: "Visit every square", state: gate("knights-tour"), go: () => onLocal("knights-tour") },

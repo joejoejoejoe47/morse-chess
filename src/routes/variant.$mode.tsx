@@ -37,7 +37,7 @@ function VariantDoor() {
   }, [door.status]);
   if (door.status === "pending") return <SplashSkeleton />;
   if (door.status === "auth") return <AuthScreen />;
-  if (mode !== "checkmate" && mode !== "football" && mode !== "strategy") {
+  if (mode !== "checkmate" && mode !== "football" && mode !== "strategy" && mode !== "basketball") {
     return (
       <main className="grid min-h-dvh place-items-center bg-ink text-ivory">
         <Link to="/">Back to the lounge</Link>

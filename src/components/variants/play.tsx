@@ -280,11 +280,13 @@ function Grid({
   field = null,
   home = null,
   park = false,
+  court = false,
 }: {
   onReady?: () => void;
   field?: FieldOpts | null;
   home?: HomeTeam | null;
   park?: boolean;
+  court?: boolean;
   rows: number;
   cols: number;
   paint: (r: number, f: number) => { bg: string; fg: string; text: string };
@@ -309,7 +311,7 @@ function Grid({
     for (let r = rows - 1; r >= 0; r--) {
       for (let f = 0; f < cols; f++) {
         const p = painted(r, f);
-        const dot = stadium && p.bg === "#e6c56a";
+        const dot = (stadium || court) && p.bg === "#e6c56a";
         if (stadium && !p.text && !dot) {
           cells.push(<button key={`${r}:${f}`} type="button" className="relative min-h-0" onClick={() => onPick(r, f)} />);
           continue;
@@ -345,7 +347,7 @@ function Grid({
       <div className="grid h-full w-full place-items-center p-3 sm:p-6">
         <div
           className="h-full max-h-full max-w-full overflow-hidden rounded-xl border border-[#3a2a1c] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
-          style={{ aspectRatio: `${cols} / ${rows}`, background: stadium ? "#1a2430" : undefined }}
+          style={{ aspectRatio: `${cols} / ${rows}`, background: court ? "linear-gradient(#d7a15a,#b56e2e)" : stadium ? "#1a2430" : undefined }}
         >
           <div className="grid h-full w-full" style={{ gridTemplateColumns: `repeat(${cols},minmax(0,1fr))`, gridTemplateRows: `repeat(${rows},minmax(0,1fr))` }}>
             {cells}
@@ -356,7 +358,7 @@ function Grid({
   }
   return (
     <div className="h-full w-full">
-      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} show={show} onReady={onReady} field={field} home={home} park={park} />
+      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} show={show} onReady={onReady} field={field} home={home} park={park} court={court} />
     </div>
   );
 }
@@ -2812,7 +2814,294 @@ export function Strategy({ versus }: { versus: string }) {
   );
 }
 
-export function VariantPlay({ mode, versus, game: online }: { mode: "checkmate" | "football" | "strategy"; versus: string; game?: string }) {
+/* ── Basketball (owner preview) ─────────────────────────────── */
+
+type BUnit = Unit & { ball?: boolean };
+type BBoard = (BUnit | null)[][];
+const BB_ROWS = 12;
+const BB_COLS = 7;
+const HOOP_FILE = 3;
+
+function basketRow(side: Side) {
+  return side === "w" ? 0 : BB_ROWS - 1;
+}
+function cheb(a: [number, number], b: [number, number]) {
+  return Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]));
+}
+function basketballStart(): { board: BBoard; loose: [number, number] } {
+  const board = blank(BB_ROWS, BB_COLS) as BBoard;
+  const five: Kind[] = ["n", "b", "k", "r", "q"];
+  for (let i = 0; i < 5; i++) {
+    board[9][i + 1] = { side: "w", kind: five[i] };
+    board[2][i + 1] = { side: "b", kind: five[4 - i] };
+  }
+  return { board, loose: [5, HOOP_FILE] };
+}
+function openCourt(b: BBoard): [number, number] {
+  const center: [number, number] = [5, HOOP_FILE];
+  if (!b[center[0]][center[1]]) return center;
+  for (let ring = 1; ring < 6; ring++) {
+    for (let r = center[0] - ring; r <= center[0] + ring; r++) {
+      for (let f = center[1] - ring; f <= center[1] + ring; f++) {
+        if (onBoard(r, f, BB_ROWS, BB_COLS) && !b[r][f]) return [r, f];
+      }
+    }
+  }
+  return center;
+}
+function shotPoints(kind: Kind, from: [number, number], side: Side): 0 | 2 | 3 {
+  const d = cheb(from, [basketRow(side), HOOP_FILE]);
+  if (d <= 1) return 2;
+  if (kind === "k" || kind === "r" || kind === "n") return d <= 2 ? 2 : 0;
+  if (d <= 2) return 2;
+  return d <= 5 ? 3 : 0;
+}
+function passReach(kind: Kind) {
+  if (kind === "q") return 6;
+  if (kind === "r") return 5;
+  if (kind === "b" || kind === "n") return 4;
+  return 3;
+}
+function bbMoves(b: BBoard, r: number, f: number): [number, number][] {
+  const u = b[r][f];
+  if (!u) return [];
+  const out: [number, number][] = [];
+  const step = (rr: number, ff: number) => {
+    if (!onBoard(rr, ff, BB_ROWS, BB_COLS)) return;
+    const t = b[rr][ff];
+    if (!t) out.push([rr, ff]);
+    else if (t.side !== u.side && t.ball) out.push([rr, ff]);
+  };
+  if (u.ball) {
+    for (let dr = -1; dr <= 1; dr++) for (let df = -1; df <= 1; df++) if (dr || df) step(r + dr, f + df);
+    return out;
+  }
+  const slide = (dr: number, df: number, max: number) => {
+    for (let i = 1; i <= max; i++) {
+      const rr = r + dr * i;
+      const ff = f + df * i;
+      if (!onBoard(rr, ff, BB_ROWS, BB_COLS)) return;
+      const t = b[rr][ff];
+      if (!t) out.push([rr, ff]);
+      else {
+        if (t.side !== u.side && t.ball) out.push([rr, ff]);
+        return;
+      }
+    }
+  };
+  if (u.kind === "n") {
+    for (const [dr, df] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]] as const) step(r + dr, f + df);
+  } else if (u.kind === "k") {
+    for (let dr = -1; dr <= 1; dr++) for (let df = -1; df <= 1; df++) if (dr || df) step(r + dr, f + df);
+  } else {
+    const dirs: [number, number][] = [];
+    const reach = u.kind === "q" ? 2 : 3;
+    if (u.kind === "b" || u.kind === "q") dirs.push([-1, -1], [-1, 1], [1, -1], [1, 1]);
+    if (u.kind === "r" || u.kind === "q") dirs.push([-1, 0], [1, 0], [0, -1], [0, 1]);
+    for (const [dr, df] of dirs) slide(dr, df, reach);
+  }
+  return out;
+}
+function bbPass(b: BBoard, r: number, f: number): [number, number][] {
+  const u = b[r][f];
+  if (!u?.ball) return [];
+  const reach = passReach(u.kind);
+  const out: [number, number][] = [];
+  for (let rr = 0; rr < BB_ROWS; rr++) {
+    for (let ff = 0; ff < BB_COLS; ff++) {
+      const t = b[rr][ff];
+      if (!t || t.side !== u.side || (rr === r && ff === f)) continue;
+      if (cheb([r, f], [rr, ff]) <= reach) out.push([rr, ff]);
+    }
+  }
+  return out;
+}
+
+function Basketball({ versus }: { versus: string }) {
+  const start = useMemo(() => basketballStart(), []);
+  const [board, setBoard] = useState<BBoard>(start.board);
+  const [loose, setLoose] = useState<[number, number] | null>(start.loose);
+  const [turn, setTurn] = useState<Side>("w");
+  const [sel, setSel] = useState<[number, number] | null>(null);
+  const [passing, setPassing] = useState(false);
+  const [score, setScore] = useState({ w: 0, b: 0 });
+  const [left, setLeft] = useState(3 * 60);
+  const [over, setOver] = useState("");
+  const [cue, setCue] = useState<MoveCue | null>(null);
+  const [note, setNote] = useState("Five a side. Dunk for 2. The queen and the bishop can shoot a 3.");
+
+  useEffect(() => {
+    if (over) return;
+    const id = window.setInterval(() => setLeft((n) => (n <= 1 ? (setOver("time"), 0) : n - 1)), 1000);
+    return () => window.clearInterval(id);
+  }, [over]);
+
+  function finish(next: BBoard, ball: [number, number] | null, scored: { w: number; b: number }, mover: Side, line: string) {
+    const side = other(mover);
+    setBoard(next);
+    setLoose(ball);
+    setScore(scored);
+    setNote(line);
+    setSel(null);
+    setPassing(false);
+    setTurn(side);
+    if (side === "b" && !over) window.setTimeout(() => botBall(next, ball, scored), 420);
+  }
+  function scoreBall(next: BBoard, side: Side, pts: 2 | 3, scored: { w: number; b: number }, line: string) {
+    for (let r = 0; r < BB_ROWS; r++) for (let f = 0; f < BB_COLS; f++) {
+      const u = next[r][f];
+      if (u?.ball) next[r][f] = { ...u, ball: false };
+    }
+    finish(next, openCourt(next), { ...scored, [side]: scored[side] + pts }, side, line);
+  }
+  function moveTo(from: [number, number], to: [number, number], live = board, ball = loose, scored = score) {
+    const next = cloneBoard(live) as BBoard;
+    const u = next[from[0]][from[1]];
+    if (!u) return;
+    const victim = next[to[0]][to[1]];
+    let carry = Boolean(u.ball);
+    if (!carry && ball && ball[0] === to[0] && ball[1] === to[1]) carry = true;
+    if (victim?.ball) carry = true;
+    setCue({ id: Date.now(), from, to, capture: false, thrown: false, side: u.side, kind: u.kind });
+    if (victim?.ball) {
+      next[from[0]][from[1]] = { ...victim, ball: false };
+      next[to[0]][to[1]] = { ...u, ball: true };
+      finish(next, null, scored, u.side, "Steal.");
+      return;
+    }
+    next[from[0]][from[1]] = null;
+    next[to[0]][to[1]] = { ...u, ball: carry };
+    if (carry && to[0] === basketRow(u.side) && to[1] === HOOP_FILE) {
+      next[to[0]][to[1]] = { ...u, ball: false };
+      scoreBall(next, u.side, 2, scored, "Dunk. Two points.");
+      return;
+    }
+    const looseNow = carry || (ball && ball[0] === to[0] && ball[1] === to[1]) ? null : ball;
+    finish(next, looseNow, scored, u.side, carry ? "Dribble." : "Cut.");
+  }
+  function pass(from: [number, number], to: [number, number], live = board, scored = score) {
+    const next = cloneBoard(live) as BBoard;
+    const u = next[from[0]][from[1]];
+    const mate = next[to[0]][to[1]];
+    if (!u?.ball || !mate || mate.side !== u.side) return;
+    setCue({ id: Date.now(), from, to, capture: false, thrown: true, side: u.side, kind: u.kind });
+    next[from[0]][from[1]] = { ...u, ball: false };
+    if (to[0] === basketRow(mate.side) && to[1] === HOOP_FILE) {
+      next[to[0]][to[1]] = { ...mate, ball: false };
+      scoreBall(next, mate.side, 2, scored, "Catch at the rim. Two points.");
+      return;
+    }
+    next[to[0]][to[1]] = { ...mate, ball: true };
+    finish(next, null, scored, u.side, "Pass.");
+  }
+  function shoot(from: [number, number], live = board, scored = score) {
+    const u = live[from[0]][from[1]];
+    if (!u?.ball) return;
+    const pts = shotPoints(u.kind, from, u.side);
+    if (!pts) return;
+    const next = cloneBoard(live) as BBoard;
+    next[from[0]][from[1]] = { ...u, ball: false };
+    setCue({ id: Date.now(), from, to: [basketRow(u.side), HOOP_FILE], capture: false, thrown: true, side: u.side, kind: u.kind });
+    scoreBall(next, u.side, pts, scored, pts === 3 ? "Three." : "Two.");
+  }
+  function botBall(live: BBoard, ball: [number, number] | null, scored: { w: number; b: number }) {
+    type Act = { kind: "m" | "p" | "s"; from: [number, number]; to: [number, number]; rank: number };
+    const acts: Act[] = [];
+    for (let r = 0; r < BB_ROWS; r++) {
+      for (let f = 0; f < BB_COLS; f++) {
+        const u = live[r][f];
+        if (u?.side !== "b") continue;
+        if (u.ball) {
+          const pts = shotPoints(u.kind, [r, f], "b");
+          if (pts) acts.push({ kind: "s", from: [r, f], to: [basketRow("b"), HOOP_FILE], rank: 20 + pts });
+        }
+        for (const to of bbMoves(live, r, f)) {
+          let rank = 1 + (u.ball ? r - to[0] : 0);
+          if (ball && to[0] === ball[0] && to[1] === ball[1]) rank += 8;
+          if (live[to[0]][to[1]]?.ball) rank += 12;
+          if (u.ball && to[0] === basketRow("b") && to[1] === HOOP_FILE) rank += 18;
+          acts.push({ kind: "m", from: [r, f], to, rank });
+        }
+        if (u.ball) for (const to of bbPass(live, r, f)) acts.push({ kind: "p", from: [r, f], to, rank: (r - to[0]) * 2 + 3 });
+      }
+    }
+    if (!acts.length) {
+      setTurn("w");
+      return;
+    }
+    acts.sort((a, b) => b.rank - a.rank);
+    const pick = acts[Math.floor(Math.random() * Math.min(2, acts.length))];
+    if (pick.kind === "s") shoot(pick.from, live, scored);
+    else if (pick.kind === "p") pass(pick.from, pick.to, live, scored);
+    else moveTo(pick.from, pick.to, live, ball, scored);
+  }
+  function onSquare(r: number, f: number) {
+    if (over || turn !== "w") return;
+    const u = board[r][f];
+    if (passing && sel) {
+      if (bbPass(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) pass(sel, [r, f]);
+      else setPassing(false);
+      return;
+    }
+    if (u?.side === "w") {
+      setSel([r, f]);
+      setPassing(false);
+      return;
+    }
+    if (!sel) return;
+    if (bbMoves(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) moveTo(sel, [r, f]);
+  }
+  const holder = sel ? board[sel[0]][sel[1]] : null;
+  const canShoot = Boolean(holder?.ball && holder.side === "w" && sel && shotPoints(holder.kind, sel, "w"));
+  const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  const result = over === "time" ? (score.w === score.b ? "Time. Tie game." : score.w > score.b ? "Time. You win." : `Time. ${versus} wins.`) : "";
+  return (
+    <Shell
+      title="Basketball"
+      opp={versus}
+      clock={clock}
+      hot={turn === "w" && !over}
+      status={`${score.w}–${score.b}${result ? ` · ${result}` : ""}`}
+      verdict={over === "time" && score.w !== score.b ? (score.w > score.b ? "victory" : "defeat") : null}
+    >
+      <Grid
+        court
+        rows={BB_ROWS}
+        cols={BB_COLS}
+        onPick={onSquare}
+        ball={loose ? { r: loose[0], f: loose[1] } : null}
+        units={board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind, ball: Boolean(u.ball) }] : [])))}
+        cue={cue}
+        paint={(r, f) => {
+          const u = board[r][f];
+          const hoop = f === HOOP_FILE && (r === 0 || r === BB_ROWS - 1);
+          const marked = Boolean(sel && ((passing && bbPass(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (!passing && bbMoves(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) || (sel[0] === r && sel[1] === f)));
+          const ballHere = Boolean(loose && loose[0] === r && loose[1] === f);
+          return {
+            bg: marked ? "#e6c56a" : hoop ? "#a85a22" : (r + f) % 2 ? "#c9843c" : "#d59a52",
+            fg: u?.side === "b" ? "#14110e" : "#fffaf0",
+            text: `${hoop && !u ? "○" : ""}${u ? GLYPH[u.kind] : ""}${u?.ball || ballHere ? "●" : ""}`,
+          };
+        }}
+      />
+      <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 gap-2">
+        {holder?.ball && turn === "w" && !over ? (
+          <button type="button" className="rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory" onClick={() => setPassing((v) => !v)}>
+            {passing ? "Passing — pick a teammate" : "Pass"}
+          </button>
+        ) : null}
+        {canShoot && sel && holder ? (
+          <button type="button" className="rounded-full border border-gold-line bg-walnut px-4 py-2 text-sm text-ivory" onClick={() => shoot(sel)}>
+            Shoot {shotPoints(holder.kind, sel, "w")}
+          </button>
+        ) : null}
+      </div>
+      <p className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1 text-xs text-ivory">{note}</p>
+    </Shell>
+  );
+}
+
+export function VariantPlay({ mode, versus, game: online }: { mode: "checkmate" | "football" | "strategy" | "basketball"; versus: string; game?: string }) {
   const modes: Look[] = mode === "strategy" ? ["an", "lg"] : ["2d", "3d", "an", "lg"];
   const [look, setLook] = useState<Look>(() => {
     try {
@@ -2835,7 +3124,7 @@ export function VariantPlay({ mode, versus, game: online }: { mode: "checkmate" 
       .catch(() => undefined);
   }, []);
   const skin = boardById(boardId);
-  const sky: Sky = look === "lg" ? "lego" : look === "an" && mode === "football" ? "arena" : "table";
+  const sky: Sky = mode === "basketball" ? "table" : look === "lg" ? "lego" : look === "an" && mode === "football" ? "arena" : "table";
   function choose(next: Look) {
     if (!modes.includes(next)) return;
     setLook(next);
@@ -2846,7 +3135,7 @@ export function VariantPlay({ mode, versus, game: online }: { mode: "checkmate" 
     }
     void setPieceStyle({ data: { style: next } }).catch(() => undefined);
   }
-  const game = mode === "football" ? <Football versus={versus} online={online} /> : mode === "strategy" ? <Strategy versus={versus} /> : <CheckMate versus={versus} />;
+  const game = mode === "basketball" ? <Basketball versus={versus} /> : mode === "football" ? <Football versus={versus} online={online} /> : mode === "strategy" ? <Strategy versus={versus} /> : <CheckMate versus={versus} />;
   return (
     <LookCtx.Provider value={{ look, sky, light: skin.lightSq, dark: skin.darkSq, modes, setLook: choose }}>
       {game}

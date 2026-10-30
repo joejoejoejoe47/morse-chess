@@ -71,6 +71,34 @@ function Pigskin() {
   );
 }
 
+function OrangeBall() {
+  return (
+    <mesh castShadow>
+      <sphereGeometry args={[0.16, 24, 16]} />
+      <meshStandardMaterial color="#e85d04" roughness={0.42} />
+    </mesh>
+  );
+}
+
+function Hoop({ at }: { at: [number, number, number] }) {
+  return (
+    <group position={at}>
+      <mesh position={[0, 1.15, 0]}>
+        <cylinderGeometry args={[0.04, 0.045, 2.3, 8]} />
+        <meshStandardMaterial color="#d9dde4" metalness={0.55} roughness={0.28} />
+      </mesh>
+      <mesh position={[0, 2.05, 0]}>
+        <boxGeometry args={[0.92, 0.58, 0.05]} />
+        <meshStandardMaterial color="#f7f7f4" roughness={0.4} />
+      </mesh>
+      <mesh position={[0, 1.82, 0.22]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.22, 0.02, 8, 22]} />
+        <meshStandardMaterial color="#ee6a12" metalness={0.35} roughness={0.35} />
+      </mesh>
+    </group>
+  );
+}
+
 function spot(r: number, f: number, rows: number, cols: number, y = 0.14): [number, number, number] {
   return [f - (cols - 1) / 2, y, (rows - 1) / 2 - r];
 }
@@ -146,6 +174,7 @@ function Actor({
   cols,
   spawn,
   slay,
+  orange = false,
 }: {
   unit: StageUnit;
   look: Look;
@@ -153,6 +182,7 @@ function Actor({
   cols: number;
   spawn: [number, number] | null;
   slay: boolean;
+  orange?: boolean;
 }) {
   const home = spot(unit.r, unit.f, rows, cols);
   const from = spawn ? spot(spawn[0], spawn[1], rows, cols) : home;
@@ -220,14 +250,14 @@ function Actor({
       )}
       {unit.ball && look !== "lg" ? (
         <group position={[0.18, 0.72, 0.12]}>
-          <Pigskin />
+          {orange ? <OrangeBall /> : <Pigskin />}
         </group>
       ) : null}
     </group>
   );
 }
 
-function Throw({ from, to, rows, cols }: { from: [number, number]; to: [number, number]; rows: number; cols: number }) {
+function Throw({ from, to, rows, cols, orange = false }: { from: [number, number]; to: [number, number]; rows: number; cols: number; orange?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   const born = useRef<number | null>(null);
   const a = spot(from[0], from[1], rows, cols, 0.7);
@@ -237,13 +267,13 @@ function Throw({ from, to, rows, cols }: { from: [number, number]; to: [number, 
     if (!node) return;
     if (born.current == null) born.current = clock.elapsedTime;
     const u = Math.min(1, (clock.elapsedTime - born.current) / 0.72);
-    const arc = Math.sin(u * Math.PI) * (0.55 + Math.hypot(b[0] - a[0], b[2] - a[2]) * 0.18);
+    const arc = Math.sin(u * Math.PI) * ((orange ? 1.4 : 0.55) + Math.hypot(b[0] - a[0], b[2] - a[2]) * (orange ? 0.28 : 0.18));
     node.position.set(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + arc, a[2] + (b[2] - a[2]) * u);
     node.rotation.set(u * 16, 0, u * 9);
   });
   return (
     <group ref={ref}>
-      <Pigskin />
+      {orange ? <OrangeBall /> : <Pigskin />}
     </group>
   );
 }
@@ -307,6 +337,7 @@ function Deck({
   stadium = false,
   sel = null,
   field = null,
+  court = false,
 }: {
   rows: number;
   cols: number;
@@ -319,6 +350,7 @@ function Deck({
   stadium?: boolean;
   sel?: { r: number; f: number; throwing: boolean } | null;
   field?: FieldOpts | null;
+  court?: boolean;
 }) {
   const homeCol = field?.colors.w ?? TEAM.w;
   const awayCol = field?.colors.b ?? TEAM.b;
@@ -404,7 +436,16 @@ function Deck({
           <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
         </mesh>
       ) : null}
-      {stadium ? null : (
+      {stadium ? null : court ? (
+        <>
+          <mesh position={[0, 0.01, 0]} receiveShadow>
+            <boxGeometry args={[cols + 1.2, 0.08, rows + 1.4]} />
+            <meshStandardMaterial color="#c4843a" roughness={0.72} />
+          </mesh>
+          <Hoop at={spot(-0.55, Math.floor(cols / 2), rows, cols, 0)} />
+          <Hoop at={spot(rows - 0.45, Math.floor(cols / 2), rows, cols, 0)} />
+        </>
+      ) : (
       <mesh position={[0, 0.02, 0]} receiveShadow>
         <boxGeometry args={[cols + 0.8, 0.08, rows + 0.8]} />
         <meshStandardMaterial color="#3c261c" roughness={0.7} />
@@ -463,6 +504,7 @@ function Deck({
               cols={cols}
               spawn={moving ? cue.from : null}
               slay={Boolean(moving && cue.capture)}
+              orange={court}
             />
           </group>
         );
@@ -472,10 +514,10 @@ function Deck({
           <WarCorpse type={cue.victim} white={cue.victimSide === "w"} cast="stone" sword={false} clash delay={0.55} onDone={() => undefined} />
         </group>
       ) : null}
-      {!field && cue?.thrown ? <Throw key={cue.id} from={cue.from} to={cue.to} rows={rows} cols={cols} /> : null}
+      {!field && cue?.thrown ? <Throw key={cue.id} from={cue.from} to={cue.to} rows={rows} cols={cols} orange={court} /> : null}
       {!field && ball && !cue?.thrown ? (
         <group position={spot(ball.r, ball.f, rows, cols, 0.22)}>
-          <Pigskin />
+          {court ? <OrangeBall /> : <Pigskin />}
         </group>
       ) : null}
     </group>
@@ -499,6 +541,7 @@ export function VariantStage({
   field = null,
   home = null,
   park = false,
+  court = false,
 }: {
   rows: number;
   cols: number;
@@ -517,6 +560,7 @@ export function VariantStage({
   home?: HomeTeam | null;
   /** the daytime Park Field instead of the neon stadium (football, picked on the Boards page) */
   park?: boolean;
+  court?: boolean;
 }) {
   const span = Math.max(rows, cols);
   const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
@@ -538,7 +582,7 @@ export function VariantStage({
         ) : null}
         {stadium ? null : sky === "lego" ? <LegoWorld /> : null}
         {!stadium && sky === "arena" ? <SkyArenaWorld squaresBottom={0.02} plinth={false} /> : null}
-        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} field={field} />
+        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} field={field} court={court} />
         <OrbitControls makeDefault target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.05} minDistance={4} maxDistance={span * 3} />
         {onReady ? <Ready onReady={onReady} /> : null}
       </Canvas>
