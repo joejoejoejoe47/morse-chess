@@ -543,6 +543,11 @@ export function FieldVictim({ cue, look, rows, cols, taken = [] }: { cue: FieldC
     const g = node.current;
     if (!g || gone) return;
     const after = t - plan.hit;
+    // owner t244u: in football a tackled player is gone the instant the hit lands (no fall, fade or burst)
+    if (after >= 0) {
+      setGone(true);
+      return;
+    }
     const at = (k: number, y = FIELD_Y) => g.position.set(plan.to.x + way.v.x * knock * k, y, plan.to.z + way.v.z * knock * k);
     if (look === "an") {
       const G = gait.current;
@@ -807,8 +812,16 @@ export function FieldThrow({ cue, rows, cols, onDone, units = [] }: { cue: Field
       prog.current = Math.min(1, prog.current + (dt / dur) * (slow ? SLOW_SPEED : 1));
       const u = prog.current;
       node.position.set(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u + Math.sin(u * Math.PI) * lift, a.z + (b.z - a.z) * u);
-      node.rotation.set(0, Math.atan2(b.x - a.x, b.z - a.z), 0);
-      node.rotateX(u * 14);
+      // owner t244u: the long axis (the ball's local x) points along the flight, the nose follows the arc;
+      // a pass spirals around its long axis, a kick tumbles end over end
+      const vy = (b.y - a.y) + Math.PI * lift * Math.cos(u * Math.PI);
+      const pitch = Math.atan2(vy, Math.max(0.01, dist));
+      node.rotation.set(0, Math.atan2(-(b.z - a.z), b.x - a.x), 0);
+      if (cue.goal) node.rotateZ(pitch + u * 14);
+      else {
+        node.rotateZ(pitch);
+        node.rotateX(u * 22);
+      }
       if (FLIGHT.id === cue.id) {
         FLIGHT.u = u;
         FLIGHT.pos.copy(node.position);

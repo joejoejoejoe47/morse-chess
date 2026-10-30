@@ -410,7 +410,8 @@ function fieldCanvas(rows: number, cols: number, home: HomeTeam | null = null, d
   // end zone names, read along the zone
   ctx.save();
   ctx.translate(X(1), (top + bottom) / 2);
-  ctx.rotate(-Math.PI / 2);
+  // owner t244u: the camera now sits behind your own end zone, so your team name reads the right way up from there
+  ctx.rotate(Math.PI / 2);
   if (home) {
     // the player's own team name in their end zone, in their colour (one or two lines)
     const words = home.name.toUpperCase().split(" ");
@@ -1364,7 +1365,7 @@ function SweepBeams({ hw, hl }: { hw: number; hl: number }) {
   );
 }
 
-/** Camera: broadside like a TV shot on wide screens, end-on on tall phones. */
+/** Camera: end-on from behind your own team (owner t244u). */
 export function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
   const { camera, size, controls } = useThree();
   const wide = size.width >= size.height * 1.05;
@@ -1374,8 +1375,10 @@ export function StadiumCam({ rows, reset }: { rows: number; reset: number }) {
     persp.fov = wide ? 48 : 40;
     persp.updateProjectionMatrix();
     // a little lower and further back than before, so the city skyline shows above the far stands
-    const aim = wide ? new THREE.Vector3(-rows * 0.257, 0, 0) : new THREE.Vector3(0, 0, -0.4);
-    if (wide) camera.position.set(rows * 1.0, rows * 0.6, 0.001);
+    // owner t244u: always end-on from behind your own team (your end at the bottom), so you play away from yourself
+    // toward the end zone you score in at the far end (your side is always white / row 0 here; online the away board is flipped)
+    const aim = wide ? new THREE.Vector3(0, 0, -1.2) : new THREE.Vector3(0, 0, -0.4);
+    if (wide) camera.position.set(0, rows * 0.95, rows * 0.95);
     else camera.position.set(0, rows * 1.5, rows * 0.8);
     camera.lookAt(aim);
     const orbit = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null;
