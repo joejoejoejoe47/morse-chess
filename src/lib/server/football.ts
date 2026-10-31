@@ -96,7 +96,7 @@ export type FootballMatchView = {
   ot?: boolean;
 };
 export type FootballMatchAction =
-  | { t: "move" | "pass"; from: [number, number]; to: [number, number] }
+  | { t: "move" | "pass" | "step"; from: [number, number]; to: [number, number] }
   | { t: "goal"; from: [number, number] }
   | { t: "intercept"; id: string }
   | { t: "skip" };

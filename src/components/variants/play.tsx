@@ -278,6 +278,7 @@ function Grid({
   cols,
   paint,
   onPick,
+  onDrive,
   units,
   ball = null,
   cue = null,
@@ -299,6 +300,7 @@ function Grid({
   cols: number;
   paint: (r: number, f: number) => { bg: string; fg: string; text: string };
   onPick: (r: number, f: number) => void;
+  onDrive?: (r: number, f: number) => void;
   units: StageUnit[];
   ball?: { r: number; f: number } | null;
   cue?: MoveCue | null;
@@ -329,6 +331,7 @@ function Grid({
             key={`${r}:${f}`}
             type="button"
             onClick={() => onPick(r, f)}
+            onDoubleClick={() => onDrive?.(r, f)}
             className="relative grid min-h-0 place-items-center [container-type:size]"
             style={{ background: stadium ? "transparent" : p.bg }}
           >
@@ -366,7 +369,7 @@ function Grid({
   }
   return (
     <div className="h-full w-full">
-      <VariantStage rows={rows} cols={cols} onPick={onPick} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} show={show} onReady={onReady} field={field} home={home} park={park} court={court} />
+      <VariantStage rows={rows} cols={cols} onPick={onPick} onDrive={onDrive} units={units} look={look} sky={sky} ball={ball} cue={cue} stadium={stadium} paint={painted} sel={sel} show={show} onReady={onReady} field={field} home={home} park={park} court={court} />
     </div>
   );
 }
@@ -1067,6 +1070,7 @@ const FOOTBALL_RULES = [
   "Kings cannot be tackled. A king who holds the ball for 3 moves puts it down: both teams line up at his yard line and he gets it back.",
   "Take more than 5 seconds and the other team sneaks in one bonus move. The game lasts 10 minutes.",
   "If the clock hits 0:00 and the score is tied, big text says OVERTIME, everyone restarts in the middle, and the next touchdown wins.",
+  "On a computer, double-click your man on your turn to walk him: W forward, A left, S back, D right, Space to jump and catch. That sticks for the rest of the game until Esc. A tablet just taps.",
 ];
 
 const RANK_FLIP: Record<string, string> = { "1": "8", "2": "7", "7": "2", "8": "1" };
@@ -1124,6 +1128,13 @@ export function Football({ versus, online }: { versus: string; online?: string }
   const [over, setOver] = useState("");
   const [ot, setOt] = useState(false);
   const otRef = useRef(false);
+  const [pad, setPad] = useState(false);
+  const padRef = useRef(false);
+  padRef.current = pad;
+  const [stick, setStick] = useState(false);
+  const stickRef = useRef(false);
+  const driven = useRef<string | null>(null);
+  const stepAt = useRef(0);
   const [cue, setCue] = useState<MoveCue | null>(null);
   // 3, 2, 1, GO! first; nothing moves and the clock waits until it is over
   const [phase, setPhase] = useState<Phase>("count");
@@ -1472,6 +1483,11 @@ export function Football({ versus, online }: { versus: string; online?: string }
         setSel(null);
         setThrowing(false);
       }
+    } else if (driven.current) {
+      let at: [number, number] | null = null;
+      for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (dropped.board[r][f]?.id === driven.current && dropped.board[r][f]?.side === "w") at = [r, f];
+      setSel(at);
+      setThrowing(false);
     } else {
       setSel(null);
       setThrowing(false);
@@ -1838,13 +1854,82 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }
   const jumpRef = useRef(jump);
   jumpRef.current = jump;
+
+  /** Computer only. Double-click on your turn: walk that man for the rest of the game, until Esc. */
+  function grabStick(r: number, f: number) {
+    if (padRef.current || now.current.over || phaseRef.current !== "play") return;
+    if (!(now.current.turn === "w" || bonusReady())) return;
+    const u = now.current.board[r]?.[f];
+    if (!u || u.side !== "w" || !u.id) return;
+    driven.current = u.id;
+    stickRef.current = true;
+    setStick(true);
+    setSel([r, f]);
+    setThrowing(false);
+  }
+
+  /** W forward (toward the far end), S back, A left, D right. One square. Space can step onto a loose ball. */
+  function stepWalk(dir: "w" | "a" | "s" | "d" | "ball") {
+    if (!stickRef.current || padRef.current) return;
+    if (now.current.over || phaseRef.current !== "play") return;
+    if (!(now.current.turn === "w" || bonusReady())) return;
+    if (mp.current.sending) return;
+    const t = performance.now();
+    if (t - stepAt.current < 280) return;
+    const id = driven.current;
+    if (!id) return;
+    const b = now.current.board;
+    let from: [number, number] | null = null;
+    for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (b[r][f]?.id === id && b[r][f]?.side === "w") from = [r, f];
+    if (!from) return;
+    let to: [number, number] | null = null;
+    if (dir === "ball") {
+      const ball = now.current.loose;
+      if (!ball || Math.abs(ball[0] - from[0]) + Math.abs(ball[1] - from[1]) !== 1) return;
+      to = ball;
+    } else {
+      const d = dir === "w" ? [1, 0] : dir === "s" ? [-1, 0] : dir === "a" ? [0, -1] : [0, 1];
+      to = [from[0] + d[0], from[1] + d[1]];
+    }
+    if (to[0] < 0 || to[0] >= F_ROWS || to[1] < 0 || to[1] >= F_COLS) return;
+    if (b[to[0]][to[1]]?.side === "w") return;
+    stepAt.current = t;
+    const bonus = now.current.turn !== "w";
+    if (online) void send({ t: "step", from: mSq(from, mp.current.flip), to: mSq(to, mp.current.flip) });
+    else moveTo(from, to, now.current.board, now.current.loose, now.current.score, bonus);
+  }
+  const stepRef = useRef(stepWalk);
+  stepRef.current = stepWalk;
+
+  useEffect(() => {
+    const q = window.matchMedia("(pointer: coarse)");
+    const go = () => setPad(q.matches);
+    go();
+    q.addEventListener("change", go);
+    return () => q.removeEventListener("change", go);
+  }, []);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.code !== "Space" && e.key !== " ") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.code === "Escape") {
+        stickRef.current = false;
+        driven.current = null;
+        setStick(false);
+        return;
+      }
+      const dir = e.code === "KeyW" ? "w" : e.code === "KeyA" ? "a" : e.code === "KeyS" ? "s" : e.code === "KeyD" ? "d" : null;
+      if (dir) {
+        e.preventDefault();
+        stepRef.current(dir);
+        return;
+      }
+      if (e.code !== "Space" && e.key !== " ") return;
       e.preventDefault();
-      if (!e.repeat) jumpRef.current();
+      if (!e.repeat) {
+        jumpRef.current();
+        stepRef.current("ball");
+      }
     };
     const menu = (e: MouseEvent) => {
       // right-click on the field is the jump button, not the browser menu
@@ -2014,10 +2099,17 @@ export function Football({ versus, online }: { versus: string; online?: string }
           setAir({ risk: e.risk ?? 0, mine: c.side === "w", until: Date.now() + airMs + 400 });
           later(() => setAir(null), airMs + 400);
         }
-        const keep = now.current.sel;
-        if (c.side === "w" || !keep || b[keep[0]][keep[1]]?.side !== "w") {
-          setSel(null);
+        if (stickRef.current && driven.current) {
+          let at: [number, number] | null = null;
+          for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (b[r][f]?.id === driven.current && b[r][f]?.side === "w") at = [r, f];
+          setSel(at);
           setThrowing(false);
+        } else {
+          const keep = now.current.sel;
+          if (c.side === "w" || !keep || b[keep[0]][keep[1]]?.side !== "w") {
+            setSel(null);
+            setThrowing(false);
+          }
         }
         break;
       }
@@ -2466,6 +2558,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
         rows={F_ROWS}
         cols={F_COLS}
         onPick={onSquare}
+        onDrive={grabStick}
         ball={view.loose ? { r: view.loose[0], f: view.loose[1] } : null}
         units={view.board.flatMap((row, r) => row.flatMap((u, f) => (u ? [{ r, f, side: u.side, kind: u.kind, ball: u.ball, id: u.id }] : [])))}
         cue={viewCue}
@@ -2543,6 +2636,11 @@ export function Football({ versus, online }: { versus: string; online?: string }
           <span className="rounded-full bg-black/70 px-4 py-1 text-xs font-bold text-[#ffe14a] shadow-lg">{airText ?? riskText}</span>
         </div>
       ) : null}
+      {stick && !pad ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[9.2rem] z-20 flex justify-center px-4 sm:bottom-24" data-fb-stick>
+          <span className="rounded-full bg-black/80 px-4 py-1.5 text-sm font-bold text-[#ffe14a] shadow-lg">W forward · A left · S back · D right · Space jumps · Esc stops</span>
+        </div>
+      ) : null}
       {note ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-[9rem] z-20 flex justify-center px-4 sm:bottom-24" data-fb-note>
           <span className="rounded-full bg-black/75 px-4 py-2 text-sm text-ivory">{note}</span>
@@ -2570,6 +2668,16 @@ export function Football({ versus, online }: { versus: string; online?: string }
           >
             {throwing ? "Cancel pass ✕" : "🏈 Pass"}
           </button>
+          {pad ? (
+            <button
+              type="button"
+              data-fb-jump
+              className="min-h-14 rounded-full border border-line bg-ink/85 px-5 text-sm font-bold uppercase tracking-[0.12em] text-ivory shadow-[0_6px_20px_rgba(0,0,0,0.45)] backdrop-blur-sm"
+              onClick={() => jump()}
+            >
+              Jump
+            </button>
+          ) : null}
           {kickable ? (
             <button
               type="button"
@@ -2579,6 +2687,18 @@ export function Football({ versus, online }: { versus: string; online?: string }
               🥅 Field goal {fgPct}%
             </button>
           ) : null}
+        </div>
+      ) : null}
+      {pad && !over && phase === "play" && !(hasBall && canAct) ? (
+        <div className="pointer-events-auto absolute inset-x-0 bottom-[5.2rem] z-10 flex justify-center sm:bottom-5">
+          <button
+            type="button"
+            data-fb-jump
+            className="min-h-14 rounded-full border border-line bg-ink/85 px-6 text-sm font-bold uppercase tracking-[0.12em] text-ivory shadow-[0_6px_20px_rgba(0,0,0,0.45)] backdrop-blur-sm"
+            onClick={() => jump()}
+          >
+            Jump
+          </button>
         </div>
       ) : null}
       {call && phase !== "count" ? (

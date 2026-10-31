@@ -1007,13 +1007,21 @@ final class FootballMatch
             self::finishTurn($s, $side, $bonus, $now);
             return null;
         }
-        if ($t !== 'move') {
+        if ($t !== 'move' && $t !== 'step') {
             return 'Unknown move.';
         }
-        if (!in_array($to, self::moves($b, $from[0], $from[1]), true)) {
+        $victim = $b[$to[0]][$to[1]];
+        if ($t === 'step') {
+            // direct control: one square forward, back, left or right, whatever the piece
+            if (abs($to[0] - $from[0]) + abs($to[1] - $from[1]) !== 1) {
+                return 'He cannot go there.';
+            }
+            if ($victim !== null && $victim['side'] === $side) {
+                return 'Your man is there.';
+            }
+        } elseif (!in_array($to, self::moves($b, $from[0], $from[1]), true)) {
             return 'He cannot go there.';
         }
-        $victim = $b[$to[0]][$to[1]];
         $loose = $s['loose'];
         $carry = !empty($u['ball']) || ($loose !== null && $loose[0] === $to[0] && $loose[1] === $to[1]) || !empty($victim['ball']);
         // owner t237u: tackling the carrier only MAYBE wins the ball (a fumble); a run near defenders may fumble too

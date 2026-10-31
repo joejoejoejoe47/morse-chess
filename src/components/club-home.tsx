@@ -918,7 +918,7 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
 
 /** Which pull-up screen a rules variant's tile lives on (for Back). */
 function screenOf(v: RuleVariant): PullScreen {
-  return v === "horde" || v === "atomic" || v === "koth" ? "main" : "other";
+  return v === "horde" || v === "atomic" ? "main" : "other";
 }
 
 type TileState = "play" | "preview" | "soon";
@@ -971,17 +971,17 @@ function PullUpScreen({
     state: gate(v),
     go: () => onRules(v, back),
   });
+  const football: TileState = gate("football");
   const main: TileSpec[] = [
     { id: "normal", art: "classic", big: "1v1", small: "Normal chess", state: "play", go: onNormal },
     { id: "apocalypse", art: "apocalypse", big: "Apocalypse", small: "5×5 · secret moves", state: gate("apocalypse"), go: () => onLocal("apocalypse") },
     rules("horde", "main"),
     rules("atomic", "main"),
-    rules("koth", "main"),
+    { id: "football", art: "football", big: "Football", small: "1v1 on the gridiron", state: football, go: () => onClassic("football") },
     { id: "other", art: "other", big: "Other games", small: "10 more ways to play", state: "play", go: () => onScreen("other") },
   ];
-  const football: TileState = gate("football");
   const other: TileSpec[] = [
-    { id: "football", art: "football", big: "Football", small: "1v1 on the gridiron", state: football, go: () => onClassic("football") },
+    rules("koth", "other"),
     { id: "basketball", art: "basketball", big: "Basketball", small: "Five a side", state: gate("basketball"), go: () => onClassic("basketball") },
     { id: "checkmate", art: "checkmate", big: "Checkmate", small: "End game", state: gate("checkmate"), go: () => onClassic("checkmate") },
     { id: "strategy", art: "strategy", big: "Strategy", small: "Morse", state: gate("strategy"), go: () => onClassic("strategy") },

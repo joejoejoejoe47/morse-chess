@@ -340,6 +340,7 @@ function Deck({
   sel = null,
   field = null,
   court = false,
+  onDrive,
 }: {
   rows: number;
   cols: number;
@@ -353,6 +354,7 @@ function Deck({
   sel?: { r: number; f: number; throwing: boolean } | null;
   field?: FieldOpts | null;
   court?: boolean;
+  onDrive?: (r: number, f: number) => void;
 }) {
   const homeCol = field?.colors.w ?? TEAM.w;
   const awayCol = field?.colors.b ?? TEAM.b;
@@ -431,6 +433,19 @@ function Deck({
     else pickSq = ground;
     if (pickSq) onPick(pickSq[0], pickSq[1]);
   };
+  const stadiumDrive = (e: ThreeEvent<MouseEvent>) => {
+    if (!onDrive) return;
+    e.stopPropagation();
+    for (const hit of e.intersections) {
+      let node: THREE.Object3D | null = hit.object;
+      while (node && !node.userData.pick) node = node.parent;
+      const tag = node?.userData.pick;
+      if (Array.isArray(tag)) {
+        onDrive(tag[0], tag[1]);
+        return;
+      }
+    }
+  };
   const onHover = (e: ThreeEvent<PointerEvent>) => {
     if (!stadium) return;
     let hit: [number, number] | null = null;
@@ -447,7 +462,7 @@ function Deck({
     setHotSq((cur) => (cur === key ? cur : key));
   };
   return (
-    <group onClick={stadium ? stadiumPick : undefined} onPointerMove={stadium ? onHover : undefined} onPointerLeave={stadium ? () => setHotSq(null) : undefined}>
+    <group onClick={stadium ? stadiumPick : undefined} onDoubleClick={stadium ? stadiumDrive : undefined} onPointerMove={stadium ? onHover : undefined} onPointerLeave={stadium ? () => setHotSq(null) : undefined}>
       {stadium ? (
         <mesh position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]} userData={{ pick: "ground" }}>
           <planeGeometry args={[cols, rows]} />
@@ -563,6 +578,7 @@ export function VariantStage({
   home = null,
   park = false,
   court = false,
+  onDrive,
 }: {
   rows: number;
   cols: number;
@@ -582,11 +598,12 @@ export function VariantStage({
   /** the daytime Park Field instead of the neon stadium (football, picked on the Boards page) */
   park?: boolean;
   court?: boolean;
+  onDrive?: (r: number, f: number) => void;
 }) {
   const span = Math.max(rows, cols);
   const cam: [number, number, number] = [0, span * 1.05, span * 0.78];
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full touch-manipulation">
       <Canvas shadows dpr={[1, 1.5]} camera={{ position: cam, fov: 34, near: 0.1, far: 400 }} gl={{ antialias: true, alpha: false }}>
         {stadium ? null : <color attach="background" args={[sky === "table" ? "#14110e" : "#87a0c4"]} />}
         {stadium && !park ? <NeonStadium rows={rows} cols={cols} show={show} home={home} /> : null}
@@ -603,7 +620,7 @@ export function VariantStage({
         ) : null}
         {stadium ? null : sky === "lego" ? <LegoWorld /> : null}
         {!stadium && sky === "arena" ? <SkyArenaWorld squaresBottom={0.02} plinth={false} /> : null}
-        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} field={field} court={court} />
+        <Deck rows={rows} cols={cols} paint={paint} onPick={onPick} onDrive={onDrive} units={units} look={look} ball={ball} cue={cue} stadium={stadium} sel={sel} field={field} court={court} />
         <OrbitControls makeDefault target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.05} minDistance={4} maxDistance={span * 3} />
         {onReady ? <Ready onReady={onReady} /> : null}
       </Canvas>

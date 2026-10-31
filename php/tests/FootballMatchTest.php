@@ -339,6 +339,15 @@ check(FM::act($sOt, 'w', ['t' => 'move', 'from' => [11, 3], 'to' => [12, 3]], $t
 FM::advance($sOt, $t + 82100 + 20000);
 check($sOt['over'] === 'time' && $sOt['winner'] === 'w', 'overtime ends when that touchdown show is over');
 
+// direct control: one square any way, not only a chess move
+$b = $empty;
+$b[5][3] = ['side' => 'w', 'kind' => 'p', 'id' => 'd2'];
+$b[9][4] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
+$sStep = $at($b, 'w', $t + 90000);
+$sFar = $sStep;
+check(FM::act($sFar, 'w', ['t' => 'step', 'from' => [5, 3], 'to' => [7, 4]], $t + 90100) === 'He cannot go there.', 'a drive step cannot skip a square');
+check(FM::act($sStep, 'w', ['t' => 'step', 'from' => [5, 3], 'to' => [5, 4]], $t + 90100) === null && ($sStep['board'][5][4]['id'] ?? '') === 'd2', 'a drive step lets a pawn walk sideways');
+
 // leaving
 $r = FM::resignFootball('u2', ['gameId' => $gid]);
 check($r['over'] === 'resign' && $r['winner'] === 'w', 'leaving = the other player wins');
