@@ -670,8 +670,8 @@ export function ClubHome() {
                 className="grid size-9 place-items-center rounded-md text-mist hover:bg-panel-2 hover:text-ivory"
                 onClick={async () => {
                   if (home.queued) await leaveQueue();
-                  // closing a Football challenge you are waiting on takes it back (t234u)
-                  if (flow.kind === "waiting" && flow.football && flow.challengeId) await cancelChallenge({ data: { id: flow.challengeId } }).catch(() => undefined);
+                  // X only hides this card. A sent challenge (Football or chess) stays out until
+                  // they press Cancel, the other player answers, or the 4 minutes run out.
                   setFlow({ kind: "idle" });
                   setError(null);
                 }}
