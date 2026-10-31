@@ -1494,6 +1494,11 @@ final class Mores
     /** @param array<string,mixed> $data */
     public static function cancelChallenge(string $userId, array $data): mixed
     {
+        // The X on "Challenge sent" used to call this with only an id. That must not
+        // withdraw the invite. Only the Cancel button sends confirm.
+        if (($data['confirm'] ?? false) !== true) {
+            return ['ok' => true, 'kept' => true];
+        }
         Db::run(
             "UPDATE challenges SET status = 'cancelled' WHERE id = ? AND from_user_id = ? AND status = 'pending'",
             [self::str($data, 'id'), $userId]

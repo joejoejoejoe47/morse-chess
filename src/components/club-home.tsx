@@ -532,7 +532,7 @@ export function ClubHome() {
                     {c.kind === "football" ? `Waiting on ${c.toUsername} for a Football game.` : <>Waiting on {c.toUsername} for a {c.mode}{c.variant ? ` ${VARIANT_INFO[c.variant].name}` : ""} game.</>}
                   </p>
                   {c.deadline != null ? <ChallengeCountdown deadline={c.deadline} now={now} /> : null}
-                  <Button size="sm" variant="ghost" onClick={() => cancelChallenge({ data: { id: c.id } })}>
+                  <Button size="sm" variant="ghost" onClick={() => cancelChallenge({ data: { id: c.id, confirm: true } })}>
                     Cancel
                   </Button>
                 </div>
@@ -668,10 +668,11 @@ export function ClubHome() {
               <button
                 type="button"
                 className="grid size-9 place-items-center rounded-md text-mist hover:bg-panel-2 hover:text-ivory"
-                onClick={async () => {
-                  if (home.queued) await leaveQueue();
-                  // X only hides this card. A sent challenge (Football or chess) stays out until
-                  // they press Cancel, the other player answers, or the 4 minutes run out.
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Waiting on a sent invite: hide the card only. Do not call cancel.
+                  if (flow.kind !== "waiting" && home.queued) void leaveQueue();
                   setFlow({ kind: "idle" });
                   setError(null);
                 }}
@@ -851,6 +852,7 @@ export function ClubHome() {
             {flow.kind === "waiting" && flow.football ? (
               <div className="mt-5 text-sm text-mist" data-football-waiting>
                 Football challenge sent to <span className="text-ivory">{flow.username}</span>. Waiting for their yes — the game opens by itself when they sit down.
+                <span className="mt-2 block text-ivory">The X only hides this. The invite stays out.</span>
                 {waitingRow?.deadline ? (
                   <span className="mt-2 block">
                     <ChallengeCountdown deadline={waitingRow.deadline} now={now} />
@@ -862,7 +864,7 @@ export function ClubHome() {
                   variant="secondary"
                   data-cancel-football
                   onClick={async () => {
-                    if (flow.challengeId) await cancelChallenge({ data: { id: flow.challengeId } }).catch(() => undefined);
+                    if (flow.challengeId) await cancelChallenge({ data: { id: flow.challengeId, confirm: true } }).catch(() => undefined);
                     setFlow({ kind: "idle" });
                   }}
                 >
@@ -873,7 +875,7 @@ export function ClubHome() {
               <p className="mt-5 text-sm text-mist">
                 {home.profile.username} wants to battle {flow.username} in a {flow.mode}{" "}
                 {flow.variant ? VARIANT_INFO[flow.variant].name : "chess"} game. Waiting for
-                the user's yes.
+                the user's yes. The X only hides this. The invite stays out.
                 {waitingRow?.deadline ? (
                   <span className="mt-2 block">
                     <ChallengeCountdown deadline={waitingRow.deadline} now={now} />

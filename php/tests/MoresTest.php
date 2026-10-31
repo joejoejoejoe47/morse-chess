@@ -144,9 +144,11 @@ $c = Mores::sendChallenge('alice', ['username' => 'bob_bobby', 'mode' => 'timed'
 check(Mores::respondChallenge('bob', ['id' => $c['challengeId'], 'accept' => false]) === ['ok' => true], 'decline');
 check(Mores::getHomeState('alice', [])['outgoing'][0]['status'] === 'declined', 'declined shows in outgoing');
 $c = Mores::sendChallenge('alice', ['username' => 'bob_bobby', 'mode' => 'timed']);
-Mores::cancelChallenge('bob', ['id' => $c['challengeId']]);
+Mores::cancelChallenge('bob', ['id' => $c['challengeId'], 'confirm' => true]);
 check(Db::value('SELECT status FROM challenges WHERE id = ?', [$c['challengeId']]) === 'pending', 'only sender can cancel');
 Mores::cancelChallenge('alice', ['id' => $c['challengeId']]);
+check(Db::value('SELECT status FROM challenges WHERE id = ?', [$c['challengeId']]) === 'pending', 'closing the card does not cancel');
+Mores::cancelChallenge('alice', ['id' => $c['challengeId'], 'confirm' => true]);
 check(Db::value('SELECT status FROM challenges WHERE id = ?', [$c['challengeId']]) === 'cancelled', 'cancelChallenge');
 
 // challenging a bot starts a bot game directly

@@ -33,6 +33,8 @@ check(Mores::getHomeState('u1', [])['outgoing'][0]['status'] === 'declined', 'se
 // cancel
 $c2 = FM::sendFootballChallenge('u1', ['username' => 'RexTheGreat']);
 Mores::cancelChallenge('u1', ['id' => $c2['challengeId']]);
+check(count(Mores::getHomeState('u2', [])['inbox']) === 1, 'X does not take the football invite back');
+Mores::cancelChallenge('u1', ['id' => $c2['challengeId'], 'confirm' => true]);
 check(Mores::getHomeState('u2', [])['inbox'] === [], 'cancelled challenge gone');
 // accept
 $c3 = FM::sendFootballChallenge('u1', ['username' => 'RexTheGreat']);
