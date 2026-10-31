@@ -3,6 +3,8 @@ import type { Square } from "chess.js";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
 import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
+import { LegoVerseBar } from "@/components/lego-verse-bar";
+import { setLegoScene } from "@/lib/lego-look";
 import { RaBuy } from "@/components/avatar/ra-buy";
 import { useTheme } from "@/components/theme";
 import { boardUnlocked, equippedSkin, type BoardSkin } from "@/lib/chess/board-skins";
@@ -96,6 +98,7 @@ export function ModeBoard({
   const ownsLego = me ? boardUnlocked(me.score, LEGO_BOARD_ID, me.username, me.ownedBoards) : false;
   const lgOn = view === "lg" && ownsLego;
   function pickView(v: LocalView) {
+    if (v === "lg") setLegoScene("latest");
     setView(v);
     try {
       localStorage.setItem("morse-board-view", v);
@@ -147,6 +150,14 @@ export function ModeBoard({
         {view === "2d" ? (
           <ChessBoard2D {...props} />
         ) : (
+          <>
+            {(lgOn || skin?.id === LEGO_BOARD_ID) ? (
+              <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
+                <div className="pointer-events-auto">
+                  <LegoVerseBar show />
+                </div>
+              </div>
+            ) : null}
           <ChessBoard3D
             {...props}
             roomColor="#110d09"
@@ -158,6 +169,7 @@ export function ModeBoard({
             showTip={false}
             fightZoom={(view === "an" || view === "ra") && prefs.fightZoom}
           />
+          </>
         )}
       </div>
     </div>

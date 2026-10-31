@@ -19,3 +19,4 @@ export const getLegoBuild = rpc<LegoBuild>("getLegoBuild");
 export const deleteLegoBuild = rpc<{ builds: LegoBuildSummary[] }>("deleteLegoBuild");
 export const putLegoBuildInUse = rpc<{ builds: LegoBuildSummary[] }>("useLegoBuild");
 export const activeLegoBuild = rpc<LegoBuild | null>("activeLegoBuild");
+export const latestLegoBuild = rpc<LegoBuild | null>("latestLegoBuild");

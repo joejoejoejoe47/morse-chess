@@ -67,6 +67,9 @@ LegoBuilder::saveLegoBuild('u-own', ['id' => $s['id'], 'name' => 'Castle 2', 'pi
 check(LegoBuilder::getLegoBuild('u-own', ['id' => $s['id']])['name'] === 'Castle 2', 'build updated in place');
 
 check(LegoBuilder::activeLegoBuild('u-own', []) === null, 'no build in use yet');
+$lat = LegoBuilder::latestLegoBuild('u-own', []);
+check($lat !== null && $lat['id'] === $s['id'] && count($lat['pieces']) === 1, 'latest board is the newest save even when not in use');
+check(LegoBuilder::latestLegoBuild('u-no', []) === null, 'no Brick Verse, no latest board');
 LegoBuilder::useLegoBuild('u-own', ['id' => $s['id']]);
 $a = LegoBuilder::activeLegoBuild('u-own', []);
 check($a !== null && $a['id'] === $s['id'] && count($a['pieces']) === 1, 'Use puts the build on the board');

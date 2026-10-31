@@ -46,6 +46,8 @@ import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
 import { boardById, boardUnlocked, equippedSkin } from "@/lib/chess/board-skins";
 import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
+import { LegoVerseBar } from "@/components/lego-verse-bar";
+import { setLegoScene } from "@/lib/lego-look";
 import { isSandboxGame, SANDBOX_BOARD_ID } from "@/lib/sandbox-board";
 import { roomBackdrop, saveLookPrefs, useLookPrefs } from "@/lib/chess/look-prefs";
 import { useRoomModelUrl } from "@/lib/chess/room-model";
@@ -784,7 +786,10 @@ export function GameView({ gameId }: { gameId: string }) {
                   "min-h-11 min-w-11 px-4 py-2 text-sm font-medium sm:px-3 sm:py-1.5 sm:text-[13px]",
                   lgOn ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
                 )}
-                onClick={() => setBoardView("lg")}
+                onClick={() => {
+                  setLegoScene("latest");
+                  setBoardView("lg");
+                }}
               >
                 LG
               </button>
@@ -900,6 +905,13 @@ export function GameView({ gameId }: { gameId: string }) {
 
       <div className="relative min-h-0 flex-1">
         <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", variant === "atomic" && shakeId > 0 && "morse-shake")}>
+          {(lgOn || skin.id === LEGO_BOARD_ID) && view !== "2d" ? (
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
+              <div className="pointer-events-auto">
+                <LegoVerseBar show />
+              </div>
+            </div>
+          ) : null}
           {view === "2d" ? (
             <ChessBoard2D {...boardProps} />
           ) : (

@@ -23,7 +23,8 @@ import { asset } from "@/lib/base";
 import { squareToWorld } from "@/lib/chess/board-math";
 import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
-import { activeLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
+import { activeLegoBuild, latestLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
+import { legoGood, useLegoLook } from "@/lib/lego-look";
 import { playLegoBeam, playLegoClang, playLegoExplode, playLegoHit, playLegoMagic, playLegoShieldThrow, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
 import { useResilientGLTF } from "@/lib/resilient-gltf";
 import { LoadGuard, Later } from "@/components/chess/load-guard";
@@ -41,7 +42,7 @@ const DOOM_TOWER_URL = asset("/lego/sky/doom-tower.glb");
 // ── roster ─────────────────────────────────────────────────────────────────
 
 type Gait = "walk" | "stomp" | "swing" | "fly" | "glide" | "portal";
-type Attack = "smash" | "webkick" | "repulsor" | "spell" | "punch" | "pounce" | "blast" | "kick" | "whirl" | "skystrike" | "bomb";
+type Attack = "smash" | "webkick" | "repulsor" | "spell" | "punch" | "pounce" | "blast" | "kick" | "whirl" | "skystrike" | "bomb" | "ant";
 export type Trick = "flip" | "roll" | "spin";
 
 export type LegoCharId =
@@ -57,7 +58,8 @@ export type LegoCharId =
   | "skeleton"
   | "blacktron"
   | "goblin"
-  | "doombot";
+  | "doombot"
+  | "antman";
 
 type CharSpec = {
   file: string;
@@ -111,12 +113,20 @@ export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   doombot: { file: "gigabot.glb", role: "Tyrant Bot (villain pawn, Insectoids Gigabot robot)", height: 0.72, gait: "walk", attack: "punch", fx: "#5dff6a",
     // a stray brick on the far side sits in the right-arm node; its shoulder mirrors the clean left one
     rig: { mirror: ["armR"], jointMat: { armL: "Dark_Grey" } } },
+  // drawn in code (red suit, silver face, two antennae). file is only a fallback url; the mesh is not that model.
+  antman: { file: "captain-america.glb", role: "Ant-Man (good queen)", height: 0.92, gait: "walk", attack: "ant", fx: "#7ee7ff" },
 };
 
 export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
   w: { k: "cap", q: "strange", r: "hulk", b: "ironman", n: "spiderman", p: "agent" },
   b: { k: "doom", q: "widow", r: "skeleton", b: "blacktron", n: "goblin", p: "doombot" },
 };
+
+/** Good side can swap the queen for Ant-Man. Everyone else stays on the usual roster. */
+export function pieceChar(color: Color, type: PieceSymbol): LegoCharId {
+  if (color === "w" && type === "q" && legoGood() === "ant") return "antman";
+  return LEGO_ROSTER[color][type];
+}
 
 const charUrl = (id: LegoCharId) => asset(`/lego/chars/${LEGO_CHARS[id].file}`);
 
@@ -255,12 +265,73 @@ function setJointPivots(root: THREE.Object3D, rig?: RigFix) {
   }
 }
 
+/** A good Ant-Man minifig drawn in code: red suit, silver face, two antennae. Parts are named so the usual joints work. */
+function buildAntMan() {
+  const root = new THREE.Group();
+  const plastic = (color: string, metal = 0.12) =>
+    new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: metal });
+  const red = plastic("#d0121a");
+  const silver = plastic("#d5dde8", 0.62);
+  const black = plastic("#14161c", 0.25);
+  const glow = plastic("#8ef6ff", 0.35);
+  const part = (name: string) => {
+    const g = new THREE.Group();
+    g.name = name;
+    root.add(g);
+    return g;
+  };
+  const add = (parent: THREE.Object3D, mesh: THREE.Mesh, x: number, y: number, z: number) => {
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+  };
+  const body = part("body");
+  add(body, new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.36, 0.22), red), 0, 0.58, 0);
+  add(body, new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.03), silver), 0, 0.62, 0.125);
+  add(body, new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.23), black), 0, 0.42, 0);
+  const head = part("head");
+  const helm = new THREE.Mesh(new THREE.SphereGeometry(0.155, 18, 14), red);
+  helm.scale.set(1.02, 1.08, 1.05);
+  add(head, helm, 0, 0.9, 0);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), silver);
+  face.scale.set(0.95, 0.72, 0.5);
+  add(head, face, 0, 0.88, 0.09);
+  add(head, new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.018, 0.02), glow), -0.04, 0.91, 0.155);
+  add(head, new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.018, 0.02), glow), 0.04, 0.91, 0.155);
+  const antL = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.22, 6), silver);
+  antL.rotation.z = 0.4;
+  add(head, antL, -0.07, 1.08, 0);
+  const antR = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.22, 6), silver);
+  antR.rotation.z = -0.4;
+  add(head, antR, 0.07, 1.08, 0);
+  add(head, new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), glow), -0.11, 1.18, 0);
+  add(head, new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), glow), 0.11, 1.18, 0);
+  const arm = (name: string, x: number) => {
+    const g = part(name);
+    add(g, new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.11), red), x, 0.58, 0);
+    add(g, new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.09), black), x, 0.41, 0.02);
+    return g;
+  };
+  arm("armL", -0.27);
+  arm("armR", 0.27);
+  const leg = (name: string, x: number) => {
+    const g = part(name);
+    add(g, new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.36, 0.16), red), x, 0.2, 0);
+    add(g, new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.18), black), x, 0.05, 0.02);
+    return g;
+  };
+  leg("legL", -0.09);
+  leg("legR", 0.09);
+  return root;
+}
+
 /** A figure's own copy: cloned nodes and materials (so a hit flash only lights this one). */
 function useFigure(id: LegoCharId) {
-  const gltf = useResilientGLTF(charUrl(id));
+  const gltf = useResilientGLTF(charUrl(id === "antman" ? "cap" : id));
   return useMemo(() => {
-    fixLegoWinding(gltf.scene);
-    const root = gltf.scene.clone(true);
+    if (id !== "antman") fixLegoWinding(gltf.scene);
+    const root = id === "antman" ? buildAntMan() : gltf.scene.clone(true);
     const mats: THREE.MeshStandardMaterial[] = [];
     root.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -273,7 +344,7 @@ function useFigure(id: LegoCharId) {
         mats.push(c);
       }
     });
-    setJointPivots(root, LEGO_CHARS[id].rig);
+    setJointPivots(root, id === "antman" ? undefined : LEGO_CHARS[id].rig);
     // uniform scale only: the figure keeps its LEGO proportions
     root.scale.setScalar(LEGO_CHARS[id].height);
     const parts = {} as Parts;
@@ -640,6 +711,7 @@ const MOVES: Record<Attack, { wind: number; strike: number; ranged: boolean; lun
   whirl: { wind: 0.32, strike: 0.45, ranged: false, lunge: 0.38, shake: 0.07 },
   skystrike: { wind: 0.32, strike: 0.18, ranged: false, lunge: 0.2, shake: 0.06 },
   bomb: { wind: 0.38, strike: 0.6, ranged: true, lunge: 0, shake: 0.11 },
+  ant: { wind: 0.45, strike: 0.36, ranged: false, lunge: 0.3, shake: 0.22 },
 };
 
 const RECOVER = 0.4;
@@ -650,7 +722,7 @@ const TRICK_FLYERS: ReadonlySet<LegoCharId> = new Set<LegoCharId>(["blacktron", 
 
 /** Everything about a capture that does not change frame to frame. */
 function fightPlan(f: Fight, pitch: number) {
-  const atkId = LEGO_ROSTER[f.color][f.type];
+  const atkId = pieceChar(f.color, f.type);
   const atk = LEGO_CHARS[atkId];
   const mv = MOVES[atk.attack];
   const from = v3(f.from, pitch);
@@ -659,10 +731,27 @@ function fightPlan(f: Fight, pitch: number) {
   const d = vic.clone().sub(from);
   const dist = d.length();
   const dir = dist > 1e-4 ? d.clone().divideScalar(dist) : new THREE.Vector3(0, 0, 1);
+  if (atk.attack === "ant") {
+    // run a full circle, shrink, grow huge, one step onto the enemy, then back to normal size
+    const loop = 1.7;
+    const shrink = 0.42;
+    const grow = 0.55;
+    const step = 0.36;
+    const mvAnt = { wind: shrink + grow, strike: step, ranged: false, lunge: 0.2, shake: 0.22 };
+    const approach = loop;
+    const impact = approach + mvAnt.wind + mvAnt.strike;
+    const spot = vic.clone().addScaledVector(dir, -0.15);
+    const finish = spot.distanceTo(dest) > 0.08 ? moveTime("walk", spot.distanceTo(dest)) : 0.35;
+    const total = Math.max(impact + 0.65 + finish, impact + BREAK + 0.1);
+    return {
+      atkId, atk, mv: mvAnt, from, vic, dest, dir, near: from.clone(), lunge: 0.9, spot, approach, impact,
+      flight: false, finish, total, sh: null as ShieldPlan | null, ant: { loop, shrink, grow, step },
+    };
+  }
   if (f.shield && f.type === "k" && SHIELD_KINGS.has(atkId)) {
     // Shield Block: the enemy swings first, the king blocks, throws the shield (the enemy bursts
     // when it hits) and catches it on the way back, then steps onto the square.
-    const vicMv = MOVES[LEGO_CHARS[LEGO_ROSTER[f.color === "w" ? "b" : "w"][f.victimType]].attack];
+    const vicMv = MOVES[LEGO_CHARS[pieceChar(f.color === "w" ? "b" : "w", f.victimType)].attack];
     const near = dist > 1.3 ? from.clone().addScaledVector(dir, dist - 1.05) : from.clone();
     const spot = near.clone();
     const approach = near.distanceTo(from) > 0.05 ? moveTime(atk.gait, near.distanceTo(from)) : 0.3;
@@ -678,7 +767,7 @@ function fightPlan(f: Fight, pitch: number) {
     const finish = spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
     const total = Math.max(done + finish, impact + BREAK + 0.1);
     const sh: ShieldPlan = { swing, vWind, vStrike, block, wind, release, back, done, reach: Math.max(0, near.distanceTo(vic) - 0.62) };
-    return { atkId, atk, mv, from, vic, dest, dir, near, lunge: 0, spot, approach, impact, flight: false, finish, total, sh };
+    return { atkId, atk, mv, from, vic, dest, dir, near, lunge: 0, spot, approach, impact, flight: false, finish, total, sh, ant: null };
   }
   let near = from.clone();
   let lunge = 0;
@@ -696,7 +785,7 @@ function fightPlan(f: Fight, pitch: number) {
   const finish = flight ? trickTime(f.tricks.length) : spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
   const total = Math.max(impact + RECOVER + finish, impact + BREAK + 0.1);
   const sh: ShieldPlan | null = null;
-  return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total, sh };
+  return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total, sh, ant: null };
 }
 
 export const LEGO_FIGHT_SECONDS = (f: Fight, pitch: number) => fightPlan(f, pitch).total;
@@ -739,6 +828,8 @@ function attackFrame(a: Attack, ph: "wind" | "strike", u: number): Frame {
         return { pose: { armLz: 1.35 * w, armRz: -1.35 * w, lean: 0.1 * w, twist: -0.6 * w }, lunge: 0, y: 0, spin: 0 };
       case "bomb":
         return { pose: { armRx: 1.0 * w, armLx: -0.6 * w, lean: -0.15 * w, twist: 0.3 * w }, lunge: 0, y: 0, spin: 0 };
+      case "ant":
+        return { pose: { lean: 0.35 * w, armLx: -0.8 * w, armRx: -0.8 * w, headX: 0.25 * w, legL: 0.2 * w, legR: 0.2 * w }, lunge: 0, y: 0, spin: 0 };
       default: // punch, skystrike
         return { pose: { armRx: 0.75 * w, armLx: -1.0 * w, armLz: 0.15 * w, lean: -0.12 * w, twist: 0.35 * w, legL: -0.25 * w, legR: 0.2 * w }, lunge: 0, y: 0, spin: 0 };
     }
@@ -778,6 +869,15 @@ function attackFrame(a: Attack, ph: "wind" | "strike", u: number): Frame {
     case "bomb": {
       const t = easeOut(span(u, 0, 0.3));
       return { pose: { armRx: 1.0 - 3.4 * t, armLx: -0.6, lean: -0.15 + 0.35 * t, twist: 0.3 - 0.6 * t }, lunge: 0, y: 0, spin: 0 };
+    }
+    case "ant": {
+      const down = ease(span(u, 0.4, 1));
+      return {
+        pose: { armLx: -2.2 + 2.4 * down, armRx: -2.2 + 2.4 * down, lean: -0.15 + 0.7 * down, legL: -0.5 * arc, legR: 0.2 * arc },
+        lunge: k,
+        y: 0.2 * arc,
+        spin: 0,
+      };
     }
     case "skystrike":
       return { pose: { armRx: 0.75 - 3.35 * k, armLx: -1.0 + 0.5 * k, lean: -0.12 + 0.3 * k, twist: 0.35 - 0.6 * k, legL: -0.4 * k }, lunge: k, y: 0.1 * arc, spin: 0 };
@@ -1099,7 +1199,10 @@ export function LegoRunner({ id, drive, carry = null }: { id: LegoCharId; drive:
       applyPose(parts, m.pose);
     } else if (d.mode === "wind" || d.mode === "strike") {
       const fr = attackFrame(spec.attack, d.mode, d.u);
-      f.position.y = STAND + mid + fr.y;
+      let sc = 1;
+      if (spec.attack === "ant") sc = d.mode === "wind" ? 1 - 0.8 * d.u : 0.2 + 2.55 * Math.min(1, d.u * 1.3);
+      f.scale.setScalar(sc);
+      f.position.y = STAND + mid * sc + fr.y;
       f.rotation.set(0, d.yaw, 0);
       const l = d.mode === "strike" && !MOVES[spec.attack].ranged ? fr.lunge || 0.12 : 0;
       f.position.x = Math.sin(d.yaw) * l;
@@ -1184,12 +1287,76 @@ function shieldFrame(S: ShieldPlan, t: number, now: number, seed: number, gait: 
   return { pose: { armLx: -0.9 * (1 - k), armLz: 0.4 * (1 - k), twist: -0.2 * (1 - k), lean: (0.05 - 0.1 * Math.sin(Math.PI * k)) * (1 - k), legL: -0.45 * (1 - k), legR: 0.4 * (1 - k) }, lunge: 0, y: 0, spin: 0 };
 }
 
+type FightPlan = ReturnType<typeof fightPlan>;
+
+/** Ant-Man: circle the enemy, shrink, grow huge, one stomp, then his own size again. */
+function antMotion(t: number, P: FightPlan) {
+  const ant = P.ant;
+  if (!ant) return null;
+  const { from, vic, dest, dir } = P;
+  const { loop, shrink, grow, step } = ant;
+  const ang0 = Math.atan2(from.x - vic.x, from.z - vic.z);
+  const radius = Math.max(1.05, from.distanceTo(vic));
+  const besideAt = (ang: number) => new THREE.Vector3(vic.x + Math.sin(ang) * radius, 0, vic.z + Math.cos(ang) * radius);
+  const runYaw = (ang: number) => Math.atan2(Math.cos(ang), -Math.sin(ang));
+  const stride = (phase: number): Pose => {
+    const s = Math.sin(phase);
+    return { legL: s * 0.75, legR: -s * 0.75, armLx: -s * 0.55, armRx: s * 0.55, lean: 0.08 };
+  };
+  if (t < loop) {
+    const ang = ang0 + (t / loop) * Math.PI * 2;
+    return { pos: besideAt(ang), yaw: runYaw(ang), pose: stride(t * 12), y: Math.abs(Math.sin(t * 12)) * 0.03, scale: 1 };
+  }
+  const beside = besideAt(ang0);
+  const face = yawTo(beside, vic);
+  if (t < loop + shrink) {
+    const u = ease((t - loop) / shrink);
+    return { pos: beside, yaw: face, pose: { lean: 0.2 * u, armLx: -0.5 * u, armRx: -0.5 * u, headX: 0.25 * u }, y: 0, scale: 1 - 0.82 * u };
+  }
+  const grown = loop + shrink;
+  const back = vic.clone().addScaledVector(dir, -0.95);
+  if (t < grown + grow) {
+    const u = ease((t - grown) / grow);
+    const pos = beside.clone().lerp(back, u);
+    return {
+      pos,
+      yaw: yawTo(pos, vic),
+      pose: { armLx: -2.5 * u, armRx: -2.5 * u, lean: -0.22 * u, legL: 0.25 * u, legR: 0.25 * u },
+      y: 0.08 * Math.sin(Math.PI * u),
+      scale: 0.18 + (2.75 - 0.18) * u,
+    };
+  }
+  const stepAt = grown + grow;
+  const impact = stepAt + step;
+  if (t < impact) {
+    const u = easeOut((t - stepAt) / step);
+    const down = ease(span(u, 0.45, 1));
+    const pos = back.clone().lerp(vic.clone().addScaledVector(dir, -0.12), u);
+    return {
+      pos,
+      yaw: yawTo(back, vic),
+      pose: { armLx: -2.5 + 2.7 * down, armRx: -2.5 + 2.7 * down, lean: -0.22 + 0.75 * down, legL: -0.6 * Math.sin(Math.PI * u), legR: 0.2 },
+      y: 0.4 * Math.sin(Math.PI * u),
+      scale: 2.75,
+    };
+  }
+  const settle = 0.62;
+  if (t < impact + settle) {
+    const u = ease((t - impact) / settle);
+    const pos = vic.clone().addScaledVector(dir, -0.12).lerp(dest, Math.min(1, u));
+    return { pos, yaw: yawTo(vic, dest), pose: { lean: 0.12 * (1 - u) }, y: 0, scale: 2.75 + (1 - 2.75) * u };
+  }
+  const u = clamp01((t - (impact + settle)) / Math.max(0.25, P.finish));
+  const pos = vic.clone().addScaledVector(dir, -0.12).lerp(dest, ease(u));
+  return { pos, yaw: yawTo(pos, dest), pose: stride(t * 11), y: 0, scale: 1 };
+}
+
 function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
   const P = useMemo(() => fightPlan(fight, pitch), [fight, pitch]);
   const { atk, mv, from, vic, dest, dir, near, spot } = P;
   const move = atk.attack;
   const victimColor: Color = fight.color === "w" ? "b" : "w";
-  const vicId = LEGO_ROSTER[victimColor][fight.victimType];
+  const vicId = pieceChar(victimColor, fight.victimType);
   const vSpec = LEGO_CHARS[vicId];
   const A = useFigure(P.atkId);
   const V = useFigure(vicId);
@@ -1409,6 +1576,18 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
     if (pitchX) af.rotateX(pitchX);
     if (roll) af.rotateZ(roll);
     applyPose(A.parts, fr.pose);
+    if (P.ant && move === "ant") {
+      const m = antMotion(t, P);
+      if (m) {
+        const sc = Math.max(0.08, m.scale);
+        ag.position.copy(m.pos);
+        af.scale.setScalar(sc);
+        af.visible = true;
+        af.position.set(0, STAND + aMid * sc + m.y, 0);
+        af.rotation.set(0, m.yaw, 0);
+        applyPose(A.parts, m.pose);
+      }
+    }
     keepOnBoard(af, A.root);
 
     // hand position (end of the right arm) in the army's space
@@ -1481,10 +1660,10 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
     const hitT = t - tHit;
     if (shock.current) {
       const k = span(hitT, 0, 0.5);
-      const on = (move === "smash" || move === "blast" || move === "bomb" || move === "pounce") && hitT > 0 && k < 1;
+      const on = (move === "smash" || move === "ant" || move === "blast" || move === "bomb" || move === "pounce") && hitT > 0 && k < 1;
       shock.current.visible = on;
       shock.current.position.set(vic.x, BOARD_TOP + 0.015, vic.z);
-      shock.current.scale.setScalar(0.2 + k * 1.8);
+      shock.current.scale.setScalar((move === "ant" ? 0.45 : 0.2) + k * (move === "ant" ? 2.6 : 1.8));
       (shock.current.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.8;
     }
     if (flash.current) {
@@ -1547,6 +1726,10 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
       if (t >= S.release) once("throw", () => playLegoShieldThrow());
       if (t >= S.back) once("catch", () => playLegoHit());
     } else if (t >= tStrike) {
+      if (move === "ant" && P.ant) {
+        if (t >= P.ant.loop) once("shrink", () => playLegoWhoosh());
+        if (t >= P.ant.loop + P.ant.shrink) once("grow", () => playLegoWhoosh(true));
+      }
       once("swing", () => {
         if (move === "repulsor" || move === "blast") playLegoBeam(move === "blast");
         else if (move === "spell") playLegoMagic();
@@ -1805,6 +1988,7 @@ export function LegoArmy({
   standIn?: LegoStandInRender;
 }) {
   useEffect(() => primeLegoExplode(), []);
+  useLegoLook();
   const pieces = useMemo(() => {
     const out: P[] = [];
     chessOf(fen).board().forEach((row, r) =>
@@ -1867,13 +2051,13 @@ export function LegoArmy({
       victimType: victim.type,
       victimSq: victim.sq,
       tricks: pickTricks(),
-      shield: was.type === "k" && Boolean(shieldRef.current?.[mover.color]) && SHIELD_KINGS.has(LEGO_ROSTER[mover.color].k),
+      shield: was.type === "k" && Boolean(shieldRef.current?.[mover.color]) && SHIELD_KINGS.has(pieceChar(mover.color, "k")),
     };
     setFight(f);
     const plan = fightPlan(f, pitch);
     const burst: Burst = {
       id: f.id,
-      victim: LEGO_ROSTER[victim.color][victim.type],
+      victim: pieceChar(victim.color, victim.type),
       at: plan.vic.clone(),
       dir: plan.dir.clone(),
       seed: hash(f.id),
@@ -1900,7 +2084,7 @@ export function LegoArmy({
             loading={<Later><StandIn type={p.type} color={p.color} sq={p.sq} pitch={pitch} onClick={() => onSquare(p.sq)} render={standIn} /></Later>}
           >
               <SquareFigure
-                id={LEGO_ROSTER[p.color][p.type]}
+                id={pieceChar(p.color, p.type)}
                 color={p.color}
                 sq={p.sq}
                 spawnFrom={!fight && fought !== moveKey && lastMove?.to === p.sq ? (lastMove.from as Square) : p.sq}
@@ -2050,16 +2234,17 @@ function useBackdrop(url: string, pos: [number, number, number], yaw: number, sc
  * The player's own "Create Lego board" build, when one is in use: it replaces the balcony, the
  * tower and the city round the board (builder units are studs; a stud is 0.25 world units here).
  */
-function useActiveBuild(): { build: LegoBuild; items: PaletteItem[] } | null {
+function useLatestBuild(): { build: LegoBuild; items: PaletteItem[] } | null {
   const [state, setState] = useState<{ build: LegoBuild; items: PaletteItem[] } | null>(null);
   useEffect(() => {
     let live = true;
-    activeLegoBuild({ data: {} })
-      .then(async (b) => {
-        if (!live || !b || !b.pieces?.length) return;
-        const items = await loadPaletteMeta();
-        if (live) setState({ build: b, items });
-      })
+    const take = async (b: LegoBuild | null) => {
+      if (!live || !b || !b.pieces?.length) return;
+      const items = await loadPaletteMeta();
+      if (live) setState({ build: b, items });
+    };
+    latestLegoBuild({ data: {} })
+      .then((b) => (b && b.pieces?.length ? take(b) : activeLegoBuild({ data: {} }).then(take)))
       .catch(() => {});
     return () => {
       live = false;
@@ -2069,9 +2254,10 @@ function useActiveBuild(): { build: LegoBuild; items: PaletteItem[] } | null {
 }
 
 export function LegoWorld() {
-  const custom = useActiveBuild();
+  const { scene } = useLegoLook();
+  const custom = useLatestBuild();
   // the scenery is never worth a crash page: without the city or tower, keep the sky and baseplate
-  if (custom)
+  if (scene === "latest" && custom)
     return (
       <LoadGuard fallback={<LegoWorldBase />}>
         <CustomLegoWorld build={custom.build} items={custom.items} />
@@ -2206,3 +2392,9 @@ function TowerLegoWorld() {
 
 /** For the figure check harness: the same rig and posing the board uses. */
 export const legoRigForTest = { useFigure, applyPose };
+
+/** A standing figure (football pieces, previews) using the same mesh as the board, including Ant-Man. */
+export function LegoStatic({ id }: { id: LegoCharId }) {
+  const { root } = useFigure(id);
+  return <primitive object={root} />;
+}

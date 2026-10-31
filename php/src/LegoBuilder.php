@@ -20,7 +20,7 @@ final class LegoBuilder
 
     public static function register(): void
     {
-        foreach (['legoBuilderState', 'buyLegoPart', 'saveLegoBuild', 'getLegoBuild', 'deleteLegoBuild', 'useLegoBuild', 'activeLegoBuild'] as $name) {
+        foreach (['legoBuilderState', 'buyLegoPart', 'saveLegoBuild', 'getLegoBuild', 'deleteLegoBuild', 'useLegoBuild', 'activeLegoBuild', 'latestLegoBuild'] as $name) {
             Rpc::register($name, [self::class, $name]);
         }
     }
@@ -237,6 +237,19 @@ final class LegoBuilder
             return null;
         }
         $row = Db::one('SELECT id, name, pieces FROM lego_builds WHERE user_id = ? AND active = 1 LIMIT 1', [$userId]);
+        if ($row === null) {
+            return null;
+        }
+        return ['id' => (string) $row['id'], 'name' => (string) $row['name'], 'pieces' => json_decode((string) $row['pieces'], true) ?: []];
+    }
+
+    /** The newest saved build, whether or not it is the one marked in use. @param array<string,mixed> $data */
+    public static function latestLegoBuild(string $userId, array $data): mixed
+    {
+        if (!self::allowed($userId)) {
+            return null;
+        }
+        $row = Db::one('SELECT id, name, pieces FROM lego_builds WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1', [$userId]);
         if ($row === null) {
             return null;
         }

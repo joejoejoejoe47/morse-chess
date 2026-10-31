@@ -1,14 +1,13 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
-import { Html, OrbitControls, useGLTF } from "@react-three/drei";
+import { Html, OrbitControls } from "@react-three/drei";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
 import { SculptedPiece } from "@/components/chess/sculpted-piece";
 import { StonePerson, WarCorpse, type Gait } from "@/components/chess/stone-people";
-import { LEGO_CHARS, LEGO_ROSTER, LegoWalker, LegoWorld, type LegoCharId } from "@/components/chess/lego-board";
+import { LegoStatic, LegoWalker, LegoWorld, pieceChar, type LegoCharId } from "@/components/chess/lego-board";
+import { useLegoLook } from "@/lib/lego-look";
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
-import { asset } from "@/lib/base";
-import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 const ParkField = lazy(() => import("@/components/variants/park-field").then((m) => ({ default: m.ParkField })));
 import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type HomeTeam, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
 import { FieldActor, FieldThrow, FieldVictim, LooseBall, SELECT_RING, type KingDress } from "@/components/variants/field-units";
@@ -111,22 +110,18 @@ function Person({ type, white }: { type: PieceSymbol; white: boolean }) {
 }
 
 function LegoFig({ id }: { id: LegoCharId }) {
-  const gltf = useGLTF(asset(`/lego/chars/${LEGO_CHARS[id].file}`));
-  const scene = useMemo(() => {
-    fixLegoWinding(gltf.scene);
-    return gltf.scene.clone(true);
-  }, [gltf]);
-  return <primitive object={scene} scale={LEGO_CHARS[id].height} />;
+  return <LegoStatic id={id} />;
 }
 
 function PieceMesh({ unit, look }: { unit: StageUnit; look: Look }) {
+  useLegoLook();
   const white = unit.side === "w";
   const color = white ? "w" : "b";
   if (unit.hidden) {
     if (look === "lg") {
       return (
         <Suspense fallback={null}>
-          <LegoFig id={LEGO_ROSTER.b.p} />
+          <LegoFig id={pieceChar("b", "p")} />
         </Suspense>
       );
     }
@@ -150,7 +145,7 @@ function PieceMesh({ unit, look }: { unit: StageUnit; look: Look }) {
     return (
       <Suspense fallback={null}>
         <group position={[0, 0.02, 0]}>
-          <LegoFig id={LEGO_ROSTER[color][unit.kind]} />
+          <LegoFig id={pieceChar(color, unit.kind)} />
         </group>
       </Suspense>
     );
@@ -186,6 +181,7 @@ function Actor({
   slay: boolean;
   orange?: boolean;
 }) {
+  useLegoLook();
   const home = spot(unit.r, unit.f, rows, cols);
   const from = spawn ? spot(spawn[0], spawn[1], rows, cols) : home;
   const ref = useRef<THREE.Group>(null);
@@ -232,7 +228,7 @@ function Actor({
       <group>
         <Suspense fallback={null}>
           <LegoWalker
-            id={LEGO_ROSTER[color][unit.kind]}
+            id={pieceChar(color, unit.kind)}
             color={color}
             from={from}
             to={home}

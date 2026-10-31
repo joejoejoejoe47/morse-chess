@@ -11,7 +11,8 @@ import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { SculptedPiece } from "@/components/chess/sculpted-piece";
 import { StonePerson, type Gait } from "@/components/chess/stone-people";
-import { LEGO_CHARS, LEGO_ROSTER, LegoBurst, LegoRunner, legoAttack, legoMoveTime, type LegoCharId, type LegoDrive } from "@/components/chess/lego-board";
+import { LEGO_CHARS, LegoBurst, LegoRunner, legoAttack, legoMoveTime, pieceChar, type LegoCharId, type LegoDrive } from "@/components/chess/lego-board";
+import { useLegoLook } from "@/lib/lego-look";
 import { LegoDress } from "@/components/avatar/lego-dress";
 import { BALL_TRACK, TeamRing } from "@/components/variants/neon-stadium";
 import { playLegoBeam, playLegoHit, playLegoWhoosh } from "@/lib/lego-sfx";
@@ -57,7 +58,7 @@ function walkTime(dist: number) {
 }
 
 function legoId(side: "w" | "b", kind: PieceSymbol): LegoCharId {
-  return LEGO_ROSTER[side][kind];
+  return pieceChar(side, kind);
 }
 
 export type ShotKind = "beam" | "bomb" | "bullets";
@@ -267,6 +268,7 @@ export function FieldActor({
   /** LG king built from the player's saved body, head, hat, legs and weapon */
   dress?: KingDress | null;
 }) {
+  useLegoLook();
   const home = fieldSpot(unit.r, unit.f, rows, cols);
   const wasReceiving = useRef(false);
   const caughtAt = useRef(-10);

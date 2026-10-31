@@ -14,6 +14,8 @@ import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { setEquippedBoard, buyBoard } from "@/lib/server/mores";
 import { cn } from "@/lib/utils";
 import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
+import { LegoVerseBar } from "@/components/lego-verse-bar";
+import { setLegoScene } from "@/lib/lego-look";
 import { PieceNames } from "@/components/piece-names";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -70,6 +72,10 @@ export function BoardLook({
   useEffect(() => {
     if (startTuning && open) setTuning(true);
   }, [startTuning, open]);
+
+  useEffect(() => {
+    if (boardId === LEGO_BOARD_ID) setLegoScene("latest");
+  }, [boardId]);
 
   const boardProps = {
     fen: START_FEN,
@@ -199,7 +205,10 @@ export function BoardLook({
                   "px-3 py-1.5 text-[13px] font-medium",
                   view === "lg" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
                 )}
-                onClick={() => setView("lg")}
+                onClick={() => {
+                  setLegoScene("latest");
+                  setView("lg");
+                }}
               >
                 LG
               </button>
@@ -221,6 +230,13 @@ export function BoardLook({
 
       <div className="relative min-h-0 flex-1">
         <div className="absolute inset-0">
+          {board.id === LEGO_BOARD_ID && view !== "2d" ? (
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
+              <div className="pointer-events-auto">
+                <LegoVerseBar show />
+              </div>
+            </div>
+          ) : null}
           {view === "2d" ? (
             <ChessBoard2D {...boardProps} />
           ) : (

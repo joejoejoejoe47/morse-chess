@@ -65,6 +65,7 @@ The swords LG figures hold (Devil sword and Talwar in the dresser) are real LEGO
 - **Drawn in code:**
   - The floating deck, studded baseplate, dusk sky and effects (beams, standing portals, shockwaves).
   - The capture debris. These are real LEGO brick and plate shapes (1x2, 2x2 and 2x4 bricks, 1x2 and 2x2 plates, all with studs on top, standard LEGO proportions) drawn in code, in the colours of the figure that was captured.
+  - **Ant-Man** (the good queen, after Good side). An original minifig drawn in code: red suit, silver face, two antennae. No downloaded model. When he captures he runs a circle, shrinks, grows huge, stamps the enemy with one step, then returns to his own size.
 
 ## Create Lego board (builder pieces)
 
