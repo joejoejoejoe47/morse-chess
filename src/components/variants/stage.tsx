@@ -65,7 +65,7 @@ export type FieldOpts = {
 
 function Pigskin() {
   return (
-    <mesh scale={[1.2, 0.72, 0.72]} rotation={[0.3, 0.4, 0.5]} castShadow>
+    <mesh scale={[2.35, 0.48, 0.48]} rotation={[0.3, 0.4, 0.5]} castShadow>
       <sphereGeometry args={[0.13, 18, 12]} />
       <meshStandardMaterial color="#6b3418" roughness={0.55} />
     </mesh>
@@ -359,6 +359,7 @@ function Deck({
   // recent moves: the fights and throws keep playing even when the next move starts
   const [recent, setRecent] = useState<MoveCue[]>([]);
   const [flying, setFlying] = useState<number | null>(null);
+  const [hotSq, setHotSq] = useState<string | null>(null);
   useEffect(() => {
     if (!cue || !stadium) return;
     setRecent((list) => (list.some((c) => c.id === cue.id) ? list : [...list.slice(-5), cue]));
@@ -430,8 +431,23 @@ function Deck({
     else pickSq = ground;
     if (pickSq) onPick(pickSq[0], pickSq[1]);
   };
+  const onHover = (e: ThreeEvent<PointerEvent>) => {
+    if (!stadium) return;
+    let hit: [number, number] | null = null;
+    for (const inter of e.intersections) {
+      let node: THREE.Object3D | null = inter.object;
+      while (node && !node.userData.pick) node = node.parent;
+      const tag = node?.userData.pick;
+      if (Array.isArray(tag)) {
+        hit = tag as [number, number];
+        break;
+      }
+    }
+    const key = hit ? `${hit[0]},${hit[1]}` : null;
+    setHotSq((cur) => (cur === key ? cur : key));
+  };
   return (
-    <group onClick={stadium ? stadiumPick : undefined}>
+    <group onClick={stadium ? stadiumPick : undefined} onPointerMove={stadium ? onHover : undefined} onPointerLeave={stadium ? () => setHotSq(null) : undefined}>
       {stadium ? (
         <mesh position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]} userData={{ pick: "ground" }}>
           <planeGeometry args={[cols, rows]} />
@@ -479,6 +495,8 @@ function Deck({
                   receive={caught && inAir && !inAir.goal ? inAir.from : null}
                   bare={Boolean(field.replay)}
                   dress={unit.kind === "k" ? field.kings?.[unit.side] ?? null : null}
+                  hovered={hotSq === `${unit.r},${unit.f}`}
+                  hoverColor={unit.side === "w" ? awayCol : homeCol}
                 />
               </group>
             );

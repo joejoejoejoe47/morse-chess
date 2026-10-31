@@ -39,7 +39,7 @@ export type FootballMatchCue = {
 };
 export type FootballMatchEvent = {
   seq: number;
-  t: "count" | "snap" | "move" | "pass" | "goal" | "intercept" | "dead" | "lineup" | "td" | "kickoff" | "skip" | "over";
+  t: "count" | "snap" | "move" | "pass" | "goal" | "intercept" | "dead" | "lineup" | "td" | "kickoff" | "skip" | "over" | "overtime";
   at: number;
   board: FootballMatchBoard;
   loose: [number, number] | null;
@@ -92,6 +92,8 @@ export type FootballMatchView = {
   ready: { w: boolean; b: boolean };
   over: "" | "time" | "resign" | "forfeit" | "kings";
   winner: "w" | "b" | null;
+  /** Sudden death: the clock died on a tie. The next touchdown wins. */
+  ot?: boolean;
 };
 export type FootballMatchAction =
   | { t: "move" | "pass"; from: [number, number]; to: [number, number] }

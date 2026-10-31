@@ -319,6 +319,26 @@ $s7 = $s6;
 FM::advance($s7, $t + 40000 + 4200 + FM::GAME_MS + 1);
 check($s7['over'] === 'time', 'the 10-minute clock ends the game');
 
+// a tie at 0:00 is overtime: everyone restarts in the middle, and the next touchdown wins
+$sOt = $at($empty, 'w', $t + 80000);
+$sOt['score'] = ['w' => 6, 'b' => 6];
+$sOt['clockMs'] = 1000;
+$sOt['clockAt'] = $t + 80000;
+FM::advance($sOt, $t + 80000 + 1001);
+$hbOt = $ballAt($sOt['board']);
+$evOt = $sOt['events'][count($sOt['events']) - 1];
+check(!empty($sOt['ot']) && $sOt['over'] === '' && $sOt['phase'] === 'play' && $evOt['t'] === 'overtime', 'a tie at 0:00 is overtime, not the end');
+check(count($men($sOt['board'])) === 32 && $hbOt[0] === 4 && $hbOt[2]['side'] === 'w' && $hbOt[2]['kind'] === 'k', 'overtime restarts everyone in the middle');
+$sOt['board'] = $empty;
+$sOt['board'][11][3] = ['side' => 'w', 'kind' => 'p', 'id' => 'd2', 'ball' => true, 'held' => 0];
+$sOt['board'][4][4] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1'];
+$sOt['board'][9][4] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
+$sOt['turn'] = 'w';
+$sOt['turnAt'] = $t + 82000;
+check(FM::act($sOt, 'w', ['t' => 'move', 'from' => [11, 3], 'to' => [12, 3]], $t + 82100) === null && $sOt['phase'] === 'celebrate' && !empty($sOt['next']['win']) && $sOt['next']['first'] === 'w', 'the next overtime touchdown wins');
+FM::advance($sOt, $t + 82100 + 20000);
+check($sOt['over'] === 'time' && $sOt['winner'] === 'w', 'overtime ends when that touchdown show is over');
+
 // leaving
 $r = FM::resignFootball('u2', ['gameId' => $gid]);
 check($r['over'] === 'resign' && $r['winner'] === 'w', 'leaving = the other player wins');

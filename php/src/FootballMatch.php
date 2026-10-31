@@ -165,6 +165,7 @@ final class FootballMatch
             'drive' => [],
             'over' => '',
             'winner' => null,
+            'ot' => false,
             'createdAt' => $now,
             'seq' => 0,
             'events' => [],
@@ -336,13 +337,14 @@ final class FootballMatch
             'phase' => $s['phase'],
             'until' => (int) $s['until'],
             'clockMs' => max(0, $clock),
-            'clockRunning' => $s['phase'] === 'play' && $s['over'] === '',
+            'clockRunning' => $s['phase'] === 'play' && $s['over'] === '' && empty($s['ot']),
             'turnAt' => (int) $s['turnAt'],
             'bonus' => (int) $s['bonus'],
             'skip' => $s['skip'],
             'ready' => $s['ready'],
             'over' => $s['over'],
             'winner' => $s['winner'],
+            'ot' => !empty($s['ot']),
         ];
     }
 
@@ -721,8 +723,13 @@ final class FootballMatch
                 return;
             }
             if ($ph === 'play') {
-                if ((int) $s['clockMs'] - ($now - (int) $s['clockAt']) <= 0) {
-                    self::gameOver($s, (int) $s['clockAt'] + (int) $s['clockMs'], 'time', null);
+                if (empty($s['ot']) && (int) $s['clockMs'] - ($now - (int) $s['clockAt']) <= 0) {
+                    $at = (int) $s['clockAt'] + (int) $s['clockMs'];
+                    if ($s['score']['w'] === $s['score']['b']) {
+                        self::beginOvertime($s, $at);
+                    } else {
+                        self::gameOver($s, $at, 'time', null);
+                    }
                 }
                 return;
             }
@@ -764,7 +771,11 @@ final class FootballMatch
             } elseif ($ph === 'goal') {
                 self::kickoff($s, (string) $next['first'], $at, 'goal');
             } elseif ($ph === 'celebrate') {
-                self::kickoff($s, (string) $next['first'], $at, 'td');
+                if (!empty($next['win'])) {
+                    self::gameOver($s, $at, 'time', (string) $next['first']);
+                } else {
+                    self::kickoff($s, (string) $next['first'], $at, 'td');
+                }
             } else {
                 return;
             }
@@ -783,6 +794,23 @@ final class FootballMatch
         $s['next'] = null;
         self::startPlay($s, $at);
         self::event($s, 'kickoff', $at, ['first' => $first, 'after' => $after]);
+    }
+
+    /** Clock died on a tie: everyone back in the middle. The next touchdown wins. */
+    private static function beginOvertime(array &$s, int $at): void
+    {
+        self::stopClock($s, $at);
+        $s['ot'] = true;
+        $s['clockMs'] = 0;
+        $s['board'] = self::formation('w');
+        $s['loose'] = null;
+        $s['turn'] = 'w';
+        $s['drive'] = [];
+        $s['flight'] = null;
+        $s['skip'] = ['w' => false, 'b' => false];
+        $s['next'] = null;
+        self::startPlay($s, $at);
+        self::event($s, 'overtime', $at);
     }
 
     private static function deadBall(array &$s, int $at, int $wait, int $row, string $holder, string $first, string $text, string $mover, bool $all = false): void
@@ -828,7 +856,9 @@ final class FootballMatch
         $s['skip'] = ['w' => false, 'b' => false];
         $s['flight'] = null;
         $s['until'] = $at + self::replayMs($s['drive']);
-        $s['next'] = ['first' => self::other($scorer)];
+        $s['next'] = !empty($s['ot'])
+            ? ['first' => $scorer, 'win' => true]
+            : ['first' => self::other($scorer)];
         self::event($s, 'td', $at, ['scorer' => $scorer, 'carrier' => $carrier]);
     }
 
@@ -889,7 +919,11 @@ final class FootballMatch
                 self::event($s, 'skip', $now, ['side' => $side]);
             }
             if ($s['skip']['w'] && $s['skip']['b']) {
-                self::kickoff($s, (string) $s['next']['first'], $now, 'td');
+                if (!empty($s['next']['win'])) {
+                    self::gameOver($s, $now, 'time', (string) $s['next']['first']);
+                } else {
+                    self::kickoff($s, (string) $s['next']['first'], $now, 'td');
+                }
             }
             return null;
         }

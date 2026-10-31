@@ -125,7 +125,7 @@ export function capturePlan(look: FieldLook, side: "w" | "b", kind: PieceSymbol,
 export function makeBall(size = 1) {
   const g = new THREE.Group();
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.13 * size, 18, 12), new THREE.MeshStandardMaterial({ color: "#6b3418", roughness: 0.55 }));
-  m.scale.set(1.9, 0.5, 0.5);
+  m.scale.set(2.7, 0.42, 0.42);
   m.castShadow = true;
   const lace = new THREE.Mesh(new THREE.BoxGeometry(0.11 * size, 0.012 * size, 0.022 * size), new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.6 }));
   lace.position.set(0, 0.092 * size, 0);
@@ -249,6 +249,8 @@ export function FieldActor({
   receive = null,
   bare = false,
   dress = null,
+  hovered = false,
+  hoverColor = "#ffffff",
 }: {
   unit: FieldUnitLike;
   look: FieldLook;
@@ -267,6 +269,10 @@ export function FieldActor({
   bare?: boolean;
   /** LG king built from the player's saved body, head, hat, legs and weapon */
   dress?: KingDress | null;
+  /** pointer is over this player's circle */
+  hovered?: boolean;
+  /** the other team's colour: a ring a little bigger than his own */
+  hoverColor?: string;
 }) {
   useLegoLook();
   const home = fieldSpot(unit.r, unit.f, rows, cols);
@@ -482,6 +488,7 @@ export function FieldActor({
     <group ref={node} position={home.toArray()}>
       <group>
         {bare && !unit.ball ? null : <TeamRing side={unit.side} color={selected || unit.ball ? SELECT_RING : ring} position={[0, 0.006, 0]} />}
+        {hovered && !unit.hidden ? <HoverRing color={hoverColor} /> : null}
         {unit.ball ? <CarrierHalo /> : null}
         {selected && !bare ? <SelectPulse /> : null}
       </group>
@@ -524,6 +531,22 @@ export function FieldActor({
           </group>
         )}
       </group>
+    </group>
+  );
+}
+
+/** A ring just outside the player's own circle, in the other team's colour. */
+function HoverRing({ color }: { color: string }) {
+  return (
+    <group position={[0, 0.02, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
+        <ringGeometry args={[0.48, 0.58, 48]} />
+        <meshBasicMaterial color={color} transparent opacity={0.96} toneMapped={false} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.002, 0]} renderOrder={4}>
+        <circleGeometry args={[0.53, 36]} />
+        <meshBasicMaterial color={color} transparent opacity={0.22} blending={THREE.AdditiveBlending} toneMapped={false} depthWrite={false} />
+      </mesh>
     </group>
   );
 }

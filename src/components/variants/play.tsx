@@ -30,7 +30,7 @@ import { playScoreSound, preloadScoreSound, scoreSoundAllowed } from "@/lib/scor
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { FLIGHT, JUMPS, JUMP_WINDOW, fieldSpot, type KingDress } from "@/components/variants/field-units";
 import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
-import { playReplaySong, playThirtyHorn, stopReplaySong } from "@/lib/fb-audio";
+import { playReplaySong, playThirtyHorn, primeReplaySong, stopReplaySong } from "@/lib/fb-audio";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -1066,6 +1066,7 @@ const FOOTBALL_RULES = [
   "After a touchdown, a field goal, an interception or a fumble on a run, everyone on both teams comes back in the start line-up.",
   "Kings cannot be tackled. A king who holds the ball for 3 moves puts it down: both teams line up at his yard line and he gets it back.",
   "Take more than 5 seconds and the other team sneaks in one bonus move. The game lasts 10 minutes.",
+  "If the clock hits 0:00 and the score is tied, big text says OVERTIME, everyone restarts in the middle, and the next touchdown wins.",
 ];
 
 const RANK_FLIP: Record<string, string> = { "1": "8", "2": "7", "7": "2", "8": "1" };
@@ -1121,6 +1122,8 @@ export function Football({ versus, online }: { versus: string; online?: string }
   const kit = useRef({ celebrate: "fireworks", song: "song-none" });
   const clockFlags = useRef({ min: false, horn: false });
   const [over, setOver] = useState("");
+  const [ot, setOt] = useState(false);
+  const otRef = useRef(false);
   const [cue, setCue] = useState<MoveCue | null>(null);
   // 3, 2, 1, GO! first; nothing moves and the clock waits until it is over
   const [phase, setPhase] = useState<Phase>("count");
@@ -1214,6 +1217,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
         const o = row?.loadout;
         if (!o) return;
         kit.current = { celebrate: o.fbCelebrate || "fireworks", song: o.fbSong || "song-none" };
+        primeReplaySong(kit.current.song);
         setKings((k) => ({ ...k, w: { body: o.lgBody, head: o.lgHead, hair: o.lgHair, legs: o.lgLegs, weapon: o.lgWeapon, lg: o.style === "lg" } }));
       })
       .catch(() => undefined);
@@ -1265,18 +1269,19 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }, [go]);
 
   useEffect(() => {
-    if (over || phase !== "play" || online) return; // online: the server keeps the clock
+    if (over || phase !== "play" || online || ot) return; // online: the server keeps the clock
     const id = window.setInterval(() => {
       setLeft((n) => {
         if (n <= 1) {
-          setOver("time");
+          if (!otRef.current && now.current.score.w === now.current.score.b) window.setTimeout(() => beginOvertime(), 0);
+          else if (!otRef.current) setOver("time");
           return 0;
         }
         return n - 1;
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [over, phase]);
+  }, [over, phase, online, ot]);
 
   // Small clock callouts: "1 minute left", a horn at 30, then 10 … 1.
   useEffect(() => {
@@ -1396,6 +1401,17 @@ export function Football({ versus, online }: { versus: string; online?: string }
     }, 1300);
   }
 
+  /** Tied at 0:00: big OVERTIME, everyone back in the middle, and the next touchdown wins. */
+  function beginOvertime() {
+    if (otRef.current || online) return;
+    otRef.current = true;
+    setOt(true);
+    setLeft(0);
+    const s = now.current;
+    setEpoch((e) => e + 1);
+    kickoff(s.board, s.score, "w");
+  }
+
   /** After a score (or a missed kick): everyone back on his own side and `first`, the team that gets the
    *  ball, starts with it in its king's hands (owner t238u). */
   function kickoff(b: FBoard, scored: { w: number; b: number }, first: Side) {
@@ -1476,6 +1492,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
   function touchdown(scoring: FBoard, scorer: Side, scored: { w: number; b: number }, carrier: FUnit) {
     if (tdLock.current) return;
     tdLock.current = true;
+    primeReplaySong(kit.current.song);
     setSkipWait(false);
     const wasTry = Boolean(tryRef.current);
     tryRef.current = null;
@@ -1527,6 +1544,13 @@ export function Football({ versus, online }: { versus: string; online?: string }
       stopReplaySong();
       crowd.current?.set("calm");
       void wasTry;
+      if (otRef.current && !online) {
+        setOver("time");
+        setWinner(scorer);
+        setPhase("play");
+        phaseRef.current = "play";
+        return;
+      }
       if (online) {
         // the server's kick-off (after both skipped, or the replay ran out) lines everyone up
         setPhase("kick");
@@ -1542,6 +1566,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     resume.current = finish;
     const BEGIN = 3400;
     later(() => {
+      playReplaySong(kit.current.song);
       setBanner(null);
       setPhase("replay");
       phaseRef.current = "replay";
@@ -1549,7 +1574,6 @@ export function Football({ versus, online }: { versus: string; online?: string }
       setEpoch((e) => e + 1);
       setReplay({ board: before.board, loose: before.loose, cue: null });
       setCaption(`${name} scored`);
-      playReplaySong(kit.current.song);
       const p0 = plays[0]?.cue;
       setShow((s) => ({
         hype: s.hype,
@@ -2070,6 +2094,24 @@ export function Football({ versus, online }: { versus: string; online?: string }
         touchdown(b, scorer, sc, carrier);
         break;
       }
+      case "overtime":
+        otRef.current = true;
+        setOt(true);
+        setLeft(0);
+        setBoard(b);
+        setLoose(null);
+        setScore(sc);
+        setCue(null);
+        setSel(null);
+        setThrowing(false);
+        setTurn(tn);
+        setEpoch((e) => e + 1);
+        tdLock.current = false;
+        drive.current = { board: b, loose: null, plays: [] };
+        setPhase("play");
+        phaseRef.current = "play";
+        crowd.current?.set("calm");
+        break;
       case "kickoff": {
         if (resume.current) resume.current();
         tdLock.current = false;
@@ -2131,6 +2173,8 @@ export function Football({ versus, online }: { versus: string; online?: string }
       setKings({ w: dressOf(mineRaw), b: dressOf(themRaw) });
     }
     setLeft(Math.max(0, Math.ceil(v.clockMs / 1000)));
+    otRef.current = Boolean(v.ot);
+    setOt((cur) => (cur === Boolean(v.ot) ? cur : Boolean(v.ot)));
     if ((m.seq === 0 && v.seq > 0 && v.phase !== "count") || v.gap) {
       // opened mid-game (a reload) or missed too much: jump straight to the board as it is now
       m.seq = v.seq;
@@ -2314,14 +2358,20 @@ export function Football({ versus, online }: { versus: string; online?: string }
     };
   }, []);
 
-  const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  const clock = ot ? "OT" : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
   const result =
     over === "time"
-      ? score.w === score.b
-        ? "Time. Tie game."
-        : score.w > score.b
-          ? "Time. You win."
-          : `Time. ${vsName} wins.`
+      ? ot
+        ? winner === "w"
+          ? "Overtime. You win."
+          : winner === "b"
+            ? `Overtime. ${vsName} wins.`
+            : "Overtime."
+        : score.w === score.b
+          ? "Time. Tie game."
+          : score.w > score.b
+            ? "Time. You win."
+            : `Time. ${vsName} wins.`
       : over === "kings"
         ? "King versus king. Tie game."
         : over === "resign" || over === "forfeit"
@@ -2394,15 +2444,19 @@ export function Football({ versus, online }: { versus: string; online?: string }
       hot={turn === "w" && !over}
       status={`${team.name} ${score.w} – ${score.b} ${away.name}${result ? ` · ${result}` : tryFor ? " · Try" : turn === "w" ? " · Your move" : ` · ${vsName}`}`}
       verdict={
-        over === "time" && score.w !== score.b
-          ? score.w > score.b
+        over === "time" && ot && winner
+          ? winner === "w"
             ? "victory"
             : "defeat"
-          : over === "resign" || over === "forfeit"
-            ? winner === "w"
+          : over === "time" && score.w !== score.b
+            ? score.w > score.b
               ? "victory"
               : "defeat"
-            : null
+            : over === "resign" || over === "forfeit"
+              ? winner === "w"
+                ? "victory"
+                : "defeat"
+              : null
       }
       onLeave={!over ? () => void leaveGame() : undefined}
       leave={!over ? "Resign" : "Lounge"}
@@ -2555,6 +2609,16 @@ export function Football({ versus, online }: { versus: string; online?: string }
           >
             {(frozen ?? count) || "GO!"}
           </span>}
+        </div>
+      ) : null}
+      {ot && !over && phase === "play" ? (
+        <div className="pointer-events-none absolute inset-x-0 top-[18%] z-20 grid place-items-center px-4" data-fb-ot>
+          <span
+            className="fb-count select-none font-sans text-[min(16vw,18vh)] font-black uppercase italic leading-none tracking-[0.06em] text-white"
+            style={{ textShadow: "0 0 24px #ffe14a, 0 0 70px #ffe14a, 0 6px 0 #000" }}
+          >
+            Overtime
+          </span>
         </div>
       ) : null}
       {banner ? (

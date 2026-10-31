@@ -32,18 +32,55 @@ const SONGS: Record<string, string> = {
 };
 
 let song: HTMLAudioElement | null = null;
+let primed: HTMLAudioElement | null = null;
+let primedId = "";
 
-/** A bought replay song. Crowd-only (and anything unbought) stays quiet. */
-export function playReplaySong(id: string) {
-  stopReplaySong();
+/** Load the replay song during the celebration so play() at the replay is instant. */
+export function primeReplaySong(id: string) {
   const file = SONGS[id];
-  if (!file || crowdMuted() || typeof Audio === "undefined") return;
-  song = new Audio(asset(file));
+  if (!file || typeof Audio === "undefined") return;
+  if (primed && primedId === id) return;
+  stopReplaySong();
+  primedId = id;
+  primed = new Audio(asset(file));
+  primed.preload = "auto";
+  primed.volume = 0.82;
+  primed.load();
+}
+
+/** A bought replay song. Crowd-only (and anything unbought) stays quiet. Starts at the first sample. */
+export function playReplaySong(id: string) {
+  const file = SONGS[id];
+  if (!file || crowdMuted() || typeof Audio === "undefined") {
+    stopReplaySong();
+    return;
+  }
+  if (!(primed && primedId === id)) primeReplaySong(id);
+  song = primed;
+  primed = null;
+  primedId = "";
+  if (!song) return;
   song.volume = 0.82;
-  void song.play().catch(() => undefined);
+  const go = () => {
+    if (!song) return;
+    try {
+      song.currentTime = 0;
+    } catch {
+      /* not seekable yet */
+    }
+    void song.play().catch(() => undefined);
+  };
+  if (song.readyState >= 2) go();
+  else song.addEventListener("canplay", go, { once: true });
 }
 
 export function stopReplaySong() {
+  if (primed && primed !== song) {
+    primed.pause();
+    primed.src = "";
+    primed = null;
+    primedId = "";
+  }
   if (!song) return;
   song.pause();
   song.src = "";
