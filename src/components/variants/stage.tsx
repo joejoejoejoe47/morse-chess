@@ -11,11 +11,11 @@ import { asset } from "@/lib/base";
 import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 const ParkField = lazy(() => import("@/components/variants/park-field").then((m) => ({ default: m.ParkField })));
 import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type HomeTeam, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
-import { FieldActor, FieldThrow, FieldVictim, LooseBall, SELECT_RING } from "@/components/variants/field-units";
+import { FieldActor, FieldThrow, FieldVictim, LooseBall, SELECT_RING, type KingDress } from "@/components/variants/field-units";
 
 export type { HomeTeam, Scoreboard, StadiumShow };
 
-export type Look = "2d" | "3d" | "an" | "lg";
+export type Look = "2d" | "3d" | "an" | "lg" | "ra";
 export type Sky = "table" | "lego" | "arena";
 
 const GLYPH: Record<PieceSymbol, string> = { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" };
@@ -60,6 +60,8 @@ export type FieldOpts = {
   onGoal?: () => void;
   /** the touchdown replay: players just move, no path/trail lines (owner, v4) */
   replay?: boolean;
+  /** LG kings dressed from each player's saved body (viewer must be in LG to see them) */
+  kings?: { w?: KingDress | null; b?: KingDress | null };
 };
 
 function Pigskin() {
@@ -269,7 +271,11 @@ function Throw({ from, to, rows, cols, orange = false }: { from: [number, number
     const u = Math.min(1, (clock.elapsedTime - born.current) / 0.72);
     const arc = Math.sin(u * Math.PI) * ((orange ? 1.4 : 0.55) + Math.hypot(b[0] - a[0], b[2] - a[2]) * (orange ? 0.28 : 0.18));
     node.position.set(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + arc, a[2] + (b[2] - a[2]) * u);
-    node.rotation.set(u * 16, 0, u * 9);
+    const dir = new THREE.Vector3(b[0] - a[0], 0.15, b[2] - a[2]);
+    if (dir.lengthSq() < 1e-8) dir.set(0, 0, -1);
+    dir.normalize();
+    node.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+    node.rotateX(u * 14);
   });
   return (
     <group ref={ref}>
@@ -476,6 +482,7 @@ function Deck({
                   hideBall={caught}
                   receive={caught && inAir && !inAir.goal ? inAir.from : null}
                   bare={Boolean(field.replay)}
+                  dress={unit.kind === "k" ? field.kings?.[unit.side] ?? null : null}
                 />
               </group>
             );

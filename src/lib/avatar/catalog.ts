@@ -23,6 +23,10 @@ export type AvatarLoadout = {
   lgHair: string;
   lgLegs: string;
   lgWeapon: string;
+  /** Touchdown celebration. "fireworks" is free and owned. */
+  fbCelebrate: string;
+  /** Song that plays during a score replay. "song-none" is the crowd. */
+  fbSong: string;
 };
 
 export type GearItem = {
@@ -284,6 +288,22 @@ export const LG_ATTACKS: GearItem[] = [
   },
 ];
 
+/** Touchdown shows. Fireworks is free and already yours. The rest are bought, then pinned to preview. */
+export const FB_CELEBRATIONS: GearItem[] = [
+  { id: "fireworks", name: "Fireworks", price: 0, portrait: "", blurb: "Yours already. They shoot up fast and burst before the replay." },
+  { id: "dragon", name: "Dragon", price: 8, portrait: "", blurb: "A dragon flaps in from nowhere and over the stadium." },
+  { id: "horse", name: "War horse", price: 6, portrait: "", blurb: "A horse charges the goal line." },
+  { id: "husky", name: "Husky", price: 6, portrait: "", blurb: "The war dog sprints the score." },
+  { id: "carrier", name: "Sky carrier", price: 8, portrait: "", blurb: "The carrier slides over the lights." },
+  { id: "pirate", name: "Pirate", price: 6, portrait: "", blurb: "The captain runs the goal line." },
+];
+
+/** Replay songs. More can be added later. Walking Down the Street In a Car is 10 Morse coins. */
+export const FB_SONGS: GearItem[] = [
+  { id: "song-none", name: "Crowd only", price: 0, portrait: "", blurb: "Just the stadium. Free." },
+  { id: "song-walking", name: "Walking Down the Street In a Car", price: 10, portrait: "", blurb: "Plays through the replay of a score." },
+];
+
 export type KingFinish = GearItem & {
   /** Body lacquer, trim bands and crown metal of the AV pedestal king. */
   body: string;
@@ -327,6 +347,8 @@ export const DEFAULT_LOADOUT: AvatarLoadout = {
   lgHair: "none",
   lgLegs: "cap",
   lgWeapon: "none",
+  fbCelebrate: "fireworks",
+  fbSong: "song-none",
 };
 
 export const LEGO_PARTS: { id: string; name: string; file: string }[] = [
@@ -394,7 +416,7 @@ export function skeletonFor(id: string) {
 }
 
 export function allGear() {
-  return [...CHARACTERS, ...SWORDS, ...CROWNS, ...MOUNTS, ...FRAMES, ...ATTACKS, ...LG_ATTACKS, ...FINISHES];
+  return [...CHARACTERS, ...SWORDS, ...CROWNS, ...MOUNTS, ...FRAMES, ...ATTACKS, ...LG_ATTACKS, ...FINISHES, ...FB_CELEBRATIONS, ...FB_SONGS];
 }
 
 export function gearPrice(id: string) {
@@ -436,6 +458,8 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     lgHair: pick(hairRaw, "none", LG_HAIR),
     lgLegs: pick(src.lgLegs, "cap", LEGO_PARTS),
     lgWeapon: pick(src.lgWeapon, "none", LG_WEAPONS),
+    fbCelebrate: pick(src.fbCelebrate, "fireworks", FB_CELEBRATIONS),
+    fbSong: pick(src.fbSong, "song-none", FB_SONGS),
   };
 }
 

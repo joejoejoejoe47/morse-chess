@@ -3,17 +3,23 @@
  * move glides, captures are fought at a stand-off distance (AN: sword swing, LG: lasers / bombs /
  * bullets, 3D: a shove) and nobody ever stands inside anybody else.
  */
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import type { PieceSymbol } from "chess.js";
 import * as THREE from "three";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { SculptedPiece } from "@/components/chess/sculpted-piece";
 import { StonePerson, type Gait } from "@/components/chess/stone-people";
 import { LEGO_CHARS, LEGO_ROSTER, LegoBurst, LegoRunner, legoAttack, legoMoveTime, type LegoCharId, type LegoDrive } from "@/components/chess/lego-board";
+import { LegoDress } from "@/components/avatar/lego-dress";
 import { BALL_TRACK, TeamRing } from "@/components/variants/neon-stadium";
 import { playLegoBeam, playLegoHit, playLegoWhoosh } from "@/lib/lego-sfx";
+import { asset } from "@/lib/base";
 
-type FieldLook = "2d" | "3d" | "an" | "lg";
+type FieldLook = "2d" | "3d" | "an" | "lg" | "ra";
+
+export type KingDress = { body: string; head: string; hair: string; legs: string; weapon: string; lg?: boolean };
 
 export type FieldUnitLike = { id?: string; r: number; f: number; side: "w" | "b"; kind: PieceSymbol; hidden?: boolean; ball?: boolean };
 
@@ -33,8 +39,8 @@ export type FieldCue = {
   victimSide?: "w" | "b";
 };
 
-/** AN players are a little smaller on the football field (owner, 2026-10-28; a tiny bit smaller again in t204u). */
-export const AN_FIELD_SCALE = 0.77;
+/** AN players are a little smaller on the football field so a tackle does not put two bodies in one spot. */
+export const AN_FIELD_SCALE = 0.7;
 export const SELECT_RING = "#ffe14a";
 const FIELD_Y = 0.14;
 
@@ -63,7 +69,7 @@ function shotKind(id: LegoCharId): ShotKind {
 }
 
 /** How far short of the victim the attacker stops. */
-const REACH: Record<FieldLook, number> = { "2d": 0.7, "3d": 0.72, an: 0.82, lg: 1.6 };
+const REACH: Record<FieldLook, number> = { "2d": 0.7, "3d": 0.95, an: 1.02, lg: 1.7, ra: 1.05 };
 
 export type CapPlan = {
   from: THREE.Vector3;
@@ -104,7 +110,7 @@ export function capturePlan(look: FieldLook, side: "w" | "b", kind: PieceSymbol,
     strikeEnd = launch + Math.max(0.2, Math.min(0.45, mv.strike));
     hit = launch + (shot === "bomb" ? 0.62 : shot === "beam" ? 0.18 : 0.34);
     stepIn = Math.max(strikeEnd, hit) + 0.55;
-  } else if (look !== "an") {
+  } else if (look !== "an" && look !== "ra") {
     // 3D: wind-up, shoulder charge, follow-through; the victim falls, gets up and leaves before the step in
     hit = approach + 0.4;
     strikeEnd = hit + 0.4;
@@ -118,7 +124,7 @@ export function capturePlan(look: FieldLook, side: "w" | "b", kind: PieceSymbol,
 export function makeBall(size = 1) {
   const g = new THREE.Group();
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.13 * size, 18, 12), new THREE.MeshStandardMaterial({ color: "#6b3418", roughness: 0.55 }));
-  m.scale.set(1.2, 0.72, 0.72);
+  m.scale.set(1.9, 0.5, 0.5);
   m.castShadow = true;
   const lace = new THREE.Mesh(new THREE.BoxGeometry(0.11 * size, 0.012 * size, 0.022 * size), new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.6 }));
   lace.position.set(0, 0.092 * size, 0);
@@ -129,6 +135,46 @@ export function makeBall(size = 1) {
 export function Pigskin() {
   const ball = useMemo(() => makeBall(), []);
   return <primitive object={ball} />;
+}
+
+const SOLDIER = asset("/rocco/soldier.glb");
+const AXIS_X = new THREE.Vector3(1, 0, 0);
+const NOSE = new THREE.Vector3();
+const AIM = new THREE.Quaternion();
+const SPIN = new THREE.Quaternion();
+
+/** RA on the football field: the realistic soldier, a little small so tackles don't overlap. */
+function RaMan({ white, kind, gait }: { white: boolean; kind: PieceSymbol; gait: MutableRefObject<Gait> }) {
+  const gltf = useGLTF(SOLDIER);
+  const scene = useMemo(() => {
+    const copy = cloneSkeleton(gltf.scene);
+    copy.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      const src = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      const mat = (src as THREE.MeshStandardMaterial | undefined)?.clone?.();
+      if (mat && "color" in mat) {
+        mat.color = new THREE.Color(white ? "#c3161f" : "#1a1a1a");
+        mesh.material = mat;
+      }
+    });
+    return copy;
+  }, [gltf, white]);
+  const mixer = useMemo(() => new THREE.AnimationMixer(scene), [scene]);
+  const clip = useRef("");
+  useFrame((_, dt) => {
+    const want = gait.current.amp > 0.35 || gait.current.act === "walk" || gait.current.act === "attack" ? "Walk" : "Idle";
+    if (want !== clip.current) {
+      clip.current = want;
+      mixer.stopAllAction();
+      const found = gltf.animations.find((a) => a.name === want) ?? gltf.animations[0];
+      if (found) mixer.clipAction(found).play();
+    }
+    mixer.update(dt);
+  });
+  const h = kind === "k" ? 0.78 : kind === "p" ? 0.58 : 0.66;
+  return <primitive object={scene} scale={h} rotation={[0, Math.PI, 0]} />;
 }
 
 /**
@@ -201,6 +247,7 @@ export function FieldActor({
   hideBall = false,
   receive = null,
   bare = false,
+  dress = null,
 }: {
   unit: FieldUnitLike;
   look: FieldLook;
@@ -217,6 +264,8 @@ export function FieldActor({
   receive?: [number, number] | null;
   /** the touchdown replay (owner, t206u): no rings or marks at all except the ball carrier's yellow one */
   bare?: boolean;
+  /** LG king built from the player's saved body, head, hat, legs and weapon */
+  dress?: KingDress | null;
 }) {
   const home = fieldSpot(unit.r, unit.f, rows, cols);
   const wasReceiving = useRef(false);
@@ -321,11 +370,11 @@ export function FieldActor({
             lean = -0.2 * k;
           } else if (w < at) {
             const k = ease((w - wind) / (at - wind));
-            lunge.current = -0.08 + 0.36 * k;
+            lunge.current = -0.08 + 0.16 * k;
             lean = -0.2 + 0.62 * k;
           } else {
             const k = ease(clamp01((w - at) / 0.45));
-            lunge.current = 0.28 * (1 - k);
+            lunge.current = 0.12 * (1 - k);
             lean = 0.42 * (1 - k);
           }
         }
@@ -437,11 +486,30 @@ export function FieldActor({
       <group>
         {look === "lg" ? (
           <Suspense fallback={null}>
-            <LegoRunner id={legoId(unit.hidden ? "b" : unit.side, kind)} drive={drive} carry={holding ? ball : null} />
+            {unit.kind === "k" && dress && (dress.lg || dress.body !== "cap" || dress.head !== "cap" || dress.hair !== "none" || dress.legs !== "cap" || dress.weapon !== "none") ? (
+              <group scale={0.4}>
+                <LegoDress body={dress.body} head={dress.head} hair={dress.hair} legs={dress.legs} weapon={dress.weapon} />
+              </group>
+            ) : (
+              <group scale={0.9}>
+                <LegoRunner id={legoId(unit.hidden ? "b" : unit.side, kind)} drive={drive} carry={holding ? ball : null} />
+              </group>
+            )}
           </Suspense>
         ) : look === "an" ? (
           <group scale={AN_FIELD_SCALE}>
             <StonePerson type={kind} white={white} cast="stone" gait={gait} blade carry={holding ? ball : null} />
+          </group>
+        ) : look === "ra" ? (
+          <group scale={0.86}>
+            <Suspense fallback={null}>
+              <RaMan white={white} kind={kind} gait={gait} />
+            </Suspense>
+            {holding ? (
+              <group position={[0.18, 0.72, 0.28]} rotation={[0, -Math.PI / 2, 0]}>
+                <primitive object={ball} />
+              </group>
+            ) : null}
           </group>
         ) : (
           <group scale={0.92} ref={tilt}>
@@ -652,6 +720,12 @@ export function FieldVictim({ cue, look, rows, cols, taken = [] }: { cue: FieldC
           <group ref={turn} rotation={[0, face, 0]} scale={AN_FIELD_SCALE}>
             <StonePerson type={kind} white={vside === "w"} cast="stone" gait={gait} />
           </group>
+        ) : look === "ra" ? (
+          <group ref={turn} rotation={[0, face, 0]} scale={0.86}>
+            <Suspense fallback={null}>
+              <RaMan white={vside === "w"} kind={kind} gait={gait} />
+            </Suspense>
+          </group>
         ) : look === "lg" ? (
           burst ? null : (
             <group rotation={[0, face - Math.PI, 0]}>
@@ -815,13 +889,14 @@ export function FieldThrow({ cue, rows, cols, onDone, units = [] }: { cue: Field
       // owner t244u: the long axis (the ball's local x) points along the flight, the nose follows the arc;
       // a pass spirals around its long axis, a kick tumbles end over end
       const vy = (b.y - a.y) + Math.PI * lift * Math.cos(u * Math.PI);
-      const pitch = Math.atan2(vy, Math.max(0.01, dist));
-      node.rotation.set(0, Math.atan2(-(b.z - a.z), b.x - a.x), 0);
-      if (cue.goal) node.rotateZ(pitch + u * 14);
-      else {
-        node.rotateZ(pitch);
-        node.rotateX(u * 22);
-      }
+      // The long axis is local +X. Point that nose at the receiver, with a little loft, and spiral around it.
+      NOSE.set(b.x - a.x, vy * 0.28, b.z - a.z);
+      if (NOSE.lengthSq() < 1e-8) NOSE.set(b.x - a.x, 0, b.z - a.z);
+      if (NOSE.lengthSq() < 1e-8) NOSE.set(1, 0, 0);
+      NOSE.normalize();
+      AIM.setFromUnitVectors(AXIS_X, NOSE);
+      SPIN.setFromAxisAngle(NOSE, cue.goal ? u * 9 : u * 16);
+      node.quaternion.copy(SPIN).multiply(AIM);
       if (FLIGHT.id === cue.id) {
         FLIGHT.u = u;
         FLIGHT.pos.copy(node.position);

@@ -23,7 +23,10 @@ const groups = {
   mounts: avatar.MOUNTS,
   frames: avatar.FRAMES,
   attacks: avatar.ATTACKS,
+  lgAttacks: avatar.LG_ATTACKS,
   finishes: avatar.FINISHES,
+  celebrations: avatar.FB_CELEBRATIONS,
+  songs: avatar.FB_SONGS,
 };
 
 const out = {

@@ -73,6 +73,8 @@ export type FootballMatchView = {
   side: "w" | "b";
   names: { w: string; b: string };
   teams: { w: FootballTeam | null; b: FootballTeam | null };
+  /** Each player's saved avatar, so LG mode can dress their king. */
+  looks?: { w: string; b: string };
   seq: number;
   gap: boolean;
   events: FootballMatchEvent[];

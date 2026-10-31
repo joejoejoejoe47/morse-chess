@@ -18,6 +18,8 @@ import { keepWebGL } from "@/lib/gl-quiet";
 import {
   ATTACKS,
   LG_ATTACKS,
+  FB_CELEBRATIONS,
+  FB_SONGS,
   CHARACTERS,
   CROWNS,
   DEFAULT_LOADOUT,
@@ -39,6 +41,7 @@ import { buyGear, getAvatar, saveAvatar, setLegacyKit } from "@/lib/server/avata
 import { listAvatarModels, saveAvatarModel, wearAvatarModel } from "@/lib/server/store";
 import { cn } from "@/lib/utils";
 import { asset } from "@/lib/base";
+import { FbPreview } from "@/components/variants/fb-preview";
 
 export const Route = createFileRoute("/avatar")({ component: AvatarDoor });
 
@@ -336,6 +339,9 @@ function AvatarStudio() {
   const unsaved = finishDraft !== null && finishDraft !== worn.finishId;
 
   const [tab, setTab] = useState<Category>("kings");
+  const [fbOn, setFbOn] = useState(false);
+  const [fbEdit, setFbEdit] = useState(false);
+  const [fbPin, setFbPin] = useState<string | null>(null);
   const ownsRoyal = owned.includes("royal");
   const animated = loadout.style === "an" || loadout.style === "ra";
   const characterId = loadout.style === "ra" ? "royal" : animated ? loadout.anId : loadout.kingId;
@@ -349,7 +355,39 @@ function AvatarStudio() {
   return (
     <main className="relative h-dvh overflow-hidden bg-[#0d0b09] text-ivory">
       <div id="king-stage" className="absolute inset-0">
-        {loadout.style === "2d" ? (
+        {fbOn && fbPin ? (
+          <FbPreview kind={fbPin} />
+        ) : fbOn ? (
+          <Canvas camera={{ position: [0.2, 1.7, 5.4], fov: 34 }} shadows gl={{ preserveDrawingBuffer: true }} onCreated={({ gl }) => keepWebGL(gl)}>
+            <color attach="background" args={["#07060d"]} />
+            <fog attach="fog" args={["#07060d", 8, 18]} />
+            <ambientLight intensity={0.55} />
+            <directionalLight position={[4, 8, 3]} intensity={1.4} />
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+              <circleGeometry args={[1.4, 40]} />
+              <meshStandardMaterial color="#14122a" />
+            </mesh>
+            <ModelSlot>
+              {loadout.style === "lg" ? (
+                <LegoDress body={loadout.lgBody} head={loadout.lgHead} hair={loadout.lgHair} legs={loadout.lgLegs} weapon={loadout.lgWeapon} />
+              ) : (
+                <group position={[0, 0, 0]}>
+                  <Figurine
+                    key={`${loadout.anId}-${loadout.crownId}-${loadout.team}`}
+                    characterId={loadout.anId === "piece" ? "knight" : loadout.anId}
+                    mountId="none"
+                    swordId="none"
+                    crownId={loadout.crownId}
+                    team={loadout.team}
+                    attackId={loadout.attackId}
+                    striking={strike}
+                  />
+                </group>
+              )}
+            </ModelSlot>
+            <OrbitControls enablePan target={[0, 1.05, 0]} minDistance={2.4} maxDistance={9} maxPolarAngle={1.45} />
+          </Canvas>
+        ) : loadout.style === "2d" ? (
           <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_center,#2a241c_0%,#0c0d0b_68%)]">
             <div className="relative grid size-[min(68vh,26rem)] place-items-center border border-line bg-[#e7d7b4] shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
               <div className="absolute inset-3 border border-[#2a2118]/30" />
@@ -457,7 +495,7 @@ function AvatarStudio() {
           Lounge
         </Link>
         <div className="pointer-events-auto mx-auto flex rounded-md border border-[#4a3d2a] bg-[#14110d]/90 p-1 backdrop-blur-md">
-          {(["2d", "3d", "an", "lg", "ra"] as PieceStyle[]).map((style) => (
+          {(fbOn ? (["an", "lg"] as PieceStyle[]) : (["2d", "3d", "an", "lg", "ra"] as PieceStyle[])).map((style) => (
             <button
               key={style}
               type="button"
@@ -474,9 +512,19 @@ function AvatarStudio() {
                 void commit({ ...worn, finishId: finishDraft ?? worn.finishId, style });
               }}
             >
-              {style === "ra" ? (ownsRoyal ? "RA" : raTrial ? "RA (free game)" : "Buy RA") : style}
+              {style === "ra" ? (ownsRoyal ? "RA" : raTrial ? "RA (free game)" : "Buy RA") : style === "an" && fbOn ? "3D AN" : style === "lg" && fbOn ? "3D LG" : style}
             </button>
           ))}
+          <button
+            type="button"
+            className={cn("min-h-9 rounded px-3.5 text-xs font-semibold uppercase tracking-[0.16em]", fbOn ? GOLD_BTN : "border border-transparent text-[#b9a98a] hover:text-[#f3e3bd]")}
+            onClick={() => {
+              setFbOn((on) => !on);
+              setFbPin(null);
+            }}
+          >
+            FB
+          </button>
         </div>
         <Link to="/store" className="pointer-events-auto flex items-center gap-2 rounded-md border border-[#4a3d2a] bg-[#14110d]/90 px-3 py-1.5 backdrop-blur-md sm:hidden" title="Morse store">
           <img src={asset("/morse-coin.png")} alt="" className="size-5" />
@@ -492,6 +540,28 @@ function AvatarStudio() {
         >
           <span aria-hidden>‹</span> Lounge
         </Link>
+        {fbEdit ? (
+          <div className="mb-1 space-y-1 border-b border-[#3a3024] pb-2" data-fb-goals>
+            <p className="px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#d6ad4f]">Goals</p>
+            {FB_CELEBRATIONS.map((item) => (
+              <div key={item.id} className={cn("flex items-center gap-1 rounded-md px-1", loadout.fbCelebrate === item.id ? "bg-[#2a2418]" : "")}>
+                <button type="button" className="min-h-8 flex-1 truncate px-1 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#f6e7c3]" onClick={() => void equip("fbCelebrate", item.id, item.price)}>
+                  {item.name}
+                </button>
+                <button
+                  type="button"
+                  className={cn("min-h-8 rounded px-2 text-[10px] font-bold uppercase", fbPin === item.id ? "text-[#1b140a] bg-[#e2b84e]" : "text-[#d6ad4f]")}
+                  onClick={() => {
+                    setFbOn(true);
+                    setFbPin((cur) => (cur === item.id ? null : item.id));
+                  }}
+                >
+                  Pin
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {CATEGORIES.map((item) => (
           <button
             key={item.id}
@@ -867,6 +937,47 @@ function AvatarStudio() {
 
           {tab === "attacks" ? (
             <>
+              <button
+                type="button"
+                data-fb-edit
+                onClick={() => {
+                  setFbOn(true);
+                  setFbEdit((on) => !on);
+                  setTab("attacks");
+                }}
+                className={cn(
+                  "relative flex w-full items-center gap-3 rounded-md border bg-[#16120e] p-2.5 text-left",
+                  fbEdit ? "border-[#e2b84e]" : "border-[#2e261d] hover:border-[#5a4a33]",
+                )}
+              >
+                <span>
+                  <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">FB edit</span>
+                  <span className="text-xs text-[#a8977a]">Touchdown shows. Pin one to preview it in the neon stadium. Fireworks is already yours.</span>
+                </span>
+              </button>
+              {fbEdit ? (
+                <>
+                  <p className="pt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#d6ad4f]">Replay songs</p>
+                  <Note>A song plays during the replay of a score. Walking Down the Street In a Car is 10 Morse coins. More songs later.</Note>
+                  {FB_SONGS.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => void equip("fbSong", item.id, item.price)}
+                      className={cn(
+                        "relative flex w-full items-center gap-3 rounded-md border bg-[#16120e] p-2.5 text-left",
+                        loadout.fbSong === item.id ? "border-[#e2b84e]" : "border-[#2e261d] hover:border-[#5a4a33]",
+                      )}
+                    >
+                      <span>
+                        <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">{item.name}</span>
+                        <span className="text-xs text-[#a8977a]">{own(item) ? item.blurb : `${item.price} coins · ${item.blurb}`}</span>
+                      </span>
+                      {loadout.fbSong === item.id ? <GoldCheck /> : null}
+                    </button>
+                  ))}
+                </>
+              ) : null}
               {!animated ? <Note>Attacks play with AN and RA kings. Try one with the person button.</Note> : null}
               {ATTACKS.map((item) => (
                 <button

@@ -11,6 +11,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF, useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { asset } from "@/lib/base";
+import { ScoreFly } from "@/components/variants/fb-fly";
 import {
   CinemaCam,
   Field,
@@ -838,6 +839,7 @@ export function ParkField({ rows, cols, show = null, home = null }: { rows: numb
       <Suspense fallback={null}>
         <Fireworks burst={show?.fireworks ?? null} side={cols / 2 + 1.7} />
       </Suspense>
+      <ScoreFly fly={show?.fly ?? null} />
     </group>
   );
 }

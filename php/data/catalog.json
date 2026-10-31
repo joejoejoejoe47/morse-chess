@@ -204,7 +204,9 @@
       "frameId": "plain",
       "attackId": "march",
       "lgAttackId": "lg-none",
-      "finishId": "king-onyx"
+      "finishId": "king-onyx",
+      "fbCelebrate": "fireworks",
+      "fbSong": "song-none"
     },
     "groups": {
       "characters": [
@@ -371,6 +373,18 @@
           "id": "king-royal-legacy",
           "price": 20
         }
+      ],
+      "celebrations": [
+        { "id": "fireworks", "price": 0 },
+        { "id": "dragon", "price": 8 },
+        { "id": "horse", "price": 6 },
+        { "id": "husky", "price": 6 },
+        { "id": "carrier", "price": 8 },
+        { "id": "pirate", "price": 6 }
+      ],
+      "songs": [
+        { "id": "song-none", "price": 0 },
+        { "id": "song-walking", "price": 10 }
       ]
     },
     "legacy": {

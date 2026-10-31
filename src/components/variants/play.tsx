@@ -5,7 +5,7 @@ import { ImagePlus } from "lucide-react";
 import { ClubBrand } from "@/components/club-brand";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { getHomeState } from "@/lib/server/mores";
-import { setPieceStyle } from "@/lib/server/avatar";
+import { setPieceStyle, getAvatar } from "@/lib/server/avatar";
 import { boardById } from "@/lib/chess/board-skins";
 import { roomBackdrop, useLookPrefs } from "@/lib/chess/look-prefs";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,9 @@ import { DEFAULT_TEAM, TeamSetup, awayColor, inkOn } from "@/components/variants
 import { CrowdAudio, crowdMuted } from "@/lib/crowd-audio";
 import { playScoreSound, preloadScoreSound, scoreSoundAllowed } from "@/lib/score-sound";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { FLIGHT, JUMPS, JUMP_WINDOW, fieldSpot } from "@/components/variants/field-units";
+import { FLIGHT, JUMPS, JUMP_WINDOW, fieldSpot, type KingDress } from "@/components/variants/field-units";
+import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
+import { playReplaySong, playThirtyHorn, stopReplaySong } from "@/lib/fb-audio";
 
 type Side = "w" | "b";
 type Kind = "k" | "q" | "r" | "b" | "n" | "p";
@@ -130,7 +132,13 @@ function Shell({
       style={roomBackdrop(room, roomImage)}
     >
       <header data-coin-bar className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
-        <ClubBrand to="/" tone={wash === "light" ? "dark" : "light"} />
+        {onLeave ? (
+          <button type="button" onClick={onLeave} className="inline-flex items-center" aria-label="Resign and leave">
+            <ClubBrand tone={wash === "light" ? "dark" : "light"} />
+          </button>
+        ) : (
+          <ClubBrand to="/" tone={wash === "light" ? "dark" : "light"} />
+        )}
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-[15px] text-mist md:inline">
             {title}
@@ -148,7 +156,7 @@ function Shell({
                 )}
                 onClick={() => setLook(id)}
               >
-                {id}
+                {modes.includes("ra") ? (id === "an" ? "3D AN" : id === "lg" ? "3D LG" : id === "ra" ? "3D RA" : id) : id}
               </button>
             ))}
           </div>
@@ -1108,6 +1116,10 @@ export function Football({ versus, online }: { versus: string; online?: string }
   const [throwing, setThrowing] = useState(false);
   const [score, setScore] = useState({ w: 0, b: 0 });
   const [left, setLeft] = useState(GAME_SECONDS);
+  const [call, setCall] = useState<string | null>(null);
+  const [kings, setKings] = useState<{ w: KingDress | null; b: KingDress | null }>({ w: null, b: null });
+  const kit = useRef({ celebrate: "fireworks", song: "song-none" });
+  const clockFlags = useRef({ min: false, horn: false });
   const [over, setOver] = useState("");
   const [cue, setCue] = useState<MoveCue | null>(null);
   // 3, 2, 1, GO! first; nothing moves and the clock waits until it is over
@@ -1189,7 +1201,22 @@ export function Football({ versus, online }: { versus: string; online?: string }
     return () => {
       timers.current.forEach((id) => window.clearTimeout(id));
       audio.stop();
+      stopReplaySong();
     };
+  }, []);
+  function dressOf(raw: unknown): KingDress | null {
+    const o = parseLoadout(raw);
+    return { body: o.lgBody, head: o.lgHead, hair: o.lgHair, legs: o.lgLegs, weapon: o.lgWeapon, lg: o.style === "lg" };
+  }
+  useEffect(() => {
+    void getAvatar()
+      .then((row: { loadout?: AvatarLoadout } | null) => {
+        const o = row?.loadout;
+        if (!o) return;
+        kit.current = { celebrate: o.fbCelebrate || "fireworks", song: o.fbSong || "song-none" };
+        setKings((k) => ({ ...k, w: { body: o.lgBody, head: o.lgHead, hair: o.lgHair, legs: o.lgLegs, weapon: o.lgWeapon, lg: o.style === "lg" } }));
+      })
+      .catch(() => undefined);
   }, []);
   useEffect(() => {
     let live = true;
@@ -1250,6 +1277,42 @@ export function Football({ versus, online }: { versus: string; online?: string }
     }, 1000);
     return () => window.clearInterval(id);
   }, [over, phase]);
+
+  // Small clock callouts: "1 minute left", a horn at 30, then 10 … 1.
+  useEffect(() => {
+    if (over || phase !== "play") return;
+    const flags = clockFlags.current;
+    if (left <= 60 && left >= 58 && !flags.min) {
+      flags.min = true;
+      setCall("1 minute left");
+      window.setTimeout(() => setCall((c) => (c === "1 minute left" ? null : c)), 2400);
+    }
+    if (left <= 30 && left >= 28 && !flags.horn) {
+      flags.horn = true;
+      playThirtyHorn();
+    }
+    if (left <= 10 && left >= 1) setCall(String(left));
+    else if (left > 10) setCall((c) => (c && /^\d+$/.test(c) ? null : c));
+  }, [left, phase, over]);
+
+  /** 3, 2, 1 in small type after a score, once the players are back in their spots. */
+  function snapCount(then: () => void) {
+    setPhase("kick");
+    phaseRef.current = "kick";
+    setCall("3");
+    later(() => setCall("2"), 700);
+    later(() => setCall("1"), 1400);
+    later(() => {
+      setCall(null);
+      then();
+    }, 2100);
+  }
+
+  function showCelebrate(id: number, z: number, level: number) {
+    const kind = kit.current.celebrate || "fireworks";
+    if (kind === "fireworks") setShow({ hype: { id, level }, fireworks: { id, z }, fly: null });
+    else setShow({ hype: { id, level }, fireworks: null, fly: { id, kind } });
+  }
 
   // the 5-second shot clock: while it is your move, every 5 s the other team sneaks in one move
   useEffect(() => {
@@ -1429,9 +1492,9 @@ export function Football({ versus, online }: { versus: string; online?: string }
     later(() => {
       setBanner({ side: scorer, text: "Touchdown!" });
       playScoreSound(meId.current);
-      setShow({ hype: { id, level: 1 }, fireworks: { id, z: endZ } });
+      showCelebrate(id, endZ, 1);
       crowd.current?.set("swell");
-    }, 700);
+    }, 180);
     // the last 10 seconds of play, at real speed (long pauses trimmed)
     const all = drive.current.plays;
     let first = all.length - 1;
@@ -1458,11 +1521,10 @@ export function Football({ versus, online }: { versus: string; online?: string }
       setReplay(null);
       setCaption(null);
       setBanner(null);
-      setShow((s) => ({ hype: s.hype, fireworks: s.fireworks }));
+      setShow({ hype: null, fireworks: null, fly: null });
       setCue(null);
       setEpoch((e) => e + 1);
-      setPhase("play");
-      phaseRef.current = "play";
+      stopReplaySong();
       crowd.current?.set("calm");
       void wasTry;
       if (online) {
@@ -1471,12 +1533,14 @@ export function Football({ versus, online }: { versus: string; online?: string }
         phaseRef.current = "kick";
         return;
       }
-      kickoff(scoring, scored, other(scorer));
-      setBanner({ side: other(scorer), text: "Everyone's back!", small: true });
-      later(() => setBanner((v) => (v?.small ? null : v)), 2200);
+      snapCount(() => {
+        kickoff(scoring, scored, other(scorer));
+        setBanner({ side: other(scorer), text: "Everyone's back!", small: true });
+        later(() => setBanner((v) => (v?.small ? null : v)), 2200);
+      });
     };
     resume.current = finish;
-    const BEGIN = 3300;
+    const BEGIN = 3400;
     later(() => {
       setBanner(null);
       setPhase("replay");
@@ -1485,12 +1549,15 @@ export function Football({ versus, online }: { versus: string; online?: string }
       setEpoch((e) => e + 1);
       setReplay({ board: before.board, loose: before.loose, cue: null });
       setCaption(`${name} scored`);
+      playReplaySong(kit.current.song);
       const p0 = plays[0]?.cue;
       setShow((s) => ({
-        ...s,
+        hype: s.hype,
+        fireworks: null,
+        fly: null,
         shot: { id, kind: 0, follow: true, from: F_WORLD(p0?.from[0] ?? 7, p0?.from[1] ?? 3), to: F_WORLD(p0?.to[0] ?? 7, p0?.to[1] ?? 3), end: endZ },
       }));
-    }, BEGIN - 500);
+    }, BEGIN - 400);
     plays.forEach((play, i) => {
       later(() => setReplay({ ...play, cue: play.cue ? { ...play.cue, id: id + i + 1 } : null }), BEGIN + offs[i]);
     });
@@ -1525,19 +1592,18 @@ export function Football({ versus, online }: { versus: string; online?: string }
       if (good) {
         setBanner({ side: u.side, text: "Field goal!" });
         playScoreSound(meId.current);
-        setShow((s) => ({ ...s, hype: { id, level: 0.85 }, fireworks: { id, z: F_WORLD(u.side === "w" ? 13 : 0, 0)[1] } }));
+        showCelebrate(id, F_WORLD(u.side === "w" ? 13 : 0, 0)[1], 0.85);
         crowd.current?.set("swell");
       } else {
         setBanner({ side: other(u.side), text: "No good!" });
       }
-    }, 1300);
+    }, 900);
     later(() => {
       setBanner(null);
-      setPhase("play");
-      phaseRef.current = "play";
+      setShow((s) => ({ ...s, fireworks: null, fly: null }));
       crowd.current?.set("calm");
-      kickoff(next, s2, other(u.side));
-    }, 4200);
+      snapCount(() => kickoff(next, s2, other(u.side)));
+    }, good ? 2800 : 1600);
   }
 
   function moveTo(from: [number, number], to: [number, number], live = board, ball = loose, scored = score, bonus = false) {
@@ -2020,6 +2086,12 @@ export function Football({ versus, online }: { versus: string; online?: string }
         setPhase("play");
         phaseRef.current = "play";
         crowd.current?.set("calm");
+        if (e.after === "td" || e.after === "goal") {
+          setCall("3");
+          later(() => setCall("2"), 700);
+          later(() => setCall("1"), 1400);
+          later(() => setCall((c) => (c === "1" || c === "2" || c === "3" ? null : c)), 2100);
+        }
         if (e.after === "td") small(first, "Everyone's back!", 2200);
         else setBanner(null);
         break;
@@ -2045,6 +2117,19 @@ export function Football({ versus, online }: { versus: string; online?: string }
     m.bonus = v.bonus;
     const os = other(v.side);
     setOpp((o) => (o && o.name === v.names[os] && o.team?.color === v.teams[os]?.color && o.team?.name === v.teams[os]?.name ? o : { name: v.names[os], team: v.teams[os] }));
+    if (v.looks) {
+      const mine = v.side;
+      const them = mine === "w" ? "b" : "w";
+      let mineRaw: unknown = {};
+      let themRaw: unknown = {};
+      try {
+        mineRaw = JSON.parse(v.looks[mine] || "{}");
+      } catch { /* ignore */ }
+      try {
+        themRaw = JSON.parse(v.looks[them] || "{}");
+      } catch { /* ignore */ }
+      setKings({ w: dressOf(mineRaw), b: dressOf(themRaw) });
+    }
     setLeft(Math.max(0, Math.ceil(v.clockMs / 1000)));
     if ((m.seq === 0 && v.seq > 0 && v.phase !== "count") || v.gap) {
       // opened mid-game (a reload) or missed too much: jump straight to the board as it is now
@@ -2103,11 +2188,15 @@ export function Football({ versus, online }: { versus: string; online?: string }
     };
   }, [online]);
 
-  async function leaveOnline() {
-    if (!online) return;
-    if (!over && !window.confirm(`Leave the game? ${vsName} wins.`)) return;
-    if (!over) await resignFootball({ data: { gameId: online } }).catch(() => undefined);
-    void navigate({ to: "/" });
+  async function leaveGame() {
+    if (over) {
+      void navigate({ to: "/" });
+      return;
+    }
+    if (!window.confirm(`Resign? ${vsName} wins.`)) return;
+    if (online) await resignFootball({ data: { gameId: online } }).catch(() => undefined);
+    setOver("resign");
+    setWinner("b");
   }
 
   async function saveTeam(next: FootballTeam) {
@@ -2292,9 +2381,9 @@ export function Football({ versus, online }: { versus: string; online?: string }
         : `JUMP! (SPACE) — ${Math.min(FB_JUMP_CAP, air.risk + FB_JUMP_BONUS)}% steal chance`
       : null;
   const field = useMemo<FieldOpts>(
-    () => ({ epoch, colors: { w: team.color, b: away.color }, goal: throwing && kickable && canAct, onGoal: () => now.current.sel && kick(now.current.sel), replay: Boolean(replay) }),
+    () => ({ epoch, colors: { w: team.color, b: away.color }, goal: throwing && kickable && canAct, onGoal: () => now.current.sel && kick(now.current.sel), replay: Boolean(replay), kings }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [epoch, team.color, away.color, throwing, kickable, canAct, Boolean(replay)],
+    [epoch, team.color, away.color, throwing, kickable, canAct, Boolean(replay), kings],
   );
 
   return (
@@ -2309,14 +2398,14 @@ export function Football({ versus, online }: { versus: string; online?: string }
           ? score.w > score.b
             ? "victory"
             : "defeat"
-          : online && (over === "resign" || over === "forfeit")
+          : over === "resign" || over === "forfeit"
             ? winner === "w"
               ? "victory"
               : "defeat"
             : null
       }
-      onLeave={online && !over ? () => void leaveOnline() : undefined}
-      leave={online && !over ? "Leave game" : undefined}
+      onLeave={!over ? () => void leaveGame() : undefined}
+      leave={!over ? "Resign" : "Lounge"}
     >
       <Grid
         stadium
@@ -2436,6 +2525,21 @@ export function Football({ versus, online }: { versus: string; online?: string }
               🥅 Field goal {fgPct}%
             </button>
           ) : null}
+        </div>
+      ) : null}
+      {call && phase !== "count" ? (
+        <div className="pointer-events-none absolute inset-0 z-[21] grid place-items-center" data-fb-call>
+          <span
+            className="select-none font-sans font-black leading-none text-white"
+            style={{
+              fontSize: call.length > 2 ? "clamp(1.1rem, 3.2vw, 1.7rem)" : "clamp(1.6rem, 5vw, 2.6rem)",
+              letterSpacing: call.length > 2 ? "0.14em" : "0.04em",
+              textTransform: "uppercase",
+              textShadow: `0 0 12px ${team.color}, 0 2px 0 #000`,
+            }}
+          >
+            {call}
+          </span>
         </div>
       ) : null}
       {(phase === "count" && !setup) || frozen !== null ? (
@@ -3102,18 +3206,20 @@ function Basketball({ versus }: { versus: string }) {
 }
 
 export function VariantPlay({ mode, versus, game: online }: { mode: "checkmate" | "football" | "strategy" | "basketball"; versus: string; game?: string }) {
-  const modes: Look[] = mode === "strategy" ? ["an", "lg"] : ["2d", "3d", "an", "lg"];
+  const modes: Look[] = mode === "football" ? ["an", "lg", "ra"] : mode === "strategy" ? ["an", "lg"] : ["2d", "3d", "an", "lg"];
   const [look, setLook] = useState<Look>(() => {
     try {
       const saved = localStorage.getItem("morse-board-view");
-      if (saved === "2d" || saved === "3d" || saved === "an" || saved === "lg") {
+      if (saved === "2d" || saved === "3d" || saved === "an" || saved === "lg" || saved === "ra") {
+        if (mode === "football" && (saved === "2d" || saved === "3d")) return "an";
+        if (mode !== "football" && saved === "ra") return mode === "strategy" ? "an" : "3d";
         if (mode === "strategy" && saved !== "an" && saved !== "lg") return "an";
         return saved;
       }
     } catch {
       /* ignore */
     }
-    return mode === "strategy" ? "an" : "3d";
+    return mode === "strategy" || mode === "football" ? "an" : "3d";
   });
   const [boardId, setBoardId] = useState("lodge");
   useEffect(() => {
@@ -3124,7 +3230,7 @@ export function VariantPlay({ mode, versus, game: online }: { mode: "checkmate" 
       .catch(() => undefined);
   }, []);
   const skin = boardById(boardId);
-  const sky: Sky = mode === "basketball" ? "table" : look === "lg" ? "lego" : look === "an" && mode === "football" ? "arena" : "table";
+  const sky: Sky = mode === "basketball" ? "table" : look === "lg" ? "lego" : (look === "an" || look === "ra") && mode === "football" ? "arena" : "table";
   function choose(next: Look) {
     if (!modes.includes(next)) return;
     setLook(next);

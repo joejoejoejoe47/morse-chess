@@ -302,12 +302,14 @@ final class FootballMatch
     {
         $names = [];
         $teams = [];
+        $looks = [];
         foreach (['w' => 'white_user_id', 'b' => 'black_user_id'] as $sd => $col) {
-            $p = Db::one('SELECT username, football_json FROM profiles WHERE user_id = ? LIMIT 1', [(string) $row[$col]]);
+            $p = Db::one('SELECT username, football_json, avatar_json FROM profiles WHERE user_id = ? LIMIT 1', [(string) $row[$col]]);
             $names[$sd] = (string) ($p['username'] ?? 'Player');
             $j = json_decode((string) ($p['football_json'] ?? ''), true);
             $t = is_array($j) && is_array($j['team'] ?? null) ? $j['team'] : null;
             $teams[$sd] = $t !== null && isset($t['name'], $t['color']) ? ['name' => (string) $t['name'], 'color' => (string) $t['color']] : null;
+            $looks[$sd] = (string) ($p['avatar_json'] ?? '');
         }
         $events = $s['events'];
         $oldest = $events === [] ? $s['seq'] + 1 : (int) $events[0]['seq'];
@@ -322,6 +324,7 @@ final class FootballMatch
             'side' => $side,
             'names' => $names,
             'teams' => $teams,
+            'looks' => $looks,
             'seq' => (int) $s['seq'],
             // the browser missed events that were already dropped: it jumps to the board as it is
             'gap' => $since > 0 && $since + 1 < $oldest,

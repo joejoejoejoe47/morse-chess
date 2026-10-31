@@ -119,7 +119,7 @@ function Burst({ track, shell, born, onDone }: { track: Track; shell: Shell; bor
   );
   useEffect(() => () => { geo.dispose(); mat.dispose(); }, [geo, mat]);
   const done = useRef(false);
-  const SPEED = 0.8; // owner: slower, floatier bursts (was 1.35)
+  const SPEED = 2.6; // rise and burst at the same fast clip (owner: up really fast, explode just as fast)
   useFrame(({ clock }) => {
     mat.uniforms.uViewH.value = size.height;
     // __fbFwT pins the show at one moment, for screenshots only

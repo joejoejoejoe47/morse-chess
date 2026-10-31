@@ -164,6 +164,8 @@ final class Catalog
             'lgHair' => $pick($src['lgHair'] ?? null, 'none', self::lgHair()),
             'lgLegs' => $pick($src['lgLegs'] ?? null, 'cap', self::legoParts()),
             'lgWeapon' => $pick($src['lgWeapon'] ?? null, 'none', self::lgWeapons()),
+            'fbCelebrate' => $pick($src['fbCelebrate'] ?? null, 'fireworks', $groups['celebrations'] ?? []),
+            'fbSong' => $pick($src['fbSong'] ?? null, 'song-none', $groups['songs'] ?? []),
         ];
     }
 

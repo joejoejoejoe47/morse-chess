@@ -59,6 +59,8 @@ final class Avatar
             'attackId' => $keep($loadout['attackId'], 'march'),
             'lgAttackId' => $keep($loadout['lgAttackId'] ?? 'lg-none', 'lg-none'),
             'finishId' => $keep($loadout['finishId'] ?? 'king-onyx', 'king-onyx'),
+            'fbCelebrate' => $keep($loadout['fbCelebrate'] ?? 'fireworks', 'fireworks'),
+            'fbSong' => $keep($loadout['fbSong'] ?? 'song-none', 'song-none'),
         ]);
     }
 
