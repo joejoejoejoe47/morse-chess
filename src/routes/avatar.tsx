@@ -519,7 +519,9 @@ function AvatarStudio() {
             type="button"
             className={cn("min-h-9 rounded px-3.5 text-xs font-semibold uppercase tracking-[0.16em]", fbOn ? GOLD_BTN : "border border-transparent text-[#b9a98a] hover:text-[#f3e3bd]")}
             onClick={() => {
-              setFbOn((on) => !on);
+              const next = !fbOn;
+              setFbOn(next);
+              setFbEdit(next);
               setFbPin(null);
             }}
           >
@@ -540,28 +542,6 @@ function AvatarStudio() {
         >
           <span aria-hidden>‹</span> Lounge
         </Link>
-        {fbEdit ? (
-          <div className="mb-1 space-y-1 border-b border-[#3a3024] pb-2" data-fb-goals>
-            <p className="px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#d6ad4f]">Goals</p>
-            {FB_CELEBRATIONS.map((item) => (
-              <div key={item.id} className={cn("flex items-center gap-1 rounded-md px-1", loadout.fbCelebrate === item.id ? "bg-[#2a2418]" : "")}>
-                <button type="button" className="min-h-8 flex-1 truncate px-1 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#f6e7c3]" onClick={() => void equip("fbCelebrate", item.id, item.price)}>
-                  {item.name}
-                </button>
-                <button
-                  type="button"
-                  className={cn("min-h-8 rounded px-2 text-[10px] font-bold uppercase", fbPin === item.id ? "text-[#1b140a] bg-[#e2b84e]" : "text-[#d6ad4f]")}
-                  onClick={() => {
-                    setFbOn(true);
-                    setFbPin((cur) => (cur === item.id ? null : item.id));
-                  }}
-                >
-                  Pin
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
         {CATEGORIES.map((item) => (
           <button
             key={item.id}
@@ -947,35 +927,66 @@ function AvatarStudio() {
                 }}
                 className={cn(
                   "relative flex w-full items-center gap-3 rounded-md border bg-[#16120e] p-2.5 text-left",
-                  fbEdit ? "border-[#e2b84e]" : "border-[#2e261d] hover:border-[#5a4a33]",
+                  fbOn || fbEdit ? "border-[#e2b84e]" : "border-[#2e261d] hover:border-[#5a4a33]",
                 )}
               >
                 <span>
                   <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">FB edit</span>
-                  <span className="text-xs text-[#a8977a]">Touchdown shows. Pin one to preview it in the neon stadium. Fireworks is already yours.</span>
+                  <span className="text-xs text-[#a8977a]">Touchdowns and replay songs. Pin a show to watch it in the neon stadium. Fireworks is already yours.</span>
                 </span>
               </button>
-              {fbEdit ? (
+              {fbOn || fbEdit ? (
                 <>
+                  <p className="pt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#d6ad4f]">Touchdowns</p>
+                  <Note>These play after a score. Pin one to preview it: the runner scores, then the celebration. Fireworks climb and burst before the replay.</Note>
+                  <div className="space-y-2" data-fb-goals>
+                    {FB_CELEBRATIONS.map((item) => (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md border bg-[#16120e] p-2.5",
+                          loadout.fbCelebrate === item.id ? "border-[#e2b84e]" : "border-[#2e261d]",
+                        )}
+                      >
+                        <button type="button" className="min-h-8 flex-1 text-left" onClick={() => void equip("fbCelebrate", item.id, item.price)}>
+                          <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">{item.name}</span>
+                          <span className="text-xs text-[#a8977a]">{own(item) ? (loadout.fbCelebrate === item.id ? "Equipped · " : "Owned · ") + item.blurb : `${item.price} coins · ${item.blurb}`}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={cn("min-h-8 shrink-0 rounded px-2 text-[10px] font-bold uppercase", fbPin === item.id ? "bg-[#e2b84e] text-[#1b140a]" : "border border-[#5a4a33] text-[#d6ad4f]")}
+                          onClick={() => {
+                            setFbOn(true);
+                            setFbEdit(true);
+                            setFbPin((cur) => (cur === item.id ? null : item.id));
+                          }}
+                        >
+                          Pin
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                   <p className="pt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#d6ad4f]">Replay songs</p>
                   <Note>A song plays during the replay of a score. Walking Down the Street In a Car is 10 Morse coins. More songs later.</Note>
-                  {FB_SONGS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => void equip("fbSong", item.id, item.price)}
-                      className={cn(
-                        "relative flex w-full items-center gap-3 rounded-md border bg-[#16120e] p-2.5 text-left",
-                        loadout.fbSong === item.id ? "border-[#e2b84e]" : "border-[#2e261d] hover:border-[#5a4a33]",
-                      )}
-                    >
-                      <span>
-                        <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">{item.name}</span>
-                        <span className="text-xs text-[#a8977a]">{own(item) ? item.blurb : `${item.price} coins · ${item.blurb}`}</span>
-                      </span>
-                      {loadout.fbSong === item.id ? <GoldCheck /> : null}
-                    </button>
-                  ))}
+                  <div className="space-y-2" data-fb-songs>
+                    {FB_SONGS.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => void equip("fbSong", item.id, item.price)}
+                        className={cn(
+                          "relative flex w-full items-center gap-3 rounded-md border bg-[#16120e] p-2.5 text-left",
+                          loadout.fbSong === item.id ? "border-[#e2b84e]" : "border-[#2e261d] hover:border-[#5a4a33]",
+                        )}
+                      >
+                        <span>
+                          <span className="block text-sm font-bold uppercase tracking-[0.12em] text-[#f6e7c3]">{item.name}</span>
+                          <span className="text-xs text-[#a8977a]">{own(item) ? item.blurb : `${item.price} coins · ${item.blurb}`}</span>
+                        </span>
+                        {loadout.fbSong === item.id ? <GoldCheck /> : null}
+                      </button>
+                    ))}
+                  </div>
                 </>
               ) : null}
               {!animated ? <Note>Attacks play with AN and RA kings. Try one with the person button.</Note> : null}
