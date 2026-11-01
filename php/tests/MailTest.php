@@ -46,6 +46,9 @@ check(($pops['letters'][0]['text'] ?? '') === 'look', 'the popup still has the w
 $thread = Mail::gcThread('a', ['userId' => 'b']);
 $last = $thread['letters'][count($thread['letters']) - 1];
 check(($last['kind'] ?? '') === 'video' && ($last['media'] ?? '') === $vid, 'the chat keeps the video');
+$lite = Mail::gcThread('a', ['userId' => 'b', 'lite' => true]);
+$liteLast = $lite['letters'][count($lite['letters']) - 1];
+check(($liteLast['kind'] ?? '') === 'video' && ($liteLast['media'] ?? '') === '', 'a live check leaves the video out');
 
 $bad = false;
 try {

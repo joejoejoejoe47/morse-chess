@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MessageSquareText, Play, Reply, Send, X } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { isChatImage } from "@/lib/chat-image";
@@ -103,7 +104,7 @@ export function MailPopupHost() {
     };
 
     const poll = async () => {
-      if (!live || document.hidden) return;
+      if (!live) return;
       try {
         const row = await gcPops();
         let fresh = false;
@@ -121,31 +122,35 @@ export function MailPopupHost() {
     };
 
     void poll();
-    const timer = window.setInterval(() => void poll(), 1000);
+    const timer = window.setInterval(() => void poll(), 800);
     const onVis = () => {
-      if (!document.hidden) void poll();
+      void poll();
     };
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
 
     return () => {
       live = false;
       window.clearInterval(timer);
       window.clearTimeout(hideTimer.current);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
       setShown(null);
     };
   }, [userId, isPending]);
 
   if (!shown) return null;
   const thumb = shown.kind === "image" && isChatImage(shown.thumb) ? shown.thumb : "";
-  return (
+  return createPortal(
     <>
     <div
       key={shown.key}
       role="status"
       aria-live="polite"
       data-master-popup
-      className="fixed top-14 inset-x-3 z-[91] sm:inset-x-auto sm:right-3 sm:w-[380px] border border-gold-line/55 bg-panel/95 text-ivory shadow-2xl backdrop-blur px-4 py-3 pr-10 font-[Outfit,sans-serif]"
+      data-gc-live
+      className="fixed top-3 left-1/2 z-[2147483000] w-[min(440px,calc(100vw-1.5rem))] -translate-x-1/2 border border-gold-line/55 bg-panel text-ivory shadow-2xl px-4 py-3 pr-10 font-[Outfit,sans-serif]"
+      style={{ zIndex: 2147483000 }}
     >
       <div className="flex items-center gap-1.5 text-xs font-bold text-gold-line">
         <MessageSquareText className="h-3.5 w-3.5" aria-hidden />
@@ -231,10 +236,12 @@ export function MailPopupHost() {
       </button>
     </div>
     {big && thumb ? (
-      <button type="button" data-gc-big className="fixed inset-0 z-[96] grid place-items-center bg-black/85 p-3" onClick={() => setBig(false)} aria-label="Close picture">
+      <button type="button" data-gc-big className="fixed inset-0 grid place-items-center bg-black/85 p-3" style={{ zIndex: 2147483001 }} onClick={() => setBig(false)} aria-label="Close picture">
         <img src={thumb} alt="" className="max-h-[94vh] max-w-[96vw] object-contain" />
       </button>
     ) : null}
     </>
+    ,
+    document.body,
   );
 }

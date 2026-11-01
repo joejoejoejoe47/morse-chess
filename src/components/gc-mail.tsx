@@ -118,7 +118,7 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
   useEffect(() => {
     const onMail = () => void load(q).catch(() => undefined);
     window.addEventListener("morse-gc-mail", onMail);
-    const timer = window.setInterval(() => void load(q).catch(() => undefined), 4000);
+    const timer = window.setInterval(() => void load(q).catch(() => undefined), 1000);
     return () => {
       window.removeEventListener("morse-gc-mail", onMail);
       window.clearInterval(timer);
@@ -151,25 +151,35 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
     const who = open?.userId;
     if (!who) return;
     let live = true;
+    let generation = 0;
+    let lastKey = "";
     const pull = async () => {
       if (!live) return;
       try {
-        const row = await gcThread({ data: { userId: who } });
+        const row = await gcThread({ data: { userId: who, lite: true } });
         if (!live) return;
         const next = row.letters ?? [];
-        setLetters((cur) => {
-          if (cur.length === next.length && cur.every((letter, i) => letter.id === next[i]?.id)) return cur;
-          return next;
-        });
+        const key = next.map((letter) => letter.id).join(".");
+        if (key === lastKey) return;
+        const gen = ++generation;
+        const full = await gcThread({ data: { userId: who } });
+        if (!live || gen !== generation) return;
+        lastKey = key;
+        const arrived = full.letters ?? [];
+        setLetters(arrived);
+        const last = arrived[arrived.length - 1];
+        if (last && !last.mine) stick.current = true;
       } catch {
         /* keep the letters already on screen */
       }
     };
-    const timer = window.setInterval(() => void pull(), 1000);
+    const timer = window.setInterval(() => void pull(), 800);
     const onMail = () => void pull();
     window.addEventListener("morse-gc-mail", onMail);
+    void pull();
     return () => {
       live = false;
+      generation += 1;
       window.clearInterval(timer);
       window.removeEventListener("morse-gc-mail", onMail);
     };
@@ -218,7 +228,7 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-ink text-ivory">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-ink text-ivory" data-gc-open={open?.userId ?? ""}>
       <div className="check-wash pointer-events-none absolute inset-0" />
       <header className="relative z-10 flex items-center gap-3 border-b border-line bg-ink/88 px-4 py-3 backdrop-blur-md">
         <button type="button" aria-label="Close" className="grid size-11 place-items-center text-mist hover:text-ivory" onClick={onClose}>

@@ -81,8 +81,11 @@ final class Mail
         if ($other === null || $other['user_id'] === $userId) {
             throw new RpcError('That player is not at the club.', 404);
         }
+        $lite = !empty($data['lite']);
         $rows = Db::all(
-            'SELECT id, from_id, body, media, media_kind, created_at FROM mail WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY created_at ASC LIMIT 200',
+            $lite
+                ? 'SELECT id, from_id, body, media_kind, created_at FROM mail WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY created_at ASC LIMIT 200'
+                : 'SELECT id, from_id, body, media, media_kind, created_at FROM mail WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY created_at ASC LIMIT 200',
             [$userId, $other['user_id'], $other['user_id'], $userId]
         );
         $letters = [];
@@ -97,7 +100,7 @@ final class Mail
                 'body' => (string) $row['body'],
                 'at' => Db::iso((string) $row['created_at']),
                 'kind' => $kind,
-                'media' => $kind === '' ? '' : (string) ($row['media'] ?? ''),
+                'media' => ($lite || $kind === '') ? '' : (string) ($row['media'] ?? ''),
             ];
         }
         return [
