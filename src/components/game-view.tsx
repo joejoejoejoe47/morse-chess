@@ -905,7 +905,7 @@ export function GameView({ gameId }: { gameId: string }) {
 
       <div className="relative min-h-0 flex-1">
         <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", variant === "atomic" && shakeId > 0 && "morse-shake")}>
-          {(lgOn || skin.id === LEGO_BOARD_ID) && view !== "2d" ? (
+          {lgOn && view !== "2d" ? (
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <div className="pointer-events-auto">
                 <LegoVerseBar show />

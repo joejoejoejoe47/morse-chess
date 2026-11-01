@@ -18,7 +18,7 @@ import { useLookPrefs, type RoomScene } from "@/lib/chess/look-prefs";
 import { ShieldBadge } from "@/components/chess/marks";
 import { SculptedPiece, KingCrown, STAUNTON_HEAD, crownCoversFinial } from "@/components/chess/sculpted-piece";
 import { AvPiece, lookLoadout, setPaints, type SetPaint } from "@/components/chess/av-set";
-import { RaCorpse, RaPawn, raUnitUrl } from "@/components/chess/ra-men";
+import { RaCorpse, RaPawn, CourtRoom, courtFightMs, raUnitUrl } from "@/components/chess/ra-men";
 import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
@@ -486,6 +486,7 @@ function AnimatedPiece({
   look,
   paint = null,
   dogAway = false,
+  crowd = null,
 }: {
   square: string;
   spawnFrom: string;
@@ -511,6 +512,8 @@ function AnimatedPiece({
   /** The player's AV set (3D only); null keeps the board's own pieces. */
   paint?: SetPaint | null;
   dogAway?: boolean;
+  /** Fight center. Everyone except the striker steps back from it. */
+  crowd?: { x: number; z: number } | null;
 }) {
   const ref = useRef<THREE.Group>(null);
   const start = squareToWorld(spawnFrom, pitch);
@@ -527,6 +530,13 @@ function AnimatedPiece({
     const dt = Math.min(raw, 0.1);
     const dest = squareToWorld(square, pitch);
     const target = new THREE.Vector3(dest[0], 0, dest[2]);
+    if (crowd && !slay) {
+      const dx = dest[0] - crowd.x;
+      const dz = dest[2] - crowd.z;
+      const len = Math.hypot(dx, dz) || 1;
+      target.x += (dx / len) * 0.86;
+      target.z += (dz / len) * 0.86;
+    }
     const jumping = type === "n" && !real;
     const mounted = Boolean(gear && gear.mountId && gear.mountId !== "none");
     if (people || real || jumping || mounted) {
@@ -556,7 +566,7 @@ function AnimatedPiece({
       if (traveling) gait.current.phase += dt * 9;
       if (!traveling && slay && !swung.current) {
         swung.current = true;
-        attackUntil.current = performance.now() + (mounted ? 900 : real && (type === "k" || type === "q" || type === "n") ? 2600 : real ? 1600 : clash || duelAt ? 1900 : people && gear && type === "k" ? Math.max(980, attackById(gear.attackId).ms ?? 980) : 980);
+        attackUntil.current = performance.now() + (mounted ? 900 : real ? courtFightMs(type) : clash || duelAt ? 1900 : people && gear && type === "k" ? Math.max(980, attackById(gear.attackId).ms ?? 980) : 980);
       }
       const charging = mounted && slay && traveling;
       gait.current.act = performance.now() < attackUntil.current ? "attack" : charging ? "charge" : traveling ? "walk" : "idle";
@@ -1599,6 +1609,8 @@ function Scene({
   const [maul, setMaul] = useState<{ id: string; from: Square; to: Square; color: Color } | null>(null);
   const [duelAside, setDuelAside] = useState<Square | null>(null);
   const [fightLook, setFightLook] = useState<{ x: number; z: number } | null>(null);
+  const [fightShot, setFightShot] = useState(0);
+  const [crowd, setCrowd] = useState<{ x: number; z: number } | null>(null);
   const [cheer, setCheer] = useState<Color | "all" | null>(null);
   const [rite, setRite] = useState<{
     id: string;
@@ -1618,7 +1630,7 @@ function Scene({
     () => ({ w: lookLoadout(kings?.w)?.lgAttackId === "shield-block", b: lookLoadout(kings?.b)?.lgAttackId === "shield-block" }),
     [kings?.w, kings?.b],
   );
-  const meadow = !lego && !set && (skin.id === "grassland" || skin.id === "castle");
+  const meadow = !lego && !set && !real && (skin.id === "grassland" || skin.id === "castle");
   const legoWorld = lego || (!set && skin.id === LEGO_BOARD_ID);
   /** A board with its own army replaces the normal pieces and their fight effects. */
   const rocco = !lego && !set && skin.id === ROCCO_BOARD_ID;
@@ -1683,6 +1695,7 @@ function Scene({
       setCaptureSq(null);
       setDuelAside(null);
       setFightLook(null);
+      setCrowd(null);
       return;
     }
     const look = kings?.[mover.color];
@@ -1709,20 +1722,24 @@ function Scene({
       setCaptureSq(null);
       setDuelAside(null);
       setFightLook(null);
+      setCrowd(null);
       return;
     }
     const aside = stepAside(lastMove.from as Square, victim.sq, new Set(pieces.map((p) => p.sq)));
     setCaptureSq(lastMove.to);
     setDuelAside(aside !== victim.sq ? aside : null);
-    if ((fightZoom || real || people) && aside !== victim.sq) {
-      const here = squareToWorld(lastMove.to, pitch);
-      const there = squareToWorld(aside, pitch);
+    const here = squareToWorld(lastMove.to, pitch);
+    if (real || ((fightZoom || people) && aside !== victim.sq)) {
       setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
+      if (real) setFightShot(0);
     }
+    if (real) setCrowd({ x: here[0], z: here[2] });
+    const hold = real ? courtFightMs(mover.type) : 2600;
     window.setTimeout(() => {
       setFightLook(null);
       setDuelAside(null);
-    }, real ? 2800 : 2600);
+      setCrowd(null);
+    }, hold);
     setBodies((list) => [
       ...list,
       {
@@ -1731,7 +1748,7 @@ function Scene({
         aside,
         type: victim.type,
         color: victim.color,
-        delay: real ? 1.15 : knock ? 0.85 : 0.72,
+        delay: real ? Math.max(0.5, hold / 1000 - 1.15) : knock ? 0.85 : 0.72,
         knock,
       },
     ]);
@@ -1780,19 +1797,46 @@ function Scene({
           <color attach="background" args={["#9eb8cc"]} />
           <fog attach="fog" args={["#c5d4e4", 110, 240]} />
         </>
+      ) : real ? (
+        <>
+          <color attach="background" args={["#140e0c"]} />
+          <fog attach="fog" args={["#1a1210", 18, 42]} />
+        </>
       ) : rocco || arena || legoWorld || set ? null : cosmic ? (
         <color attach="background" args={["#05060c"]} />
       ) : (
         <RoomSky color={sky} image={roomImage} />
       )}
-      {!meadow && !rocco && !arena && !legoWorld && !set && roomScene === "space" ? <SpaceSky /> : null}
-      {!meadow && !rocco && !arena && !legoWorld && !set && roomScene === "model" && modelUrl ? (
+      {!meadow && !real && !rocco && !arena && !legoWorld && !set && roomScene === "space" ? <SpaceSky /> : null}
+      {!meadow && !real && !rocco && !arena && !legoWorld && !set && roomScene === "model" && modelUrl ? (
         <ModelSlot>
           <ModelSky url={modelUrl} />
         </ModelSlot>
       ) : null}
       {meadow ? <MeadowDay /> : null}
-      {meadow ? null : (
+      {real ? (
+        <>
+          <hemisphereLight args={["#f3d7b0", "#3a2418", 0.9]} />
+          <ambientLight intensity={0.62} />
+          <directionalLight
+            position={[6, 10, 4]}
+            intensity={1.25}
+            color="#fff2d8"
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            shadow-bias={-0.0004}
+            shadow-camera-near={1}
+            shadow-camera-far={40}
+            shadow-camera-left={-12}
+            shadow-camera-right={12}
+            shadow-camera-top={12}
+            shadow-camera-bottom={-12}
+          />
+          <pointLight position={[0, 6.2, -1]} intensity={10} distance={20} color="#ffd7a1" />
+          <pointLight position={[-7, 4.5, 2]} intensity={4} distance={16} color="#9eb6e8" />
+        </>
+      ) : meadow ? null : (
         <>
           <hemisphereLight args={[hemiSky, hemiGround, lightRoom ? 0.95 : 0.7]} />
           <ambientLight intensity={lightRoom ? 0.58 : 0.42} />
@@ -1836,6 +1880,10 @@ function Scene({
       ) : arena ? (
         <ModelSlot>
           <SkyArenaWorld />
+        </ModelSlot>
+      ) : real ? (
+        <ModelSlot>
+          <CourtRoom />
         </ModelSlot>
       ) : skin.id === "grassland" ? (
         <ModelSlot>
@@ -1946,6 +1994,7 @@ function Scene({
           look={kings?.[p.color]}
           paint={paints[p.color]}
           dogAway={Boolean(maul && maul.color === p.color)}
+          crowd={real ? crowd : null}
           onClick={() => onSquare(p.sq)}
         />
       ))}
@@ -2022,16 +2071,32 @@ function Scene({
       {!ownArmy && duelAside && captureSq && duelAside !== captureSq ? (
         <SwordTing a={captureSq as Square} b={duelAside} pitch={pitch} />
       ) : null}
-      <FightCam look={fightLook} />
+      <FightCam look={fightLook} shot={real ? fightShot : 0} />
+      {fightLook && real ? (
+        <Html fullscreen style={{ pointerEvents: "none" }}>
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center gap-2">
+            {(["Side", "Low", "High"] as const).map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                className="pointer-events-auto rounded-full border border-white/30 bg-black/55 px-3 py-1.5 text-[12px] font-medium text-white"
+                onClick={() => setFightShot(i)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </Html>
+      ) : null}
       <OrbitControls
         makeDefault
         enablePan={false}
         enableRotate
         enableZoom
         minPolarAngle={0.32}
-        maxPolarAngle={1.28}
-        minDistance={meadow ? 5 : set ? HEIRLOOM[set].zoom.min : arena ? SKY_ARENA_ZOOM.min : legoWorld ? LEGO_ZOOM.min : size < 8 ? 5 : 8}
-        maxDistance={meadow ? 160 : set ? HEIRLOOM[set].zoom.max : arena ? SKY_ARENA_ZOOM.max : legoWorld ? LEGO_ZOOM.max : 22}
+        maxPolarAngle={real ? 1.15 : 1.28}
+        minDistance={real ? 3.2 : meadow ? 5 : set ? HEIRLOOM[set].zoom.min : arena ? SKY_ARENA_ZOOM.min : legoWorld ? LEGO_ZOOM.min : size < 8 ? 5 : 8}
+        maxDistance={real ? 16 : meadow ? 160 : set ? HEIRLOOM[set].zoom.max : arena ? SKY_ARENA_ZOOM.max : legoWorld ? LEGO_ZOOM.max : 22}
         target={[0, 0.2, 0]}
         enableDamping
         dampingFactor={0.08}
@@ -2139,7 +2204,7 @@ function SwordTing({ a, b, pitch = 1 }: { a: Square; b: Square; pitch?: number }
   );
 }
 
-function FightCam({ look }: { look: { x: number; z: number } | null }) {
+function FightCam({ look, shot = 0 }: { look: { x: number; z: number } | null; shot?: number }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as {
     target: THREE.Vector3;
@@ -2152,12 +2217,17 @@ function FightCam({ look }: { look: { x: number; z: number } | null }) {
   const back = useRef(false);
   const free = useRef(false);
   const lookKey = useRef("");
+  const shots: [number, number, number][] = [
+    [3.15, 2.35, 3.25],
+    [-2.7, 1.15, 2.15],
+    [0.35, 4.9, 0.85],
+  ];
 
   useFrame((_, raw) => {
     if (!controls?.target) return;
     const dt = Math.min(raw, 0.05);
     if (look) {
-      const key = `${look.x.toFixed(2)}:${look.z.toFixed(2)}`;
+      const key = `${look.x.toFixed(2)}:${look.z.toFixed(2)}:${shot}`;
       if (!home.current) {
         home.current = {
           pos: camera.position.clone(),
@@ -2165,23 +2235,24 @@ function FightCam({ look }: { look: { x: number; z: number } | null }) {
           min: controls.minDistance,
           max: controls.maxDistance,
         };
-        controls.minDistance = 2.1;
-        controls.maxDistance = 40;
+        controls.minDistance = 1.8;
+        controls.maxDistance = 16;
       }
       if (lookKey.current !== key) {
         lookKey.current = key;
         free.current = false;
       }
       back.current = true;
+      const off = shots[shot] ?? shots[0];
       if (!free.current) {
         controls.enabled = false;
         const gaze = new THREE.Vector3(look.x, 1.05, look.z);
-        const dest = new THREE.Vector3(look.x + 3.2, 3.9, look.z + 3.55);
+        const dest = new THREE.Vector3(look.x + off[0], off[1], look.z + off[2]);
         const k = 1 - Math.exp(-4.2 * dt);
         camera.position.lerp(dest, k);
         controls.target.lerp(gaze, k);
         camera.lookAt(controls.target);
-        if (camera.position.distanceTo(dest) < 0.4) {
+        if (camera.position.distanceTo(dest) < 0.35) {
           free.current = true;
           controls.enabled = true;
           controls.update();
@@ -2343,6 +2414,10 @@ export function ChessBoard3D({
     ? HEIRLOOM[set].camera[you === "w" ? "w" : "b"]
     : lego || resolved.id === LEGO_BOARD_ID
       ? LEGO_CAMERA[you === "w" ? "w" : "b"]
+      : real
+        ? you === "w"
+          ? [0.2, 6.6, 10.6]
+          : [-0.2, 6.6, -10.6]
       : resolved.id === "grassland" || resolved.id === "castle"
       ? you === "w"
         ? [0.4, 42, 68]
@@ -2357,11 +2432,11 @@ export function ChessBoard3D({
   const cam: [number, number, number] = [far[0] * near, far[1] * near, far[2] * near];
 
   return (
-    <div className="h-full w-full touch-none">
+    <div className="relative h-full w-full touch-none">
       <Canvas
         shadows
         dpr={[1, 1.5]}
-        camera={{ position: cam, fov: !lego && !set && (resolved.id === "grassland" || resolved.id === "castle") ? 42 : 36, near: 0.1, far: 400 }}
+        camera={{ position: cam, fov: real || (!lego && !set && (resolved.id === "grassland" || resolved.id === "castle")) ? 42 : 36, near: 0.1, far: 400 }}
         gl={{ antialias: true, alpha: false }}
         onPointerDown={() => {
           dragged.current = false;
@@ -2416,6 +2491,16 @@ export function ChessBoard3D({
         </LoadGuard>
         {overlay}
       </Canvas>
+      {real ? (
+        <a
+          href="https://sketchfab.com/3d-models/princess-auroras-castle-court-room-7dbebba56b0b4503989b0e680b4f6039"
+          target="_blank"
+          rel="noreferrer"
+          className="absolute bottom-1 left-2 z-10 rounded bg-ink/50 px-1.5 py-0.5 text-[10px] text-mist/80 hover:text-ivory"
+        >
+          Court: "Princess Aurora's Castle Court Room" by The Evening Star · CC BY 4.0
+        </a>
+      ) : null}
     </div>
   );
 }

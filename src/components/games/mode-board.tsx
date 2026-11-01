@@ -151,7 +151,7 @@ export function ModeBoard({
           <ChessBoard2D {...props} />
         ) : (
           <>
-            {(lgOn || skin?.id === LEGO_BOARD_ID) ? (
+            {lgOn ? (
               <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
                 <div className="pointer-events-auto">
                   <LegoVerseBar show />

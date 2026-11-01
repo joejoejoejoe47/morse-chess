@@ -60,7 +60,8 @@ export function BoardLook({
   const open = boardUnlocked(score, board, username, owned);
   const peek = boardCanPreview(score, board, username);
   const equipped = equippedBoard === board.id;
-  const [view, setView] = useState<"2d" | "3d" | "an" | "ra" | "lg">(boardId === LEGO_BOARD_ID ? "lg" : "3d");
+  const ownsLego = board.id === LEGO_BOARD_ID && open;
+  const [view, setView] = useState<"2d" | "3d" | "an" | "ra" | "lg">("3d");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tuning, setTuning] = useState(startTuning && open);
@@ -199,19 +200,30 @@ export function BoardLook({
               AN
             </button>
             {board.id === LEGO_BOARD_ID ? (
-              <button
-                type="button"
-                className={cn(
-                  "px-3 py-1.5 text-[13px] font-medium",
-                  view === "lg" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
-                )}
-                onClick={() => {
-                  setLegoScene("latest");
-                  setView("lg");
-                }}
-              >
-                LG
-              </button>
+              ownsLego ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "px-3 py-1.5 text-[13px] font-medium",
+                    view === "lg" ? "bg-ivory text-ink" : "text-mist hover:text-ivory",
+                  )}
+                  onClick={() => {
+                    setLegoScene("latest");
+                    setView("lg");
+                  }}
+                >
+                  LG
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  title="60 Morse coins to see the LG guys"
+                  className="px-3 py-1.5 text-[13px] font-medium text-mist hover:text-ivory"
+                  onClick={() => void purchase()}
+                >
+                  LG · 60
+                </button>
+              )
             ) : null}
             <RaBuy active={view === "ra"} onView={() => setView("ra")} className="px-3 py-1.5 text-[13px] font-medium text-mist hover:text-ivory" />
           </div>
@@ -230,7 +242,7 @@ export function BoardLook({
 
       <div className="relative min-h-0 flex-1">
         <div className="absolute inset-0">
-          {board.id === LEGO_BOARD_ID && view !== "2d" ? (
+          {ownsLego && view === "lg" ? (
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <div className="pointer-events-auto">
                 <LegoVerseBar show />
@@ -248,7 +260,7 @@ export function BoardLook({
                 modelUrl={modelUrl}
                 people={view === "an"}
                 real={view === "ra"}
-                lego={view === "lg"}
+                lego={view === "lg" && ownsLego}
                 heirloom={board.id === "classic" ? "cl" : board.id === "parlor" ? "pa" : null}
                 heirloomPieces={view === "3d"}
               />
