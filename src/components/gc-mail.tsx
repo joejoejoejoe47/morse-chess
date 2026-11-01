@@ -101,6 +101,8 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
 
   async function load(query = q) {
     const row = await listGc({ data: { q: query } });
@@ -113,7 +115,18 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const onMail = () => void load(q).catch(() => undefined);
+    window.addEventListener("morse-gc-mail", onMail);
+    const timer = window.setInterval(() => void load(q).catch(() => undefined), 4000);
+    return () => {
+      window.removeEventListener("morse-gc-mail", onMail);
+      window.clearInterval(timer);
+    };
+  }, [q]);
+
   async function choose(person: GcPerson) {
+    stick.current = true;
     setOpen(person);
     setError("");
     setDraft("");
@@ -133,6 +146,40 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
     // open the thread the play button asked for
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  useEffect(() => {
+    const who = open?.userId;
+    if (!who) return;
+    let live = true;
+    const pull = async () => {
+      if (!live) return;
+      try {
+        const row = await gcThread({ data: { userId: who } });
+        if (!live) return;
+        const next = row.letters ?? [];
+        setLetters((cur) => {
+          if (cur.length === next.length && cur.every((letter, i) => letter.id === next[i]?.id)) return cur;
+          return next;
+        });
+      } catch {
+        /* keep the letters already on screen */
+      }
+    };
+    const timer = window.setInterval(() => void pull(), 1000);
+    const onMail = () => void pull();
+    window.addEventListener("morse-gc-mail", onMail);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+      window.removeEventListener("morse-gc-mail", onMail);
+    };
+  }, [open?.userId]);
+
+  useEffect(() => {
+    if (!stick.current) return;
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [letters.length, open?.userId]);
 
   async function take(dropped: File | null | undefined) {
     if (!dropped) return;
@@ -225,7 +272,15 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
             <Letter name={open.username} letter={open.letter} />
             <span className="font-display text-2xl text-ivory">{open.username}</span>
           </button>
-          <div className="min-h-0 flex-1 space-y-3 overflow-auto px-4 py-4">
+          <div
+            ref={scroller}
+            className="min-h-0 flex-1 space-y-3 overflow-auto px-4 py-4"
+            onScroll={() => {
+              const el = scroller.current;
+              if (!el) return;
+              stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+            }}
+          >
             {letters.length === 0 ? <p className="text-sm text-mist">No letters yet. Write the first one.</p> : null}
             {letters.map((letter) => (
               <article key={letter.id} className="rounded-md border border-line bg-panel/80 px-4 py-3">

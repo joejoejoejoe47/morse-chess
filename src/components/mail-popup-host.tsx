@@ -76,17 +76,9 @@ export function MailPopupHost() {
   useEffect(() => {
     if (isPending || !userId) return;
     let live = true;
-    let pointerDown = false;
-    let lastPointer = 0;
     let showing = false;
     const queue: Slip[] = [];
     const held = new Set<string>();
-    const down = () => { pointerDown = true; lastPointer = Date.now(); };
-    const up = () => { pointerDown = false; lastPointer = Date.now(); };
-    const downEvents = ["pointerdown", "touchstart", "keydown"] as const;
-    const upEvents = ["pointerup", "pointercancel", "touchend", "keyup"] as const;
-    downEvents.forEach((e) => window.addEventListener(e, down, true));
-    upEvents.forEach((e) => window.addEventListener(e, up, true));
 
     const showNext = () => {
       if (!live || showing) return;
@@ -111,15 +103,17 @@ export function MailPopupHost() {
     };
 
     const poll = async () => {
-      if (!live) return;
-      if (pointerDown || Date.now() - lastPointer < 1500 || document.hidden) return;
+      if (!live || document.hidden) return;
       try {
         const row = await gcPops();
+        let fresh = false;
         for (const letter of row.letters ?? []) {
           if (held.has(letter.id)) continue;
           held.add(letter.id);
           queue.push(letter);
+          fresh = true;
         }
+        if (fresh) window.dispatchEvent(new CustomEvent("morse-gc-mail"));
         showNext();
       } catch {
         /* the post can wait */
@@ -127,14 +121,17 @@ export function MailPopupHost() {
     };
 
     void poll();
-    const timer = window.setInterval(() => void poll(), 12000);
+    const timer = window.setInterval(() => void poll(), 1000);
+    const onVis = () => {
+      if (!document.hidden) void poll();
+    };
+    document.addEventListener("visibilitychange", onVis);
 
     return () => {
       live = false;
       window.clearInterval(timer);
       window.clearTimeout(hideTimer.current);
-      downEvents.forEach((e) => window.removeEventListener(e, down, true));
-      upEvents.forEach((e) => window.removeEventListener(e, up, true));
+      document.removeEventListener("visibilitychange", onVis);
       setShown(null);
     };
   }, [userId, isPending]);
