@@ -1,72 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { asset } from "@/lib/base";
 import { getFootballPrefs, saveFootballField, type FootballField } from "@/lib/server/football";
 import { cn } from "@/lib/utils";
 
-/** A little drawn picture of each football field (no 3D on the Boards page). */
+const PICTURES: Record<FootballField, { src: string; alt: string }> = {
+  park: { src: "/football/park-field.jpg", alt: "Park Field" },
+  neon: { src: "/football/neon-stadium.jpg", alt: "Neon Stadium" },
+};
+
+/** The real field, the same picture as the game, on the Boards page. */
 function FieldPicture({ field }: { field: FootballField }) {
-  const park = field === "park";
+  const pic = PICTURES[field];
   return (
-    <svg viewBox="0 0 200 130" className="aspect-[20/13] w-full overflow-hidden rounded-lg border border-black/30" role="img" aria-label={park ? "Park Field picture" : "Neon Stadium picture"}>
-      <defs>
-        <linearGradient id={`sky-${field}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor={park ? "#4f8fe0" : "#04050d"} />
-          <stop offset="1" stopColor={park ? "#cfe6fb" : "#160a2a"} />
-        </linearGradient>
-      </defs>
-      <rect width="200" height="130" fill={`url(#sky-${field})`} />
-      {park ? (
-        <>
-          {/* town and trees */}
-          {[8, 30, 150, 172].map((x, i) => (
-            <g key={x}>
-              <rect x={x} y={30 + (i % 2) * 4} width="16" height="14" fill={["#efe3c8", "#b55d45", "#d9e2e8", "#e6c07a"][i]} />
-              <path d={`M${x - 2} ${30 + (i % 2) * 4} l10 -8 l10 8 z`} fill="#8c3b2c" />
-            </g>
-          ))}
-          {[0, 22, 46, 60, 128, 142, 166, 190].map((x, i) => (
-            <circle key={x} cx={x + 6} cy={46 - (i % 3) * 3} r={9 + (i % 2) * 3} fill={i % 2 ? "#3f7f2e" : "#4c8f34"} />
-          ))}
-          {/* jumbotron */}
-          <rect x="74" y="10" width="52" height="26" rx="2" fill="#0b1030" stroke="#2ee6ff" strokeWidth="1.5" />
-          <text x="100" y="21" textAnchor="middle" fontSize="8" fontWeight="900" fill="#ffd36a">GFL</text>
-          <text x="100" y="31" textAnchor="middle" fontSize="5.5" fontWeight="900" fill="#fff">CHAMPIONSHIP</text>
-          <rect x="84" y="36" width="2" height="10" fill="#5b6670" />
-          <rect x="114" y="36" width="2" height="10" fill="#5b6670" />
-          {/* wooden bleachers with fans */}
-          {[0, 1, 2].map((k) => (
-            <rect key={k} x={36 - k * 4} y={56 - k * 5} width={128 + k * 8} height="3" fill={k % 2 ? "#b07a4a" : "#8f6038"} />
-          ))}
-          {Array.from({ length: 30 }, (_, i) => (
-            <circle key={i} cx={34 + i * 4.4} cy={52 - (i % 3) * 5} r="1.6" fill={["#2ee6ff", "#a04bff", "#ff8a1e", "#fff", "#f2d13a"][i % 5]} />
-          ))}
-        </>
-      ) : (
-        <>
-          {/* city skyline and the neon bowl */}
-          {Array.from({ length: 16 }, (_, i) => (
-            <rect key={i} x={i * 13} y={22 + ((i * 7) % 13)} width="11" height="40" fill="#0c0f22" />
-          ))}
-          {Array.from({ length: 22 }, (_, i) => (
-            <rect key={i} x={4 + i * 9} y={26 + ((i * 5) % 17)} width="2" height="2" fill={i % 3 ? "#ffd98a" : "#7fe8ff"} opacity="0.8" />
-          ))}
-          <path d="M0 62 Q100 34 200 62 L200 70 L0 70 z" fill="#140b26" />
-          <path d="M0 62 Q100 34 200 62" stroke="#ff2d7a" strokeWidth="1.5" fill="none" />
-          <path d="M0 66 Q100 40 200 66" stroke="#2ee6ff" strokeWidth="1" fill="none" />
-        </>
-      )}
-      {/* the field */}
-      <path d="M22 128 L52 64 L148 64 L178 128 z" fill={park ? "#55a243" : "#0b2620"} />
-      <path d="M22 128 L32 107 L168 107 L178 128 z" fill={park ? "#1f97d8" : "#0a5f93"} opacity="0.9" />
-      <path d="M52 64 L49 70 L151 70 L148 64 z" fill={park ? "#8a3bd8" : "#a0145a"} opacity="0.9" />
-      {[0.2, 0.4, 0.6, 0.8].map((t) => {
-        const y = 70 + (107 - 70) * t;
-        const half = 49 + (32 - 49) * t;
-        return <line key={t} x1={half} y1={y} x2={200 - half} y2={y} stroke={park ? "#ffffff" : "#a8f3ff"} strokeWidth="1" opacity="0.85" />;
-      })}
-      <path d="M22 128 L52 64 L148 64 L178 128" stroke="#2ee6ff" strokeWidth="1.6" fill="none" />
-      <ellipse cx="100" cy="88" rx="12" ry="5" fill="none" stroke="#ffb02e" strokeWidth="1.4" />
-    </svg>
+    <img
+      src={asset(pic.src)}
+      alt={pic.alt}
+      className="aspect-[20/13] w-full rounded-lg border border-black/30 object-cover"
+    />
   );
 }
 
