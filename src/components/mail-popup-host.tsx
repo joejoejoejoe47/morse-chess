@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageSquareText, Reply, Send, X } from "lucide-react";
+import { MessageSquareText, Play, Reply, Send, X } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { isChatImage } from "@/lib/chat-image";
+import { openGc } from "@/components/gc-mail";
 import { gcPops, gcRead, sendMail } from "@/lib/server/mail";
 
-type Slip = { id: string; fromId?: string; name: string; text: string };
+type Slip = { id: string; fromId?: string; name: string; text: string; kind?: string; thumb?: string };
 
 /** A GC letter, in the same slip MasterGus uses, once the person it was sent to is here. */
 export function MailPopupHost() {
@@ -19,6 +21,7 @@ export function MailPopupHost() {
   const [sent, setSent] = useState(false);
   const [replyError, setReplyError] = useState("");
   const replyBox = useRef<HTMLTextAreaElement | null>(null);
+  const [big, setBig] = useState(false);
 
   // A new slip starts with the reply box closed.
   useEffect(() => {
@@ -27,6 +30,7 @@ export function MailPopupHost() {
     setSending(false);
     setSent(false);
     setReplyError("");
+    setBig(false);
   }, [shown?.key]);
 
   useEffect(() => {
@@ -37,6 +41,19 @@ export function MailPopupHost() {
     // Keep the slip up while they write.
     window.clearTimeout(hideTimer.current);
     setReplying(true);
+  }
+
+  function grow() {
+    window.clearTimeout(hideTimer.current);
+    setBig(true);
+  }
+
+  function watch() {
+    if (!shown?.fromId) return;
+    const userId = shown.fromId;
+    const playId = shown.id;
+    release.current();
+    openGc({ userId, playId });
   }
 
   async function sendReply() {
@@ -123,7 +140,9 @@ export function MailPopupHost() {
   }, [userId, isPending]);
 
   if (!shown) return null;
+  const thumb = shown.kind === "image" && isChatImage(shown.thumb) ? shown.thumb : "";
   return (
+    <>
     <div
       key={shown.key}
       role="status"
@@ -135,7 +154,23 @@ export function MailPopupHost() {
         <MessageSquareText className="h-3.5 w-3.5" aria-hidden />
         {shown.name} says:
       </div>
-      <p className="mt-1 text-sm leading-snug break-words">{shown.text}</p>
+      {shown.text ? <p className="mt-1 text-sm leading-snug break-words">{shown.text}</p> : null}
+      {thumb ? (
+        <button type="button" data-gc-thumb className="mt-2 block" onClick={grow} aria-label="Open picture">
+          <img src={thumb} alt="" className="h-8 w-8 rounded object-cover" />
+        </button>
+      ) : null}
+      {shown.kind === "video" && shown.fromId ? (
+        <button
+          type="button"
+          data-gc-play
+          onClick={watch}
+          className="mt-2 flex h-9 items-center gap-1.5 bg-gold-line px-3 text-sm font-bold text-ink"
+        >
+          <Play className="h-4 w-4" aria-hidden />
+          Play
+        </button>
+      ) : null}
       {shown.fromId ? (
         sent ? (
           <p data-mail-reply-sent className="mt-2 text-sm font-semibold text-gold-line">
@@ -198,5 +233,11 @@ export function MailPopupHost() {
         <X className="h-4 w-4" />
       </button>
     </div>
+    {big && thumb ? (
+      <button type="button" data-gc-big className="fixed inset-0 z-[96] grid place-items-center bg-black/85 p-3" onClick={() => setBig(false)} aria-label="Close picture">
+        <img src={thumb} alt="" className="max-h-[94vh] max-w-[96vw] object-contain" />
+      </button>
+    ) : null}
+    </>
   );
 }

@@ -5,7 +5,7 @@ import { useClubDoor } from "@/lib/auth/use-club-door";
 import { asset } from "@/lib/base";
 import { buyMarketListing, createMarketListing, listMarket, mySellables } from "@/lib/server/store";
 import { ShopPreview, type Look } from "@/components/variants/stage";
-import { GcMail } from "@/components/gc-mail";
+import { openGc } from "@/components/gc-mail";
 import { KingPreview, type PreviewMode } from "@/components/avatar/king-preview";
 import { getAvatar } from "@/lib/server/avatar";
 import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
@@ -110,7 +110,6 @@ function Store() {
   const [busy, setBusy] = useState(false);
   const [look, setLook] = useState<Look>("3d");
   const [seeing, setSeeing] = useState(false);
-  const [gc, setGc] = useState(false);
   const [preview, setPreview] = useState<Card | null>(null);
   const [me, setMe] = useState<{ loadout: AvatarLoadout | null; ra: boolean; lg: boolean }>({ loadout: null, ra: false, lg: false });
 
@@ -218,7 +217,7 @@ function Store() {
         <button type="button" onClick={() => void openSell()} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
           Sell
         </button>
-        <button type="button" onClick={() => setGc(true)} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
+        <button type="button" onClick={() => openGc()} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
           GC
         </button>
         <input
@@ -353,7 +352,6 @@ function Store() {
           </div>
         </div>
       ) : null}
-      {gc ? <GcMail onClose={() => setGc(false)} /> : null}
     </main>
   );
 }

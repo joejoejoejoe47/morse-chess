@@ -367,6 +367,8 @@ CREATE TABLE IF NOT EXISTS `mail` (
   `to_id` VARCHAR(64) NOT NULL,
   `to_name` VARCHAR(64) NOT NULL,
   `body` VARCHAR(2000) NOT NULL,
+  `media` MEDIUMTEXT NULL,
+  `media_kind` VARCHAR(8) NOT NULL DEFAULT '',
   `seen` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`id`),
@@ -375,6 +377,8 @@ CREATE TABLE IF NOT EXISTS `mail` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE `mail` ADD COLUMN `seen` TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE `mail` ADD COLUMN `media` MEDIUMTEXT NULL;
+ALTER TABLE `mail` ADD COLUMN `media_kind` VARCHAR(8) NOT NULL DEFAULT '';
 -- Each player's rating when the game started (coin rule: beating a 1500+ player pays 5, anyone else 2).
 ALTER TABLE `games` ADD COLUMN `white_start_score` INT NULL;
 ALTER TABLE `games` ADD COLUMN `black_start_score` INT NULL;

@@ -47,7 +47,7 @@ final class Mail
             ];
         }
         $letters = Db::all(
-            'SELECT from_id, to_id, from_name, to_name, body, created_at FROM mail WHERE from_id = ? OR to_id = ? ORDER BY created_at DESC LIMIT 400',
+            'SELECT from_id, to_id, from_name, to_name, body, media_kind, created_at FROM mail WHERE from_id = ? OR to_id = ? ORDER BY created_at DESC LIMIT 400',
             [$userId, $userId]
         );
         foreach ($letters as $letter) {
@@ -55,7 +55,12 @@ final class Mail
             if (!isset($people[$other]) || $people[$other]['preview'] !== '') {
                 continue;
             }
-            $people[$other]['preview'] = mb_substr((string) $letter['body'], 0, 90);
+            $preview = trim((string) $letter['body']);
+            if ($preview === '') {
+                $kind = (string) ($letter['media_kind'] ?? '');
+                $preview = $kind === 'video' ? 'Video' : ($kind === 'image' ? 'Picture' : '');
+            }
+            $people[$other]['preview'] = mb_substr($preview, 0, 90);
             $people[$other]['at'] = Db::iso((string) $letter['created_at']);
             $people[$other]['unread'] = (string) $letter['to_id'] === $userId;
         }
@@ -77,16 +82,22 @@ final class Mail
             throw new RpcError('That player is not at the club.', 404);
         }
         $rows = Db::all(
-            'SELECT id, from_id, body, created_at FROM mail WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY created_at ASC LIMIT 200',
+            'SELECT id, from_id, body, media, media_kind, created_at FROM mail WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?) ORDER BY created_at ASC LIMIT 200',
             [$userId, $other['user_id'], $other['user_id'], $userId]
         );
         $letters = [];
         foreach ($rows as $row) {
+            $kind = (string) ($row['media_kind'] ?? '');
+            if ($kind !== 'image' && $kind !== 'video') {
+                $kind = '';
+            }
             $letters[] = [
                 'id' => (string) $row['id'],
                 'mine' => (string) $row['from_id'] === $userId,
                 'body' => (string) $row['body'],
                 'at' => Db::iso((string) $row['created_at']),
+                'kind' => $kind,
+                'media' => $kind === '' ? '' : (string) ($row['media'] ?? ''),
             ];
         }
         return [
@@ -105,15 +116,16 @@ final class Mail
             throw new RpcError('That player is not at the club.', 404);
         }
         $body = trim(preg_replace('/\s+/u', ' ', (string) ($data['body'] ?? '')) ?? '');
-        if ($body === '') {
+        [$media, $kind] = self::clip($data['media'] ?? null, (string) ($data['kind'] ?? ''));
+        if ($body === '' && $media === '') {
             throw new RpcError('Write something first.');
         }
         $body = mb_substr($body, 0, 2000);
         $me = (string) (Db::value('SELECT username FROM profiles WHERE user_id = ?', [$userId]) ?? 'Player');
         $id = Util::uuid();
         Db::run(
-            'INSERT INTO mail (id, from_id, from_name, to_id, to_name, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$id, $userId, mb_substr($me, 0, 64), $other['user_id'], mb_substr((string) $other['username'], 0, 64), $body, Db::now()]
+            'INSERT INTO mail (id, from_id, from_name, to_id, to_name, body, media, media_kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$id, $userId, mb_substr($me, 0, 64), $other['user_id'], mb_substr((string) $other['username'], 0, 64), $body, $media === '' ? null : $media, $kind, Db::now()]
         );
         return ['id' => $id];
     }
@@ -122,16 +134,22 @@ final class Mail
     public static function gcPops(string $userId, array $data): mixed
     {
         $rows = Db::all(
-            'SELECT id, from_id, from_name, body FROM mail WHERE to_id = ? AND seen = 0 ORDER BY created_at ASC LIMIT 8',
+            'SELECT id, from_id, from_name, body, media_kind, CASE WHEN media_kind = \'image\' THEN media ELSE \'\' END AS thumb FROM mail WHERE to_id = ? AND seen = 0 ORDER BY created_at ASC LIMIT 8',
             [$userId]
         );
         $letters = [];
         foreach ($rows as $row) {
+            $kind = (string) ($row['media_kind'] ?? '');
+            if ($kind !== 'image' && $kind !== 'video') {
+                $kind = '';
+            }
             $letters[] = [
                 'id' => (string) $row['id'],
                 'fromId' => (string) $row['from_id'],
                 'name' => (string) $row['from_name'],
                 'text' => mb_substr((string) $row['body'], 0, 280),
+                'kind' => $kind,
+                'thumb' => $kind === 'image' ? (string) ($row['thumb'] ?? '') : '',
             ];
         }
         return ['letters' => $letters];
@@ -151,6 +169,31 @@ final class Mail
             Db::run('UPDATE mail SET seen = 1 WHERE id = ? AND to_id = ?', [$id, $userId]);
         }
         return ['ok' => true];
+    }
+
+    /** @return array{0:string,1:string} */
+    private static function clip(mixed $raw, string $kind): array
+    {
+        if ($raw === null || $raw === '' || $kind === '') {
+            return ['', ''];
+        }
+        if (!is_string($raw)) {
+            throw new RpcError('That file did not send.');
+        }
+        if ($kind === 'image') {
+            $image = Util::chatImage($raw);
+            if ($image === null) {
+                throw new RpcError('That image is too big, or it is not a picture.');
+            }
+            return [$image, 'image'];
+        }
+        if ($kind === 'video') {
+            if (strlen($raw) > 4800000 || preg_match('#\Adata:video/(?:mp4|webm|ogg|quicktime);base64,[A-Za-z0-9+/]+={0,2}\z#', $raw) !== 1) {
+                throw new RpcError('That video is too big, or it is not a video.');
+            }
+            return [$raw, 'video'];
+        }
+        throw new RpcError('That file did not send.');
     }
 
     /** @return array{user_id:string,username:string}|null */
