@@ -2454,7 +2454,7 @@ export function ChessBoard3D({
           gl.localClippingEnabled = true;
         }}
       >
-        <LoadGuard fallback={null}>
+        <LoadGuard fallback={<color attach="background" args={["#1a1612"]} />}>
         <Scene
           fen={fen}
           you={you}
