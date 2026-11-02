@@ -26,6 +26,8 @@ export function CoinDock() {
   const [fly, setFly] = useState(false);
   const [tuck, setTuck] = useState<number | null>(null);
   const home = path === "/" || path === "";
+  // A live board, a replay, and the other games: the purse stays in the lounge and the store, never on the board.
+  const inGame = path.startsWith("/play/") || path.startsWith("/games/") || path.startsWith("/sandbox") || /^\/history\/[^/]+/.test(path);
 
   useEffect(() => {
     let live = true;
@@ -81,7 +83,7 @@ export function CoinDock() {
     };
   }, [home, path]);
 
-  if (coins == null || path.startsWith("/club") || path.startsWith("/avatar") || path.startsWith("/lego-builder") || path.startsWith("/variant")) return null;
+  if (coins == null || inGame || path.startsWith("/club") || path.startsWith("/avatar") || path.startsWith("/lego-builder") || path.startsWith("/variant")) return null;
 
   return (
     <>
