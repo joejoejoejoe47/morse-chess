@@ -10,7 +10,7 @@ import { useLegoLook } from "@/lib/lego-look";
 import { SkyArenaWorld } from "@/components/chess/sky-arena-board";
 const ParkField = lazy(() => import("@/components/variants/park-field").then((m) => ({ default: m.ParkField })));
 import { Arc, FadingArc, NeonStadium, TargetMark, TeamRing, TEAM, type HomeTeam, type Scoreboard, type StadiumShow } from "@/components/variants/neon-stadium";
-import { FieldActor, FieldThrow, FieldVictim, LooseBall, SELECT_RING, type KingDress } from "@/components/variants/field-units";
+import { FieldActor, FieldThrow, FieldVictim, LooseBall, Pigskin, SELECT_RING, type KingDress } from "@/components/variants/field-units";
 
 export type { HomeTeam, Scoreboard, StadiumShow };
 
@@ -62,15 +62,6 @@ export type FieldOpts = {
   /** LG kings dressed from each player's saved body (viewer must be in LG to see them) */
   kings?: { w?: KingDress | null; b?: KingDress | null };
 };
-
-function Pigskin() {
-  return (
-    <mesh scale={[2.35, 0.48, 0.48]} rotation={[0.3, 0.4, 0.5]} castShadow>
-      <sphereGeometry args={[0.13, 18, 12]} />
-      <meshStandardMaterial color="#6b3418" roughness={0.55} />
-    </mesh>
-  );
-}
 
 function OrangeBall() {
   return (

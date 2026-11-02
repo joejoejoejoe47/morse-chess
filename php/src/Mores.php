@@ -1726,43 +1726,86 @@ final class Mores
             $params[] = (int) $minutes * 60000;
         }
         $before = self::str($data, 'before');
+        $cursorTs = '';
+        $cursorId = '';
         if ($before !== '' && str_contains($before, '|')) {
-            [$ts, $bid] = explode('|', $before, 2);
+            [$cursorTs, $cursorId] = explode('|', $before, 2);
             $where .= ' AND (g.created_at < ? OR (g.created_at = ? AND g.id < ?))';
-            array_push($params, $ts, $ts, $bid);
+            array_push($params, $cursorTs, $cursorTs, $cursorId);
         }
+        $take = $limit + 1;
         $rows = Db::all(
-            "SELECT g.* FROM games g WHERE $where ORDER BY g.created_at DESC, g.id DESC LIMIT " . ($limit + 1),
+            "SELECT g.* FROM games g WHERE $where ORDER BY g.created_at DESC, g.id DESC LIMIT " . $take,
             $params
         );
-        $more = count($rows) > $limit;
-        $rows = array_slice($rows, 0, $limit);
-        $games = array_map(static fn (array $g): array => self::historyCard($g, $userId), $rows);
-        $out = ['games' => $games, 'next' => $more && $rows !== [] ? (string) end($rows)['created_at'] . '|' . (string) end($rows)['id'] : null];
+        $cards = [];
+        foreach ($rows as $g) {
+            $cards[] = ['at' => (string) $g['created_at'], 'id' => (string) $g['id'], 'card' => self::historyCard($g, $userId)];
+        }
+        if ($minutes === 'all') {
+            foreach (self::footballHistoryRows($userId, $cursorTs, $cursorId, $take) as $g) {
+                $cards[] = ['at' => (string) $g['created_at'], 'id' => (string) $g['id'], 'card' => self::footballCard($g, $userId)];
+            }
+        }
+        usort($cards, static function (array $a, array $b): int {
+            if ($a['at'] === $b['at']) {
+                return $a['id'] < $b['id'] ? 1 : ($a['id'] > $b['id'] ? -1 : 0);
+            }
+            return $a['at'] < $b['at'] ? 1 : -1;
+        });
+        $more = count($cards) > $limit;
+        $cards = array_slice($cards, 0, $limit);
+        $games = array_map(static fn (array $c): array => $c['card'], $cards);
+        $last = $cards === [] ? null : $cards[count($cards) - 1];
+        $out = ['games' => $games, 'next' => $more && $last !== null ? $last['at'] . '|' . $last['id'] : null];
         if ($before === '') {
             $counts = ['all' => (int) Db::value("SELECT COUNT(*) FROM games g WHERE $base", $baseParams)];
             foreach (self::CLOCK_MINUTES as $m) {
                 $counts[(string) $m] = (int) Db::value("SELECT COUNT(*) FROM games g WHERE $base AND g.mode = 'timed' AND g.clock_ms = ?", [...$baseParams, $m * 60000]);
             }
+            $counts['all'] += (int) Db::value('SELECT COUNT(*) FROM football_history WHERE white_user_id = ? OR black_user_id = ?', [$userId, $userId]);
             $out['counts'] = $counts;
         }
         return $out;
+    }
+
+    /** @return list<array<string,mixed>> */
+    private static function footballHistoryRows(string $userId, string $ts, string $id, int $take): array
+    {
+        $where = '(white_user_id = ? OR black_user_id = ?)';
+        $params = [$userId, $userId];
+        if ($ts !== '' && $id !== '') {
+            $where .= ' AND (created_at < ? OR (created_at = ? AND id < ?))';
+            array_push($params, $ts, $ts, $id);
+        }
+        return Db::all(
+            "SELECT * FROM football_history WHERE $where ORDER BY created_at DESC, id DESC LIMIT " . $take,
+            $params
+        );
     }
 
     /** One History game with everything the replay needs. @param array<string,mixed> $data */
     public static function historyGame(string $userId, array $data): mixed
     {
         self::$people = [];
-        $g = self::loadGame(self::str($data, 'gameId'));
-        if ($g === null || ($g['white_user_id'] !== $userId && $g['black_user_id'] !== $userId)) {
+        $id = self::str($data, 'gameId');
+        $g = self::loadGame($id);
+        if ($g !== null) {
+            if ($g['white_user_id'] !== $userId && $g['black_user_id'] !== $userId) {
+                return null;
+            }
+            $card = self::historyCard($g, $userId);
+            $white = self::historyPeople((string) $g['white_user_id']);
+            $black = self::historyPeople((string) $g['black_user_id']);
+            $card['whiteLook'] = Kit::look((string) $g['white_user_id'], ($white['avatar_json'] ?? '') ?: '');
+            $card['blackLook'] = Kit::look((string) $g['black_user_id'], ($black['avatar_json'] ?? '') ?: '');
+            return $card;
+        }
+        $fb = Db::one('SELECT * FROM football_history WHERE id = ? LIMIT 1', [$id]);
+        if ($fb === null || ($fb['white_user_id'] !== $userId && $fb['black_user_id'] !== $userId)) {
             return null;
         }
-        $card = self::historyCard($g, $userId);
-        $white = self::historyPeople((string) $g['white_user_id']);
-        $black = self::historyPeople((string) $g['black_user_id']);
-        $card['whiteLook'] = Kit::look((string) $g['white_user_id'], ($white['avatar_json'] ?? '') ?: '');
-        $card['blackLook'] = Kit::look((string) $g['black_user_id'], ($black['avatar_json'] ?? '') ?: '');
-        return $card;
+        return self::footballCard($fb, $userId);
     }
 
     /** @var array<string,array<string,mixed>|null> profiles read while building one History answer */
@@ -1824,6 +1867,61 @@ final class Mores
             'style' => in_array($style, ['2d', '3d', 'an', 'ra', 'lg', 'cl', 'pa'], true) ? $style : '3d',
             'fen' => (string) $g['fen'],
             'moves' => array_map(static fn (array $m): array => ['san' => (string) $m['san'], 'from' => (string) $m['from_sq'], 'to' => (string) $m['to_sq']], $moves),
+        ];
+    }
+
+    /** A finished football game, shaped like a history card so old clients still render. @param array<string,mixed> $g @return array<string,mixed> */
+    private static function footballCard(array $g, string $userId): array
+    {
+        $you = $g['white_user_id'] === $userId ? 'w' : 'b';
+        $oppId = (string) ($you === 'w' ? $g['black_user_id'] : $g['white_user_id']);
+        $opp = self::historyPeople($oppId);
+        $white = self::historyPeople((string) $g['white_user_id']);
+        $black = self::historyPeople((string) $g['black_user_id']);
+        $winner = $g['winner'] === 'w' || $g['winner'] === 'b' ? (string) $g['winner'] : null;
+        if ($winner === null) {
+            $result = 'draw';
+            $status = 'draw';
+        } elseif ($winner === $you) {
+            $result = 'win';
+            $status = $you === 'w' ? 'white_win' : 'black_win';
+        } else {
+            $result = 'loss';
+            $status = $you === 'w' ? 'black_win' : 'white_win';
+        }
+        $plays = json_decode((string) ($g['plays'] ?? ''), true);
+        if (!is_array($plays)) {
+            $plays = [];
+        }
+        $moves = [];
+        foreach ($plays as $line) {
+            if (!is_scalar($line) || (string) $line === '') {
+                continue;
+            }
+            $moves[] = ['san' => (string) $line, 'from' => '', 'to' => ''];
+        }
+        $whiteName = $white['username'] ?? ((string) ($g['white_team'] ?: 'Home'));
+        $blackName = $black['username'] ?? ((string) ($g['black_team'] ?: 'Away'));
+        $oppName = $opp['username'] ?? ($you === 'w' ? (string) ($g['black_team'] ?: 'Away') : (string) ($g['white_team'] ?: 'Home'));
+        return [
+            'id' => (string) $g['id'],
+            'createdAt' => Db::toMs($g['created_at']),
+            'mode' => 'timed',
+            'minutes' => null,
+            'status' => $status,
+            'result' => $result,
+            'you' => $you,
+            'white' => ['username' => $whiteName, 'bot' => Constants::isBotUserId((string) $g['white_user_id'])],
+            'black' => ['username' => $blackName, 'bot' => Constants::isBotUserId((string) $g['black_user_id'])],
+            'opponent' => ['username' => $oppName, 'bot' => Constants::isBotUserId($oppId)],
+            'board' => Catalog::defaultBoardId(),
+            'style' => '3d',
+            'fen' => '',
+            'moves' => $moves,
+            'kind' => 'football',
+            'score' => ['w' => (int) $g['score_w'], 'b' => (int) $g['score_b']],
+            'why' => (string) $g['why'],
+            'teams' => ['w' => (string) $g['white_team'], 'b' => (string) $g['black_team']],
         ];
     }
 

@@ -14,6 +14,7 @@ import {
   footballSync,
   getFootballPrefs,
   resignFootball,
+  recordFootball,
   saveFootballTeam,
   sendFootballMove,
   type FootballMatchAction,
@@ -2449,6 +2450,43 @@ export function Football({ versus, online }: { versus: string; online?: string }
       delete w.__fb;
     };
   }, []);
+
+  const fbBook = useRef<string[]>([]);
+  const fbScore = useRef({ w: 0, b: 0 });
+  const fbSaved = useRef(false);
+  useEffect(() => {
+    if (online) return;
+    const prev = fbScore.current;
+    const dw = score.w - prev.w;
+    const db = score.b - prev.b;
+    fbScore.current = { w: score.w, b: score.b };
+    if (dw <= 0 && db <= 0) return;
+    const side: Side = dw >= db ? "w" : "b";
+    const pts = side === "w" ? dw : db;
+    const who = side === "w" ? team.name : away.name;
+    const kind = pts >= 6 ? "Touchdown" : pts === 3 ? "Field goal" : pts === 2 ? "Two points" : pts === 1 ? "Extra point" : `${pts} points`;
+    fbBook.current = [...fbBook.current, `${who} · ${kind} · ${score.w}–${score.b}`].slice(-40);
+  }, [online, score.w, score.b, team.name, away.name]);
+  useEffect(() => {
+    if (!over || online || fbSaved.current) return;
+    fbSaved.current = true;
+    const why = over === "resign" || over === "forfeit" || over === "kings" || over === "time" ? over : "time";
+    let win: Side | null = winner;
+    if (why === "kings") win = null;
+    else if (win !== "w" && win !== "b") win = score.w === score.b ? null : score.w > score.b ? "w" : "b";
+    const data = {
+      scoreW: score.w,
+      scoreB: score.b,
+      winner: win,
+      why,
+      plays: fbBook.current.slice(0, 40),
+      team: team.name,
+      opponent: away.name || vsName,
+    };
+    void recordFootball({ data }).catch(() => {
+      fbSaved.current = false;
+    });
+  }, [over, online, winner, score.w, score.b, team.name, away.name, vsName]);
 
   const clock = ot ? "OT" : `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
   const result =

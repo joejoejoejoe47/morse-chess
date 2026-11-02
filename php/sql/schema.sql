@@ -401,3 +401,20 @@ CREATE TABLE IF NOT EXISTS `football_games` (
   KEY `football_games_white_idx` (`white_user_id`, `status`),
   KEY `football_games_black_idx` (`black_user_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Finished football (online or vs the bot): the score and the scoring plays, so History can open them.
+CREATE TABLE IF NOT EXISTS `football_history` (
+  `id` VARCHAR(64) NOT NULL,
+  `white_user_id` VARCHAR(64) NOT NULL,
+  `black_user_id` VARCHAR(64) NOT NULL,
+  `white_team` VARCHAR(64) NOT NULL,
+  `black_team` VARCHAR(64) NOT NULL,
+  `score_w` INT NOT NULL,
+  `score_b` INT NOT NULL,
+  `winner` VARCHAR(8) NULL,
+  `why` VARCHAR(16) NOT NULL,
+  `plays` TEXT NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `football_history_white_idx` (`white_user_id`, `created_at`),
+  KEY `football_history_black_idx` (`black_user_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

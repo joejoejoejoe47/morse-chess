@@ -107,3 +107,5 @@ export const footballSync = rpc<FootballMatchView>("footballSync");
 /** a move is sent once (never re-sent on a network error) */
 export const sendFootballMove = rpc<FootballMatchView>("sendFootballMove");
 export const resignFootball = rpc<FootballMatchView>("resignFootball");
+/** A finished game vs the bot. Safe to repeat: the same score in a short window is stored once. */
+export const recordFootball = rpc<{ ok: boolean; id: string }>("recordFootball");

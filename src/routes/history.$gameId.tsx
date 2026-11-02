@@ -68,7 +68,76 @@ function ReplayLoader() {
     );
   }
   if (!game) return <SplashSkeleton />;
+  if (game.kind === "football") return <FootballRecap game={game} />;
   return <Replay game={game} />;
+}
+
+function footballWhy(game: HistoryGame): string {
+  if (game.why === "resign" || game.why === "forfeit") {
+    return game.result === "win" ? `${game.opponent.username} left. You win.` : "You left the game.";
+  }
+  if (game.why === "kings") return "King versus king. Tie game.";
+  if (game.result === "draw") return "Time. Tie game.";
+  if (game.result === "win") return "You win.";
+  return `${game.opponent.username} wins.`;
+}
+
+function FootballRecap({ game }: { game: HistoryGame }) {
+  const sw = game.score?.w ?? 0;
+  const sb = game.score?.b ?? 0;
+  const home = game.teams?.w || game.white.username;
+  const away = game.teams?.b || game.black.username;
+  const date = new Date(game.createdAt);
+  return (
+    <main className="min-h-dvh bg-ink pb-16 pt-[env(safe-area-inset-top)] text-ivory">
+      <header data-coin-bar className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
+        <ClubBrand to="/" />
+        <Link to="/history" className="min-h-10 rounded-none border border-line px-4 py-2 text-sm text-mist hover:border-gold-line hover:text-ivory">
+          History
+        </Link>
+      </header>
+      <section className="mx-auto max-w-xl px-4 sm:px-8">
+        <p className="mt-2 text-xs tracking-[0.28em] text-gold-line">FOOTBALL</p>
+        <h1 className="mt-1 font-display text-4xl tracking-[0.14em] text-ivory">THE SCORE</h1>
+        <p className="mt-2 text-sm text-mist">
+          {date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })} · {footballWhy(game)}
+        </p>
+        <div className="mt-6 overflow-hidden border border-line bg-[#0c3b22]">
+          <div
+            className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-8"
+            style={{
+              background:
+                "repeating-linear-gradient(to bottom, transparent 0 18%, rgba(255,255,255,0.16) 18% 20%)",
+            }}
+          >
+            <div className="min-w-0 text-center">
+              <p className="truncate text-sm text-cream">{home}</p>
+              <p className="truncate text-xs text-cream/70">{game.white.username}</p>
+            </div>
+            <p className="font-display text-6xl tracking-wide text-ivory">
+              {sw}–{sb}
+            </p>
+            <div className="min-w-0 text-center">
+              <p className="truncate text-sm text-cream">{away}</p>
+              <p className="truncate text-xs text-cream/70">{game.black.username}</p>
+            </div>
+          </div>
+        </div>
+        <h2 className="mt-8 text-sm tracking-[0.18em] text-mist">SCORING PLAYS</h2>
+        {game.moves.length === 0 ? (
+          <p className="mt-3 border border-line bg-panel/40 px-4 py-3 text-sm text-mist">No one scored.</p>
+        ) : (
+          <ol className="mt-3 border border-line">
+            {game.moves.map((m, i) => (
+              <li key={`${i}:${m.san}`} className="border-b border-line px-4 py-3 text-sm text-ivory last:border-b-0">
+                {m.san}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </main>
+  );
 }
 
 const VERDICT: Record<

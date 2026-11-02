@@ -105,8 +105,8 @@ function HistoryGrid() {
           HISTORY
         </h1>
         <p className="mt-2 max-w-xl text-sm text-mist">
-          Every game you finished, newest first. Open one to watch it replayed on its board, with
-          each move judged.
+          Every game you finished, newest first. Open a chess game to watch the replay, or a football
+          game to see the score.
         </p>
         <div
           className="mt-6 flex flex-wrap gap-0 border border-line"
@@ -139,9 +139,13 @@ function HistoryGrid() {
         {error ? <p className="mt-6 text-sm text-danger">{error}</p> : null}
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {games.map((g) => (
-            <GameTile key={g.id} game={g} />
-          ))}
+          {games.map((g) =>
+            g.kind === "football" ? (
+              <FootballTile key={g.id} game={g} />
+            ) : (
+              <GameTile key={g.id} game={g} />
+            ),
+          )}
           {loading
             ? Array.from({ length: games.length ? 4 : 8 }, (_, i) => (
                 <div
@@ -212,6 +216,51 @@ function EmptyTab({ filter }: { filter: HistoryFilter }) {
 
 const RESULT_LABEL = { win: "Won", loss: "Lost", draw: "Draw" } as const;
 const RESULT_TONE = { win: "bg-[#2f6b3a]", loss: "bg-[#7a2b2b]", draw: "bg-[#4b4b52]" } as const;
+
+function FootballTile({ game }: { game: HistoryGame }) {
+  const date = new Date(game.createdAt);
+  const sw = game.score?.w ?? 0;
+  const sb = game.score?.b ?? 0;
+  const home = game.teams?.w || game.white.username;
+  const away = game.teams?.b || game.black.username;
+  return (
+    <Link
+      to="/history/$gameId"
+      params={{ gameId: game.id }}
+      data-history-tile
+      data-football
+      className="group relative block aspect-square overflow-hidden rounded-none border border-line bg-[#0c3b22] hover:border-gold-line"
+    >
+      <div
+        className="absolute inset-0 opacity-80"
+        style={{
+          background:
+            "repeating-linear-gradient(to bottom, transparent 0 10%, rgba(255,255,255,0.14) 10% 11.5%)",
+        }}
+      />
+      <span className={`absolute left-0 top-0 z-10 px-2 py-1 text-xs font-medium text-ivory ${RESULT_TONE[game.result]}`}>
+        {RESULT_LABEL[game.result]}
+      </span>
+      <span className="absolute right-0 top-0 z-10 bg-ink/75 px-2 py-1 text-xs text-cream">Football</span>
+      <span className="absolute inset-0 z-10 grid place-items-center px-3 text-center">
+        <span>
+          <span className="block font-display text-4xl tracking-wide text-ivory">
+            {sw}–{sb}
+          </span>
+          <span className="mt-1 block truncate text-xs text-cream/90">{home}</span>
+          <span className="block truncate text-xs text-cream/70">{away}</span>
+        </span>
+      </span>
+      <span className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-ink/95 via-ink/70 to-transparent px-3 pb-2 pt-8">
+        <span className="block truncate text-sm text-ivory">vs {game.opponent.username}</span>
+        <span className="block text-xs text-mist">
+          {date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          {game.moves.length ? ` · ${game.moves.length} scores` : ""}
+        </span>
+      </span>
+    </Link>
+  );
+}
 
 function GameTile({ game }: { game: HistoryGame }) {
   const ref = useRef<HTMLAnchorElement>(null);

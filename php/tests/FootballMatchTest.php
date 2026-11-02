@@ -352,4 +352,21 @@ check(FM::act($sStep, 'w', ['t' => 'step', 'from' => [5, 3], 'to' => [5, 4]], $t
 $r = FM::resignFootball('u2', ['gameId' => $gid]);
 check($r['over'] === 'resign' && $r['winner'] === 'w', 'leaving = the other player wins');
 check(Mores::getHomeState('u1', [])['footballGameId'] === null, 'finished game no longer opens');
+$fb = null;
+foreach (Mores::listHistory('u2', ['minutes' => 'all'])['games'] as $g) {
+    if (($g['kind'] ?? '') === 'football' && $g['id'] === $gid) {
+        $fb = $g;
+    }
+}
+check($fb !== null && $fb['result'] === 'loss' && $fb['you'] === 'b', 'a finished football game is on History');
+check(Mores::listHistory('u2', ['minutes' => 10])['games'] === [], 'football stays off the minute tabs');
+$opened = Mores::historyGame('u1', ['gameId' => $gid]);
+check(is_array($opened) && ($opened['kind'] ?? '') === 'football' && isset($opened['score']['w'], $opened['score']['b']), 'opening it shows the score');
+check(Mores::historyGame('u3', ['gameId' => $gid]) === null, 'someone else cannot open that football game');
+$once = FM::recordFootball('u3', ['scoreW' => 6, 'scoreB' => 3, 'why' => 'time', 'team' => 'Knights', 'opponent' => 'Phantoms', 'plays' => ['Knights · Touchdown · 6–0', 'Phantoms · Field goal · 6–3']]);
+$twice = FM::recordFootball('u3', ['scoreW' => 6, 'scoreB' => 3, 'why' => 'time', 'team' => 'Knights', 'opponent' => 'Phantoms', 'plays' => ['Knights · Touchdown · 6–0', 'Phantoms · Field goal · 6–3']]);
+check($once['ok'] === true && $once['id'] === $twice['id'], 'recording the same bot game twice keeps one');
+$bot = Mores::historyGame('u3', ['gameId' => $once['id']]);
+check(is_array($bot) && $bot['kind'] === 'football' && $bot['score']['w'] === 6 && $bot['score']['b'] === 3 && count($bot['moves']) === 2 && $bot['moves'][0]['san'] === 'Knights · Touchdown · 6–0' && $bot['result'] === 'win', 'a bot football game opens as the score');
+check(Mores::listHistory('u3', ['minutes' => 1])['games'] === [], 'a bot football game is not a 1 minute chess game');
 finish();

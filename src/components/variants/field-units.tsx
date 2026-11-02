@@ -121,15 +121,29 @@ export function capturePlan(look: FieldLook, side: "w" | "b", kind: PieceSymbol,
   return { from: from.clone(), near, to: to.clone(), dir, yaw, approach, launch, strikeEnd, hit, stepIn, step, shot };
 }
 
-/** A football (a fresh object per carrier so it can live in a hand bone). */
+/** A real football: longer than it is thick, with laces and stripes. Not a flat disc. */
 export function makeBall(size = 1) {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.13 * size, 18, 12), new THREE.MeshStandardMaterial({ color: "#6b3418", roughness: 0.55 }));
-  m.scale.set(2.7, 0.42, 0.42);
-  m.castShadow = true;
-  const lace = new THREE.Mesh(new THREE.BoxGeometry(0.11 * size, 0.012 * size, 0.022 * size), new THREE.MeshStandardMaterial({ color: "#f4efe6", roughness: 0.6 }));
-  lace.position.set(0, 0.092 * size, 0);
-  g.add(m, lace);
+  const leather = new THREE.MeshStandardMaterial({ color: "#6b3412", roughness: 0.58 });
+  const white = new THREE.MeshStandardMaterial({ color: "#f4efe4", roughness: 0.4 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.15 * size, 28, 20), leather);
+  body.scale.set(1.62, 1, 1);
+  body.castShadow = true;
+  const lace = new THREE.Mesh(new THREE.BoxGeometry(0.018 * size, 0.01 * size, 0.1 * size), white);
+  lace.position.set(0, 0.148 * size, 0);
+  const stitches = new THREE.Group();
+  for (let i = -2; i <= 2; i++) {
+    const stitch = new THREE.Mesh(new THREE.BoxGeometry(0.05 * size, 0.006 * size, 0.007 * size), white);
+    stitch.position.set(0, 0.152 * size, i * 0.02 * size);
+    stitches.add(stitch);
+  }
+  g.add(body, lace, stitches);
+  for (const x of [-0.1, 0.1]) {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.136 * size, 0.008 * size, 8, 28), white);
+    band.position.x = x * size;
+    band.rotation.y = Math.PI / 2;
+    g.add(band);
+  }
   return g;
 }
 

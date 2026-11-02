@@ -123,6 +123,11 @@ export type HistoryGame = {
   moves: HistoryMove[];
   whiteLook?: string;
   blackLook?: string;
+  /** Football games open as a score recap, not a chess replay. */
+  kind?: "football";
+  score?: { w: number; b: number };
+  why?: string;
+  teams?: { w: string; b: string };
 };
 export type HistoryFilter = "all" | 1 | 5 | 10;
 export type HistoryPage = {
