@@ -259,6 +259,19 @@ function WarUnit({
   const _ws = useMemo(() => new THREE.Vector3(), []);
   const ref = useRef<THREE.Group>(null);
   const mixer = useMemo(() => new THREE.AnimationMixer(clone), [clone]);
+  useEffect(() => {
+    return () => {
+      mixer.stopAllAction();
+      clone.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry?.dispose();
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          mats.forEach((m) => m?.dispose());
+        }
+      });
+    };
+  }, [clone, mixer]);
   const actions = useMemo(() => {
     const map: Record<string, THREE.AnimationAction> = {};
     for (const clip of animations) map[clip.name] = mixer.clipAction(clip);
