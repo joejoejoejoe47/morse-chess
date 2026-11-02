@@ -1056,7 +1056,7 @@ final class FootballMatch
     private static function touchdown(array &$s, string $scorer, string $carrier, int $at): void
     {
         self::stopClock($s, $at);
-        $s['score'][$scorer] += 6;
+        $s['score'][$scorer] += 7;
         $s['loose'] = null;
         $s['phase'] = 'celebrate';
         $s['skip'] = ['w' => false, 'b' => false];
@@ -1343,6 +1343,9 @@ final class FootballMatch
             self::touchdown($s, $side, $id, $now + 700);
             return;
         }
-        self::deadBall($s, $now, 650 + 1500, $pick['r'], $side, $side, 'Interception!', $side, true);
+        // Intercept in own end zone: touchback to the 20
+        $ownEnd = $side === 'w' ? $pick['r'] <= 1 : $pick['r'] >= self::ROWS - 2;
+        $lineRow = $ownEnd ? ($side === 'w' ? 2 : self::ROWS - 3) : $pick['r'];
+        self::deadBall($s, $now, 650 + 1500, $lineRow, $side, $side, 'Interception!', $side, true);
     }
 }

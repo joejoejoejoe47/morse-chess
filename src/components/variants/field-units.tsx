@@ -127,7 +127,7 @@ export function makeBall(size = 1) {
   const leather = new THREE.MeshStandardMaterial({ color: "#6b3412", roughness: 0.58 });
   const white = new THREE.MeshStandardMaterial({ color: "#f4efe4", roughness: 0.4 });
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.15 * size, 28, 20), leather);
-  body.scale.set(1.62, 1, 1);
+  body.scale.set(1.28, 1, 1);
   body.castShadow = true;
   const lace = new THREE.Mesh(new THREE.BoxGeometry(0.018 * size, 0.01 * size, 0.1 * size), white);
   lace.position.set(0, 0.148 * size, 0);
@@ -887,7 +887,7 @@ export function FieldThrow({ cue, rows, cols, onDone, units = [] }: { cue: Field
   const b = cue.goal ? new THREE.Vector3(cue.miss ? 2.4 : 0, 1.75, posts + Math.sign(posts) * 0.35) : fieldSpot(cue.to[0], cue.to[1], rows, cols, 0.66);
   const dist = Math.hypot(b.x - a.x, b.z - a.z);
   const dur = cue.goal ? 0.9 + dist * 0.07 : 0.55 + dist * 0.06;
-  const lift = cue.goal ? 1.2 + dist * 0.12 : 0.55 + dist * 0.16;
+  const lift = cue.goal ? 1.6 + dist * 0.18 : 0.85 + dist * 0.22;
   // who the ball flies over (owner, t204u): it hangs in the air over them so they can jump for it
   const over = useMemo(() => (cue.goal ? [] : overMen(cue.from, cue.to, units)), [cue.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
