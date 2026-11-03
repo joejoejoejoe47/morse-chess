@@ -29,6 +29,8 @@ final class FootballMatch
 {
     public const ROWS = 14;
     public const COLS = 8;
+    /** A touchdown is 7. A field goal stays 3. */
+    public const TD = 7;
     public const GAME_MS = 600000;
     public const SHOT_MS = 5000;
     public const COUNT_MS = 4100;
@@ -166,6 +168,7 @@ final class FootballMatch
             'over' => '',
             'winner' => null,
             'ot' => false,
+            'down' => 1,
             'createdAt' => $now,
             'seq' => 0,
             'events' => [],
@@ -499,6 +502,7 @@ final class FootballMatch
             'over' => $s['over'],
             'winner' => $s['winner'],
             'ot' => !empty($s['ot']),
+            'down' => max(1, (int) ($s['down'] ?? 1)),
         ];
     }
 
@@ -619,6 +623,17 @@ final class FootballMatch
         return $side === 'w' ? $r >= 12 : $r <= 1;
     }
 
+    /**
+     * Interception in an end zone: the painted 20 of that end, as a formation line for $off.
+     * Low end (rows 0–1) is board row 4. High end (rows 12–13) is board row 10.
+     */
+    public static function twentyLine(string $off, int $r): int
+    {
+        $front = $r <= 1 ? 4 : 10;
+        $y = $off === 'w' ? $front : self::ROWS - 1 - $front;
+        return max(2, min(self::ROWS - 4, $y));
+    }
+
     /** @return list<array{int,int}> */
     public static function moves(array $b, int $r, int $f): array
     {
@@ -632,9 +647,6 @@ final class FootballMatch
                 return;
             }
             $t = $b[$rr][$ff];
-            if (($t['kind'] ?? null) === 'k') {
-                return;
-            }
             if ($t === null || $t['side'] !== $u['side']) {
                 $out[] = [$rr, $ff];
             }
@@ -647,7 +659,7 @@ final class FootballMatch
                 if ($t === null) {
                     $out[] = [$rr, $ff];
                 } else {
-                    if ($t['side'] !== $u['side'] && $t['kind'] !== 'k') {
+                    if ($t['side'] !== $u['side']) {
                         $out[] = [$rr, $ff];
                     }
                     break;
@@ -665,7 +677,7 @@ final class FootballMatch
             foreach ([-1, 1] as $df) {
                 $ff = $f + $df;
                 $t = self::on($rr, $ff) ? $b[$rr][$ff] : null;
-                if ($t !== null && $t['side'] !== $u['side'] && $t['kind'] !== 'k') {
+                if ($t !== null && $t['side'] !== $u['side']) {
                     $out[] = [$rr, $ff];
                 }
             }
@@ -842,8 +854,8 @@ final class FootballMatch
             $s['book'] = [];
             if ($type === 'td') {
                 $side = ($extra['scorer'] ?? 'w') === 'b' ? 'b' : 'w';
-                $s['bookW'] = max(0, $w - ($side === 'w' ? 6 : 0));
-                $s['bookB'] = max(0, $b - ($side === 'b' ? 6 : 0));
+                $s['bookW'] = max(0, $w - ($side === 'w' ? self::TD : 0));
+                $s['bookB'] = max(0, $b - ($side === 'b' ? self::TD : 0));
             } elseif ($type === 'goal' && !empty($extra['good'])) {
                 $cue = is_array($extra['cue'] ?? null) ? $extra['cue'] : [];
                 $side = ($cue['side'] ?? 'w') === 'b' ? 'b' : 'w';
@@ -947,17 +959,25 @@ final class FootballMatch
             if ($ph === 'dead') {
                 // an interception or a fumble on a run brings everyone back in the start formation; a tackled
                 // ball carrier (fumble or not) or a king putting the ball down = everyone still in the game
-                // lines up at that yard line (owner t239u)
+                // lines up at that yard line (owner t239u). An end-zone interception uses that end's 20.
                 $all = !empty($next['all']);
                 $holder = (string) $next['holder'];
-                $s['board'] = $all ? self::formation($holder) : self::lineUpAt($s['board'], (int) $next['row'], $holder);
+                $line = (int) ($next['line'] ?? 0);
+                if ($line > 0) {
+                    $s['board'] = self::formation($holder, $line);
+                } elseif ($all) {
+                    $s['board'] = self::formation($holder);
+                } else {
+                    $s['board'] = self::lineUpAt($s['board'], (int) $next['row'], $holder);
+                }
                 $s['loose'] = null;
                 $s['turn'] = (string) $next['first'];
+                $s['down'] = !empty($next['firstDown']) ? 1 : max(1, (int) ($s['down'] ?? 1) + 1);
                 $s['drive'] = [];
                 $s['flight'] = null;
                 $s['phase'] = 'snap';
                 $s['until'] = $at + 1300;
-                self::event($s, 'lineup', $at, ['fresh' => $all]);
+                self::event($s, 'lineup', $at, ['fresh' => $all || $line > 0]);
             } elseif ($ph === 'snap') {
                 self::startPlay($s, $at);
                 self::event($s, 'snap', $at);
@@ -998,6 +1018,7 @@ final class FootballMatch
         $s['flight'] = null;
         $s['skip'] = ['w' => false, 'b' => false];
         $s['next'] = null;
+        $s['down'] = 1;
         self::startPlay($s, $at);
         self::event($s, 'kickoff', $at, ['first' => $first, 'after' => $after]);
     }
@@ -1015,16 +1036,24 @@ final class FootballMatch
         $s['flight'] = null;
         $s['skip'] = ['w' => false, 'b' => false];
         $s['next'] = null;
+        $s['down'] = 1;
         self::startPlay($s, $at);
         self::event($s, 'overtime', $at);
     }
 
-    private static function deadBall(array &$s, int $at, int $wait, int $row, string $holder, string $first, string $text, string $mover, bool $all = false): void
+    private static function deadBall(array &$s, int $at, int $wait, int $row, string $holder, string $first, string $text, string $mover, bool $all = false, ?int $line = null, bool $firstDown = false): void
     {
         self::stopClock($s, $at);
         $s['phase'] = 'dead';
         $s['until'] = $at + $wait;
-        $s['next'] = ['row' => $row, 'holder' => $holder, 'first' => $first, 'all' => $all];
+        $s['next'] = [
+            'row' => $row,
+            'holder' => $holder,
+            'first' => $first,
+            'all' => $all,
+            'line' => $line,
+            'firstDown' => $firstDown || $all || $line !== null,
+        ];
         $s['flight'] = null;
         self::event($s, 'dead', $at, ['text' => $text, 'side' => $holder]);
     }
@@ -1056,7 +1085,7 @@ final class FootballMatch
     private static function touchdown(array &$s, string $scorer, string $carrier, int $at): void
     {
         self::stopClock($s, $at);
-        $s['score'][$scorer] += 7;
+        $s['score'][$scorer] += self::TD;
         $s['loose'] = null;
         $s['phase'] = 'celebrate';
         $s['skip'] = ['w' => false, 'b' => false];
@@ -1085,6 +1114,35 @@ final class FootballMatch
                     $s['board'][$r][$f]['held'] = 0;
                     $s['loose'] = [$r, $f];
                     self::deadBall($s, $now, 1500, $r, $side, $side, 'Ball down!', $mover);
+                    return;
+                }
+            }
+        }
+    }
+
+    /** A tackled king is not out. He goes back on the square the tackler left, and lines up on the next down. */
+    private static function parkKing(array &$board, ?array $victim, array $from): void
+    {
+        if ($victim === null || ($victim['kind'] ?? '') !== 'k') {
+            return;
+        }
+        $id = (string) ($victim['id'] ?? '');
+        foreach ($board as $row) {
+            foreach ($row as $u) {
+                if ($u !== null && ($u['kind'] ?? '') === 'k' && (string) ($u['id'] ?? '') === $id && ($u['side'] ?? '') === ($victim['side'] ?? '')) {
+                    return;
+                }
+            }
+        }
+        $king = ['side' => $victim['side'], 'kind' => 'k', 'id' => $id, 'ball' => false, 'held' => 0];
+        if (($board[$from[0]][$from[1]] ?? null) === null) {
+            $board[$from[0]][$from[1]] = $king;
+            return;
+        }
+        for ($r = 0; $r < self::ROWS; $r++) {
+            for ($f = 0; $f < self::COLS; $f++) {
+                if ($board[$r][$f] === null) {
+                    $board[$r][$f] = $king;
                     return;
                 }
             }
@@ -1246,6 +1304,7 @@ final class FootballMatch
         $held = $u['kind'] === 'k' && $carry ? (int) ($u['held'] ?? 0) + 1 : 0;
         $s['board'][$from[0]][$from[1]] = null;
         $s['board'][$to[0]][$to[1]] = ['side' => $u['side'], 'kind' => $u['kind'], 'id' => $u['id'], 'ball' => $carry, 'held' => $held];
+        self::parkKing($s['board'], is_array($victim) ? $victim : null, $from);
         if ($carry || ($loose !== null && $loose[0] === $to[0] && $loose[1] === $to[1])) {
             $s['loose'] = null;
         }
@@ -1262,8 +1321,8 @@ final class FootballMatch
             // the carrier is tackled and out (t235u). Fumble = turnover, everyone comes back (t236u/t237u);
             // no fumble = his team keeps the ball and both teams slide to this yard line (t238u)
             if ($fumble) {
-                // the team that won the ball starts from the tackle spot (owner t239u)
-                self::deadBall($s, $now, 1500, $to[0], $side, $side, 'Fumble! Turnover', $side);
+                // the team that won the ball starts from the tackle spot (owner t239u). A new drive: 1st down.
+                self::deadBall($s, $now, 1500, $to[0], $side, $side, 'Fumble! Turnover', $side, false, null, true);
             } else {
                 self::deadBall($s, $now, 1500, $to[0], $def, $first, 'Tackled! Ball kept', $side);
             }
@@ -1317,7 +1376,7 @@ final class FootballMatch
         return null;
     }
 
-    /** $side's player takes the ball out of the air: a turnover (everyone comes back, t237u) or a touchdown. */
+    /** $side's player takes the ball out of the air. In an end zone, both teams line up on that 20. Anywhere else, everyone comes back. */
     private static function pickOff(array &$s, string $side, array $pick, int $now, bool $auto): void
     {
         $fl = $s['flight'];
@@ -1339,13 +1398,12 @@ final class FootballMatch
         $s['bonus'] = 0;
         $s['drive'][] = $now;
         self::event($s, 'intercept', $now, ['id' => $id, 'side' => $side, 'at2' => [$pick['r'], $pick['f']], 'from' => $fl['from'], 'auto' => $auto]);
-        if (self::inEnd($side, $pick['r'])) {
-            self::touchdown($s, $side, $id, $now + 700);
+        $pr = (int) $pick['r'];
+        if ($pr <= 1 || $pr >= self::ROWS - 2) {
+            // standing in an end zone: not a score. Everyone comes out on that end's 20.
+            self::deadBall($s, $now, 650 + 1500, $pr, $side, $side, 'Interception!', $side, false, self::twentyLine($side, $pr));
             return;
         }
-        // Intercept in own end zone: touchback to the 20
-        $ownEnd = $side === 'w' ? $pick['r'] <= 1 : $pick['r'] >= self::ROWS - 2;
-        $lineRow = $ownEnd ? ($side === 'w' ? 2 : self::ROWS - 3) : $pick['r'];
-        self::deadBall($s, $now, 650 + 1500, $lineRow, $side, $side, 'Interception!', $side, true);
+        self::deadBall($s, $now, 650 + 1500, $pr, $side, $side, 'Interception!', $side, true);
     }
 }

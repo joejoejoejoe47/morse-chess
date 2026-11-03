@@ -995,7 +995,7 @@ function AvatarStudio() {
                     ))}
                   </div>
                   <p className="pt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#d6ad4f]">Replay songs</p>
-                  <Note>A song plays during the replay of a score. Walking Down the Street In a Car is 10 Morse coins. More songs later.</Note>
+                  <Note>A song plays during the replay of a touchdown. Walking Down the Street In a Car is free for everyone.</Note>
                   <div className="space-y-2" data-fb-songs>
                     {FB_SONGS.map((item) => (
                       <button

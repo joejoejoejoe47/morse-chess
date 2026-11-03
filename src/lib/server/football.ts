@@ -94,6 +94,8 @@ export type FootballMatchView = {
   winner: "w" | "b" | null;
   /** Sudden death: the clock died on a tie. The next touchdown wins. */
   ot?: boolean;
+  /** Which down this drive is on. 1 after a score or a turnover. */
+  down?: number;
 };
 export type FootballMatchAction =
   | { t: "move" | "pass" | "step"; from: [number, number]; to: [number, number] }

@@ -44,7 +44,7 @@ $gid = $acc['gameId'];
 check(Mores::getHomeState('u1', [])['footballGameId'] === $gid, 'challenger is sent to the game');
 check(Mores::getHomeState('u2', [])['activeGameId'] === null, 'no chess game made');
 $v = FM::footballSync('u1', ['gameId' => $gid, 'ready' => true]);
-check($v['side'] === 'w' && $v['phase'] === 'count', 'challenger plays home, countdown waits');
+check($v['side'] === 'w' && $v['phase'] === 'count' && ($v['down'] ?? 0) === 1, 'challenger plays home, countdown waits, 1st down');
 $v = FM::footballSync('u2', ['gameId' => $gid, 'ready' => true]);
 check($v['side'] === 'b' && $v['until'] > 0, 'both ready: countdown runs');
 $threw = false;
@@ -125,7 +125,7 @@ $g = $sT['board'];
 check($sT['phase'] === 'snap' && $sT['turn'] === 'w', 'the tackled team goes next');
 check(($g[5][4]['id'] ?? '') === 'e1' && ($g[5][0]['id'] ?? '') === 'a1' && ($g[5][1]['id'] ?? '') === 'b1', 'offense lined up on its side of the tackle line');
 check(($g[9][4]['id'] ?? '') === 'e7' && ($g[10][4]['id'] ?? '') === 'e8' && ($g[10][7]['id'] ?? '') === 'h8' && array_filter(array_merge($g[7], $g[8])) === [], 'defense lined up two empty rows away');
-check(!empty($g[5][4]['ball']) && count($men($g)) === 6, 'the king has the ball, the tackled carrier stays out');
+check(!empty($g[5][4]['ball']) && count($men($g)) === 6 && (int) ($sT['down'] ?? 0) === 2, 'the king has the ball, the tackled carrier stays out, and it is 2nd down');
 check(($sT['events'][count($sT['events']) - 1]['fresh'] ?? true) === false, 'nobody comes back');
 // same tackle, the dice say fumble: their ball, everyone left lines up at the tackle spot, their king has it (t239u)
 check(FM::risk($sF['board'], [6, 3], 'b', 'tackle') >= 10, 'tackle risk');
@@ -135,7 +135,7 @@ FM::$dice = static fn (): float => 99.0;
 FM::advance($sF, $t + 11100 + 1500);
 $hbF = $ballAt($sF['board']);
 $gF = $sF['board'];
-check(count($men($gF)) === 6 && $hbF[0] === 7 && $hbF[1] === 4 && $hbF[2]['side'] === 'b' && $sF['turn'] === 'b', 'fumble on a tackle: their king has the ball at the tackle spot');
+check(count($men($gF)) === 6 && $hbF[0] === 7 && $hbF[1] === 4 && $hbF[2]['side'] === 'b' && $sF['turn'] === 'b' && (int) ($sF['down'] ?? 0) === 1, 'fumble on a tackle: their king has the ball at the tackle spot, 1st down');
 check(($gF[6][4]['id'] ?? '') === 'e7' && ($gF[2][4]['id'] ?? '') === 'e1' && array_filter(array_merge($gF[4], $gF[5])) === [], 'fumble lineup: black on its side of the line, white two rows away');
 check(($sF['events'][count($sF['events']) - 1]['fresh'] ?? true) === false, 'tackled players stay out');
 FM::advance($sF, $t + 11100 + 1500 + 1300);
@@ -228,13 +228,13 @@ $scE = $sE['score']['w'];
 check(FM::act($sE, 'w', ['t' => 'pass', 'from' => [6, 3], 'to' => [12, 3]], $t + 33000) === null && $sE['phase'] === 'tdpass', 'pass into the end zone');
 check(FM::act($sE, 'b', ['t' => 'intercept', 'id' => 'd7'], $t + 33400) === 'Missed it!', 'nobody near him: the jump cannot steal it');
 FM::advance($sE, $t + 36000);
-check($sE['phase'] === 'celebrate' && $sE['score']['w'] === $scE + 7, 'sure touchdown');
+check($sE['phase'] === 'celebrate' && $sE['score']['w'] === $scE + FM::TD, 'sure touchdown');
 $bE = $b;
 $bE[13][2] = ['side' => 'b', 'kind' => 'r', 'id' => 'c8'];
 $sE2 = $at($bE, 'w', $t + 33000);
 FM::$dice = static fn (): float => 30.0; // above the 18% risk, under 18 + 40 for a jump
 check(FM::act($sE2, 'w', ['t' => 'pass', 'from' => [6, 3], 'to' => [12, 3]], $t + 33000) === null, 'pass into the end zone, a defender near');
-check(FM::act($sE2, 'b', ['t' => 'intercept', 'id' => 'd7'], $t + 33400) === null && $sE2['phase'] === 'dead', 'with a defender near, the jump can pick it off');
+check(FM::act($sE2, 'b', ['t' => 'intercept', 'id' => 'd7'], $t + 33400) === null && $sE2['phase'] === 'dead' && !empty($sE2['next']['all']) && empty($sE2['next']['line']), 'with a defender near, the jump can pick it off');
 FM::$dice = static fn (): float => 99.0;
 
 // a run next to big defenders may fumble
@@ -258,7 +258,7 @@ $b[12][4] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
 $sD = $at($b, 'b', $t + 41000);
 check(FM::act($sD, 'b', ['t' => 'move', 'from' => [12, 4], 'to' => [12, 3]], $t + 41100) === null && $sD['phase'] === 'dead', 'ball down');
 FM::advance($sD, $t + 41100 + 1500);
-check(!empty($sD['board'][3][4]['ball']) && (int) $sD['board'][3][4]['held'] === 0 && ($sD['board'][4][0]['id'] ?? '') === 'a2' && ($sD['board'][7][0]['id'] ?? '') === 'a7' && ($sD['board'][8][4]['id'] ?? '') === 'e8' && $sD['turn'] === 'w', 'ball down: lineup at the king, he keeps it');
+check(!empty($sD['board'][3][4]['ball']) && (int) $sD['board'][3][4]['held'] === 0 && ($sD['board'][4][0]['id'] ?? '') === 'a2' && ($sD['board'][7][0]['id'] ?? '') === 'a7' && ($sD['board'][8][4]['id'] ?? '') === 'e8' && $sD['turn'] === 'w' && (int) ($sD['down'] ?? 0) === 2, 'ball down: lineup at the king, he keeps it, next down');
 
 // a receiver already downfield comes back to the line too
 $b = $empty;
@@ -277,7 +277,7 @@ $b[9][0] = ['side' => 'b', 'kind' => 'p', 'id' => 'a7'];
 $s5 = $at($b, 'w', $t + 30000);
 $sc = $s5['score']['w'];
 check(FM::act($s5, 'w', ['t' => 'move', 'from' => [11, 3], 'to' => [12, 3]], $t + 30100) === null, 'run into the end zone');
-check($s5['phase'] === 'celebrate' && $s5['score']['w'] === $sc + 7, 'touchdown +7');
+check($s5['phase'] === 'celebrate' && $s5['score']['w'] === $sc + FM::TD, 'touchdown +7');
 FM::act($s5, 'w', ['t' => 'skip'], $t + 31000);
 check($s5['phase'] === 'celebrate', 'one skip is not enough');
 FM::act($s5, 'b', ['t' => 'skip'], $t + 31100);
@@ -347,6 +347,47 @@ $sStep = $at($b, 'w', $t + 90000);
 $sFar = $sStep;
 check(FM::act($sFar, 'w', ['t' => 'step', 'from' => [5, 3], 'to' => [7, 4]], $t + 90100) === 'He cannot go there.', 'a drive step cannot skip a square');
 check(FM::act($sStep, 'w', ['t' => 'step', 'from' => [5, 3], 'to' => [5, 4]], $t + 90100) === null && ($sStep['board'][5][4]['id'] ?? '') === 'd2', 'a drive step lets a pawn walk sideways');
+
+// a king can be tackled anywhere. He is not removed. No fumble: he has the ball on the next down.
+$bk = $empty;
+$bk[6][4] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1', 'ball' => true, 'held' => 0];
+$bk[4][3] = ['side' => 'b', 'kind' => 'n', 'id' => 'b8'];
+$bk[13][0] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
+$bk[2][0] = ['side' => 'w', 'kind' => 'p', 'id' => 'a2'];
+check(in_array([6, 4], FM::moves($bk, 4, 3), true), 'a knight can land on the king');
+$sK = $at($bk, 'b', $t + 91000);
+check(FM::act($sK, 'b', ['t' => 'move', 'from' => [4, 3], 'to' => [6, 4]], $t + 91100) === null && $sK['phase'] === 'dead', 'the king was tackled');
+check(in_array('e1', $men($sK['board']), true) && ($sK['board'][4][3]['id'] ?? '') === 'e1', 'a tackled king stays on the field');
+FM::advance($sK, $t + 91100 + 1600);
+$hbK = $ballAt($sK['board']);
+check(in_array('e1', $men($sK['board']), true) && ($hbK[2]['id'] ?? '') === 'e1' && ($hbK[2]['side'] ?? '') === 'w' && (int) ($sK['down'] ?? 0) === 2, 'next down the king has the ball again');
+// tackling a king who does not have the ball does not delete him, and does not change who has it
+$bn = $empty;
+$bn[5][4] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1'];
+$bn[5][1] = ['side' => 'w', 'kind' => 'p', 'id' => 'b2', 'ball' => true, 'held' => 0];
+$bn[6][5] = ['side' => 'b', 'kind' => 'p', 'id' => 'f7'];
+$bn[13][0] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
+$sKn = $at($bn, 'b', $t + 92000);
+check(FM::act($sKn, 'b', ['t' => 'move', 'from' => [6, 5], 'to' => [5, 4]], $t + 92100) === null && $sKn['phase'] === 'play' && in_array('e1', $men($sKn['board']), true) && !empty($sKn['board'][5][1]['ball']), 'tackling a king without the ball leaves him in and keeps the ball');
+
+// an interception while standing in the end zone is not a touchdown: everyone lines up on that 20
+check(FM::twentyLine('w', 0) === 4 && FM::twentyLine('w', 13) === 10 && FM::twentyLine('b', 13) === 3 && FM::twentyLine('b', 0) === 9, 'the 20, from either end');
+$bz = $empty;
+$bz[6][3] = ['side' => 'w', 'kind' => 'k', 'id' => 'e1', 'ball' => true, 'held' => 0];
+$bz[12][4] = ['side' => 'w', 'kind' => 'p', 'id' => 'e2'];
+$bz[13][4] = ['side' => 'b', 'kind' => 'p', 'id' => 'e7'];
+$bz[0][0] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];
+$sZ = $at($bz, 'w', $t + 93000);
+$scZ = $sZ['score']['w'];
+FM::$dice = static fn (): float => 0.0;
+check(FM::act($sZ, 'w', ['t' => 'pass', 'from' => [6, 3], 'to' => [12, 4]], $t + 93000) === null && $sZ['phase'] === 'steal', 'pass into the end zone with a defender standing in it');
+$zu = (int) $sZ['until'];
+FM::advance($sZ, $zu);
+check($sZ['phase'] === 'dead' && $sZ['score']['w'] === $scZ && $sZ['score']['b'] === 0 && (int) ($sZ['next']['line'] ?? 0) === FM::twentyLine('b', 13) && empty($sZ['next']['all']), 'end-zone interception is not a score');
+FM::advance($sZ, $zu + 2200);
+$hbZ = $ballAt($sZ['board']);
+check(count($men($sZ['board'])) === 32 && ($sZ['board'][10][4]['side'] ?? '') === 'b' && ($sZ['board'][10][4]['kind'] ?? '') === 'p' && ($hbZ[2]['kind'] ?? '') === 'k' && ($hbZ[2]['side'] ?? '') === 'b' && (int) ($sZ['down'] ?? 0) === 1, 'both teams line up on that 20, their king has the ball, 1st down');
+FM::$dice = static fn (): float => 99.0;
 
 // leaving
 $r = FM::resignFootball('u2', ['gameId' => $gid]);

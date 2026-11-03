@@ -870,10 +870,25 @@ function footballStart(holder: Side = "w", line = FB_KICK_LINE, alive: FBoard | 
   return { board, loose: null };
 }
 
-/** Owner t239u: the ball carrier was tackled on row `row` (or the king put the ball down there): everyone still
+/** The ball carrier was tackled on row `row` (or the king put the ball down there): everyone still
  *  in the game lines up there, `off` (the team with the ball now) on its side. Same as FootballMatch::lineUpAt. */
 function shiftBoard(b: FBoard, row: number, off: Side): FBoard {
   return footballStart(off, off === "w" ? row : F_ROWS - 1 - row, b).board;
+}
+
+/** A tackled king is not out. Put him on the square the tackler just left. */
+function parkKing(b: FBoard, victim: FUnit | null | undefined, from: [number, number]) {
+  if (!victim || victim.kind !== "k" || !victim.id) return;
+  for (const row of b) for (const u of row) if (u?.kind === "k" && u.id === victim.id && u.side === victim.side) return;
+  const parked: FUnit = { side: victim.side, kind: "k", id: victim.id, ball: false, held: 0 };
+  if (!b[from[0]][from[1]]) {
+    b[from[0]][from[1]] = parked;
+    return;
+  }
+  for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (!b[r][f]) {
+    b[r][f] = parked;
+    return;
+  }
 }
 
 /** Field goal odds in % (owner t238u): the king may kick from anywhere; 95% next to the end zone, 5% from his own end.
@@ -898,7 +913,6 @@ function fMoves(b: FBoard, r: number, f: number): [number, number][] {
   const push = (rr: number, ff: number) => {
     if (!onBoard(rr, ff, F_ROWS, F_COLS)) return;
     const t = b[rr][ff];
-    if (t?.kind === "k") return;
     if (!t || t.side !== u.side) out.push([rr, ff]);
   };
   const slide = (dr: number, df: number) => {
@@ -908,7 +922,7 @@ function fMoves(b: FBoard, r: number, f: number): [number, number][] {
       const t = b[rr][ff];
       if (!t) out.push([rr, ff]);
       else {
-        if (t.side !== u.side && t.kind !== "k") out.push([rr, ff]);
+        if (t.side !== u.side) out.push([rr, ff]);
         break;
       }
       rr += dr;
@@ -922,7 +936,7 @@ function fMoves(b: FBoard, r: number, f: number): [number, number][] {
     for (const df of [-1, 1]) {
       const ff = f + df;
       const t = onBoard(rr, ff, F_ROWS, F_COLS) ? b[rr][ff] : null;
-      if (t && t.side !== u.side && t.kind !== "k") out.push([rr, ff]);
+      if (t && t.side !== u.side) out.push([rr, ff]);
     }
   } else if (u.kind === "n") {
     for (const [dr, df] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]] as const) push(r + dr, f + df);
@@ -941,7 +955,7 @@ function fMoves(b: FBoard, r: number, f: number): [number, number][] {
  * Turnover risk (owner t237u), the same numbers as FootballMatch.php: a base plus the chess value of the
  * defenders within 2 squares (full weight next to the spot, less 2 away), capped at 50%. Nobody near = 0%.
  */
-const FB_VALUE: Record<Kind, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 4 };
+const FB_VALUE: Record<Kind, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const FB_RISK = {
   run: { base: 2, near: 1.5, far: 0.5 },
   tackle: { base: 10, near: 3, far: 1.5 },
@@ -1008,6 +1022,23 @@ function inEnd(side: Side, r: number) {
   return side === "w" ? r >= 12 : r <= 1;
 }
 
+/** A touchdown. Field goals stay 3. */
+const TD_PTS = 7;
+
+/** Interception in an end zone: that end's painted 20, as a formation line for the team that just got the ball. */
+function twentyLine(off: Side, r: number) {
+  const front = r <= 1 ? 4 : 10;
+  const y = off === "w" ? front : F_ROWS - 1 - front;
+  return Math.max(2, Math.min(F_ROWS - 4, y));
+}
+
+function downName(n: number) {
+  const k = Math.max(1, n);
+  const teen = k % 100;
+  const suf = teen >= 11 && teen <= 13 ? "th" : k % 10 === 1 ? "st" : k % 10 === 2 ? "nd" : k % 10 === 3 ? "rd" : "th";
+  return `${k}${suf} down`;
+}
+
 type FFrame = { board: FBoard; loose: [number, number] | null; cue: MoveCue | null; at?: number };
 type Phase = "count" | "play" | "celebrate" | "replay" | "kick";
 type Banner = { side: Side; text: string; small?: boolean };
@@ -1058,20 +1089,21 @@ function Scoreboard({ home, away, score, clock, shot }: { home: FootballTeam; aw
 /** The rules, shown under the "Rules" button (owner t235u–t239u). */
 const FOOTBALL_RULES = [
   "The teams start lined up facing each other, two empty rows apart, with the ball in the king's hands. Carry it into the other end zone for a touchdown (7 points).",
-  "Pick a player and move him like his chess piece. Players stay where they are after every move. There are no downs.",
+  "Pick a player and move him like his chess piece. Players stay where they are after every move. The down is at the bottom of the screen. Keep the ball on a tackle and it is the next down. A turnover or a score starts over at 1st down.",
   "Passing: tap your ball carrier. The teammates you can pass to glow yellow with a 🏈 over them: tap one and the ball goes to him. A teammate right next to him = a hand-off. (Or press 🏈 Pass to see only the pass targets.)",
   "The king can throw to any of his players, forward too. Everyone else can only throw backward or sideways.",
-  "Land on an enemy player to tackle him. He is out until the next touchdown or turnover, and the tackler stays on that square.",
+  "Land on an enemy player to tackle him. He is out until the next touchdown or turnover, and the tackler stays on that square. You can tackle the king anywhere, with the same chance of a fumble. A tackled king is not out: he lines up on the next down, and if his team kept the ball he has it.",
   "Tackle the player with the ball and the play stops: everyone still in the game lines up again at that yard line, two rows apart. He might fumble: then the tacklers' king gets the ball, otherwise his own king does.",
   "Every run and every pass is a risk: the more (and the stronger) enemy players are near, the bigger the chance of a fumble or an interception. A queen is scarier than a pawn! The risk is shown before you move.",
-  "Throw to a teammate who is already in the end zone: touchdown! Unless a defender is near him, then it can be intercepted.",
+  "Throw to a teammate who is already in the end zone: touchdown! Unless a defender is near him, then it can be intercepted. An interception while the defender is standing in an end zone is not a score. Both teams line up on that end's 20.",
   "Jump with SPACE or a right-click while an enemy pass flies over one of your players: it makes an interception much more likely.",
   "The king can kick a field goal (3 points) from anywhere. The closer he is, the better the chance (shown on the button). Make it or miss it, the other team gets the ball.",
   "After a touchdown, a field goal, an interception or a fumble on a run, everyone on both teams comes back in the start line-up.",
-  "Kings cannot be tackled. A king who holds the ball for 3 moves puts it down: both teams line up at his yard line and he gets it back.",
+  "A king who holds the ball for 3 moves puts it down: both teams line up at his yard line, it is the next down, and he gets it back.",
   "Take more than 5 seconds and the other team sneaks in one bonus move. The game lasts 10 minutes.",
   "If the clock hits 0:00 and the score is tied, big text says OVERTIME, everyone restarts in the middle, and the next touchdown wins.",
   "On a computer, double-click your man on your turn to walk him: W forward, A left, S back, D right, Space to jump and catch. That sticks for the rest of the game until Esc. A tablet just taps.",
+  "Against MorseBot you can pause. The clock, the 5-second bonus, and the bot all wait until you resume.",
 ];
 
 const RANK_FLIP: Record<string, string> = { "1": "8", "2": "7", "7": "2", "8": "1" };
@@ -1124,7 +1156,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
   const [left, setLeft] = useState(GAME_SECONDS);
   const [call, setCall] = useState<string | null>(null);
   const [kings, setKings] = useState<{ w: KingDress | null; b: KingDress | null }>({ w: null, b: null });
-  const kit = useRef({ celebrate: "fireworks", song: "song-none" });
+  const kit = useRef({ celebrate: "fireworks", song: "song-walking" });
   const clockFlags = useRef({ min: false, horn: false });
   const [over, setOver] = useState("");
   const [ot, setOt] = useState(false);
@@ -1169,6 +1201,17 @@ export function Football({ versus, online }: { versus: string; online?: string }
   const [winner, setWinner] = useState<Side | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [rules, setRules] = useState(false);
+  const [down, setDown] = useState(1);
+  const downRef = useRef(1);
+  function setDownN(n: number) {
+    const v = Math.max(1, Math.round(n) || 1);
+    downRef.current = v;
+    setDown(v);
+  }
+  const vsBot = !online && /morsebot/i.test(versus.replace(/\s+/g, ""));
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
   const [, setMpTick] = useState(0);
   const navigate = useNavigate();
   const names = prefs?.names?.[prefs.board] ?? {};
@@ -1213,6 +1256,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     crowd.current = audio;
     audio.start();
     audio.set("count");
+    primeReplaySong(kit.current.song);
     return () => {
       timers.current.forEach((id) => window.clearTimeout(id));
       audio.stop();
@@ -1228,8 +1272,9 @@ export function Football({ versus, online }: { versus: string; online?: string }
       .then((row: { loadout?: AvatarLoadout } | null) => {
         const o = row?.loadout;
         if (!o) return;
-        kit.current = { celebrate: o.fbCelebrate || "fireworks", song: o.fbSong || "song-none" };
-        primeReplaySong(kit.current.song);
+        const song = !o.fbSong || o.fbSong === "song-none" ? "song-walking" : o.fbSong;
+        kit.current = { celebrate: o.fbCelebrate || "fireworks", song };
+        primeReplaySong(song);
         setKings((k) => ({ ...k, w: { body: o.lgBody, head: o.lgHead, hair: o.lgHair, legs: o.lgLegs, weapon: o.lgWeapon, lg: o.style === "lg" } }));
       })
       .catch(() => undefined);
@@ -1281,8 +1326,9 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }, [go]);
 
   useEffect(() => {
-    if (over || phase !== "play" || online || ot) return; // online: the server keeps the clock
+    if (over || phase !== "play" || online || ot || paused) return; // online: the server keeps the clock
     const id = window.setInterval(() => {
+      if (pausedRef.current) return;
       setLeft((n) => {
         if (n <= 1) {
           if (!otRef.current && now.current.score.w === now.current.score.b) window.setTimeout(() => beginOvertime(), 0);
@@ -1293,7 +1339,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [over, phase, online, ot]);
+  }, [over, phase, online, ot, paused]);
 
   // Small clock callouts: "1 minute left", a horn at 30, then 10 … 1.
   useEffect(() => {
@@ -1333,9 +1379,9 @@ export function Football({ versus, online }: { versus: string; online?: string }
 
   // the 5-second shot clock: while it is your move, every 5 s the other team sneaks in one move
   useEffect(() => {
-    if (over || phase !== "play" || turn !== "w" || setup || online) return;
+    if (over || phase !== "play" || turn !== "w" || setup || online || paused) return;
     const id = window.setInterval(() => {
-      if ((window as unknown as { __fbNoShot?: boolean }).__fbNoShot) return;
+      if (pausedRef.current || (window as unknown as { __fbNoShot?: boolean }).__fbNoShot) return;
       const s = now.current;
       if (phaseRef.current !== "play" || s.turn !== "w" || s.over) return;
       setShotTick((n) => n + 1);
@@ -1343,7 +1389,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     }, SHOT_CLOCK_MS);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [over, phase, turn, setup]);
+  }, [over, phase, turn, setup, paused]);
 
   /** The crowd never goes quiet on a move (owner, v3); a big play lifts it a little. */
   function playSound(next: MoveCue) {
@@ -1375,7 +1421,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
 
   /** The play is over (the ball carrier tackled, the king putting the ball down, a turnover): show it for a
    *  moment, then the next play (owner t238u: a slide to the yard line, or everyone back on a turnover). */
-  function deadBall(b: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, mover: Side, row: number, holder: Side, text: string, first: Side, all = false) {
+  function deadBall(b: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, mover: Side, row: number, holder: Side, text: string, first: Side, all = false, line: number | null = null, firstDown = false) {
     setBoard(b);
     setLoose(ball);
     setScore(scored);
@@ -1386,14 +1432,16 @@ export function Football({ versus, online }: { versus: string; online?: string }
     setBanner({ side: holder, text, small: true });
     void mover;
     later(() => setBanner((v) => (v?.small ? null : v)), 1900);
-    later(() => scrimmage(row, holder, scored, first, b, all), 1500);
+    later(() => scrimmage(row, holder, scored, first, b, all, line, firstDown), 1500);
   }
 
-  function scrimmage(row: number, holder: Side, scored: { w: number; b: number }, first: Side, alive: FBoard, all = false) {
+  function scrimmage(row: number, holder: Side, scored: { w: number; b: number }, first: Side, alive: FBoard, all = false, line: number | null = null, firstDown = false) {
     // an interception or a fumble on a run brings everyone back; a tackled ball carrier (owner t239u) means
-    // everyone left lines up at that yard line, the king of the team with the ball holding it
-    const next = all ? footballStart(holder) : { board: shiftBoard(alive, row, holder), loose: null };
-    if (all) {
+    // everyone left lines up at that yard line, the king of the team with the ball holding it.
+    // An end-zone interception uses that end's 20 and brings everyone back.
+    const next = line != null ? footballStart(holder, line) : all ? footballStart(holder) : { board: shiftBoard(alive, row, holder), loose: null };
+    setDownN(firstDown || all || line != null ? 1 : downRef.current + 1);
+    if (all || line != null) {
       setBanner({ side: first, text: "Everyone's back!", small: true });
       later(() => setBanner((v) => (v?.small ? null : v)), 1900);
     }
@@ -1432,6 +1480,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     tdLock.current = false;
     tryRef.current = null;
     setTryFor(null);
+    setDownN(1);
     setPhase("play");
     phaseRef.current = "play";
     setBoard(next);
@@ -1679,19 +1728,19 @@ export function Football({ versus, online }: { versus: string; online?: string }
     next[from[0]][from[1]] = null;
     const held = u.kind === "k" && carry ? (u.held ?? 0) + 1 : 0;
     next[to[0]][to[1]] = { ...u, ball: carry, held };
+    parkKing(next, victim, from);
     const looseNow: [number, number] | null = carry ? null : ball && ball[0] === to[0] && ball[1] === to[1] ? null : ball;
     record(next, looseNow, c);
     playSound(c);
     if (carry && inEnd(u.side, to[0])) {
-      touchdown(next, u.side, { ...scored, [u.side]: scored[u.side] + 7 }, u);
+      touchdown(next, u.side, { ...scored, [u.side]: scored[u.side] + TD_PTS }, u);
       return;
     }
     const first = bonus ? "w" : other(u.side);
     if (sack && !tryRef.current) {
-      // the carrier is tackled and out (t235u). Fumble = turnover, everyone back; no fumble = his team keeps it there
-      // (a fumble is a fresh drive: the team that won the ball starts it, like on the server)
-      // owner t239u: fumble or not, everyone left lines up at the tackle spot
-      if (fumble) deadBall(next, null, scored, u.side, to[0], u.side, "Fumble! Turnover", u.side);
+      // the carrier is tackled and out (t235u), unless he is the king: a king lines up again.
+      // Fumble = turnover, 1st down. No fumble = his team keeps it and the down ticks on.
+      if (fumble) deadBall(next, null, scored, u.side, to[0], u.side, "Fumble! Turnover", u.side, false, null, true);
       else deadBall(next, null, scored, u.side, to[0], other(u.side), "Tackled! Ball kept", first);
       return;
     }
@@ -1742,7 +1791,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
       const air = 0.55 + Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.06;
       pendingTd.current = later(() => {
         pendingTd.current = null;
-        touchdown(scoring, catcher.side, { ...scored, [catcher.side]: scored[catcher.side] + 7 }, catcher);
+        touchdown(scoring, catcher.side, { ...scored, [catcher.side]: scored[catcher.side] + TD_PTS }, catcher);
       }, Math.max(900, air * 1000 + 950));
       setBoard(next);
       setLoose(null);
@@ -1761,7 +1810,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
    */
   function jump() {
     const s = now.current;
-    if (s.over || (phaseRef.current !== "play" && pendingTd.current == null)) return;
+    if (pausedRef.current || s.over || (phaseRef.current !== "play" && pendingTd.current == null)) return;
     const live = s.board;
     const fl = FLIGHT;
     let pick: { r: number; f: number; id: string } | null = null;
@@ -1846,22 +1895,19 @@ export function Football({ versus, online }: { versus: string; online?: string }
     setShotTick((n) => n + 1);
     setBanner({ side, text: "Interception!", small: true });
     later(() => setBanner((v) => (v?.small ? null : v)), 1600);
-    if (inEnd(side, pick.r)) {
-      later(() => touchdown(next, side, { ...now.current.score, [side]: now.current.score[side] + 7 }, next[pick.r][pick.f]!), 700);
+    if (pick.r <= 1 || pick.r >= F_ROWS - 2) {
+      later(() => deadBall(next, null, now.current.score, other(side), pick.r, side, "Interception!", side, false, twentyLine(side, pick.r)), 650);
       return;
     }
-    // Intercept in own end zone: touchback, line up on the 20
-    const ownEnd = side === "w" ? pick.r <= 1 : pick.r >= F_ROWS - 2;
-    const lineRow = ownEnd ? (side === "w" ? 2 : F_ROWS - 3) : pick.r;
-    // a turnover ends the play (t207u) and brings everyone back (t237u): new line where he caught it (or the 20 on a touchback), his ball
-    if (!tryRef.current) later(() => deadBall(next, null, now.current.score, other(side), lineRow, side, "Interception!", side, true), 650);
+    // a turnover ends the play (t207u) and brings everyone back (t237u)
+    if (!tryRef.current) later(() => deadBall(next, null, now.current.score, other(side), pick.r, side, "Interception!", side, true), 650);
   }
   const jumpRef = useRef(jump);
   jumpRef.current = jump;
 
   /** Computer only. Double-click on your turn: walk that man for the rest of the game, until Esc. */
   function grabStick(r: number, f: number) {
-    if (padRef.current || now.current.over || phaseRef.current !== "play") return;
+    if (pausedRef.current || padRef.current || now.current.over || phaseRef.current !== "play") return;
     if (!(now.current.turn === "w" || bonusReady())) return;
     const u = now.current.board[r]?.[f];
     if (!u || u.side !== "w" || !u.id) return;
@@ -1874,7 +1920,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
 
   /** W forward (toward the far end), S back, A left, D right. One square. Space can step onto a loose ball. */
   function stepWalk(dir: "w" | "a" | "s" | "d" | "ball") {
-    if (!stickRef.current || padRef.current) return;
+    if (!stickRef.current || padRef.current || pausedRef.current) return;
     if (now.current.over || phaseRef.current !== "play") return;
     if (!(now.current.turn === "w" || bonusReady())) return;
     if (mp.current.sending) return;
@@ -1950,7 +1996,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }, []);
 
   function botFootball(live: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, bonus = false) {
-    if (phaseRef.current !== "play" || online) return;
+    if (phaseRef.current !== "play" || online || pausedRef.current) return;
     type Act = { kind: "m" | "t" | "g"; from: [number, number]; to: [number, number]; rank: number };
     const acts: Act[] = [];
     const hb = findBall(live);
@@ -1997,7 +2043,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }
 
   function onSquare(r: number, f: number) {
-    if (over || !(turn === "w" || bonusReady()) || phase !== "play" || setup) return;
+    if (pausedRef.current || over || !(turn === "w" || bonusReady()) || phase !== "play" || setup) return;
     const u = board[r][f];
     // owner t239u: with the ball carrier picked, tapping a glowing teammate passes to him (next to him = a hand-off)
     if (sel && board[sel[0]][sel[1]]?.side === "w" && catchSquares(board, sel[0], sel[1]).some(([rr, ff]) => rr === r && ff === f)) {
@@ -2026,8 +2072,21 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }
 
   function kick(from: [number, number]) {
+    if (pausedRef.current) return;
     if (online) void send({ t: "goal", from: mSq(from, mp.current.flip) });
     else fieldGoal(from);
+  }
+
+  function togglePause() {
+    const next = !pausedRef.current;
+    pausedRef.current = next;
+    setPaused(next);
+    if (next) return;
+    window.setTimeout(() => {
+      if (pausedRef.current || phaseRef.current !== "play" || online) return;
+      const s = now.current;
+      if (s.turn === "b" && !s.over) botFootball(s.board, s.loose, s.score);
+    }, 350);
   }
 
   /** online: the other team has had the ball 5 s, so you may sneak in one move */
@@ -2271,6 +2330,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     setLeft(Math.max(0, Math.ceil(v.clockMs / 1000)));
     otRef.current = Boolean(v.ot);
     setOt((cur) => (cur === Boolean(v.ot) ? cur : Boolean(v.ot)));
+    if (typeof v.down === "number") setDownN(v.down);
     if ((m.seq === 0 && v.seq > 0 && v.phase !== "count") || v.gap) {
       // opened mid-game (a reload) or missed too much: jump straight to the board as it is now
       m.seq = v.seq;
@@ -2424,7 +2484,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     }
     const last = drive.current.plays[drive.current.plays.length - 1];
     setCue(last.cue);
-    touchdown(b, "w", { ...score, w: score.w + 7 }, b[12][f]!);
+    touchdown(b, "w", { ...score, w: score.w + TD_PTS }, b[12][f]!);
   };
   useEffect(() => {
     let on = false;
@@ -2447,7 +2507,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
       skip: () => (document.querySelector("[data-fb-replay] button") as HTMLButtonElement | null)?.click(),
       flight: () => ({ active: FLIGHT.active, u: Math.round(FLIGHT.u * 100) / 100, over: FLIGHT.over.map((m) => `${m.side}${m.r},${m.f}@${Math.round(m.u * 100) / 100}`), stolen: Boolean(FLIGHT.steal) }),
       field: (field: "neon" | "park") => setPrefs((p) => (p ? { ...p, field } : p)),
-      state: () => ({ online: Boolean(online), seq: mp.current.seq, phase: phaseRef.current, plays: drive.current.plays.length, turn: now.current.turn, over: now.current.over, sel: now.current.sel, throwBtn: Boolean(document.querySelector("[data-fb-throw]")), score: now.current.score, try: tryRef.current, t: Math.round(performance.now()), ball: findBall(now.current.board)?.u.side ?? null, risk: document.querySelector("[data-fb-risk]")?.textContent ?? null, grid: now.current.board.map((row) => row.map((u) => (u ? `${u.side}${u.kind}${u.ball ? "*" : ""}` : "..")).join(" ")), men: now.current.board.flat().reduce((n, u) => (u ? { ...n, [u.side]: n[u.side] + 1 } : n), { w: 0, b: 0 }) }),
+      state: () => ({ online: Boolean(online), seq: mp.current.seq, phase: phaseRef.current, plays: drive.current.plays.length, turn: now.current.turn, over: now.current.over, sel: now.current.sel, throwBtn: Boolean(document.querySelector("[data-fb-throw]")), score: now.current.score, down: downRef.current, paused: pausedRef.current, try: tryRef.current, t: Math.round(performance.now()), ball: findBall(now.current.board)?.u.side ?? null, risk: document.querySelector("[data-fb-risk]")?.textContent ?? null, grid: now.current.board.map((row) => row.map((u) => (u ? `${u.side}${u.kind}${u.ball ? "*" : ""}` : "..")).join(" ")), men: now.current.board.flat().reduce((n, u) => (u ? { ...n, [u.side]: n[u.side] + 1 } : n), { w: 0, b: 0 }) }),
     };
     return () => {
       delete w.__fb;
@@ -2650,6 +2710,16 @@ export function Football({ versus, online }: { versus: string; online?: string }
         >
           📖 Rules
         </button>
+        {vsBot && !over && (phase === "play" || paused) ? (
+          <button
+            type="button"
+            data-fb-pause
+            className="ml-2 min-h-9 rounded-full border border-line bg-ink/75 px-3 py-1 text-xs text-ivory backdrop-blur-sm"
+            onClick={togglePause}
+          >
+            {paused ? "Resume" : "Pause"}
+          </button>
+        ) : null}
       </div>
       {rules ? (
         <div className="pointer-events-auto absolute left-3 right-3 top-[9rem] z-30 max-w-md rounded-xl border border-line bg-ink/90 p-4 text-[13px] leading-snug text-cream shadow-xl backdrop-blur-sm sm:right-auto sm:top-14" data-fb-rules>
@@ -2665,6 +2735,22 @@ export function Football({ versus, online }: { versus: string; online?: string }
             ))}
             {online ? <li>Vs a player: the replay after a touchdown is skipped only when you both press Skip. No coins, no Elo.</li> : null}
           </ol>
+        </div>
+      ) : null}
+      {phase !== "count" ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-1 z-20 flex justify-center sm:bottom-2" data-fb-down>
+          <span className="rounded-full border border-white/20 bg-black/80 px-4 py-1 text-sm font-black uppercase tracking-[0.16em] text-[#ffe14a] shadow-[0_4px_16px_rgba(0,0,0,0.45)]">{downName(down)}</span>
+        </div>
+      ) : null}
+      {paused ? (
+        <div className="pointer-events-auto absolute inset-0 z-40 grid place-items-center bg-black/45" data-fb-paused>
+          <div className="rounded-2xl border border-white/20 bg-black/80 px-8 py-6 text-center shadow-xl">
+            <p className="font-display text-4xl text-ivory">Paused</p>
+            <p className="mt-1 text-sm text-white/70">The clock and {vsName} are waiting.</p>
+            <button type="button" className="mt-4 min-h-12 rounded-full bg-[#ffe14a] px-6 text-sm font-black uppercase tracking-[0.14em] text-ink" onClick={togglePause}>
+              Resume
+            </button>
+          </div>
         </div>
       ) : null}
       {online && bonus && !over ? (

@@ -298,10 +298,10 @@ export const FB_CELEBRATIONS: GearItem[] = [
   { id: "pirate", name: "Pirate", price: 6, portrait: "", blurb: "The captain runs the goal line." },
 ];
 
-/** Replay songs. More can be added later. Walking Down the Street In a Car is 10 Morse coins. */
+/** Replay songs. Walking Down the Street In a Car is free in football. */
 export const FB_SONGS: GearItem[] = [
   { id: "song-none", name: "Crowd only", price: 0, portrait: "", blurb: "Just the stadium. Free." },
-  { id: "song-walking", name: "Walking Down the Street In a Car", price: 10, portrait: "", blurb: "Plays through the replay of a score." },
+  { id: "song-walking", name: "Walking Down the Street In a Car", price: 0, portrait: "", blurb: "Free. Plays through the replay of a touchdown." },
 ];
 
 export type KingFinish = GearItem & {

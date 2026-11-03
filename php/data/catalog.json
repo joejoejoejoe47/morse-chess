@@ -384,7 +384,7 @@
       ],
       "songs": [
         { "id": "song-none", "price": 0 },
-        { "id": "song-walking", "price": 10 }
+        { "id": "song-walking", "price": 0 }
       ]
     },
     "legacy": {

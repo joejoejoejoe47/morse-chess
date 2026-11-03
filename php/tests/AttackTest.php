@@ -21,7 +21,7 @@ check(Catalog::parseLoadout([])['lgAttackId'] === 'lg-none', 'lg attack default'
 check(Catalog::parseLoadout(['lgAttackId' => 'nope'])['lgAttackId'] === 'lg-none', 'unknown lg attack');
 check(Catalog::parseLoadout([])['fbCelebrate'] === 'fireworks', 'fireworks is the celebration you own');
 check(Catalog::parseLoadout([])['fbSong'] === 'song-none', 'replay song defaults to the crowd');
-check(Catalog::gearPrice('song-walking') === 10, 'walking down the street costs 10 coins');
+check(Catalog::gearPrice('song-walking') === 0, 'walking down the street is free');
 
 // Free attacks can be worn without buying; paid ones fall back until bought.
 $row = Avatar::saveAvatar('u1', ['loadout' => ['attackId' => 'kick', 'lgAttackId' => 'shield-block']]);
