@@ -1043,6 +1043,13 @@ final class FootballMatch
 
     private static function deadBall(array &$s, int $at, int $wait, int $row, string $holder, string $first, string $text, string $mover, bool $all = false, ?int $line = null, bool $firstDown = false): void
     {
+        // Tackled (or the king puts it down) on 4th down: turnover. There is no 5th down.
+        if (!($firstDown || $all || $line !== null) && (int) ($s['down'] ?? 1) >= 4) {
+            $holder = self::other($holder);
+            $first = $holder;
+            $text = 'Turnover on downs!';
+            $firstDown = true;
+        }
         self::stopClock($s, $at);
         $s['phase'] = 'dead';
         $s['until'] = $at + $wait;

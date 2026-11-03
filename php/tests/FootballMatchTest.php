@@ -141,6 +141,26 @@ check(($sF['events'][count($sF['events']) - 1]['fresh'] ?? true) === false, 'tac
 FM::advance($sF, $t + 11100 + 1500 + 1300);
 check($sF['phase'] === 'play', 'snap');
 
+// tackled on 4th down: the other team gets the ball. There is no 5th down.
+$s4 = $at($b, 'b', $t + 11200);
+$s4['down'] = 4;
+check(FM::act($s4, 'b', ['t' => 'move', 'from' => [7, 4], 'to' => [6, 3]], $t + 11300) === null && $s4['phase'] === 'dead', '4th-down tackle');
+$dead4 = null;
+foreach ($s4['events'] as $ev) {
+    if ($ev['t'] === 'dead') {
+        $dead4 = $ev;
+    }
+}
+check(($dead4['text'] ?? '') === 'Turnover on downs!' && ($s4['next']['holder'] ?? '') === 'b' && !empty($s4['next']['firstDown']), '4th down is a turnover');
+FM::advance($s4, $t + 11300 + 1500);
+$hb4 = $ballAt($s4['board']);
+check($s4['turn'] === 'b' && (int) ($s4['down'] ?? 0) === 1 && ($hb4[2]['side'] ?? '') === 'b' && ($hb4[2]['kind'] ?? '') === 'k', 'after 4th down their king has the ball, 1st down');
+$s3 = $at($b, 'b', $t + 11400);
+$s3['down'] = 3;
+check(FM::act($s3, 'b', ['t' => 'move', 'from' => [7, 4], 'to' => [6, 3]], $t + 11500) === null && ($s3['next']['holder'] ?? '') === 'w' && empty($s3['next']['firstDown']), '3rd down tackle keeps the ball');
+FM::advance($s3, $t + 11500 + 1500);
+check((int) ($s3['down'] ?? 0) === 4 && $s3['turn'] === 'w', 'a 3rd-down tackle is 4th down');
+
 // a lineup for black (the board is flipped for them)
 $b = $empty;
 $b[12][4] = ['side' => 'b', 'kind' => 'k', 'id' => 'e8'];

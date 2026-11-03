@@ -1089,7 +1089,7 @@ function Scoreboard({ home, away, score, clock, shot }: { home: FootballTeam; aw
 /** The rules, shown under the "Rules" button (owner t235u–t239u). */
 const FOOTBALL_RULES = [
   "The teams start lined up facing each other, two empty rows apart, with the ball in the king's hands. Carry it into the other end zone for a touchdown (7 points).",
-  "Pick a player and move him like his chess piece. Players stay where they are after every move. The down is at the bottom of the screen. Keep the ball on a tackle and it is the next down. A turnover or a score starts over at 1st down.",
+  "Pick a player and move him like his chess piece. Players stay where they are after every move. The down is at the bottom of the screen: 1st, 2nd, 3rd, 4th. Keep the ball on a tackle and it is the next down. Tackled on 4th down, the other team gets the ball. There is no 5th down. A turnover or a score starts over at 1st down.",
   "Passing: tap your ball carrier. The teammates you can pass to glow yellow with a 🏈 over them: tap one and the ball goes to him. A teammate right next to him = a hand-off. (Or press 🏈 Pass to see only the pass targets.)",
   "The king can throw to any of his players, forward too. Everyone else can only throw backward or sideways.",
   "Land on an enemy player to tackle him. He is out until the next touchdown or turnover, and the tackler stays on that square. You can tackle the king anywhere, with the same chance of a fumble. A tackled king is not out: he lines up on the next down, and if his team kept the ball he has it.",
@@ -1099,7 +1099,7 @@ const FOOTBALL_RULES = [
   "Jump with SPACE or a right-click while an enemy pass flies over one of your players: it makes an interception much more likely.",
   "The king can kick a field goal (3 points) from anywhere. The closer he is, the better the chance (shown on the button). Make it or miss it, the other team gets the ball.",
   "After a touchdown, a field goal, an interception or a fumble on a run, everyone on both teams comes back in the start line-up.",
-  "A king who holds the ball for 3 moves puts it down: both teams line up at his yard line, it is the next down, and he gets it back.",
+  "A king who holds the ball for 3 moves puts it down: both teams line up at his yard line and it is the next down. On 4th down the other team gets the ball.",
   "Take more than 5 seconds and the other team sneaks in one bonus move. The game lasts 10 minutes.",
   "If the clock hits 0:00 and the score is tied, big text says OVERTIME, everyone restarts in the middle, and the next touchdown wins.",
   "On a computer, double-click your man on your turn to walk him: W forward, A left, S back, D right, Space to jump and catch. That sticks for the rest of the game until Esc. A tablet just taps.",
@@ -1422,6 +1422,13 @@ export function Football({ versus, online }: { versus: string; online?: string }
   /** The play is over (the ball carrier tackled, the king putting the ball down, a turnover): show it for a
    *  moment, then the next play (owner t238u: a slide to the yard line, or everyone back on a turnover). */
   function deadBall(b: FBoard, ball: [number, number] | null, scored: { w: number; b: number }, mover: Side, row: number, holder: Side, text: string, first: Side, all = false, line: number | null = null, firstDown = false) {
+    // 4th down and they did not score or turn it over already: the other team takes over. Never a 5th down.
+    if (!(firstDown || all || line != null) && downRef.current >= 4) {
+      holder = other(holder);
+      first = holder;
+      text = "Turnover on downs!";
+      firstDown = true;
+    }
     setBoard(b);
     setLoose(ball);
     setScore(scored);
@@ -1575,6 +1582,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     later(() => {
       setBanner({ side: scorer, text: "Touchdown!" });
       playScoreSound(meId.current);
+      playReplaySong(kit.current.song);
       showCelebrate(id, endZ, 1);
       crowd.current?.set("swell");
     }, 180);
@@ -1632,7 +1640,6 @@ export function Football({ versus, online }: { versus: string; online?: string }
     resume.current = finish;
     const BEGIN = 3400;
     later(() => {
-      playReplaySong(kit.current.song);
       setBanner(null);
       setPhase("replay");
       phaseRef.current = "replay";
