@@ -57,6 +57,7 @@ import { RaBuy } from "@/components/avatar/ra-buy";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
+import { useFairPlayFocus } from "@/lib/fair-play";
 
 const PULL_LINES = ["WOW! Great Move!", "NOOOOO!", "Good Game!!!", "Nice!"] as const;
 
@@ -461,6 +462,9 @@ export function GameView({ gameId }: { gameId: string }) {
       playResult(me, snap.status === "draw" ? "draw" : won ? "win" : "loss");
     }
   }
+
+  // Fair play: tell the server when this tab is left during your own rated move.
+  useFairPlayFocus(game);
 
   useEffect(() => {
     if (wash !== "color" || prefs.roomScene !== "photo" || !prefs.roomImage) return;

@@ -51,6 +51,9 @@ final class Mores
         'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR b KQkq' => ['e7e5', 'g8f6', 'c7c5'],
     ];
 
+    /** Shown to an account a human fair-play review has banned from online games. */
+    public const FAIR_PLAY_BAN_MSG = 'Your account can no longer play online games because of a fair-play review.';
+
     public static function register(): void
     {
         // usernameAvailable runs before sign-in (the sign-up form), so no session is required.
@@ -345,6 +348,8 @@ final class Mores
         Db::run('UPDATE games SET last_prize = ? WHERE id = ?', [$whiteDelta, $game['id']]);
         $game['last_prize'] = $whiteDelta;
         $game['scored'] = 1;
+        // Fair play (t255u): queue rated human-vs-human games for the cheat checks (no effect on the result).
+        FairPlay::onRatedGameEnd($game, $whiteDelta);
     }
 
     private static function finishGame(array &$game, string $status, ?string $winnerUserId, bool $checkmate = false): void
@@ -1061,6 +1066,9 @@ final class Mores
             ], $chatRows),
             'scorePrize' => $prize === null ? null : ($you === 'w' ? self::toInt($prize, 0) : -self::toInt($prize, 0)),
             'pull' => Db::bool($fresh['pull'] ?? 0),
+            // Fair play: rated = online normal chess vs a person. Coaching, hints and engine help are off in it.
+            'rated' => FairPlay::isRated($fresh),
+            'coachAllowed' => !FairPlay::isRated($fresh) || (string) $fresh['status'] !== 'active',
             'coins' => $me['coins'] ?? 0,
             'coinAward' => $fresh['winner_user_id'] === $userId ? self::toInt($fresh['coin_award'] ?? null, 0) : 0,
             'ownedBoards' => self::ownedList($me['owned_boards'] ?? ''),
@@ -1339,6 +1347,9 @@ final class Mores
         if ($profile === null) {
             throw new RpcError('Choose a club name first.');
         }
+        if (FairPlay::isBanned($userId)) {
+            throw new RpcError(self::FAIR_PLAY_BAN_MSG);
+        }
         $active = self::activeGameIdFor($userId);
         if ($active !== null) {
             return ['gameId' => $active];
@@ -1423,6 +1434,9 @@ final class Mores
         if (Constants::isBotUserId($toId)) {
             return ['ok' => true, 'gameId' => self::insertGame($userId, $toId, $mode, false, Constants::TURN_MS, '', null, $variant)];
         }
+        if (FairPlay::isBanned($userId)) {
+            return ['ok' => false, 'error' => self::FAIR_PLAY_BAN_MSG];
+        }
         $pending = Db::one(
             "SELECT 1 AS x FROM challenges WHERE from_user_id = ? AND to_user_id = ? AND status = 'pending' LIMIT 1",
             [$userId, $toId]
@@ -1460,6 +1474,10 @@ final class Mores
         }
         $from = (string) $ch['from_user_id'];
         $to = (string) $ch['to_user_id'];
+        if (FairPlay::isBanned($from) || FairPlay::isBanned($to)) {
+            Db::run("UPDATE challenges SET status = 'cancelled' WHERE id = ?", [$ch['id']]);
+            return ['ok' => false, 'error' => FairPlay::isBanned($to) ? self::FAIR_PLAY_BAN_MSG : 'That player cannot play online games right now.'];
+        }
         $isPull = ($ch['kind'] ?? null) === 'pull';
         if ($isPull) {
             $avoid = self::lastHumanOpponent($from);
@@ -1793,6 +1811,9 @@ final class Mores
         if ($g !== null) {
             if ($g['white_user_id'] !== $userId && $g['black_user_id'] !== $userId) {
                 return null;
+            }
+            if ($g['status'] === 'active') {
+                return null; // fair play: no engine review of a game that is still being played
             }
             $card = self::historyCard($g, $userId);
             $white = self::historyPeople((string) $g['white_user_id']);

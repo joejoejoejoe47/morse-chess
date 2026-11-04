@@ -36,6 +36,10 @@ export type GameSnapshot = {
   chat: { id: number; from: string; text: string; image: string | null }[];
   scorePrize: number | null;
   pull: boolean;
+  /** Fair play: online normal chess vs a person (rating counts). */
+  rated?: boolean;
+  /** False while a rated game is being played: no coach, hints or engine help. */
+  coachAllowed?: boolean;
   coins: number;
   coinAward: number;
   ownedBoards: string[];
@@ -80,6 +84,7 @@ export type HomeState = {
 export type ClubUserRow = { username: string; score: number; online: boolean };
 
 export const usernameAvailable = rpc("usernameAvailable");
+export const reportFocus = rpc("reportFocus");
 export const claimUsername = rpc("claimUsername");
 export const getPurse = rpc("getPurse");
 export const getHomeState = rpc("getHomeState");
