@@ -1266,7 +1266,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
   }, []);
   function dressOf(raw: unknown): KingDress | null {
     const o = parseLoadout(raw);
-    return { body: o.lgBody, head: o.lgHead, hair: o.lgHair, legs: o.lgLegs, weapon: o.lgWeapon, lg: o.style === "lg" };
+    return { body: o.lgBody, head: o.lgHead, hair: o.lgHair, legs: o.lgLegs, weapon: o.lgWeapon, lg: o.style === "lg", an: { anId: o.anId, crownId: o.crownId, attackId: o.attackId } };
   }
   useEffect(() => {
     void getAvatar()
@@ -1276,7 +1276,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
         const song = !o.fbSong || o.fbSong === "song-none" ? "song-walking" : o.fbSong;
         kit.current = { celebrate: o.fbCelebrate || "fireworks", song };
         primeReplaySong(song);
-        setKings((k) => ({ ...k, w: { body: o.lgBody, head: o.lgHead, hair: o.lgHair, legs: o.lgLegs, weapon: o.lgWeapon, lg: o.style === "lg" } }));
+        setKings((k) => ({ ...k, w: dressOf(o) }));
       })
       .catch(() => undefined);
   }, []);
