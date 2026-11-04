@@ -418,3 +418,73 @@ CREATE TABLE IF NOT EXISTS `football_history` (
   KEY `football_history_white_idx` (`white_user_id`, `created_at`),
   KEY `football_history_black_idx` (`black_user_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Fair play (owner t255u): Chess.com-style cheat detection for rated human-vs-human games. ──
+-- One row per player per finished rated game. Engine fields stay NULL until the worker
+-- (php/bin/fairplay-worker.php) has analysed the game with Stockfish.
+CREATE TABLE IF NOT EXISTS `fairplay_games` (
+  `game_id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'pending',
+  `rating_before` INT NULL,
+  `rating_delta` INT NULL,
+  `engine_moves` INT NULL,
+  `top1` DOUBLE NULL,
+  `top3` DOUBLE NULL,
+  `acpl` DOUBLE NULL,
+  `think_moves` INT NULL,
+  `think_mean_ms` INT NULL,
+  `think_cv` DOUBLE NULL,
+  `focus_events` INT NOT NULL DEFAULT 0,
+  `focus_ms` INT NOT NULL DEFAULT 0,
+  `focus_moves` INT NOT NULL DEFAULT 0,
+  `own_moves` INT NOT NULL DEFAULT 0,
+  `attempts` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL,
+  `analyzed_at` DATETIME(3) NULL,
+  PRIMARY KEY (`game_id`, `user_id`),
+  KEY `fairplay_games_user_idx` (`user_id`, `created_at`),
+  KEY `fairplay_games_status_idx` (`status`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tab / window focus lost during the player's own move (reported by the client, checked by the server).
+CREATE TABLE IF NOT EXISTS `fairplay_focus` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `game_id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `ply` INT NOT NULL,
+  `away_ms` INT NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fairplay_focus_game_idx` (`game_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- The account-level suspicion score and review queue. status: ok | flagged | cleared | actioned.
+CREATE TABLE IF NOT EXISTS `fairplay_accounts` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `score` INT NOT NULL DEFAULT 0,
+  `signals` TEXT NULL,
+  `games` INT NOT NULL DEFAULT 0,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'ok',
+  `flagged_at` DATETIME(3) NULL,
+  `reviewed_at` DATETIME(3) NULL,
+  `reviewed_games` INT NOT NULL DEFAULT 0,
+  `reviewer` VARCHAR(64) NULL,
+  `note` TEXT NULL,
+  `updated_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`),
+  KEY `fairplay_accounts_status_idx` (`status`, `score`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Every human review decision, for the record.
+CREATE TABLE IF NOT EXISTS `fairplay_actions` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `user_id` VARCHAR(64) NOT NULL,
+  `action` VARCHAR(32) NOT NULL,
+  `detail` TEXT NULL,
+  `reviewer` VARCHAR(64) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fairplay_actions_user_idx` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Set only by a human fair-play review: no more rated (online) games.
+ALTER TABLE `profiles` ADD COLUMN `fair_play_ban` TINYINT(1) NOT NULL DEFAULT 0;
+-- A fair-play refund already given back to this game's opponent (never twice).
+ALTER TABLE `games` ADD COLUMN `fp_refunded` TINYINT(1) NOT NULL DEFAULT 0;
