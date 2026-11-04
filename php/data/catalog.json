@@ -380,7 +380,18 @@
         { "id": "horse", "price": 6 },
         { "id": "husky", "price": 6 },
         { "id": "carrier", "price": 8 },
-        { "id": "pirate", "price": 6 }
+        { "id": "pirate", "price": 6 },
+        { "id": "cel-confetti", "price": 10 },
+        { "id": "cel-coins", "price": 10 },
+        { "id": "cel-lasers", "price": 15 },
+        { "id": "cel-thunder", "price": 15 },
+        { "id": "cel-balloons", "price": 15 },
+        { "id": "cel-blimp", "price": 15 },
+        { "id": "cel-hawks", "price": 20 },
+        { "id": "cel-whale", "price": 20 },
+        { "id": "cel-ufo", "price": 20 },
+        { "id": "cel-rocket", "price": 25 },
+        { "id": "cel-dragon", "price": 30 }
       ],
       "songs": [
         { "id": "song-none", "price": 0 },

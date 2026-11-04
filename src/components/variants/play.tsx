@@ -31,6 +31,7 @@ import { playScoreSound, preloadScoreSound, scoreSoundAllowed } from "@/lib/scor
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { FLIGHT, JUMPS, JUMP_WINDOW, fieldSpot, type KingDress } from "@/components/variants/field-units";
 import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
+import { isCelShow } from "@/lib/football/fb-gear";
 import { playReplaySong, playThirtyHorn, primeReplaySong, stopReplaySong } from "@/lib/fb-audio";
 
 type Side = "w" | "b";
@@ -1374,6 +1375,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
   function showCelebrate(id: number, z: number, level: number) {
     const kind = kit.current.celebrate || "fireworks";
     if (kind === "fireworks") setShow({ hype: { id, level }, fireworks: { id, z }, fly: null });
+    else if (isCelShow(kind)) setShow({ hype: { id, level }, fireworks: null, fly: null, celebrate: { id, kind, z } });
     else setShow({ hype: { id, level }, fireworks: null, fly: { id, kind } });
   }
 

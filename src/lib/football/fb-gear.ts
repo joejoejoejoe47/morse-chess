@@ -1,6 +1,6 @@
 /**
  * Football gear (owner t245u): touchdown celebrations and replay songs, bought with Morse coins in
- * AV > FB mode and saved in the avatar loadout (celebId, songId). Prices live here and are exported
+ * AV > FB mode and added to the avatar FB_CELEBRATIONS list (loadout fbCelebrate). Prices live here and are exported
  * to php/data/catalog.json (scripts/export-php-data.mjs) so the server's buyGear charges the same.
  *
  * Every 3D model is somebody else's free model (CC0 or CC BY, never CC BY-SA or paid) and is credited
@@ -104,30 +104,6 @@ export const CELEBRATIONS: Celebration[] = [
   },
 ];
 
-export type ReplaySong = {
-  id: string;
-  name: string;
-  price: number;
-  portrait: string;
-  blurb: string;
-  /**
-   * The audio file under public/football/songs/ (the owner's own song, never copyrighted music from
-   * the internet). null = not delivered yet: shown as "Coming soon" and cannot be bought.
-   * To add a song: drop the mp3 in public/football/songs/, add a row here with its file, run
-   * `node --experimental-strip-types scripts/export-php-data.mjs`, done.
-   */
-  file: string | null;
-};
-
-export const SONG_NONE = "song-none";
-
-export const SONGS: ReplaySong[] = [
-  { id: SONG_NONE, name: "No song", price: 0, portrait: "", blurb: "Just the crowd.", file: null },
-  { id: "song-walking-car", name: "Walking Down the Street in Car", price: 10, portrait: "", blurb: "Plays during the replay of your score.", file: null },
-];
-
-/** Songs the shop can sell: no song, plus every song that has its audio file. */
-export const SELLABLE_SONGS = SONGS.filter((s) => s.id === SONG_NONE || s.file);
-
-export const celebById = (id: string | null | undefined) => CELEBRATIONS.find((c) => c.id === id) ?? CELEBRATIONS[0];
-export const songById = (id: string | null | undefined) => SONGS.find((s) => s.id === id) ?? SONGS[0];
+/** The bought shows (not fireworks, which is the user's own free entry in avatar FB_CELEBRATIONS). */
+export const CEL_SHOWS = CELEBRATIONS.filter((c) => c.id !== CELEB_DEFAULT);
+export const isCelShow = (id: string | null | undefined) => !!id && CEL_SHOWS.some((c) => c.id === id);

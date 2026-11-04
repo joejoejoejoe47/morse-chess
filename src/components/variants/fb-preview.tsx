@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { StonePerson, type Gait } from "@/components/chess/stone-people";
+import { isCelShow } from "@/lib/football/fb-gear";
 import { NeonStadium, type StadiumShow } from "@/components/variants/neon-stadium";
 
 /** The pin preview: a man runs the end zone, then the celebration you pinned. */
@@ -45,7 +46,9 @@ export function FbPreview({ kind }: { kind: string }) {
           setShow(
             kind === "fireworks"
               ? { hype: { id: 2, level: 1 }, fireworks: { id: 2, z: -6.2 } }
-              : { hype: { id: 2, level: 1 }, fly: { id: 2, kind } },
+              : isCelShow(kind)
+                ? { hype: { id: 2, level: 1 }, celebrate: { id: 2, kind, z: -6.2 } }
+                : { hype: { id: 2, level: 1 }, fly: { id: 2, kind } },
           )
         }
       />
