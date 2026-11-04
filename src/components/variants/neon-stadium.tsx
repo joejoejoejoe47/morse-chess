@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { NeonSkyline } from "@/components/variants/neon-skyline";
 import { ScoreFly } from "@/components/variants/fb-fly";
+import type { CelebrateCue } from "@/components/football/celebrations";
 
 /* The Galactic Football League stadium: a dark bowl, neon field, crowd and colored spotlights,
    all built from code (canvas textures, instanced meshes and lights). No images. */
@@ -1501,9 +1502,12 @@ export type StadiumShow = {
   fireworks?: { id: number; z: number } | null;
   /** a bought celebration other than fireworks (dragon, horse, …) */
   fly?: { id: number; kind: string } | null;
+  /** a touchdown celebration other than fireworks (AV > FB edit), see components/football/celebrations */
+  celebrate?: CelebrateCue | null;
 };
 
 export const Fireworks = lazy(() => import("@/components/variants/fireworks"));
+export const Celebrations = lazy(() => import("@/components/football/celebrations"));
 
 /** The player's own team (name and colour) painted into their end zone, wall and rings. */
 export type HomeTeam = { name: string; color: string };
@@ -1574,6 +1578,11 @@ export function NeonStadium({ rows, cols, show = null, home = null }: { rows: nu
         <Fireworks burst={show?.fireworks ?? null} side={cols / 2 + 1.7} />
       </Suspense>
       <ScoreFly fly={show?.fly ?? null} />
+      {show?.celebrate ? (
+        <Suspense fallback={null}>
+          <Celebrations cue={show.celebrate} />
+        </Suspense>
+      ) : null}
     </group>
   );
 }
