@@ -273,16 +273,18 @@ export function RaPawn({
       mesh.frustumCulled = false;
       mesh.visible = true;
       const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      mesh.material = list.map((mat) => {
+      // Keep a single Material (not a one-item array) — Three skips array materials when the
+      // geometry has no groups, which made every RA piece except the procedural rook vanish.
+      const copies = list.map((mat) => {
         const copy = mat.clone() as THREE.MeshStandardMaterial;
         copy.transparent = false;
         copy.opacity = 1;
         copy.depthWrite = true;
         copy.side = THREE.DoubleSide;
-        if (mesh.isSkinnedMesh) copy.skinning = true;
         if (team === "red") copy.color.multiplyScalar(0.78);
         return copy;
       });
+      mesh.material = copies.length === 1 ? copies[0] : copies;
     });
     const sword = obj.getObjectByName("Sword");
     if (sword) {
