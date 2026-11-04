@@ -84,6 +84,7 @@ export type HomeState = {
 export type ClubUserRow = { username: string; score: number; online: boolean };
 
 export const usernameAvailable = rpc("usernameAvailable");
+export const reportFocus = rpc("reportFocus");
 export const claimUsername = rpc("claimUsername");
 export const getPurse = rpc("getPurse");
 export const getHomeState = rpc("getHomeState");
