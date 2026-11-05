@@ -47,7 +47,7 @@ function BotMaker() {
       <div className="check-wash pointer-events-none absolute inset-0" />
       <header className="relative z-10 flex items-center justify-between gap-3 py-2">
         <ClubBrand />
-        <Link to="/" className="text-sm text-mist underline-offset-4 hover:text-ivory hover:underline">
+        <Link to="/" className="mr-24 text-sm text-mist sm:mr-28 underline-offset-4 hover:text-ivory hover:underline">
           ← Lounge
         </Link>
       </header>
