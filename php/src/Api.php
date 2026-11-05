@@ -27,6 +27,10 @@ final class Api
                 self::auth($path);
             }
 
+            if ($path === '/api/tts') {
+                Tts::handle();
+            }
+
             if ($path === '/api/rtc') {
                 Signaling::handle();
             }

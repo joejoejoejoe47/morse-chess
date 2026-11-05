@@ -4,6 +4,7 @@
  * Chrome/Edge/Safari; other browsers get the chat box only.
  */
 import type { BotVoice } from "./store";
+import { apiUrl } from "@/lib/base";
 
 type Rec = {
   lang: string;
@@ -55,34 +56,120 @@ export function listenOnce(onInterim?: (t: string) => void): { done: Promise<str
   return { done, stop: () => rec.stop() };
 }
 
-const FEMALE_HINT = /female|woman|samantha|victoria|karen|moira|tessa|fiona|zira|susan|serena|allison|ava|joanna|salli|kendra|kimberly|aria|jenny|libby|sonia|emma|google us english$|google uk english female/i;
-const MALE_HINT = /male|man\b|daniel|alex|fred|david|mark|george|james|guy|ryan|tom|aaron|arthur|oliver|rishi|google uk english male/i;
+const FEMALE_HINT = /female|woman|samantha|victoria|karen|moira|tessa|fiona|zira|susan|serena|allison|ava\b|joanna|salli|kendra|kimberly|aria|jenny|libby|sonia|emma|michelle|ana\b|natasha|clara|sara|google us english$|google uk english female/i;
+const MALE_HINT = /\bmale|man\b|daniel|alex\b|fred|david|mark|george|james|guy|ryan|tom\b|aaron|arthur|oliver|rishi|andrew|brian|christopher|eric|roger|steffan|thomas|william|google uk english male/i;
 
-function pickVoice(kind: BotVoice): SpeechSynthesisVoice | null {
-  const all = window.speechSynthesis.getVoices();
-  const lang = (navigator.language || "en").slice(0, 2);
-  const local = all.filter((v) => v.lang.toLowerCase().startsWith(lang));
-  const pool = local.length ? local : all;
-  const female = pool.filter((v) => FEMALE_HINT.test(v.name) && !/\bmale\b/i.test(v.name.replace(/female/i, "")));
-  const male = pool.filter((v) => MALE_HINT.test(v.name) && !/female/i.test(v.name));
-  return (kind === "female" ? female[0] : male[0]) ?? pool[0] ?? null;
+/** Higher = more human. Cloud/neural voices beat the old robotic local ones. */
+function naturalScore(v: SpeechSynthesisVoice) {
+  const n = v.name;
+  let s = 0;
+  if (/natural|neural/i.test(n)) s += 60;
+  if (/online/i.test(n)) s += 25;
+  if (/premium|enhanced|siri/i.test(n)) s += 40;
+  if (/^google/i.test(n)) s += 30;
+  if (/microsoft/i.test(n)) s += 8;
+  if (!v.localService) s += 10;
+  if (/espeak|compact|fred|albert|bahh|bells|boing|bubbles|cellos|zarvox|trinoids|whisper|wobble|jester|organ|superstar|ralph|junior|kathy|bad news|good news/i.test(n)) s -= 80;
+  return s;
 }
 
-/** Speak a line. Pitch is nudged too, so even a one-voice device sounds different per bot. */
-export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
+let cachedVoices: SpeechSynthesisVoice[] = [];
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  const load = () => (cachedVoices = window.speechSynthesis.getVoices());
+  load();
+  window.speechSynthesis.addEventListener?.("voiceschanged", load);
+}
+
+export function pickVoice(kind: BotVoice): SpeechSynthesisVoice | null {
+  const all = cachedVoices.length ? cachedVoices : window.speechSynthesis.getVoices();
+  const lang = (navigator.language || "en").slice(0, 2).toLowerCase();
+  const local = all.filter((v) => v.lang.toLowerCase().startsWith(lang));
+  const pool = local.length ? local : all;
+  const isF = (v: SpeechSynthesisVoice) => FEMALE_HINT.test(v.name) && !/\bmale\b/i.test(v.name.replace(/female/i, ""));
+  const isM = (v: SpeechSynthesisVoice) => MALE_HINT.test(v.name) && !/female/i.test(v.name);
+  const gender = pool.filter(kind === "female" ? isF : isM);
+  const exactLocale = (v: SpeechSynthesisVoice) => (v.lang === (navigator.language || "en-US") ? 5 : 0);
+  const best = (list: SpeechSynthesisVoice[]) =>
+    [...list].sort((a, b) => naturalScore(b) + exactLocale(b) - (naturalScore(a) + exactLocale(a)))[0] ?? null;
+  return best(gender) ?? best(pool.filter((v) => !(kind === "female" ? isM : isF)(v))) ?? best(pool);
+}
+
+/* ---- optional server voice (PHP /api/tts, only when the host set OPENAI_API_KEY or ELEVENLABS_API_KEY) ---- */
+let serverTts: Promise<boolean> | null = null;
+let audio: HTMLAudioElement | null = null;
+function serverEnabled(): Promise<boolean> {
+  serverTts ??= fetch(apiUrl("/api/tts"), { credentials: "include" })
+    .then((r) => (r.ok ? r.json() : { enabled: false }))
+    .then((j) => !!j?.enabled)
+    .catch(() => false);
+  return serverTts;
+}
+
+function browserSpeak(text: string, kind: BotVoice, onEnd?: () => void) {
   if (!canSpeak()) return onEnd?.();
   const synth = window.speechSynthesis;
   synth.cancel();
-  const u = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g, ""));
+  const u = new SpeechSynthesisUtterance(text);
   const v = pickVoice(kind);
   if (v) u.voice = v;
-  u.pitch = kind === "female" ? 1.25 : 0.85;
-  u.rate = 1.03;
+  const natural = v ? naturalScore(v) >= 30 : false;
+  // Natural voices sound best near default; nudge robotic ones a bit for character.
+  u.pitch = natural ? (kind === "female" ? 1.05 : 0.95) : kind === "female" ? 1.15 : 0.9;
+  u.rate = natural ? 1.0 : 0.97;
   u.onend = () => onEnd?.();
   u.onerror = () => onEnd?.();
   synth.speak(u);
 }
 
+let speakSeq = 0;
+/** Speak a line: server natural voice if configured, otherwise the best browser voice. */
+export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
+  const clean = text.replace(/[*_#`]/g, "").replace(/\s*[—–]\s*/g, ", ");
+  const id = ++speakSeq;
+  hush();
+  void serverEnabled().then(async (on) => {
+    if (id !== speakSeq) return;
+    if (!on) return browserSpeak(clean, kind, onEnd);
+    try {
+      const r = await fetch(apiUrl("/api/tts"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: clean, voice: kind }),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      const url = URL.createObjectURL(await r.blob());
+      if (id !== speakSeq) return URL.revokeObjectURL(url);
+      audio = new Audio(url);
+      const done = () => {
+        URL.revokeObjectURL(url);
+        onEnd?.();
+      };
+      audio.onended = done;
+      audio.onerror = done;
+      await audio.play();
+    } catch {
+      if (id === speakSeq) browserSpeak(clean, kind, onEnd);
+    }
+  });
+}
+
 export function hush() {
   if (canSpeak()) window.speechSynthesis.cancel();
+  if (audio) {
+    audio.pause();
+    audio = null;
+  }
+}
+
+/** Ask for the microphone once (summon). true = granted and speech recognition exists. */
+export async function requestMic(): Promise<boolean> {
+  if (!canListen() || !navigator.mediaDevices?.getUserMedia) return false;
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach((t) => t.stop());
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -3,7 +3,7 @@
  * (see public/bots/CREDITS.md). The model is measured and scaled to ~2 units tall, idles with a
  * gentle bob and does a little trick (spin + hop, or a pose) every few seconds.
  */
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { ContactShadows, useAnimations, useGLTF } from "@react-three/drei";
 import { Box3, Group, LoopOnce, LoopRepeat, Vector3, type AnimationAction } from "three";
@@ -81,7 +81,7 @@ function Robot({ model, mood, trickEvery }: { model: BotModelId; mood: RobotMood
       tricking.current = Math.max(0, tricking.current - dt / 1.3);
       const p = 1 - tricking.current;
       ry = p * Math.PI * 2;
-      y += Math.sin(p * Math.PI) * 0.6;
+      y += Math.sin(p * Math.PI) * 0.45;
       if (tricking.current === 0 && POSE[model].idle) play(POSE[model].idle, false);
     }
     if (mood === "walk") {
@@ -89,7 +89,7 @@ function Robot({ model, mood, trickEvery }: { model: BotModelId; mood: RobotMood
       rz = Math.sin(t * 9) * 0.08;
     }
     if (mood === "fly") {
-      y = 0.25 + Math.sin(t * 6) * 0.1;
+      y = 0.2 + Math.sin(t * 6) * 0.08;
       rz = 0.25;
     }
     if (mood === "point-left") ry = -0.6;
@@ -123,13 +123,23 @@ export function RobotStage({
   className?: string;
   zoom?: number;
 }) {
+  const [gen, setGen] = useState(0);
+  const onLost = () => window.setTimeout(() => setGen((g) => g + 1), 300);
   return (
     <div className={className} data-robot-stage={model}>
       <Canvas
+        key={gen}
         dpr={[1, 2]}
         gl={{ alpha: true, antialias: true, preserveDrawingBuffer: true }}
-        camera={{ position: [0, 1.25, 4.6 / zoom], fov: 35 }}
-        onCreated={({ camera }) => camera.lookAt(0, 1, 0)}
+        camera={{ position: [0, 1.25, 5.0 / zoom], fov: 38 }}
+        onCreated={({ camera, gl }) => {
+          // Frame from below the feet to well above the head so hops and flips never clip.
+          camera.lookAt(0, 1.25, 0);
+          gl.domElement.addEventListener("webglcontextlost", (e) => {
+            e.preventDefault();
+            onLost();
+          });
+        }}
       >
         <hemisphereLight args={["#fff6e0", "#2a2030", 1.6]} />
         <ambientLight intensity={0.6} />

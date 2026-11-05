@@ -158,3 +158,29 @@ export function publishLiveGame(g: LiveGame | null) {
 export function summonBot(botId: string) {
   window.dispatchEvent(new CustomEvent(SUMMON_EVENT, { detail: { botId } }));
 }
+
+/** In-game table chat ↔ your bot: game-view sends ASK, the buddy answers with REPLY. */
+export const BOT_ASK_EVENT = "morse-bot-ask";
+export const BOT_REPLY_EVENT = "morse-bot-reply";
+export function askBot(text: string, gameId?: string) {
+  window.dispatchEvent(new CustomEvent(BOT_ASK_EVENT, { detail: { text, gameId } }));
+}
+
+/** Which bot is up right now (survives view switches, remounts and reloads in this tab). */
+const ACTIVE_KEY = "morse-bot-active";
+export function saveActiveBot(v: { id: string; panel: boolean } | null) {
+  try {
+    if (v) sessionStorage.setItem(ACTIVE_KEY, JSON.stringify(v));
+    else sessionStorage.removeItem(ACTIVE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+export function loadActiveBot(): { id: string; panel: boolean } | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(ACTIVE_KEY) || "null");
+    return v && typeof v.id === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}

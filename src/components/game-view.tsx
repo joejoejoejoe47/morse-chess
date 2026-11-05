@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess, type Square } from "chess.js";
 import { Flag, ImagePlus, Undo2 } from "lucide-react";
-import { botForGame, publishLiveGame } from "@/lib/bots/store";
+import { BOT_REPLY_EVENT, askBot, botForGame, publishLiveGame } from "@/lib/bots/store";
 import { coachAllowed } from "@/lib/fair-play";
 import {
   claimTimeout,
@@ -422,6 +422,32 @@ export function GameView({ gameId }: { gameId: string }) {
   const [clocks, setClocks] = useState({ w: 0, b: 0 });
   const [view, setView] = useState<BoardView>(readBoardView);
   const [draft, setDraft] = useState("");
+  // Playing your own Create Bot: the table chat is a conversation with it (kept in this tab).
+  const [botThread, setBotThread] = useState<{ id: string; from: string; text: string; bot?: boolean }[]>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(`morse-bot-thread:${gameId}`) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    const mine = botForGame(gameId);
+    if (!mine) return;
+    const onReply = (e: Event) => {
+      const d = (e as CustomEvent<{ text: string; botId?: string }>).detail;
+      if (!d?.text || (d.botId && d.botId !== mine.id)) return;
+      setBotThread((t) => [...t, { id: `${Date.now()}-${Math.random()}`, from: mine.name, text: d.text, bot: true }].slice(-80));
+    };
+    window.addEventListener(BOT_REPLY_EVENT, onReply);
+    return () => window.removeEventListener(BOT_REPLY_EVENT, onReply);
+  }, [gameId]);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`morse-bot-thread:${gameId}`, JSON.stringify(botThread));
+    } catch {
+      /* ignore */
+    }
+  }, [botThread, gameId]);
   const [dropOver, setDropOver] = useState(false);
   const [seatVideo, setSeatVideo] = useState<HTMLVideoElement | null>(null);
   const picture = useRef<HTMLInputElement>(null);
@@ -1113,7 +1139,18 @@ export function GameView({ gameId }: { gameId: string }) {
                   Drop the picture
                 </div>
               ) : null}
-              {(game.chat ?? []).length === 0 ? (
+              {buddy ? (
+                botThread.length === 0 ? (
+                  <p className="text-[13px] text-mist">Say hi to {buddy.name}! Ask a question, or type "coach me".</p>
+                ) : (
+                  botThread.map((m) => (
+                    <div key={m.id} data-bot-thread-line={m.bot ? "bot" : "me"} className={cn("rounded-lg px-3 py-2", m.bot ? "bg-forest/60" : "bg-panel")}>
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-mist">{m.from}</p>
+                      <p className="mt-0.5 text-[15px] text-ivory">{m.text}</p>
+                    </div>
+                  ))
+                )
+              ) : (game.chat ?? []).length === 0 ? (
                 <p className="text-[13px] text-mist">
                   {game.pull ? "Only four lines are allowed at a random pull-up." : "Say something, or drop a picture. The user sees it on this same table."}
                 </p>
@@ -1136,6 +1173,11 @@ export function GameView({ gameId }: { gameId: string }) {
                 const text = draft.trim();
                 if (!text) return;
                 setDraft("");
+                if (buddy) {
+                  setBotThread((t) => [...t, { id: `${Date.now()}-me`, from: myName, text }].slice(-80));
+                  askBot(text, gameId);
+                  return;
+                }
                 const snap = await sendGameChat({ data: { gameId, text } });
                 if (snap) applySnap(snap, true);
               }}
@@ -1167,7 +1209,8 @@ export function GameView({ gameId }: { gameId: string }) {
                   e.preventDefault();
                   void sendPicture(file);
                 }}
-                placeholder="Message, or drop a picture…"
+                placeholder={buddy ? `Talk to ${buddy.name}…` : "Message, or drop a picture…"}
+                data-game-chat-input
                 maxLength={280}
                 className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-3 text-base text-ivory outline-none placeholder:text-mist focus:border-gold-line"
               />
@@ -1207,7 +1250,7 @@ export function GameView({ gameId }: { gameId: string }) {
                     if (snap) applySnap(snap, true);
                   }}
                 >
-                  {vsBot ? `${buddy ? buddy.name : "MorseBot"} has no voice here` : "Live"}
+                  {vsBot ? (buddy ? `${buddy.name} answers out loud` : "MorseBot has no voice here") : "Live"}
                 </button>
               </div>
             )}

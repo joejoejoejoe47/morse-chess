@@ -9,10 +9,10 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Chess } from "chess.js";
-import { Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
-import { BOT_EVENT, SUMMON_EVENT, botById, botForGame, listBots, type MyBot } from "@/lib/bots/store";
+import { Bot, Keyboard, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
+import { BOT_ASK_EVENT, BOT_EVENT, BOT_REPLY_EVENT, SUMMON_EVENT, botById, botForGame, listBots, loadActiveBot, saveActiveBot, type MyBot } from "@/lib/bots/store";
 import { think, type GuideTopic } from "@/lib/bots/brain";
-import { canListen, hush, listenOnce, speak } from "@/lib/bots/voice";
+import { canListen, hush, listenOnce, requestMic, speak } from "@/lib/bots/voice";
 import type { CoachArrow } from "@/lib/bots/coach";
 import type { RobotMood } from "./robot-model";
 
@@ -21,7 +21,7 @@ const RobotStage = lazy(() => import("./robot-model"));
 type Pos = { x: number; y: number };
 const vw = () => window.innerWidth;
 const vh = () => window.innerHeight;
-const botSize = () => (vw() < 640 ? 112 : 150);
+const botSize = () => (vw() < 640 ? 120 : 165);
 const clampPos = (p: Pos): Pos => ({
   x: Math.max(4, Math.min(vw() - botSize() - 4, p.x)),
   y: Math.max(60, Math.min(vh() - botSize() * 1.15 - 70, p.y)),
@@ -68,31 +68,168 @@ export function BotBuddyHost() {
   const seatedFor = useRef<string | null>(null);
   const pendingGuide = useRef<GuideTopic | null>(null);
   const busyWalk = useRef(0);
+  // Text thread closed by default; opens when the mic is denied/unsupported, or on demand.
+  const [panel, setPanel] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [bubble, setBubble] = useState(false);
+  const [chooser, setChooser] = useState(false);
+  const [myBots, setMyBots] = useState<MyBot[]>([]);
+  const botRef = useRef<MyBot | null>(null);
+  const mutedRef = useRef(false);
+  const voiceRef = useRef(false);
+  const listenRef = useRef(false);
+  const emptyHeard = useRef(0);
+  const bubbleTimer = useRef(0);
+  botRef.current = bot;
+  // Latest versions of render-scoped helpers, for callbacks created once.
+  const fnRef = useRef<{ ask: (q: string) => void; listenTurn: () => Promise<void>; seatPos: () => Pos }>(null!);
+  mutedRef.current = muted;
+  voiceRef.current = voiceMode;
 
-  const say = useCallback(
-    (t: string, b: MyBot | null = bot) => {
-      setLine(t);
-      if (b && !muted) {
-        setMood((m) => (m === "idle" ? "talk" : m));
-        speak(t, b.voice, () => setMood((m) => (m === "talk" ? "idle" : m)));
+  useEffect(() => {
+    if (bot) saveActiveBot({ id: bot.id, panel });
+  }, [bot, panel]);
+
+  const showBubble = () => {
+    setBubble(true);
+    window.clearTimeout(bubbleTimer.current);
+  };
+  const hideBubbleSoon = () => {
+    window.clearTimeout(bubbleTimer.current);
+    bubbleTimer.current = window.setTimeout(() => setBubble(false), 4500);
+  };
+
+  const say = useCallback((t: string, b: MyBot | null = botRef.current) => {
+    setLine(t);
+    window.dispatchEvent(new CustomEvent(BOT_REPLY_EVENT, { detail: { text: t, botId: b?.id } }));
+    showBubble();
+    const after = () => {
+      setMood((m) => (m === "talk" ? "idle" : m));
+      hideBubbleSoon();
+      if (voiceRef.current && !listenRef.current) window.setTimeout(() => void fnRef.current.listenTurn(), 250);
+    };
+    if (b && !mutedRef.current) {
+      setMood((m) => (m === "idle" ? "talk" : m));
+      speak(t, b.voice, after);
+    } else after();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Voice mode: listen one turn, answer, and (via say → after) listen again. */
+  async function listenTurn() {
+    if (!voiceRef.current || listenRef.current || !botRef.current) return;
+    listenRef.current = true;
+    setListening(true);
+    const rec = listenOnce((t) => setText(t));
+    stopRec.current = rec.stop;
+    try {
+      const heard = (await rec.done).trim();
+      listenRef.current = false;
+      setListening(false);
+      setText("");
+      if (heard) {
+        emptyHeard.current = 0;
+        fnRef.current.ask(heard);
+      } else if (++emptyHeard.current < 2) {
+        window.setTimeout(() => void fnRef.current.listenTurn(), 300);
+      } else {
+        // Quiet for a while: pause; tap the mic on the robot to talk again.
+        emptyHeard.current = 0;
+        setVoiceMode(false);
+        voiceRef.current = false;
       }
-    },
-    [bot, muted],
-  );
+    } catch {
+      listenRef.current = false;
+      setListening(false);
+      setVoiceMode(false);
+      voiceRef.current = false;
+      setPanel(true);
+      setLine("I can't hear you right now, so let's type! Ask me anything.");
+    }
+  }
 
-  const summon = useCallback((b: MyBot, at?: Pos, hello = true) => {
+  const summon = useCallback((b: MyBot, at?: Pos, hello = true, askMic = true) => {
     setBot(b);
+    botRef.current = b;
     setMoveMs(0);
     setPos(at ?? homePos());
     setMood("idle");
     setRing(null);
     setOffer(null);
-    if (hello) {
-      const t = `Beep boop! ${b.name} here! Ask me anything about Morse Chess, or say "coach me" in a game.`;
-      setLine(t);
-      speak(t, b.voice);
+    setChooser(false);
+    setPanel(false);
+    const t = `Beep boop! ${b.name} here! Ask me anything about Morse Chess, or say "coach me" in a game.`;
+    if (!askMic) {
+      if (hello) say(t, b);
+      return;
     }
+    setLine("May I use your microphone so we can talk?");
+    showBubble();
+    void requestMic().then((ok) => {
+      if (botRef.current?.id !== b.id) return;
+      setVoiceMode(ok);
+      voiceRef.current = ok;
+      if (!ok) {
+        setPanel(true);
+        if (hello) say(`${t} My ears are off, so type to me here.`, b);
+        else hideBubbleSoon();
+        return;
+      }
+      if (hello) say(t, b);
+      else void fnRef.current.listenTurn();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const dismiss = useCallback(() => {
+    hush();
+    stopRec.current();
+    voiceRef.current = false;
+    setVoiceMode(false);
+    setBot(null);
+    botRef.current = null;
+    setArrows(null);
+    setRing(null);
+    setPanel(false);
+    saveActiveBot(null);
+  }, []);
+
+  // Restore the bot after a remount / view switch / reload in this tab (no re-greeting).
+  useEffect(() => {
+    const a = loadActiveBot();
+    const b = a ? botById(a.id) : null;
+    if (b && !botRef.current) {
+      summon(b, undefined, false, false);
+      setPanel(a!.panel);
+      setLine(`${b.name} is still here!`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Saved bots, for the Summon button.
+  useEffect(() => {
+    const sync = () => setMyBots(listBots());
+    sync();
+    window.addEventListener(BOT_EVENT, sync);
+    return () => window.removeEventListener(BOT_EVENT, sync);
+  }, []);
+
+  // Table chat in a game against your bot talks to the bot.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const d = (e as CustomEvent<{ text: string; gameId?: string }>).detail;
+      if (!d?.text) return;
+      if (!botRef.current) {
+        const b = botForGame(d.gameId) ?? listBots()[0];
+        if (!b) return;
+        summon(b, fnRef.current.seatPos(), false, false);
+      }
+      fnRef.current.ask(d.text);
+    };
+    window.addEventListener(BOT_ASK_EVENT, onAsk);
+    return () => window.removeEventListener(BOT_ASK_EVENT, onAsk);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summon]);
 
   // Summon code typed anywhere (not inside a text box).
   useEffect(() => {
@@ -101,8 +238,7 @@ export function BotBuddyHost() {
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       if (e.key === "Escape") {
-        hush();
-        setBot(null);
+        dismiss();
         return;
       }
       if (!/^[a-z]$/i.test(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -123,7 +259,7 @@ export function BotBuddyHost() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(SUMMON_EVENT, onSummon);
     };
-  }, [summon]);
+  }, [summon, dismiss]);
 
   // Keep the bot record fresh (renamed/deleted elsewhere).
   useEffect(() => {
@@ -145,8 +281,15 @@ export function BotBuddyHost() {
       const mine = botForGame(gid);
       if (mine && seatedFor.current !== gid) {
         seatedFor.current = gid;
-        summon(mine, seatPos(), false);
-        setLine(`Hi! I'm ${mine.name}, let's play! Say or type "coach me" any time and I'll draw you some arrows.`);
+        if (botRef.current?.id === mine.id) {
+          setMoveMs(0);
+          setPos(seatPos());
+          return;
+        }
+        summon(mine, seatPos(), false, false);
+        setLine(`Hi! I'm ${mine.name}, let's play! Chat with me at the table, or say "coach me" and I'll draw you some arrows.`);
+        showBubble();
+        hideBubbleSoon();
       }
     }, 600);
     return () => window.clearTimeout(t);
@@ -220,8 +363,7 @@ export function BotBuddyHost() {
     setMood(right ? "point-right" : "point-left");
     el.setAttribute("data-bot-pointing", topic.id);
     setRing(el.getBoundingClientRect());
-    setLine(topic.say);
-    if (bot && !muted) speak(topic.say, bot.voice);
+    say(topic.say);
     window.setTimeout(() => {
       if (id === busyWalk.current) {
         el.removeAttribute("data-bot-pointing");
@@ -264,6 +406,7 @@ export function BotBuddyHost() {
   }, [arrows]);
 
   function ask(q: string) {
+    const bot = botRef.current;
     if (!bot || !q.trim()) return;
     setOffer(null);
     const r = think(q, bot.name);
@@ -275,6 +418,20 @@ export function BotBuddyHost() {
   async function mic() {
     if (listening) {
       stopRec.current();
+      return;
+    }
+    if (!voiceMode && canListen()) {
+      // Turn voice mode back on (asks for the mic if needed).
+      const ok = await requestMic();
+      if (ok) {
+        hush();
+        setVoiceMode(true);
+        voiceRef.current = true;
+        void listenTurn();
+        return;
+      }
+      setPanel(true);
+      setLine("The mic is blocked. Allow it in the browser bar, or type to me.");
       return;
     }
     hush();
@@ -295,7 +452,38 @@ export function BotBuddyHost() {
     }
   }
 
-  if (!bot) return null;
+  fnRef.current = { ask, listenTurn, seatPos };
+
+  if (!bot) {
+    if (!myBots.length || /bot-maker/.test(path)) return null;
+    return (
+      <div className="fixed bottom-3 left-3 z-[85] flex flex-col items-start gap-1.5" data-bot-summon-dock>
+        {chooser ? (
+          <div className="rounded-2xl border border-gold-line/60 bg-panel/95 p-1.5 shadow-2xl backdrop-blur" data-bot-chooser>
+            {myBots.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                data-bot-choose={b.id}
+                className="block w-full rounded-xl px-3 py-1.5 text-left text-sm text-ivory hover:bg-ink/60"
+                onClick={() => summon(b)}
+              >
+                {b.name} <span className="text-xs text-mist">· {b.code}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          data-bot-summon-button
+          className="inline-flex items-center gap-1.5 rounded-full border border-gold-line/70 bg-ink/85 px-3.5 py-2 text-sm font-semibold text-[#f6e7b2] shadow-lg backdrop-blur hover:bg-ink"
+          onClick={() => (myBots.length === 1 ? summon(myBots[0]) : setChooser((c) => !c))}
+        >
+          <Bot className="size-4" /> {myBots.length === 1 ? `Summon ${myBots[0].name}` : "Summon bot"}
+        </button>
+      </div>
+    );
+  }
   const s = botSize();
   const right = pos.x + s / 2 > vw() / 2;
   const panelW = Math.min(300, vw() - 16);
@@ -332,11 +520,58 @@ export function BotBuddyHost() {
               👉
             </span>
           ) : null}
-          <Suspense fallback={null}>
-            <RobotStage model={bot.model} mood={mood} trickEvery={7} className="h-full w-full" />
-          </Suspense>
-          <span className="absolute inset-x-0 -bottom-1 text-center text-[11px] font-semibold text-[#f6e7b2] drop-shadow">{bot.name}</span>
+          <button type="button" aria-label={`Chat with ${bot.name}`} data-bot-robot className="h-full w-full cursor-pointer" onClick={() => setPanel((p) => !p)}>
+            <Suspense fallback={null}>
+              <RobotStage model={bot.model} mood={mood} trickEvery={7} className="pointer-events-none h-full w-full" />
+            </Suspense>
+          </button>
+          <span className="pointer-events-none absolute inset-x-0 -bottom-1 text-center text-[11px] font-semibold text-[#f6e7b2] drop-shadow">{bot.name}</span>
+          {!panel ? (
+            <div className="absolute -top-1 right-0 flex gap-1">
+              <button
+                type="button"
+                data-bot-mic-mini
+                aria-label={listening ? "Listening" : "Talk"}
+                onClick={mic}
+                disabled={!canListen()}
+                className={"grid size-7 place-items-center rounded-full border text-ivory " + (listening ? "animate-pulse border-danger bg-danger/40" : "border-line bg-ink/80") + " disabled:opacity-40"}
+              >
+                {canListen() ? <Mic className="size-3.5" /> : <MicOff className="size-3.5" />}
+              </button>
+              <button type="button" data-bot-open-text aria-label="Type instead" onClick={() => setPanel(true)} className="grid size-7 place-items-center rounded-full border border-line bg-ink/80 text-ivory">
+                <Keyboard className="size-3.5" />
+              </button>
+              <button type="button" aria-label="Send bot away" data-bot-close className="grid size-7 place-items-center rounded-full border border-line bg-ink/80 text-ivory" onClick={dismiss}>
+                <X className="size-3.5" />
+              </button>
+            </div>
+          ) : null}
         </div>
+        {!panel && (bubble || listening || offer) ? (
+          <div
+            data-bot-bubble
+            className="pointer-events-auto absolute rounded-2xl border border-gold-line/50 bg-panel/90 px-3 py-2 text-[13px] leading-snug text-ivory shadow-xl backdrop-blur"
+            style={{ left: panelLeft, width: panelW, ...(panelAbove ? { bottom: vh() - pos.y + 6 } : { top: pos.y + s * 1.15 + 6 }) }}
+          >
+            <p className="line-clamp-4" data-bot-line>{listening ? (text ? `“${text}”` : "🎙 I'm listening…") : line}</p>
+            {offer ? (
+              <button
+                type="button"
+                data-bot-take-me
+                className="mt-1.5 rounded-full bg-[#f6e7b2] px-3 py-1 text-sm font-semibold text-ink"
+                onClick={() => {
+                  pendingGuide.current = offer;
+                  setOffer(null);
+                  void navigate({ to: offer.path });
+                }}
+              >
+                Take me there
+              </button>
+            ) : null}
+            {arrows && !boardRect ? <MiniBoard fen={arrows.fen} you={arrows.you} arrows={arrows.arrows} /> : null}
+          </div>
+        ) : null}
+        {panel ? (
         <div
           className="pointer-events-auto absolute rounded-2xl border border-gold-line/60 bg-panel/95 p-3 text-ivory shadow-2xl backdrop-blur"
           style={{ left: panelLeft, width: panelW, ...(panelAbove ? { bottom: vh() - pos.y + 6 } : { top: pos.y + s * 1.15 + 6 }), transition: moveMs ? `all ${moveMs}ms ease-in-out` : undefined }}
@@ -349,7 +584,7 @@ export function BotBuddyHost() {
             <button type="button" aria-label={muted ? "Unmute" : "Mute"} className="text-mist hover:text-ivory" onClick={() => { setMuted(!muted); hush(); }}>
               {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
             </button>
-            <button type="button" aria-label="Send bot away" data-bot-close className="text-mist hover:text-ivory" onClick={() => { hush(); setBot(null); setArrows(null); setRing(null); }}>
+            <button type="button" aria-label="Hide chat" data-bot-hide-text className="text-mist hover:text-ivory" onClick={() => setPanel(false)}>
               <X className="size-4" />
             </button>
           </div>
@@ -400,6 +635,7 @@ export function BotBuddyHost() {
             </button>
           </form>
         </div>
+        ) : null}
       </div>
     </>
   );
