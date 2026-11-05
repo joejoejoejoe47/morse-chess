@@ -14,13 +14,23 @@ import { StonePerson, type Gait } from "@/components/chess/stone-people";
 import { LEGO_CHARS, LegoBurst, LegoRunner, legoAttack, legoMoveTime, pieceChar, type LegoCharId, type LegoDrive } from "@/components/chess/lego-board";
 import { useLegoLook } from "@/lib/lego-look";
 import { LegoDress } from "@/components/avatar/lego-dress";
+import { StarAn } from "@/components/football/star-player";
 import { BALL_TRACK, TeamRing } from "@/components/variants/neon-stadium";
 import { playLegoBeam, playLegoHit, playLegoWhoosh } from "@/lib/lego-sfx";
 import { asset } from "@/lib/base";
 
 type FieldLook = "2d" | "3d" | "an" | "lg" | "ra";
 
-export type KingDress = { body: string; head: string; hair: string; legs: string; weapon: string; lg?: boolean };
+export type KingDress = {
+  body: string;
+  head: string;
+  hair: string;
+  legs: string;
+  weapon: string;
+  lg?: boolean;
+  /** the AV figure for the AN king (star player, t245u) */
+  an?: { anId: string; crownId: string; attackId: string } | null;
+};
 
 export type FieldUnitLike = { id?: string; r: number; f: number; side: "w" | "b"; kind: PieceSymbol; hidden?: boolean; ball?: boolean };
 
@@ -520,9 +530,15 @@ export function FieldActor({
             )}
           </Suspense>
         ) : look === "an" ? (
-          <group scale={AN_FIELD_SCALE}>
-            <StonePerson type={kind} white={white} cast="stone" gait={gait} blade carry={holding ? ball : null} />
-          </group>
+          unit.kind === "k" && !unit.hidden && dress?.an ? (
+            <Suspense fallback={null}>
+              <StarAn look={{ ...dress.an, lgBody: dress.body, lgHead: dress.head, lgHair: dress.hair, lgLegs: dress.legs, lgWeapon: dress.weapon }} gait={gait} carry={holding ? ball : null} />
+            </Suspense>
+          ) : (
+            <group scale={AN_FIELD_SCALE}>
+              <StonePerson type={kind} white={white} cast="stone" gait={gait} blade carry={holding ? ball : null} />
+            </group>
+          )
         ) : look === "ra" ? (
           <group scale={0.86}>
             <Suspense fallback={null}>

@@ -94,6 +94,10 @@ void main() {
   gl_FragColor = vec4(col * (core * 0.8 + glow) * min(1.0, vAlpha * 1.3) * 0.75, 1.0);
 }`;
 
+/** owner t245u: "the firework goes up really fast and explodes the same speed": the baked track plays
+ *  2.6x real time, so each rocket is up in ~0.85 s and bursts at once, well before the replay (2.1 s later). */
+export const FW_SPEED = 2.6;
+
 type Shell = { x: number; z: number; color: string; delay: number; scale: number; spin: number };
 
 function Burst({ track, shell, born, onDone }: { track: Track; shell: Shell; born: number; onDone: () => void }) {
@@ -173,7 +177,7 @@ function Burst({ track, shell, born, onDone }: { track: Track; shell: Shell; bor
   return <points geometry={geo} material={mat} frustumCulled={false} />;
 }
 
-/** Two bursts each side of the end zone that was scored in, one cyan and one magenta per side. */
+/** Bursts each side of the end zone that was scored in: cyan and magenta on the sides, gold in the middle. */
 export default function Fireworks({ burst, side }: { burst: { id: number; z: number } | null; side: number }) {
   const [track, setTrack] = useState<Track | null>(null);
   const clock = useThree((s) => s.clock);
@@ -193,9 +197,11 @@ export default function Fireworks({ burst, side }: { burst: { id: number; z: num
     const z = burst.z;
     const shells: Shell[] = [
       { x: -side, z: z - 0.7, color: "#2ee6ff", delay: 0, scale: 0.125, spin: 0.3 },
-      { x: side, z: z + 0.7, color: "#ff2d7a", delay: 0.25, scale: 0.095, spin: 1.9 },
-      { x: -side, z: z + 0.9, color: "#ff2d7a", delay: 0.6, scale: 0.11, spin: 3.4 },
-      { x: side, z: z - 0.9, color: "#2ee6ff", delay: 0.85, scale: 0.085, spin: 4.8 },
+      { x: side, z: z + 0.7, color: "#ff2d7a", delay: 0.1, scale: 0.105, spin: 1.9 },
+      { x: -side, z: z + 0.9, color: "#ff2d7a", delay: 0.25, scale: 0.11, spin: 3.4 },
+      { x: side, z: z - 0.9, color: "#2ee6ff", delay: 0.35, scale: 0.1, spin: 4.8 },
+      { x: -side * 0.45, z: z - 1.2, color: "#ffd84a", delay: 0.5, scale: 0.09, spin: 2.6 },
+      { x: side * 0.45, z: z + 1.2, color: "#ffd84a", delay: 0.6, scale: 0.09, spin: 5.5 },
     ];
     setShows((list) => [...list, { id: burst.id, born: clock.elapsedTime, shells, left: shells.length }]);
   }, [burst, track, side, clock]);

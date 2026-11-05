@@ -1,4 +1,5 @@
 import { asset } from "@/lib/base";
+import { CEL_SHOWS } from "@/lib/football/fb-gear";
 export type PieceStyle = "2d" | "3d" | "an" | "ra" | "lg" | "cl" | "pa";
 export type TeamView = "w" | "b";
 export type ModelKind = "glb" | "fbx";
@@ -296,6 +297,8 @@ export const FB_CELEBRATIONS: GearItem[] = [
   { id: "husky", name: "Husky", price: 6, portrait: "", blurb: "The war dog sprints the score." },
   { id: "carrier", name: "Sky carrier", price: 8, portrait: "", blurb: "The carrier slides over the lights." },
   { id: "pirate", name: "Pirate", price: 6, portrait: "", blurb: "The captain runs the goal line." },
+  // t245u: more shows over the scoring end zone, credited in lib/football/fb-gear.ts
+  ...CEL_SHOWS.map(({ id, name, price, portrait, blurb }) => ({ id, name, price, portrait, blurb })),
 ];
 
 /** Replay songs. Walking Down the Street In a Car is free in football. */
