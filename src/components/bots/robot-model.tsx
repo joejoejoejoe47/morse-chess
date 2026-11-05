@@ -26,6 +26,9 @@ const POSE: Record<BotModelId, Partial<Record<RobotMood | "trick", string>>> = {
   },
 };
 
+/** Extra yaw so each model's face points at the camera (+z). The cute robot is authored facing +x. */
+const FACE_YAW: Record<BotModelId, number> = { cute: -Math.PI / 2, poddy: 0 };
+
 function Robot({ model, mood, trickEvery }: { model: BotModelId; mood: RobotMood; trickEvery: number }) {
   const spec = BOT_MODELS.find((m) => m.id === model) ?? BOT_MODELS[0];
   const { scene, animations } = useGLTF(asset(spec.url));
@@ -72,7 +75,7 @@ function Robot({ model, mood, trickEvery }: { model: BotModelId; mood: RobotMood
       if (POSE[model].trick) play(POSE[model].trick, false);
     }
     let y = Math.sin(t * 2.2) * 0.05;
-    let ry = Math.sin(t * 0.7) * 0.25;
+    let ry = Math.sin(t * 0.7) * 0.12;
     let rz = 0;
     if (tricking.current > 0) {
       tricking.current = Math.max(0, tricking.current - dt / 1.3);
@@ -93,7 +96,7 @@ function Robot({ model, mood, trickEvery }: { model: BotModelId; mood: RobotMood
     if (mood === "point-right") ry = 0.6;
     if (mood === "talk") y += Math.abs(Math.sin(t * 8)) * 0.04;
     g.position.y = y;
-    g.rotation.y = ry;
+    g.rotation.y = FACE_YAW[model] + ry;
     g.rotation.z = rz;
   });
 
