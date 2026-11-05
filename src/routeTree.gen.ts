@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AvatarRouteImport } from './routes/avatar'
 import { Route as BellRouteImport } from './routes/bell'
 import { Route as BoardsRouteImport } from './routes/boards'
+import { Route as BotMakerRouteImport } from './routes/bot-maker'
 import { Route as ChessRouteImport } from './routes/chess'
 import { Route as ClubRouteImport } from './routes/club'
 import { Route as LegoBuilderRouteImport } from './routes/lego-builder'
@@ -46,6 +47,11 @@ const BellRoute = BellRouteImport.update({
 const BoardsRoute = BoardsRouteImport.update({
   id: '/boards',
   path: '/boards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BotMakerRoute = BotMakerRouteImport.update({
+  id: '/bot-maker',
+  path: '/bot-maker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChessRoute = ChessRouteImport.update({
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/avatar': typeof AvatarRoute
   '/bell': typeof BellRoute
   '/boards': typeof BoardsRouteWithChildren
+  '/bot-maker': typeof BotMakerRoute
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
   '/lego-builder': typeof LegoBuilderRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/avatar': typeof AvatarRoute
   '/bell': typeof BellRoute
   '/boards': typeof BoardsRouteWithChildren
+  '/bot-maker': typeof BotMakerRoute
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
   '/lego-builder': typeof LegoBuilderRoute
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   '/avatar': typeof AvatarRoute
   '/bell': typeof BellRoute
   '/boards': typeof BoardsRouteWithChildren
+  '/bot-maker': typeof BotMakerRoute
   '/chess': typeof ChessRoute
   '/club': typeof ClubRoute
   '/lego-builder': typeof LegoBuilderRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/avatar'
     | '/bell'
     | '/boards'
+    | '/bot-maker'
     | '/chess'
     | '/club'
     | '/lego-builder'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/avatar'
     | '/bell'
     | '/boards'
+    | '/bot-maker'
     | '/chess'
     | '/club'
     | '/lego-builder'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '/avatar'
     | '/bell'
     | '/boards'
+    | '/bot-maker'
     | '/chess'
     | '/club'
     | '/lego-builder'
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   AvatarRoute: typeof AvatarRoute
   BellRoute: typeof BellRoute
   BoardsRoute: typeof BoardsRouteWithChildren
+  BotMakerRoute: typeof BotMakerRoute
   ChessRoute: typeof ChessRoute
   ClubRoute: typeof ClubRoute
   LegoBuilderRoute: typeof LegoBuilderRoute
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       path: '/boards'
       fullPath: '/boards'
       preLoaderRoute: typeof BoardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bot-maker': {
+      id: '/bot-maker'
+      path: '/bot-maker'
+      fullPath: '/bot-maker'
+      preLoaderRoute: typeof BotMakerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chess': {
@@ -410,6 +430,7 @@ const rootRouteChildren: RootRouteChildren = {
   AvatarRoute: AvatarRoute,
   BellRoute: BellRoute,
   BoardsRoute: BoardsRouteWithChildren,
+  BotMakerRoute: BotMakerRoute,
   ChessRoute: ChessRoute,
   ClubRoute: ClubRoute,
   LegoBuilderRoute: LegoBuilderRoute,

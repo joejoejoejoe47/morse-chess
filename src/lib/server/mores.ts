@@ -36,6 +36,10 @@ export type GameSnapshot = {
   chat: { id: number; from: string; text: string; image: string | null }[];
   scorePrize: number | null;
   pull: boolean;
+  /** Fair play: online normal chess vs a person (rating counts). */
+  rated?: boolean;
+  /** False while a rated game is being played: no coach, hints or engine help. */
+  coachAllowed?: boolean;
   coins: number;
   coinAward: number;
   ownedBoards: string[];

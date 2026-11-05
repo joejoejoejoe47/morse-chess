@@ -438,7 +438,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
         {chart ? (
           <section className="club-chart club-card min-w-0 overflow-hidden px-4 py-3">
             <h2 className="font-display text-[1.45rem] leading-none text-[#f4ecdf]">Tournament Countdown</h2>
-            <div className="mt-3 overflow-x-auto pb-1">
+            <div className="mt-2">
               <Bracket clubId={club.id} bracket={bracket} setBracket={setBracket} canCrown={Boolean(event && event.phase === "crowned")} />
             </div>
           </section>
@@ -707,7 +707,7 @@ function ClubHall({ userId, pack, onLeave }: { userId: string; pack: ClubPack; o
               </div>
             </div>
           ) : (
-            <div className="absolute inset-0 top-12">
+            <div className="absolute inset-0">
               <StageBoard
                 view={view}
                 fen={START_FEN}
@@ -991,7 +991,7 @@ function StageBoard({
   return (
     <div className={plate ? "h-full w-full" : "h-[min(58vh,520px)] w-[min(100%,520px)] overflow-hidden rounded-xl shadow-[0_0_70px_rgba(255,176,70,0.28)]"}>
       <Suspense fallback={<div className="grid h-full place-items-center text-sm text-[#b7ad9e]">Setting the board…</div>}>
-        <ChessBoard3D {...props} people={view === "an"} real={view === "ra"} kings={kings} showTip={false} plate={plate} />
+        <ChessBoard3D {...props} people={view === "an"} real={view === "ra"} kings={kings} showTip={false} plate={plate} cameraAt={plate && view !== "ra" ? [0, 9.8, 5.8] : undefined} />
     </Suspense>
     </div>
   );
@@ -1029,34 +1029,72 @@ function Bracket({
     void seatBracket({ data: { clubId, round, slot: index } }).then(setBracket);
   }
 
-  const outerRows = [1, 2, 5, 6];
+  // Fixed layout: x in % of the row, y in px, so the seats never overlap and the lines
+  // meet the boxes. On a phone the whole bracket scrolls sideways instead of squashing.
+  const H = 190;
+  const SEAT_H = 28;
+  const W = 12.6;
+  const FW = 14;
+  const cols = { l1: 0, l2: 15.4, l3: 30.8, f: 43, r3: 56.6, r2: 72, r1: 87.4 };
+  const y1 = [16, 54, 136, 174];
+  const y2 = [35, 155];
+  const y3 = 95;
+  type Seat = { x: number; y: number; w: number; round: number; index: number; final?: boolean };
+  const seats: Seat[] = [
+    ...y1.map((y, i) => ({ x: cols.l1, y, w: W, round: 0, index: i })),
+    ...y2.map((y, i) => ({ x: cols.l2, y, w: W, round: 1, index: i })),
+    { x: cols.l3, y: y3, w: W, round: 2, index: 0 },
+    { x: cols.f, y: y3, w: FW, round: 3, index: 0, final: true },
+    { x: cols.r3, y: y3, w: W, round: 2, index: 1 },
+    ...y2.map((y, i) => ({ x: cols.r2, y, w: W, round: 1, index: i + 2 })),
+    ...y1.map((y, i) => ({ x: cols.r1, y, w: W, round: 0, index: i + 4 })),
+  ];
+  // Connector paths in a 100 x H box (x stretched, strokes kept 1px).
+  const join = (fromX: number, ya: number, yb: number, toX: number, yt: number) => {
+    const mid = (fromX + toX) / 2;
+    return `M${fromX},${ya} H${mid} M${fromX},${yb} H${mid} M${mid},${ya} V${yb} M${mid},${yt} H${toX}`;
+  };
+  const lines = [
+    join(cols.l1 + W, y1[0], y1[1], cols.l2, y2[0]),
+    join(cols.l1 + W, y1[2], y1[3], cols.l2, y2[1]),
+    join(cols.l2 + W, y2[0], y2[1], cols.l3, y3),
+    `M${cols.l3 + W},${y3} H${cols.f}`,
+    `M${cols.f + FW},${y3} H${cols.r3}`,
+    join(cols.r1, y1[0], y1[1], cols.r2 + W, y2[0]),
+    join(cols.r1, y1[2], y1[3], cols.r2 + W, y2[1]),
+    join(cols.r2, y2[0], y2[1], cols.r3 + W, y3),
+  ];
+  const heads: [string, number, number][] = [
+    ["Round 1", cols.l1, W], ["Round 2", cols.l2, W], ["Round 3", cols.l3, W], ["Championship", cols.f, FW],
+    ["Round 3", cols.r3, W], ["Round 2", cols.r2, W], ["Round 1", cols.r1, W],
+  ];
 
   return (
-    <div>
-      <div className="mb-1 grid grid-cols-[1.15fr_16px_1fr_16px_1fr_18px_1.15fr_18px_1fr_16px_1fr_16px_1.15fr] text-center text-[11px] text-[#b7ad9e]">
-        <span>Round 1</span><span /><span>Round 2</span><span /><span>Round 3</span><span /><span>Championship</span><span /><span>Round 3</span><span /><span>Round 2</span><span /><span>Round 1</span>
-      </div>
-      <div className="grid h-[220px] grid-cols-[1.15fr_16px_1fr_16px_1fr_18px_1.15fr_18px_1fr_16px_1fr_16px_1.15fr] grid-rows-8">
-        {outerRows.map((row, index) => (
-          <BracketSeat key={`l1-${index}`} col={1} row={row} round={0} index={index} name={slotAt(0, index).name} onSeat={onSeat} />
+    <div className="-mx-1 overflow-x-auto px-1 pb-1" data-bracket>
+      <div className="relative min-w-[760px]" style={{ height: H + 18 }}>
+        {heads.map(([label, x, w], i) => (
+          <span key={i} className="absolute top-0 text-center text-[11px] text-[#b7ad9e]" style={{ left: `${x}%`, width: `${w}%` }}>
+            {label}
+          </span>
         ))}
-        <BracketElbow col={2} row="1 / 3" side="left" />
-        <BracketElbow col={2} row="5 / 7" side="left" />
-        <BracketSeat col={3} row="1 / 3" round={1} index={0} name={slotAt(1, 0).name} onSeat={onSeat} />
-        <BracketSeat col={3} row="5 / 7" round={1} index={1} name={slotAt(1, 1).name} onSeat={onSeat} />
-        <BracketElbow col={4} row="1 / 7" side="left" />
-        <BracketSeat col={5} row="1 / 7" round={2} index={0} name={slotAt(2, 0).name} onSeat={onSeat} />
-        <BracketStem col={6} row="1 / 9" />
-        <BracketSeat col={7} row="4 / 6" round={3} index={0} name={slotAt(3, 0).name} onSeat={onSeat} final />
-        <BracketStem col={8} row="1 / 9" />
-        <BracketSeat col={9} row="1 / 7" round={2} index={1} name={slotAt(2, 1).name} onSeat={onSeat} />
-        <BracketElbow col={10} row="1 / 7" side="right" />
-        <BracketSeat col={11} row="1 / 3" round={1} index={2} name={slotAt(1, 2).name} onSeat={onSeat} />
-        <BracketSeat col={11} row="5 / 7" round={1} index={3} name={slotAt(1, 3).name} onSeat={onSeat} />
-        <BracketElbow col={12} row="1 / 3" side="right" />
-        <BracketElbow col={12} row="5 / 7" side="right" />
-        {outerRows.map((row, index) => (
-          <BracketSeat key={`r1-${index}`} col={13} row={row} round={0} index={index + 4} name={slotAt(0, index + 4).name} onSeat={onSeat} />
+        <svg className="pointer-events-none absolute inset-x-0 top-[18px]" width="100%" height={H} viewBox={`0 0 100 ${H}`} preserveAspectRatio="none">
+          {lines.map((d, i) => (
+            <path key={i} d={d} fill="none" stroke="#6b6256" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          ))}
+        </svg>
+        {seats.map((seat) => (
+          <BracketSeat
+            key={`${seat.round}-${seat.index}`}
+            x={seat.x}
+            y={seat.y + 18 - SEAT_H / 2}
+            w={seat.w}
+            h={SEAT_H}
+            round={seat.round}
+            index={seat.index}
+            name={slotAt(seat.round, seat.index).name}
+            onSeat={onSeat}
+            final={seat.final}
+          />
         ))}
       </div>
     </div>
@@ -1064,16 +1102,20 @@ function Bracket({
 }
 
 function BracketSeat({
-  col,
-  row,
+  x,
+  y,
+  w,
+  h,
   round,
   index,
   name,
   onSeat,
   final,
 }: {
-  col: number;
-  row: number | string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
   round: number;
   index: number;
   name: string | null;
@@ -1083,31 +1125,17 @@ function BracketSeat({
   return (
     <button
       type="button"
-      style={{ gridColumn: col, gridRow: row }}
-      className="mx-0.5 h-7 self-center overflow-hidden rounded-md border border-[#3c352c] bg-[#16140f]/95 px-2 text-left"
+      data-bracket-seat={`${round}-${index}`}
+      style={{ left: `${x}%`, top: y, width: `${w}%`, height: h }}
+      className={cn(
+        "absolute overflow-hidden rounded-md border px-2 text-left transition-colors hover:border-[#8a7b63]",
+        final ? "border-[#b8955a] bg-[#211a10]" : "border-[#3c352c] bg-[#16140f]/95",
+      )}
       onClick={() => onSeat(round, index)}
     >
-      <span className="block truncate text-[12px] leading-7 text-[#efe6d6]">{name || (final ? "Championship" : "Empty")}</span>
+      <span className={cn("block truncate text-[12px] leading-[26px]", name ? "text-[#efe6d6]" : "text-[#8f8577]", final && "text-center text-[#f0d9a6]")}>
+        {name || (final ? "Champion" : "Empty")}
+      </span>
     </button>
-  );
-}
-
-function BracketElbow({ col, row, side }: { col: number; row: string; side: "left" | "right" }) {
-  const edge = side === "left" ? "right-0" : "left-0";
-  return (
-    <div className="relative" style={{ gridColumn: col, gridRow: row }}>
-      <span className={cn("absolute top-[25%] bottom-[25%] w-px bg-[#6b6256]", edge)} />
-      <span className="absolute top-[25%] h-px w-full bg-[#6b6256]" />
-      <span className="absolute bottom-[25%] h-px w-full bg-[#6b6256]" />
-      <span className={cn("absolute top-1/2 h-px w-1/2 bg-[#6b6256]", edge)} />
-    </div>
-  );
-}
-
-function BracketStem({ col, row }: { col: number; row: string }) {
-  return (
-    <div className="relative" style={{ gridColumn: col, gridRow: row }}>
-      <span className="absolute top-1/2 h-px w-full bg-[#6b6256]" />
-    </div>
   );
 }
