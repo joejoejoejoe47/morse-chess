@@ -22,6 +22,11 @@ namespace Morse;
  *   APP_URL       public origin, e.g. https://chess.example.com (optional; derived from the request otherwise)
  *   TRUSTED_ORIGINS  comma separated extra origins allowed to POST (optional)
  *   APP_DEBUG     1 to include exception messages in 500 responses
+ *
+ * Optional Create Bot cloud features (never commit real keys):
+ *   OPENAI_API_KEY      natural TTS (gpt-4o-mini-tts) + LLM brain fallback
+ *   ELEVENLABS_API_KEY  alternate TTS
+ *   XAI_API_KEY         LLM brain via xAI Grok (preferred over OpenAI for chat)
  */
 final class Config
 {

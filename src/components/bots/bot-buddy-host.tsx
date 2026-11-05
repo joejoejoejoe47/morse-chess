@@ -11,7 +11,8 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Chess } from "chess.js";
 import { Bot, Keyboard, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
 import { BOT_ASK_EVENT, BOT_EVENT, BOT_REPLY_EVENT, SUMMON_EVENT, botById, botForGame, listBots, loadActiveBot, saveActiveBot, type MyBot } from "@/lib/bots/store";
-import { think, type GuideTopic } from "@/lib/bots/brain";
+import { type GuideTopic } from "@/lib/bots/brain";
+import { askBrain } from "@/lib/bots/llm";
 import { canListen, hush, listenOnce, requestMic, speak } from "@/lib/bots/voice";
 import type { CoachArrow } from "@/lib/bots/coach";
 import type { RobotMood } from "./robot-model";
@@ -409,10 +410,18 @@ export function BotBuddyHost() {
     const bot = botRef.current;
     if (!bot || !q.trim()) return;
     setOffer(null);
-    const r = think(q, bot.name);
-    if (r.kind === "coach") void coach();
-    else if (r.kind === "guide") void walkTo(r.topic);
-    else say(r.text);
+    // Prefer the cloud brain when the host configured a key; fall back to rules.
+    const live = window.__morseLiveGame;
+    const inGame = path.startsWith("/play/");
+    void askBrain(q, bot.name, {
+      coachOk: live ? live.coachOk !== false : true,
+      inGame,
+    }).then((r) => {
+      if (botRef.current?.id !== bot.id) return;
+      if (r.kind === "coach") void coach();
+      else if (r.kind === "guide") void walkTo(r.topic);
+      else say(r.text);
+    });
   }
 
   async function mic() {
