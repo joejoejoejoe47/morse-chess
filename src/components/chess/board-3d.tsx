@@ -2317,7 +2317,10 @@ export function ChessBoard3D({
   pick = null,
   labels,
   tints,
+  cameraAt,
 }: BoardRules & {
+  /** Override the starting camera (white's side; mirrored for black). The club stage frames tighter. */
+  cameraAt?: [number, number, number];
   fen: string;
   you: Side;
   lastMove: { from: string; to: string } | null;
@@ -2410,7 +2413,11 @@ export function ChessBoard3D({
   const resolved = lego ? boardById(LEGO_BOARD_ID) : skin ?? boardById("lodge");
   // Classic / Parlor are fixed 8x8 board models: a smaller game uses a plain table instead.
   const set = lego || n < 8 ? null : heirloom;
-  const far: [number, number, number] = set
+  const far: [number, number, number] = cameraAt
+    ? you === "w"
+      ? cameraAt
+      : [-cameraAt[0], cameraAt[1], -cameraAt[2]]
+    : set
     ? HEIRLOOM[set].camera[you === "w" ? "w" : "b"]
     : lego || resolved.id === LEGO_BOARD_ID
       ? LEGO_CAMERA[you === "w" ? "w" : "b"]

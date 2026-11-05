@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { TeamSetup } from "@/components/variants/team-setup";
 import { getFootballPrefs, saveFootballTeam, sendFootballChallenge, type FootballTeam } from "@/lib/server/football";
 import { SplashSkeleton } from "@/components/auth-screen";
+import { BOT_EVENT, listBots, rememberBotGame, type MyBot } from "@/lib/bots/store";
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 
@@ -52,6 +53,14 @@ export function ClubHome() {
   const [botMinutes, setBotMinutes] = useState<1 | 5 | 10>(1);
   const [home, setHome] = useState<HomeState | null>(null);
   const [flow, setFlow] = useState<Flow>({ kind: "idle" });
+  const [myBots, setMyBots] = useState<MyBot[]>([]);
+  const [myBot, setMyBot] = useState<MyBot | null>(null);
+  useEffect(() => {
+    const sync = () => setMyBots(listBots());
+    sync();
+    window.addEventListener(BOT_EVENT, sync);
+    return () => window.removeEventListener(BOT_EVENT, sync);
+  }, []);
   const [claim, setClaim] = useState("");
   const [target, setTarget] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -268,6 +277,7 @@ export function ClubHome() {
       const { gameId } = await startBotGame({
         data: { mode: flow.mode, bot: flow.intent === "bot-v2" ? "v2" : "v1", minutes: botMinutes, color },
       });
+      if (myBot) rememberBotGame(gameId, myBot.id);
       await navigate({ to: "/play/$gameId", params: { gameId } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start a match.");
@@ -443,7 +453,7 @@ export function ClubHome() {
         <button
           type="button"
           className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
-          onClick={() => setFlow({ kind: "pick-mode", intent: "bot" })}
+          onClick={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot" }); }}
         >
           <PieceMark kind="p" className="size-4 text-cream" />
           Timed or breeze vs {BOT_USERNAME}
@@ -451,11 +461,31 @@ export function ClubHome() {
         <button
           type="button"
           className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
-          onClick={() => setFlow({ kind: "pick-mode", intent: "bot-v2" })}
+          onClick={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot-v2" }); }}
         >
           <PieceMark kind="q" className="size-4 text-cream" />
           Timed or breeze vs {BOT_V2_USERNAME}
         </button>
+        {myBots.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            data-my-bot-play={b.id}
+            className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
+            onClick={() => { setMyBot(b); setFlow({ kind: "pick-mode", intent: "bot-v2" }); }}
+          >
+            <PieceMark kind="b" className="size-4 text-cream" />
+            Timed or breeze vs {b.name}
+          </button>
+        ))}
+        <Link
+          to="/bot-maker"
+          data-create-bot-link
+          className="inline-flex items-center gap-2 text-sm text-[#e7c56a] underline-offset-4 hover:text-ivory hover:underline"
+        >
+          <PieceMark kind="n" className="size-4 text-cream" />
+          Create Bot / Coach / Teacher
+        </Link>
       </div>
 
       <section className="relative mt-10 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
@@ -742,6 +772,7 @@ export function ClubHome() {
                   variant="solid"
                   size="lg"
                   className="h-auto justify-start py-4"
+                  data-mode="timed"
                   disabled={busy}
                   onClick={() => chooseMode("timed")}
                 >
@@ -776,6 +807,7 @@ export function ClubHome() {
                   </div>
                 ) : null}
                 <Button
+                  data-mode="breeze"
                   variant="secondary"
                   size="lg"
                   className="h-auto justify-start py-4"
@@ -796,7 +828,7 @@ export function ClubHome() {
             {flow.kind === "pick-color" ? (
               <div className="mt-5" data-bot-color-chooser>
                 <p className="text-sm text-mist">
-                  vs {flow.intent === "bot-v2" ? BOT_V2_USERNAME : BOT_USERNAME} · {flow.mode === "timed" ? `${botMinutes} min each` : "Breeze"}. White moves first.
+                  vs {myBot ? myBot.name : flow.intent === "bot-v2" ? BOT_V2_USERNAME : BOT_USERNAME} · {flow.mode === "timed" ? `${botMinutes} min each` : "Breeze"}. White moves first.
                 </p>
                 <div className="mt-3 grid grid-cols-3 gap-3">
                   {(

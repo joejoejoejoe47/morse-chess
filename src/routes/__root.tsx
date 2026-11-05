@@ -9,6 +9,7 @@ import { MasterPopupHost } from "@/components/master-popup-host";
 import { MailPopupHost } from "@/components/mail-popup-host";
 import { GcHost } from "@/components/gc-mail";
 import { Toaster } from "sonner";
+import { BotBuddyHost } from "@/components/bots/bot-buddy-host";
 
 export const Route = createRootRoute({
   component: () => (
@@ -21,6 +22,7 @@ export const Route = createRootRoute({
           <MailPopupHost />
           <GcHost />
           <Outlet />
+          <BotBuddyHost />
         </ThemeProvider>
       </AuthProvider>
       <StudioSplash />

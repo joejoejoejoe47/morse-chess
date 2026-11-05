@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess, type Square } from "chess.js";
 import { Flag, ImagePlus, Undo2 } from "lucide-react";
+import { botForGame, publishLiveGame } from "@/lib/bots/store";
+import { coachAllowed } from "@/lib/fair-play";
 import {
   claimTimeout,
   closeGameCamera,
@@ -712,6 +714,18 @@ export function GameView({ gameId }: { gameId: string }) {
   const ownsLego = boardUnlocked(game.myScore, LEGO_BOARD_ID, myName, game.ownedBoards);
   const lgOn = view === "lg" && ownsLego;
   const vsBot = isBotUserId(opp.userId);
+  // A player-made bot (Create Bot) sits in MorseBot's chair: show its name instead.
+  const buddy = vsBot ? botForGame(game.id) : null;
+  const oppName = buddy ? buddy.name : opp.username;
+  publishLiveGame({
+    gameId: game.id,
+    fen: game.fen,
+    you: game.you,
+    myTurn,
+    view,
+    vsBot,
+    coachOk: coachAllowed(game),
+  });
   const selfId = game.you === "w" ? game.white.userId : game.black.userId;
   const cameraOn = Boolean(game.cameraOpen) && !vsBot;
   const boardProps = {
@@ -960,7 +974,7 @@ export function GameView({ gameId }: { gameId: string }) {
                   myTurn ? "morse-turn-pulse bg-[#f6e7b2] text-ink" : "border border-line bg-ink/75 text-mist",
                 )}
               >
-                {myTurn ? "Your move" : vsBot ? "MorseBot is thinking…" : `${opp.username}'s move`}
+                {myTurn ? "Your move" : vsBot ? `${buddy ? buddy.name : "MorseBot"} is thinking…` : `${opp.username}'s move`}
               </p>
             ) : null}
           </div>
@@ -987,7 +1001,7 @@ export function GameView({ gameId }: { gameId: string }) {
           <div className="pl-16">
             <HudChip
               label="Opponent"
-              name={opp.username}
+              name={oppName}
               look={game.you === "w" ? game.blackLook : game.whiteLook}
               clock={game.mode === "timed" ? oppClock : null}
               hot={!myTurn && !over}
@@ -1023,7 +1037,7 @@ export function GameView({ gameId }: { gameId: string }) {
             }
           >
             {view === "2d" ? (
-              <p className="mb-1 text-center text-[10px] uppercase tracking-[0.16em] text-ivory">{opp.username}</p>
+              <p className="mb-1 text-center text-[10px] uppercase tracking-[0.16em] text-ivory">{oppName}</p>
             ) : null}
             <div className={view === "2d" ? "aspect-[3/4] overflow-hidden rounded-xl border border-white/25 bg-black shadow-xl" : undefined}>
               <LiveCall
@@ -1193,7 +1207,7 @@ export function GameView({ gameId }: { gameId: string }) {
                     if (snap) applySnap(snap, true);
                   }}
                 >
-                  {vsBot ? "MorseBot has no voice" : "Live"}
+                  {vsBot ? `${buddy ? buddy.name : "MorseBot"} has no voice here` : "Live"}
                 </button>
               </div>
             )}
