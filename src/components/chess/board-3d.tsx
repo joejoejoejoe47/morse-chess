@@ -2423,8 +2423,8 @@ export function ChessBoard3D({
       ? LEGO_CAMERA[you === "w" ? "w" : "b"]
       : real
         ? you === "w"
-          ? [0.2, 6.6, 10.6]
-          : [-0.2, 6.6, -10.6]
+          ? [0, 6.8, 11.0]
+          : [0, 6.8, -11.0]
       : resolved.id === "grassland" || resolved.id === "castle"
       ? you === "w"
         ? [0.4, 42, 68]

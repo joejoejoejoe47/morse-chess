@@ -117,7 +117,9 @@ export function CourtRoom() {
     });
     return obj;
   }, [gltf.scene]);
-  return <primitive object={scene} position={[1.2, -0.344, 3.1]} />;
+  // Center the open aisle under the chessboard (origin). Prior [1.2, -0.344, 3.1]
+  // left the board hugging the right pillar with empty floor on the left.
+  return <primitive object={scene} position={[2.55, -0.344, 3.35]} />;
 }
 
 export function raUnitUrl(type: PieceSymbol) {

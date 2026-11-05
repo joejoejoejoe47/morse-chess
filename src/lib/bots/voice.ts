@@ -94,15 +94,22 @@ export function pickVoice(kind: BotVoice): SpeechSynthesisVoice | null {
   return best(gender) ?? best(pool.filter((v) => !(kind === "female" ? isM : isF)(v))) ?? best(pool);
 }
 
-/* ---- optional server voice (PHP /api/tts, only when the host set OPENAI_API_KEY or ELEVENLABS_API_KEY) ---- */
-let serverTts: Promise<boolean> | null = null;
+/* ---- preferred server voice (PHP /api/tts). ON when OPENAI_API_KEY or ELEVENLABS_API_KEY is set. ---- */
+let serverTts: { at: number; p: Promise<boolean> } | null = null;
 let audio: HTMLAudioElement | null = null;
 function serverEnabled(): Promise<boolean> {
-  serverTts ??= fetch(apiUrl("/api/tts"), { credentials: "include" })
-    .then((r) => (r.ok ? r.json() : { enabled: false }))
-    .then((j) => !!j?.enabled)
-    .catch(() => false);
-  return serverTts;
+  const now = Date.now();
+  // Re-check every few minutes so adding a key on the host picks up without a hard reload.
+  if (!serverTts || now - serverTts.at > 120_000) {
+    serverTts = {
+      at: now,
+      p: fetch(apiUrl("/api/tts"), { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : { enabled: false }))
+        .then((j) => !!j?.enabled)
+        .catch(() => false),
+    };
+  }
+  return serverTts.p;
 }
 
 function browserSpeak(text: string, kind: BotVoice, onEnd?: () => void) {
@@ -121,10 +128,21 @@ function browserSpeak(text: string, kind: BotVoice, onEnd?: () => void) {
   synth.speak(u);
 }
 
+/** Expand short chess notation so browser voices do not say "N f 3" or invent words. */
+function forSpeech(text: string): string {
+  return text
+    .replace(/\bO-O-O\b/g, "castle long")
+    .replace(/\bO-O\b/g, "castle")
+    .replace(/\b([KQRBN])x([a-h][1-8])\b/g, (_, p, sq) => `${({ K: "king", Q: "queen", R: "rook", B: "bishop", N: "knight" } as Record<string, string>)[p]} takes ${sq}`)
+    .replace(/\b([KQRBN])([a-h][1-8])\b/g, (_, p, sq) => `${({ K: "king", Q: "queen", R: "rook", B: "bishop", N: "knight" } as Record<string, string>)[p]} to ${sq}`)
+    .replace(/\b([a-h][1-8])x([a-h][1-8])\b/g, "$1 takes $2");
+}
+
 let speakSeq = 0;
-/** Speak a line: server natural voice if configured, otherwise the best browser voice. */
+/** Speak a line. Prefers the server natural voice whenever a TTS key is set; browser is fallback only. */
 export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
-  const clean = text.replace(/[*_#`]/g, "").replace(/\s*[—–]\s*/g, ", ");
+  const clean = forSpeech(text.replace(/[*_#`]/g, "").replace(/\s*[—–]\s*/g, ", ")).slice(0, 400);
+  if (!clean.trim()) return onEnd?.();
   const id = ++speakSeq;
   hush();
   void serverEnabled().then(async (on) => {
@@ -138,17 +156,24 @@ export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
         body: JSON.stringify({ text: clean, voice: kind }),
       });
       if (!r.ok) throw new Error(String(r.status));
-      const url = URL.createObjectURL(await r.blob());
+      const blob = await r.blob();
+      if (!blob.size) throw new Error("empty audio");
+      const url = URL.createObjectURL(blob);
       if (id !== speakSeq) return URL.revokeObjectURL(url);
       audio = new Audio(url);
       const done = () => {
         URL.revokeObjectURL(url);
+        if (audio) audio = null;
         onEnd?.();
       };
       audio.onended = done;
-      audio.onerror = done;
+      audio.onerror = () => {
+        // Prefer retrying once via browser only if the audio element fails mid-play.
+        done();
+      };
       await audio.play();
     } catch {
+      // Server key is set but the call failed (network/quota). Fall back so the bot still talks.
       if (id === speakSeq) browserSpeak(clean, kind, onEnd);
     }
   });

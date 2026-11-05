@@ -31,6 +31,10 @@ final class Api
                 Tts::handle();
             }
 
+            if ($path === '/api/bot-brain') {
+                Brain::handle();
+            }
+
             if ($path === '/api/rtc') {
                 Signaling::handle();
             }

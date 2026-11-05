@@ -59,8 +59,23 @@ function Robot({ model, mood, trickEvery }: { model: BotModelId; mood: RobotMood
     current.current = a;
   }
 
+  // Cute robot's only clip is a blink (~0.6s). Never loop it — that looked like
+  // blink-blink-blink every second. Hold eyes open and blink sparsely instead.
+  const nextBlink = useRef(Number.POSITIVE_INFINITY);
   useEffect(() => {
-    play(POSE[model][mood] ?? POSE[model].idle, model === "cute");
+    if (model === "cute") {
+      // Stop any looping blink; eyes stay open until we fire a one-shot.
+      current.current?.stop();
+      current.current = null;
+      obj.traverse((n) => {
+        const m = n as { morphTargetInfluences?: number[] };
+        if (m.morphTargetInfluences) m.morphTargetInfluences.fill(0);
+      });
+      // First blink after 3–6s so load doesn't look like a twitch.
+      nextBlink.current = performance.now() + 3000 + Math.random() * 3000;
+      return;
+    }
+    play(POSE[model][mood] ?? POSE[model].idle, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mood, model, actions]);
 
@@ -69,6 +84,27 @@ function Robot({ model, mood, trickEvery }: { model: BotModelId; mood: RobotMood
     if (!g) return;
     const t = state.clock.elapsedTime;
     const now = performance.now();
+    if (model === "cute" && now >= nextBlink.current) {
+      // Short one-shot blink, then wait another 3–6s. Never rapid-fire or loop.
+      nextBlink.current = now + 3000 + Math.random() * 3000;
+      const blinkName = names.find((n) => /anim|blink/i.test(n)) ?? names[0];
+      const a = blinkName ? actions[blinkName] : undefined;
+      if (a) {
+        a.reset();
+        a.setLoop(LoopOnce, 1);
+        a.clampWhenFinished = true;
+        // ~0.35–0.45s blink — quick like a real lid, not a sleepy close.
+        a.timeScale = 1.25 + Math.random() * 0.25;
+        a.fadeIn(0.02).play();
+        window.setTimeout(() => {
+          a.fadeOut(0.04);
+          obj.traverse((n) => {
+            const m = n as { morphTargetInfluences?: number[] };
+            if (m.morphTargetInfluences) m.morphTargetInfluences.fill(0);
+          });
+        }, 380);
+      }
+    }
     if (mood === "idle" && now > trickAt.current) {
       trickAt.current = now + trickEvery * 1000 + Math.random() * 2500;
       tricking.current = 1;
