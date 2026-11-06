@@ -739,7 +739,7 @@ function VoiceBrainBanners({ voiceUi, llmUi }: { voiceUi: VoiceUiStatus; llmUi: 
         </div>
       ) : null}
       {llmUi.kind === "downloading" ? <p data-llm-progress>Local AI: {llmUi.pct}% — {llmUi.note}</p> : null}
-      {llmUi.kind === "unsupported" ? <p data-llm-unsupported>Local AI unavailable: {llmUi.reason}</p> : null}
+      {llmUi.kind === "unsupported" ? <p data-llm-unsupported>On-device AI unavailable here: {llmUi.reason} Chat still uses Morse Chess helper rules (not a real LLM).</p> : null}
       {llmUi.kind === "error" ? <p className="text-danger" data-llm-error>Local AI: {llmUi.message}</p> : null}
       {llmUi.kind === "ready" ? <p className="opacity-70" data-llm-ready>Brain: on-device model ready</p> : null}
     </div>

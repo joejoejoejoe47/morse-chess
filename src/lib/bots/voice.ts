@@ -6,7 +6,7 @@
  */
 import type { BotVoice } from "./store";
 import { apiUrl } from "@/lib/base";
-import { chunkForSpeech, consentKokoro, ensureKokoro, getKokoroStatus, kokoroConsented, kokoroSynth, onKokoroStatus, type KokoroStatus } from "./kokoro";
+import { KOKORO_SIZE_HINT, chunkForSpeech, consentKokoro, ensureKokoro, getKokoroStatus, kokoroConsented, kokoroSynth, onKokoroStatus, type KokoroStatus } from "./kokoro";
 
 type Rec = {
   lang: string;
@@ -113,11 +113,11 @@ export function getVoiceUi() {
 }
 
 onKokoroStatus((s: KokoroStatus) => {
-  if (s.kind === "need-consent") setUi({ kind: "need-consent", message: "Enable natural voice once (~92 MB free download, stays on your device). No signup." });
+  if (s.kind === "need-consent") setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
   else if (s.kind === "downloading") setUi({ kind: "downloading", pct: s.pct, note: s.note });
   else if (s.kind === "ready") setUi({ kind: "ok", via: s.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm" });
   else if (s.kind === "error") setUi({ kind: "error", message: s.message });
-  else if (s.kind === "idle" && !kokoroConsented()) setUi({ kind: "need-consent", message: "Enable natural voice once (~92 MB free download, stays on your device). No signup." });
+  else if (s.kind === "idle" && !kokoroConsented()) setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
 });
 
 export function enableNaturalVoice(): Promise<void> {
@@ -149,7 +149,7 @@ function playBlob(blob: Blob, id: number): Promise<void> {
 async function speakKokoro(clean: string, kind: BotVoice, id: number): Promise<boolean> {
   try {
     if (!kokoroConsented()) {
-      setUi({ kind: "need-consent", message: "Enable natural voice once (~92 MB free download, stays on your device). No signup." });
+      setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
       return false;
     }
     await ensureKokoro(false);

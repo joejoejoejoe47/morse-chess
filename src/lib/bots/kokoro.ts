@@ -1,13 +1,15 @@
 /**
  * Browser Kokoro TTS controller (main thread).
- * Free, no signup, Apache-2.0 model — downloads once (~92 MB q8 WASM) with consent.
+ * Same-origin pack under /bots/kokoro/ — no Hugging Face network.
  */
 import type { BotVoice } from "./store";
+import { asset } from "@/lib/base";
 
 export const KOKORO_MODEL = "onnx-community/Kokoro-82M-v1.0-ONNX";
-export const KOKORO_SIZE_HINT = "~92 MB (q8 WASM)";
+/** Honest size of the shipped same-origin pack (model + 2 voices + WASM). */
+export const KOKORO_SIZE_HINT = "~120 MB first enable (then browser-cached)";
 export const KOKORO_LICENSE = "Apache-2.0 (hexgrad/Kokoro-82M)";
-const CONSENT_KEY = "morse-kokoro-consent";
+const CONSENT_KEY = "morse-kokoro-consent-v2";
 
 export type KokoroStatus =
   | { kind: "need-consent" }
@@ -45,7 +47,9 @@ export function getKokoroStatus() {
 export function onKokoroStatus(fn: Listener) {
   listeners.add(fn);
   fn(status);
-  return () => { listeners.delete(fn); };
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 function setStatus(s: KokoroStatus) {
@@ -54,8 +58,14 @@ function setStatus(s: KokoroStatus) {
 }
 
 export function voiceForBot(kind: BotVoice): string {
-  // Warm, higher-graded voices from Kokoro's table.
   return kind === "female" ? "af_heart" : "am_michael";
+}
+
+/** Absolute base URL for /bots/kokoro/ (honors MORSE_BASE). */
+export function kokoroAssetBase(): string {
+  // asset() returns e.g. "/bots/kokoro" or "/chess/bots/kokoro"
+  const rel = asset("/bots/kokoro/");
+  return new URL(rel.endsWith("/") ? rel : `${rel}/`, window.location.href).href;
 }
 
 function ensureWorker() {
@@ -89,23 +99,22 @@ function ensureWorker() {
   return worker;
 }
 
-/** User tapped Enable — persist consent and start the download. */
-export function consentKokoro(preferWebGPU = false): Promise<void> {
+export function consentKokoro(_preferWebGPU = false): Promise<void> {
   try {
     localStorage.setItem(CONSENT_KEY, "1");
   } catch {
-    /* private mode — still try in-memory */
+    /* private mode */
   }
-  return ensureKokoro(preferWebGPU);
+  return ensureKokoro();
 }
 
-export function ensureKokoro(preferWebGPU = false): Promise<void> {
+export function ensureKokoro(_preferWebGPU = false): Promise<void> {
   if (!hasConsent() && status.kind === "need-consent") {
-    return Promise.reject(new Error("Natural voice needs a one-time download (~92 MB). Tap Enable natural voice."));
+    return Promise.reject(new Error(`Natural voice needs one consent to load the on-site pack (${KOKORO_SIZE_HINT}). Tap Enable natural voice.`));
   }
   if (status.kind === "ready") return Promise.resolve();
   if (loadPromise) return loadPromise;
-  setStatus({ kind: "downloading", pct: 0, note: "Starting natural voice…" });
+  setStatus({ kind: "downloading", pct: 0, note: "Starting on-site natural voice…" });
   const w = ensureWorker();
   loadPromise = new Promise<void>((resolve, reject) => {
     const unsub = onKokoroStatus((s) => {
@@ -118,14 +127,13 @@ export function ensureKokoro(preferWebGPU = false): Promise<void> {
         reject(new Error(s.message));
       }
     });
-    w.postMessage({ type: "load", preferWebGPU });
+    w.postMessage({ type: "load", assetBase: kokoroAssetBase() });
   });
   return loadPromise;
 }
 
-/** Synthesize one short chunk → WAV blob. */
 export async function kokoroSynth(text: string, kind: BotVoice): Promise<Blob> {
-  await ensureKokoro(false);
+  await ensureKokoro();
   const w = ensureWorker();
   const id = ++speakId;
   return new Promise<Blob>((resolve, reject) => {
@@ -134,7 +142,6 @@ export async function kokoroSynth(text: string, kind: BotVoice): Promise<Blob> {
   });
 }
 
-/** Split into short spoken chunks so first audio starts sooner. */
 export function chunkForSpeech(text: string, max = 160): string[] {
   const clean = text.replace(/\s+/g, " ").trim();
   if (!clean) return [];
