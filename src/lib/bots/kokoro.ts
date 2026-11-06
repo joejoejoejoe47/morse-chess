@@ -26,6 +26,9 @@ let status: KokoroStatus = hasConsent() ? { kind: "idle" } : { kind: "need-conse
 const listeners = new Set<Listener>();
 let loadPromise: Promise<void> | null = null;
 let speakId = 0;
+let forceWasmOnly = false;
+let restarting = false;
+const FORCE_WASM_KEY = "morse-kokoro-force-wasm";
 export type SynthResult = { blob: Blob; genMs: number; audioSec: number };
 const pending = new Map<number, { resolve: (b: SynthResult) => void; reject: (e: Error) => void }>();
 
@@ -34,6 +37,23 @@ function hasConsent() {
     return localStorage.getItem(CONSENT_KEY) === "1";
   } catch {
     return false;
+  }
+}
+
+function readForceWasm() {
+  try {
+    return sessionStorage.getItem(FORCE_WASM_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberForceWasm() {
+  forceWasmOnly = true;
+  try {
+    sessionStorage.setItem(FORCE_WASM_KEY, "1");
+  } catch {
+    /* private mode */
   }
 }
 
@@ -69,6 +89,37 @@ export function kokoroAssetBase(): string {
   return new URL(rel.endsWith("/") ? rel : `${rel}/`, window.location.href).href;
 }
 
+function dropWorker() {
+  if (!worker) return;
+  restarting = true;
+  try {
+    worker.terminate();
+  } catch {
+    /* already gone */
+  }
+  worker = null;
+  restarting = false;
+}
+
+/** Fresh worker so transformers.js is not stuck on a rejected WebGPU InferenceSession.create. */
+function restartWorkerForWasm(reason: string, replay?: { id: number; text: string; voice: string }) {
+  rememberForceWasm();
+  dropWorker();
+  setStatus({ kind: "downloading", pct: 20, note: "WebGPU unavailable; switching to WASM..." });
+  const w = ensureWorker();
+  w.postMessage({ type: "load", assetBase: kokoroAssetBase(), forceWasm: true });
+  if (replay && pending.has(replay.id)) {
+    const unsub = onKokoroStatus((s) => {
+      if (s.kind === "ready") {
+        unsub();
+        w.postMessage({ type: "speak", id: replay.id, text: replay.text, voice: replay.voice });
+      } else if (s.kind === "error") {
+        unsub();
+      }
+    });
+  }
+}
+
 function ensureWorker() {
   if (worker) return worker;
   worker = new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" });
@@ -88,6 +139,8 @@ function ensureWorker() {
         pending.delete(m.id);
         p.reject(new Error("cancelled"));
       }
+    } else if (m.type === "reload-wasm") {
+      void restartWorkerForWasm(m.reason, m.replay);
     } else if (m.type === "error") {
       if (m.id != null && pending.has(m.id)) {
         const p = pending.get(m.id)!;
@@ -100,6 +153,7 @@ function ensureWorker() {
     }
   };
   worker.onerror = (e) => {
+    if (restarting) return;
     setStatus({ kind: "error", message: e.message || "Natural voice worker crashed." });
     loadPromise = null;
   };
@@ -121,6 +175,9 @@ export function ensureKokoro(_preferWebGPU = false): Promise<void> {
   }
   if (status.kind === "ready") return Promise.resolve();
   if (loadPromise) return loadPromise;
+  if (readForceWasm()) forceWasmOnly = true;
+  // A prior WebGPU failure poisons this worker's ONNX init promise - start clean.
+  if (status.kind === "error") dropWorker();
   setStatus({ kind: "downloading", pct: 0, note: "Starting on-site natural voice…" });
   const w = ensureWorker();
   loadPromise = new Promise<void>((resolve, reject) => {
@@ -134,7 +191,7 @@ export function ensureKokoro(_preferWebGPU = false): Promise<void> {
         reject(new Error(s.message));
       }
     });
-    w.postMessage({ type: "load", assetBase: kokoroAssetBase() });
+    w.postMessage({ type: "load", assetBase: kokoroAssetBase(), forceWasm: forceWasmOnly });
   });
   return loadPromise;
 }

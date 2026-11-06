@@ -1,15 +1,16 @@
 /**
  * Kokoro TTS worker — SAME-ORIGIN only. One loaded model for all utterances
- * (never from_pretrained again after ready). Jobs are coalesced so a newer
+ * (one model after ready; a WebGPU failure reloads WASM in a fresh worker). Jobs are coalesced so a newer
  * reply replaces a stale one instead of playing late.
  */
 import { KokoroTTS } from "kokoro-js";
 import { env } from "@huggingface/transformers";
+import { loadKokoroDevice, probeWebGpuAdapter, shouldReloadWasmAfterSynth } from "./kokoro-backend";
 
 const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
 type InMsg =
-  | { type: "load"; assetBase: string }
+  | { type: "load"; assetBase: string; forceWasm?: boolean }
   | { type: "speak"; id: number; text: string; voice: string }
   | { type: "cancel"; id?: number };
 
@@ -18,10 +19,13 @@ type OutMsg =
   | { type: "ready"; backend: "webgpu" | "wasm" }
   | { type: "audio"; id: number; wav: ArrayBuffer; sampleRate: number; genMs: number; audioSec: number }
   | { type: "skipped"; id: number }
-  | { type: "error"; id?: number; message: string };
+  | { type: "error"; id?: number; message: string }
+  | { type: "reload-wasm"; reason: string; replay?: { id: number; text: string; voice: string } };
 
 let tts: KokoroTTS | null = null;
+let backend: "webgpu" | "wasm" | null = null;
 let assetBase = "";
+let progressCb: (p: { status?: string; progress?: number; file?: string }) => void = () => {};
 const stale = new Set<number>();
 let latest: { id: number; text: string; voice: string } | null = null;
 let current: { id: number } | null = null;
@@ -55,15 +59,7 @@ function installFetchGuard(base: string) {
   };
 }
 
-function hasWebGPU() {
-  try {
-    return typeof navigator !== "undefined" && !!(navigator as Navigator & { gpu?: unknown }).gpu;
-  } catch {
-    return false;
-  }
-}
-
-async function loadModel(progress_callback: (p: { status?: string; progress?: number; file?: string }) => void) {
+async function loadModel(forceWasm: boolean) {
   const wasmOpts = env.backends?.onnx?.wasm;
   if (wasmOpts && typeof crossOriginIsolated !== "undefined" && crossOriginIsolated) {
     try {
@@ -74,21 +70,27 @@ async function loadModel(progress_callback: (p: { status?: string; progress?: nu
     }
   }
 
-  if (hasWebGPU()) {
-    try {
-      post({ type: "progress", pct: 15, note: "Trying WebGPU with the on-site q8 model…" });
-      tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device: "webgpu", progress_callback });
-      return "webgpu" as const;
-    } catch {
-      post({ type: "progress", pct: 20, note: "WebGPU unavailable; using WASM q8…" });
-    }
+  const gpu = typeof navigator !== "undefined" ? (navigator as Navigator & { gpu?: { requestAdapter?: () => Promise<unknown> } }).gpu : undefined;
+  const adapterOk = forceWasm ? false : await probeWebGpuAdapter(gpu);
+  if (!forceWasm && adapterOk) {
+    post({ type: "progress", pct: 15, note: "Trying WebGPU with the on-site q8 model…" });
+  } else {
+    post({ type: "progress", pct: 18, note: adapterOk ? "Loading WASM q8…" : "No GPU adapter; loading WASM q8…" });
   }
 
-  tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device: "wasm", progress_callback });
-  return "wasm" as const;
+  const result = await loadKokoroDevice({
+    forceWasm,
+    adapterOk,
+    fromPretrained: async (device) => {
+      if (device === "wasm" && adapterOk && !forceWasm) post({ type: "progress", pct: 20, note: "WebGPU unavailable; using WASM q8…" });
+      tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device, progress_callback: progressCb });
+      backend = device;
+    },
+  });
+  return result;
 }
 
-async function load(base: string) {
+async function load(base: string, forceWasm = false) {
   assetBase = base.endsWith("/") ? base : `${base}/`;
   installFetchGuard(assetBase);
   env.allowRemoteModels = false;
@@ -99,7 +101,7 @@ async function load(base: string) {
   if (wasmOpts) wasmOpts.wasmPaths = `${assetBase}wasm/`;
 
   post({ type: "progress", pct: 5, note: "Loading natural voice from this site (~120 MB first time, then cached)…" });
-  const progress_callback = (p: { status?: string; progress?: number; file?: string }) => {
+  progressCb = (p: { status?: string; progress?: number; file?: string }) => {
     if (p.status === "progress" && typeof p.progress === "number") {
       post({ type: "progress", pct: Math.min(99, Math.round(p.progress)), note: p.file ? `Loading ${p.file}` : "Loading natural voice…" });
     } else if (p.status === "initiate") {
@@ -109,8 +111,12 @@ async function load(base: string) {
     }
   };
 
-  const backend = await loadModel(progress_callback);
-  post({ type: "ready", backend });
+  const result = await loadModel(forceWasm);
+  if (result.kind === "reload-wasm") {
+    post({ type: "reload-wasm", reason: result.reason });
+    return;
+  }
+  post({ type: "ready", backend: result.backend });
 }
 
 async function speak(id: number, text: string, voice: string) {
@@ -140,6 +146,14 @@ async function speak(id: number, text: string, voice: string) {
       post({ type: "skipped", id });
       return;
     }
+    if (shouldReloadWasmAfterSynth(backend, e)) {
+      post({
+        type: "reload-wasm",
+        reason: e instanceof Error ? e.message : "WebGPU synthesis failed.",
+        replay: { id, text, voice },
+      });
+      return;
+    }
     post({ type: "error", id, message: e instanceof Error ? e.message : "Voice synthesis failed." });
   }
 }
@@ -165,7 +179,7 @@ async function runLoop() {
 self.onmessage = (ev: MessageEvent<InMsg>) => {
   const msg = ev.data;
   if (msg.type === "load") {
-    void load(msg.assetBase).catch((e) => post({ type: "error", message: e instanceof Error ? e.message : "Could not load natural voice." }));
+    void load(msg.assetBase, !!msg.forceWasm).catch((e) => post({ type: "error", message: e instanceof Error ? e.message : "Could not load natural voice." }));
   } else if (msg.type === "speak") {
     stale.delete(msg.id);
     latest = { id: msg.id, text: msg.text, voice: msg.voice };
