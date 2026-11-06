@@ -26,7 +26,8 @@ let status: KokoroStatus = hasConsent() ? { kind: "idle" } : { kind: "need-conse
 const listeners = new Set<Listener>();
 let loadPromise: Promise<void> | null = null;
 let speakId = 0;
-const pending = new Map<number, { resolve: (b: Blob) => void; reject: (e: Error) => void }>();
+export type SynthResult = { blob: Blob; genMs: number; audioSec: number };
+const pending = new Map<number, { resolve: (b: SynthResult) => void; reject: (e: Error) => void }>();
 
 function hasConsent() {
   try {
@@ -79,7 +80,13 @@ function ensureWorker() {
       const p = pending.get(m.id);
       if (p) {
         pending.delete(m.id);
-        p.resolve(new Blob([m.wav], { type: "audio/wav" }));
+        p.resolve({ blob: new Blob([m.wav], { type: "audio/wav" }), genMs: m.genMs ?? 0, audioSec: m.audioSec ?? 0 });
+      }
+    } else if (m.type === "skipped") {
+      const p = pending.get(m.id);
+      if (p) {
+        pending.delete(m.id);
+        p.reject(new Error("cancelled"));
       }
     } else if (m.type === "error") {
       if (m.id != null && pending.has(m.id)) {
@@ -132,28 +139,63 @@ export function ensureKokoro(_preferWebGPU = false): Promise<void> {
   return loadPromise;
 }
 
-export async function kokoroSynth(text: string, kind: BotVoice): Promise<Blob> {
+export function cancelKokoro() {
+  if (!worker) return;
+  for (const id of pending.keys()) worker.postMessage({ type: "cancel", id });
+  worker.postMessage({ type: "cancel" });
+}
+
+export async function kokoroSynth(text: string, kind: BotVoice): Promise<SynthResult> {
   await ensureKokoro();
   const w = ensureWorker();
   const id = ++speakId;
-  return new Promise<Blob>((resolve, reject) => {
+  return new Promise<SynthResult>((resolve, reject) => {
     pending.set(id, { resolve, reject });
     w.postMessage({ type: "speak", id, text, voice: voiceForBot(kind) });
   });
 }
 
-export function chunkForSpeech(text: string, max = 160): string[] {
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (!clean) return [];
-  const parts = clean.split(/(?<=[.!?…])\s+/);
+function splitToMax(piece: string, max: number): string[] {
+  if (piece.length <= max) return [piece];
+  const clauses = piece.split(/(?<=[,;:—–-])\s+/);
   const out: string[] = [];
   let buf = "";
-  for (const p of parts) {
-    if ((buf + " " + p).trim().length > max && buf) {
-      out.push(buf.trim());
-      buf = p;
-    } else buf = buf ? `${buf} ${p}` : p;
+  const flushWords = (s: string) => {
+    if (s.length <= max) {
+      out.push(s);
+      return;
+    }
+    let wbuf = "";
+    for (const w of s.split(" ")) {
+      if ((wbuf + " " + w).trim().length > max && wbuf) {
+        out.push(wbuf.trim());
+        wbuf = w;
+      } else wbuf = wbuf ? `${wbuf} ${w}` : w;
+    }
+    if (wbuf.trim()) out.push(wbuf.trim());
+  };
+  for (const c of clauses) {
+    if ((buf + " " + c).trim().length > max && buf) {
+      flushWords(buf.trim());
+      buf = c;
+    } else buf = buf ? `${buf} ${c}` : c;
   }
-  if (buf.trim()) out.push(buf.trim());
-  return out.length ? out : [clean.slice(0, max)];
+  if (buf.trim()) flushWords(buf.trim());
+  return out;
+}
+
+/**
+ * Short first chunk so WASM (often ~1–2× realtime) can start audio quickly.
+ * A 160-char first chunk is ~10s of speech → ~20–30s to first sound on single-thread WASM.
+ */
+export function chunkForSpeech(text: string, firstMax = 56, laterMax = 110): string[] {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const sentences = clean.split(/(?<=[.!?…])\s+/).filter(Boolean);
+  const out: string[] = [];
+  for (const s of sentences) {
+    const max = out.length === 0 ? firstMax : laterMax;
+    out.push(...splitToMax(s, max));
+  }
+  return out.length ? out : [clean.slice(0, firstMax)];
 }
