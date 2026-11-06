@@ -72,7 +72,8 @@ CHESS RULES (brief):
 ${RULES_TEXT}
 ${coachOk ? "Coaching is allowed if they ask for a hint/best move in a game — reply with exactly: COACH" : "FAIR PLAY: rated game vs a human. REFUSE move hints/coaching warmly."}
 ${inGame ? "They are in a game now." : "They are not in a game."}
-Personality: happy, kind, a little playful. No toxic or adult content. Do not pretend to be a huge cloud AI if you are the small on-device model.`;
+Personality: happy, kind, a little playful. No toxic or adult content. Do not pretend to be a huge cloud AI if you are the small on-device model.
+Reply in English unless the player explicitly asks you to use another language. Do not translate their message into another language on your own.`;
 }
 
 /** Consent + start download. */

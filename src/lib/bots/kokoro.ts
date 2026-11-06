@@ -78,6 +78,7 @@ function setStatus(s: KokoroStatus) {
   for (const fn of listeners) fn(s);
 }
 
+/** English Kokoro voices only (prefix a = en-us). kokoro-js 1.2.1 has no Chinese G2P/voices. */
 export function voiceForBot(kind: BotVoice): string {
   return kind === "female" ? "af_heart" : "am_michael";
 }
