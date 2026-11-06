@@ -5,7 +5,7 @@
  */
 import { KokoroTTS } from "kokoro-js";
 import { env } from "@huggingface/transformers";
-import { loadKokoroDevice, probeWebGpuAdapter, shouldReloadWasmAfterSynth } from "./kokoro-backend";
+import { loadKokoroDevice, probeWebGpuAdapter, sanitizeKokoroPcm, shouldReloadWasmAfterSynth } from "./kokoro-backend";
 
 const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
@@ -72,17 +72,15 @@ async function loadModel(forceWasm: boolean) {
 
   const gpu = typeof navigator !== "undefined" ? (navigator as Navigator & { gpu?: { requestAdapter?: () => Promise<unknown> } }).gpu : undefined;
   const adapterOk = forceWasm ? false : await probeWebGpuAdapter(gpu);
-  if (!forceWasm && adapterOk) {
-    post({ type: "progress", pct: 15, note: "Trying WebGPU with the on-site q8 model…" });
-  } else {
-    post({ type: "progress", pct: 18, note: adapterOk ? "Loading WASM q8…" : "No GPU adapter; loading WASM q8…" });
-  }
+  // Shipped dtype is q8: official kokoro-js pairs WebGPU with fp32, and
+  // WebGPU+q8 has been reported to emit garbled speech (hexgrad/kokoro#68).
+  post({ type: "progress", pct: 18, note: "Loading WASM q8…" });
 
   const result = await loadKokoroDevice({
     forceWasm,
     adapterOk,
+    dtype: "q8",
     fromPretrained: async (device) => {
-      if (device === "wasm" && adapterOk && !forceWasm) post({ type: "progress", pct: 20, note: "WebGPU unavailable; using WASM q8…" });
       tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device, progress_callback: progressCb });
       backend = device;
     },
@@ -136,10 +134,13 @@ async function speak(id: number, text: string, voice: string) {
       post({ type: "skipped", id });
       return;
     }
+    if (audio.audio) sanitizeKokoroPcm(audio.audio);
     const sr = audio.sampling_rate || 24000;
     const audioSec = audio.audio ? audio.audio.length / sr : 0;
     const wav: Blob = audio.toBlob();
     const buf = await wav.arrayBuffer();
+    // Copy via structured clone (no transfer list) so decodeAudioData cannot
+    // detach the worker's buffer; the main thread also copies before decode.
     post({ type: "audio", id, wav: buf, sampleRate: sr, genMs, audioSec });
   } catch (e) {
     if (stale.has(id)) {
