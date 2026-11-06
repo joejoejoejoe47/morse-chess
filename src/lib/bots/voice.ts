@@ -29,12 +29,15 @@ function recCtor(): (new () => Rec) | null {
 
 export const canListen = () => recCtor() !== null;
 
+/** Spoken input defaults to English. Browser UI language is not an explicit Morse Chess language choice. */
+export const SPEECH_RECOGNITION_LANG = "en-US";
+
 /** Listen once; resolves with what was heard ("" if nothing). */
 export function listenOnce(onInterim?: (t: string) => void): { done: Promise<string>; stop: () => void } {
   const Ctor = recCtor();
   if (!Ctor) return { done: Promise.reject(new Error("This browser cannot listen. Try Chrome, or type instead.")), stop: () => {} };
   const rec = new Ctor();
-  rec.lang = navigator.language || "en-US";
+  rec.lang = SPEECH_RECOGNITION_LANG;
   rec.interimResults = true;
   rec.continuous = false;
   let text = "";
