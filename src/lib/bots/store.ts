@@ -30,6 +30,7 @@ export const BOT_MODELS: { id: BotModelId; title: string; url: string; author: s
 
 const KEY = "morse-my-bots";
 const GAME_KEY = "morse-bot-games";
+const LAST_KEY = "morse-bot-last";
 export const BOT_EVENT = "morse-bots-changed";
 export const SUMMON_EVENT = "morse-bot-summon";
 
@@ -75,11 +76,17 @@ export function addBot(input: { name: string; model: BotModelId; voice: BotVoice
     created: Date.now(),
   };
   saveBots([bot, ...bots].slice(0, 12));
+  touchBot(bot.id);
   return bot;
 }
 
 export function removeBot(id: string) {
   saveBots(listBots().filter((b) => b.id !== id));
+  try {
+    if (localStorage.getItem(LAST_KEY) === id) localStorage.removeItem(LAST_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function botById(id: string | null | undefined) {
@@ -123,6 +130,7 @@ export function rememberBotGame(gameId: string, botId: string) {
   } catch {
     /* ignore */
   }
+  touchBot(botId);
 }
 
 export function botForGame(gameId: string | null | undefined): MyBot | null {
@@ -175,6 +183,9 @@ export function saveActiveBot(v: { id: string; panel: boolean } | null) {
   } catch {
     /* ignore */
   }
+  // Selecting / summoning a bot also becomes the lounge "Timed or breeze vs …" entry.
+  // Dismiss does not clear last — saved bots stay, and the lounge keeps showing who you last used.
+  if (v) touchBot(v.id);
 }
 export function loadActiveBot(): { id: string; panel: boolean } | null {
   try {
@@ -183,4 +194,33 @@ export function loadActiveBot(): { id: string; panel: boolean } | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * One lounge play entry for custom bots: "Timed or breeze vs <name>".
+ * All saved bots stay in localStorage; this pointer swaps which name the single
+ * button shows — last created, selected (summon), or played.
+ */
+export function touchBot(id: string) {
+  if (!id) return;
+  try {
+    const prev = localStorage.getItem(LAST_KEY);
+    localStorage.setItem(LAST_KEY, id);
+    if (prev === id) return;
+  } catch {
+    return;
+  }
+  window.dispatchEvent(new Event(BOT_EVENT));
+}
+
+/** Bot for the single lounge play link; falls back to most recently created. */
+export function lastBot(): MyBot | null {
+  try {
+    const id = localStorage.getItem(LAST_KEY);
+    const hit = botById(id);
+    if (hit) return hit;
+  } catch {
+    /* ignore */
+  }
+  return listBots()[0] ?? null;
 }
