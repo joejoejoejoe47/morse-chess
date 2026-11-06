@@ -9,11 +9,12 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Chess } from "chess.js";
-import { Bot, Keyboard, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
+import { AudioLines, Bot, Keyboard, Mic, MicOff, Send, Volume2, VolumeX, X } from "lucide-react";
 import { BOT_ASK_EVENT, BOT_EVENT, BOT_REPLY_EVENT, SUMMON_EVENT, botById, botForGame, listBots, loadActiveBot, saveActiveBot, type MyBot } from "@/lib/bots/store";
 import { type GuideTopic } from "@/lib/bots/brain";
 import { askBrain } from "@/lib/bots/llm";
-import { canListen, hush, listenOnce, requestMic, speak } from "@/lib/bots/voice";
+import { canListen, enableNaturalVoice, hush, listenOnce, onVoiceUi, requestMic, speak, type VoiceUiStatus } from "@/lib/bots/voice";
+import { LOCAL_LLM_SIZE_HINT, enableLocalLlm, onLocalLlmStatus, probeLocalLlmSupport, type LocalLlmStatus } from "@/lib/bots/local-llm";
 import type { CoachArrow } from "@/lib/bots/coach";
 import type { RobotMood } from "./robot-model";
 
@@ -74,6 +75,8 @@ export function BotBuddyHost() {
   const [voiceMode, setVoiceMode] = useState(false);
   const [bubble, setBubble] = useState(false);
   const [chooser, setChooser] = useState(false);
+  const [voiceUi, setVoiceUi] = useState<VoiceUiStatus>({ kind: "idle" });
+  const [llmUi, setLlmUi] = useState<LocalLlmStatus>({ kind: "idle" });
   const [myBots, setMyBots] = useState<MyBot[]>([]);
   const botRef = useRef<MyBot | null>(null);
   const mutedRef = useRef(false);
@@ -213,6 +216,13 @@ export function BotBuddyHost() {
     sync();
     window.addEventListener(BOT_EVENT, sync);
     return () => window.removeEventListener(BOT_EVENT, sync);
+  }, []);
+
+  useEffect(() => onVoiceUi(setVoiceUi), []);
+  useEffect(() => {
+    const off = onLocalLlmStatus(setLlmUi);
+    void probeLocalLlmSupport();
+    return off;
   }, []);
 
   // Table chat in a game against your bot talks to the bot.
@@ -539,13 +549,14 @@ export function BotBuddyHost() {
             <div className="absolute -top-1 right-0 flex gap-1">
               <button
                 type="button"
-                data-bot-mic-mini
-                aria-label={listening ? "Listening" : "Talk"}
+                data-bot-wave
+                aria-label={listening ? "Listening — speak now" : "Voice conversation"}
+                title="Click once, speak, I answer aloud"
                 onClick={mic}
                 disabled={!canListen()}
-                className={"grid size-7 place-items-center rounded-full border text-ivory " + (listening ? "animate-pulse border-danger bg-danger/40" : "border-line bg-ink/80") + " disabled:opacity-40"}
+                className={"grid size-8 place-items-center rounded-full border text-ivory shadow " + (listening ? "animate-pulse border-[#f6e7b2] bg-[#f6e7b2]/30" : "border-gold-line/70 bg-ink/90") + " disabled:opacity-40"}
               >
-                {canListen() ? <Mic className="size-3.5" /> : <MicOff className="size-3.5" />}
+                {canListen() ? <AudioLines className={"size-4 " + (listening ? "text-[#f6e7b2]" : "text-[#f6e7b2]")} /> : <MicOff className="size-3.5" />}
               </button>
               <button type="button" data-bot-open-text aria-label="Type instead" onClick={() => setPanel(true)} className="grid size-7 place-items-center rounded-full border border-line bg-ink/80 text-ivory">
                 <Keyboard className="size-3.5" />
@@ -563,6 +574,7 @@ export function BotBuddyHost() {
             style={{ left: panelLeft, width: panelW, ...(panelAbove ? { bottom: vh() - pos.y + 6 } : { top: pos.y + s * 1.15 + 6 }) }}
           >
             <p className="line-clamp-4" data-bot-line>{listening ? (text ? `“${text}”` : "🎙 I'm listening…") : line}</p>
+            <VoiceBrainBanners voiceUi={voiceUi} llmUi={llmUi} />
             {offer ? (
               <button
                 type="button"
@@ -587,9 +599,10 @@ export function BotBuddyHost() {
           data-bot-chat
         >
           <div className="flex items-start gap-2">
-            <p className="max-h-40 flex-1 overflow-y-auto text-[14px] leading-snug" data-bot-line>
-              {line}
-            </p>
+            <div className="max-h-48 flex-1 overflow-y-auto">
+              <p className="text-[14px] leading-snug" data-bot-line>{line}</p>
+              <VoiceBrainBanners voiceUi={voiceUi} llmUi={llmUi} />
+            </div>
             <button type="button" aria-label={muted ? "Unmute" : "Mute"} className="text-mist hover:text-ivory" onClick={() => { setMuted(!muted); hush(); }}>
               {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
             </button>
@@ -693,6 +706,43 @@ function Arrows({ arrows, you }: { arrows: CoachArrow[]; you: "w" | "b" }) {
         );
       })}
     </>
+  );
+}
+
+
+function VoiceBrainBanners({ voiceUi, llmUi }: { voiceUi: VoiceUiStatus; llmUi: LocalLlmStatus }) {
+  return (
+    <div className="mt-1.5 space-y-1 text-[11px] leading-snug text-mist" data-bot-status>
+      {voiceUi.kind === "need-consent" ? (
+        <div className="rounded-lg border border-gold-line/40 bg-ink/70 p-1.5">
+          <p>{voiceUi.message}</p>
+          <button type="button" data-enable-kokoro className="mt-1 rounded-full bg-[#f6e7b2] px-2 py-0.5 font-semibold text-ink" onClick={() => void enableNaturalVoice().catch(() => {})}>
+            Enable natural voice
+          </button>
+        </div>
+      ) : null}
+      {voiceUi.kind === "downloading" ? (
+        <p data-kokoro-progress>Natural voice: {voiceUi.pct}% — {voiceUi.note}</p>
+      ) : null}
+      {voiceUi.kind === "error" ? (
+        <p className="text-danger" data-kokoro-error>Voice: {voiceUi.message} (reply stays on screen)</p>
+      ) : null}
+      {voiceUi.kind === "ok" ? (
+        <p className="opacity-70" data-voice-via>Voice: {voiceUi.via}</p>
+      ) : null}
+      {llmUi.kind === "need-consent" ? (
+        <div className="rounded-lg border border-line bg-ink/70 p-1.5">
+          <p>Optional on-device AI ({LOCAL_LLM_SIZE_HINT}). Free, no signup. Rules stay if you skip.</p>
+          <button type="button" data-enable-local-llm className="mt-1 rounded-full border border-gold-line/60 px-2 py-0.5 font-semibold text-[#f6e7b2]" onClick={() => void enableLocalLlm().catch(() => {})}>
+            Enable local AI
+          </button>
+        </div>
+      ) : null}
+      {llmUi.kind === "downloading" ? <p data-llm-progress>Local AI: {llmUi.pct}% — {llmUi.note}</p> : null}
+      {llmUi.kind === "unsupported" ? <p data-llm-unsupported>Local AI unavailable: {llmUi.reason}</p> : null}
+      {llmUi.kind === "error" ? <p className="text-danger" data-llm-error>Local AI: {llmUi.message}</p> : null}
+      {llmUi.kind === "ready" ? <p className="opacity-70" data-llm-ready>Brain: on-device model ready</p> : null}
+    </div>
   );
 }
 
