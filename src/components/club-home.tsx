@@ -28,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { TeamSetup } from "@/components/variants/team-setup";
 import { getFootballPrefs, saveFootballTeam, sendFootballChallenge, type FootballTeam } from "@/lib/server/football";
 import { SplashSkeleton } from "@/components/auth-screen";
-import { BOT_EVENT, listBots, rememberBotGame, type MyBot } from "@/lib/bots/store";
+import { BOT_EVENT, lastBot, rememberBotGame, touchBot, type MyBot } from "@/lib/bots/store";
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 
@@ -53,10 +53,12 @@ export function ClubHome() {
   const [botMinutes, setBotMinutes] = useState<1 | 5 | 10>(1);
   const [home, setHome] = useState<HomeState | null>(null);
   const [flow, setFlow] = useState<Flow>({ kind: "idle" });
-  const [myBots, setMyBots] = useState<MyBot[]>([]);
+  // Saved custom bots stay in localStorage; the lounge shows ONE play link for the
+  // last created / selected / used bot (not one button per saved bot).
+  const [loungeBot, setLoungeBot] = useState<MyBot | null>(null);
   const [myBot, setMyBot] = useState<MyBot | null>(null);
   useEffect(() => {
-    const sync = () => setMyBots(listBots());
+    const sync = () => setLoungeBot(lastBot());
     sync();
     window.addEventListener(BOT_EVENT, sync);
     return () => window.removeEventListener(BOT_EVENT, sync);
@@ -466,18 +468,22 @@ export function ClubHome() {
           <PieceMark kind="q" className="size-4 text-cream" />
           Timed or breeze vs {BOT_V2_USERNAME}
         </button>
-        {myBots.map((b) => (
+        {loungeBot ? (
           <button
-            key={b.id}
+            key={loungeBot.id}
             type="button"
-            data-my-bot-play={b.id}
+            data-my-bot-play={loungeBot.id}
             className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
-            onClick={() => { setMyBot(b); setFlow({ kind: "pick-mode", intent: "bot-v2" }); }}
+            onClick={() => {
+              touchBot(loungeBot.id);
+              setMyBot(loungeBot);
+              setFlow({ kind: "pick-mode", intent: "bot-v2" });
+            }}
           >
             <PieceMark kind="b" className="size-4 text-cream" />
-            Timed or breeze vs {b.name}
+            Timed or breeze vs {loungeBot.name}
           </button>
-        ))}
+        ) : null}
         <Link
           to="/bot-maker"
           data-create-bot-link
