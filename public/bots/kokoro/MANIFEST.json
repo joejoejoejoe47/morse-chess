@@ -1,16 +1,21 @@
 {
   "name": "Kokoro-82M natural voice (same-origin pack)",
   "license": "Apache-2.0 (hexgrad/Kokoro-82M / onnx-community ONNX)",
-  "source": "Copied from local transformers.js cache + kokoro-js/voices + onnxruntime-web dist (no network)",
+  "source": "Local transformers.js cache + kokoro-js/voices + onnxruntime-web dist (no network)",
+  "onnxruntime_web": "1.22.0-dev.20250409-89f8206ba4",
   "model_id": "onnx-community/Kokoro-82M-v1.0-ONNX",
   "dtype": "q8 (model_quantized.onnx)",
   "voices": [
     "af_heart",
     "am_michael"
   ],
-  "total_bytes": 126138676,
-  "total_mb": 120.3,
+  "total_bytes": 126204342,
+  "total_mb": 120.4,
   "files": [
+    {
+      "path": "CREDITS.md",
+      "bytes": 326
+    },
     {
       "path": "models/onnx-community/Kokoro-82M-v1.0-ONNX/config.json",
       "bytes": 44
@@ -36,8 +41,16 @@
       "bytes": 522240
     },
     {
+      "path": "wasm/ort-wasm-simd-threaded.jsep.mjs",
+      "bytes": 44484
+    },
+    {
       "path": "wasm/ort-wasm-simd-threaded.jsep.wasm",
       "bytes": 21596019
+    },
+    {
+      "path": "wasm/ort-wasm-simd-threaded.mjs",
+      "bytes": 20856
     },
     {
       "path": "wasm/ort-wasm-simd-threaded.wasm",
