@@ -1,12 +1,14 @@
 /**
  * Bot mouth + ears.
- * Speak order: optional server TTS (if host set a key) → Kokoro browser TTS (free, opt-in ~92 MB)
- * → readable error (never silently use harsh speechSynthesis for the bot).
- * Mic still uses browser SpeechRecognition when available.
+ * Speak order: optional server TTS (if host set a key) → Kokoro browser TTS (free, opt-in ~120 MB)
+ * → readable error or tap-to-play (never silently use harsh speechSynthesis).
+ * Mic (input) is separate from speaker (output). A denied mic must not disable TTS.
  */
 import type { BotVoice } from "./store";
 import { apiUrl } from "@/lib/base";
-import { KOKORO_SIZE_HINT, chunkForSpeech, consentKokoro, ensureKokoro, getKokoroStatus, kokoroConsented, kokoroSynth, onKokoroStatus, type KokoroStatus } from "./kokoro";
+import { cancelKokoro, chunkForSpeech, consentKokoro, ensureKokoro, getKokoroStatus, kokoroConsented, kokoroSynth, onKokoroStatus, type KokoroStatus } from "./kokoro";
+import { playQueuedFromGesture, playWavBlob, stopPlayback, unlockSpeaker, type PlayOutcome } from "./playback";
+export { unlockSpeaker, playQueuedFromGesture };
 
 type Rec = {
   lang: string;
@@ -90,6 +92,9 @@ export type VoiceUiStatus =
   | { kind: "ok"; via: "server" | "kokoro-wasm" | "kokoro-webgpu" }
   | { kind: "need-consent"; message: string }
   | { kind: "downloading"; pct: number; note: string }
+  | { kind: "generating"; note: string; genMs?: number; audioSec?: number }
+  | { kind: "playing"; via: "server" | "kokoro-wasm" | "kokoro-webgpu"; genMs?: number; audioSec?: number }
+  | { kind: "needs-gesture"; message: string }
   | { kind: "error"; message: string }
   | { kind: "idle" };
 
@@ -121,29 +126,41 @@ onKokoroStatus((s: KokoroStatus) => {
 });
 
 export function enableNaturalVoice(): Promise<void> {
+  // Must run in the same turn as the click so Safari/iOS unlocks audio before the long download.
+  unlockSpeaker();
   return consentKokoro(false).then(() => {
     const st = getKokoroStatus();
     if (st.kind === "ready") setUi({ kind: "ok", via: st.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm" });
   });
 }
 
-function playBlob(blob: Blob, id: number): Promise<void> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(blob);
-    audio = new Audio(url);
-    const done = () => {
-      URL.revokeObjectURL(url);
-      if (audio) audio = null;
-      resolve();
-    };
-    audio.onended = done;
-    audio.onerror = done;
-    if (id !== speakSeq) {
-      done();
-      return;
-    }
-    void audio.play().catch(done);
-  });
+function applyPlayOutcome(out: PlayOutcome): boolean {
+  if (out.kind === "played") return true;
+  if (out.kind === "needs-gesture") {
+    setUi({ kind: "needs-gesture", message: out.message });
+    return false;
+  }
+  setUi({ kind: "error", message: out.message });
+  return false;
+}
+
+async function playBlob(blob: Blob, id: number): Promise<boolean> {
+  if (id !== speakSeq) return false;
+  const out = await playWavBlob(blob);
+  if (id !== speakSeq) return false;
+  return applyPlayOutcome(out);
+}
+
+/** Explicit Play reply button — user gesture. */
+export async function playLastReply(): Promise<boolean> {
+  unlockSpeaker();
+  const out = await playQueuedFromGesture();
+  return applyPlayOutcome(out);
+}
+
+function viaNow(): "kokoro-wasm" | "kokoro-webgpu" {
+  const st = getKokoroStatus();
+  return st.kind === "ready" && st.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm";
 }
 
 async function speakKokoro(clean: string, kind: BotVoice, id: number): Promise<boolean> {
@@ -154,16 +171,34 @@ async function speakKokoro(clean: string, kind: BotVoice, id: number): Promise<b
     }
     await ensureKokoro(false);
     const chunks = chunkForSpeech(clean);
-    for (const c of chunks) {
-      if (id !== speakSeq) return true;
-      const blob = await kokoroSynth(c, kind);
-      if (id !== speakSeq) return true;
-      const st = getKokoroStatus();
-      if (st.kind === "ready") setUi({ kind: "ok", via: st.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm" });
-      await playBlob(blob, id);
+    if (!chunks.length) return true;
+    setUi({ kind: "generating", note: `Generating first words (${chunks[0].split(" ").length} words)…` });
+    let next: ReturnType<typeof kokoroSynth> | null = kokoroSynth(chunks[0], kind);
+    for (let i = 0; i < chunks.length; i++) {
+      if (id !== speakSeq || !next) return false;
+      let result;
+      try {
+        result = await next;
+      } catch (e) {
+        if (e instanceof Error && e.message === "cancelled") return false;
+        throw e;
+      }
+      if (id !== speakSeq) return false;
+      // Start the next chunk while this one plays (time-to-first-audio = first chunk only).
+      next = chunks[i + 1] ? kokoroSynth(chunks[i + 1], kind) : null;
+      setUi({
+        kind: "playing",
+        via: viaNow(),
+        genMs: result.genMs,
+        audioSec: result.audioSec,
+      });
+      const heard = await playBlob(result.blob, id);
+      if (!heard) return false;
     }
+    setUi({ kind: "ok", via: viaNow() });
     return true;
   } catch (e) {
+    if (e instanceof Error && e.message === "cancelled") return false;
     const msg = e instanceof Error ? e.message : "Natural voice failed.";
     setUi({ kind: "error", message: msg });
     return false;
@@ -172,7 +207,8 @@ async function speakKokoro(clean: string, kind: BotVoice, id: number): Promise<b
 
 /**
  * Speak a line aloud.
- * Prefers configured server TTS; else Kokoro. Never falls back to harsh browser speechSynthesis —
+ * Kokoro (once consented) is the mouth; optional server TTS only if Kokoro is off.
+ * Never falls back to harsh browser speechSynthesis —
  * the on-screen text stays readable, and VoiceUiStatus explains what went wrong.
  */
 export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
@@ -182,7 +218,8 @@ export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
   const id = speakSeq;
   void (async () => {
     if (id !== speakSeq) return;
-    const serverOn = await serverEnabled();
+    // Don't wait on /api/tts when Kokoro is already the chosen mouth (~RTT every reply).
+    const serverOn = kokoroConsented() ? false : await serverEnabled();
     if (id !== speakSeq) return;
     if (serverOn) {
       try {
@@ -197,8 +234,9 @@ export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
         if (!blob.size) throw new Error("empty audio");
         if (id !== speakSeq) return;
         setUi({ kind: "ok", via: "server" });
-        await playBlob(blob, id);
+        const heard = await playBlob(blob, id);
         if (id === speakSeq) onEnd?.();
+        if (!heard) return;
         return;
       } catch {
         // Server key set but call failed — try Kokoro, do not use harsh browser TTS.
@@ -214,6 +252,7 @@ export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
 
 export function hush() {
   speakSeq++;
+  cancelKokoro();
   if (audio) {
     try {
       audio.pause();
@@ -222,6 +261,7 @@ export function hush() {
     }
     audio = null;
   }
+  stopPlayback();
 }
 
 /** Ask for the microphone once (summon). true = granted and speech recognition exists. */

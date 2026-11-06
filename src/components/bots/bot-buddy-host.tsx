@@ -13,7 +13,7 @@ import { AudioLines, Bot, Keyboard, Mic, MicOff, Send, Volume2, VolumeX, X } fro
 import { BOT_ASK_EVENT, BOT_EVENT, BOT_REPLY_EVENT, SUMMON_EVENT, botById, botForGame, listBots, loadActiveBot, saveActiveBot, type MyBot } from "@/lib/bots/store";
 import { type GuideTopic } from "@/lib/bots/brain";
 import { askBrain } from "@/lib/bots/llm";
-import { canListen, enableNaturalVoice, hush, listenOnce, onVoiceUi, requestMic, speak, type VoiceUiStatus } from "@/lib/bots/voice";
+import { canListen, enableNaturalVoice, hush, listenOnce, onVoiceUi, playLastReply, requestMic, speak, unlockSpeaker, type VoiceUiStatus } from "@/lib/bots/voice";
 import { LOCAL_LLM_SIZE_HINT, enableLocalLlm, onLocalLlmStatus, probeLocalLlmSupport, type LocalLlmStatus } from "@/lib/bots/local-llm";
 import type { CoachArrow } from "@/lib/bots/coach";
 import type { RobotMood } from "./robot-model";
@@ -77,6 +77,7 @@ export function BotBuddyHost() {
   const [chooser, setChooser] = useState(false);
   const [voiceUi, setVoiceUi] = useState<VoiceUiStatus>({ kind: "idle" });
   const [llmUi, setLlmUi] = useState<LocalLlmStatus>({ kind: "idle" });
+  const [micNote, setMicNote] = useState<string | null>(null);
   const [myBots, setMyBots] = useState<MyBot[]>([]);
   const botRef = useRef<MyBot | null>(null);
   const mutedRef = useRef(false);
@@ -142,13 +143,14 @@ export function BotBuddyHost() {
         setVoiceMode(false);
         voiceRef.current = false;
       }
-    } catch {
+    } catch (e) {
       listenRef.current = false;
       setListening(false);
       setVoiceMode(false);
       voiceRef.current = false;
       setPanel(true);
-      setLine("I can't hear you right now, so let's type! Ask me anything.");
+      // Mic/input only — keep the last spoken reply on screen.
+      setMicNote(e instanceof Error ? `Mic: ${e.message} Type instead; I'll still speak replies.` : "I couldn't hear you. Type instead — I'll still speak replies.");
     }
   }
 
@@ -173,9 +175,11 @@ export function BotBuddyHost() {
       if (botRef.current?.id !== b.id) return;
       setVoiceMode(ok);
       voiceRef.current = ok;
+      if (ok) setMicNote(null);
       if (!ok) {
         setPanel(true);
-        if (hello) say(`${t} My ears are off, so type to me here.`, b);
+        setMicNote("Mic unavailable — type to talk. I'll still speak replies when natural voice is on.");
+        if (hello) say(t, b);
         else hideBubbleSoon();
         return;
       }
@@ -450,7 +454,7 @@ export function BotBuddyHost() {
         return;
       }
       setPanel(true);
-      setLine("The mic is blocked. Allow it in the browser bar, or type to me.");
+      setMicNote("The mic is blocked. Type to talk — I'll still speak replies.");
       return;
     }
     hush();
@@ -467,7 +471,7 @@ export function BotBuddyHost() {
       } else setLine("I didn't hear anything. Tap the mic and try again!");
     } catch (e) {
       setListening(false);
-      setLine(e instanceof Error ? e.message : "The mic didn't work.");
+      setMicNote(e instanceof Error ? `Mic: ${e.message} Type instead — I'll still speak replies.` : "The mic didn't work. Type instead — I'll still speak replies.");
     }
   }
 
@@ -552,7 +556,7 @@ export function BotBuddyHost() {
                 data-bot-wave
                 aria-label={listening ? "Listening — speak now" : "Voice conversation"}
                 title="Click once, speak, I answer aloud"
-                onClick={mic}
+                onClick={() => { unlockSpeaker(); void mic(); }}
                 disabled={!canListen()}
                 className={"grid size-8 place-items-center rounded-full border text-ivory shadow " + (listening ? "animate-pulse border-[#f6e7b2] bg-[#f6e7b2]/30" : "border-gold-line/70 bg-ink/90") + " disabled:opacity-40"}
               >
@@ -574,7 +578,7 @@ export function BotBuddyHost() {
             style={{ left: panelLeft, width: panelW, ...(panelAbove ? { bottom: vh() - pos.y + 6 } : { top: pos.y + s * 1.15 + 6 }) }}
           >
             <p className="line-clamp-4" data-bot-line>{listening ? (text ? `“${text}”` : "🎙 I'm listening…") : line}</p>
-            <VoiceBrainBanners voiceUi={voiceUi} llmUi={llmUi} />
+            <VoiceBrainBanners voiceUi={voiceUi} llmUi={llmUi} micNote={micNote} onReadySpeak={() => say("Natural voice is ready! Type to me and I will answer out loud.")} />
             {offer ? (
               <button
                 type="button"
@@ -601,7 +605,7 @@ export function BotBuddyHost() {
           <div className="flex items-start gap-2">
             <div className="max-h-48 flex-1 overflow-y-auto">
               <p className="text-[14px] leading-snug" data-bot-line>{line}</p>
-              <VoiceBrainBanners voiceUi={voiceUi} llmUi={llmUi} />
+              <VoiceBrainBanners voiceUi={voiceUi} llmUi={llmUi} micNote={micNote} onReadySpeak={() => say("Natural voice is ready! Type to me and I will answer out loud.")} />
             </div>
             <button type="button" aria-label={muted ? "Unmute" : "Mute"} className="text-mist hover:text-ivory" onClick={() => { setMuted(!muted); hush(); }}>
               {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
@@ -629,6 +633,7 @@ export function BotBuddyHost() {
             className="mt-2 flex items-center gap-1.5"
             onSubmit={(e) => {
               e.preventDefault();
+              unlockSpeaker();
               const q = text;
               setText("");
               ask(q);
@@ -710,13 +715,17 @@ function Arrows({ arrows, you }: { arrows: CoachArrow[]; you: "w" | "b" }) {
 }
 
 
-function VoiceBrainBanners({ voiceUi, llmUi }: { voiceUi: VoiceUiStatus; llmUi: LocalLlmStatus }) {
+function VoiceBrainBanners({ voiceUi, llmUi, micNote, onReadySpeak }: { voiceUi: VoiceUiStatus; llmUi: LocalLlmStatus; micNote?: string | null; botVoice?: "male" | "female"; onReadySpeak?: () => void }) {
   return (
     <div className="mt-1.5 space-y-1 text-[11px] leading-snug text-mist" data-bot-status>
+      {micNote ? <p data-mic-note>Mic: {micNote}</p> : null}
       {voiceUi.kind === "need-consent" ? (
         <div className="rounded-lg border border-gold-line/40 bg-ink/70 p-1.5">
           <p>{voiceUi.message}</p>
-          <button type="button" data-enable-kokoro className="mt-1 rounded-full bg-[#f6e7b2] px-2 py-0.5 font-semibold text-ink" onClick={() => void enableNaturalVoice().catch(() => {})}>
+          <button type="button" data-enable-kokoro className="mt-1 rounded-full bg-[#f6e7b2] px-2 py-0.5 font-semibold text-ink" onClick={() => {
+            unlockSpeaker();
+            void enableNaturalVoice().then(() => onReadySpeak?.()).catch(() => {});
+          }}>
             Enable natural voice
           </button>
         </div>
@@ -724,11 +733,25 @@ function VoiceBrainBanners({ voiceUi, llmUi }: { voiceUi: VoiceUiStatus; llmUi: 
       {voiceUi.kind === "downloading" ? (
         <p data-kokoro-progress>Natural voice: {voiceUi.pct}% — {voiceUi.note}</p>
       ) : null}
+      {voiceUi.kind === "generating" ? (
+        <p data-voice-generating>Speaker: {voiceUi.note}</p>
+      ) : null}
+      {voiceUi.kind === "playing" ? (
+        <p data-voice-playing>Speaker: playing ({voiceUi.via}{voiceUi.genMs != null ? `, ${Math.round(voiceUi.genMs)} ms to this phrase` : ""}{voiceUi.audioSec ? `, ${voiceUi.audioSec.toFixed(1)}s audio` : ""})</p>
+      ) : null}
+      {voiceUi.kind === "needs-gesture" ? (
+        <div className="rounded-lg border border-gold-line/40 bg-ink/70 p-1.5" data-voice-needs-gesture>
+          <p>Speaker: {voiceUi.message}</p>
+          <button type="button" data-bot-play-audio className="mt-1 rounded-full bg-[#f6e7b2] px-2 py-0.5 font-semibold text-ink" onClick={() => { unlockSpeaker(); void playLastReply(); }}>
+            Play reply
+          </button>
+        </div>
+      ) : null}
       {voiceUi.kind === "error" ? (
-        <p className="text-danger" data-kokoro-error>Voice: {voiceUi.message} (reply stays on screen)</p>
+        <p className="text-danger" data-kokoro-error>Speaker: {voiceUi.message} (reply stays on screen)</p>
       ) : null}
       {voiceUi.kind === "ok" ? (
-        <p className="opacity-70" data-voice-via>Voice: {voiceUi.via}</p>
+        <p className="opacity-70" data-voice-via>Speaker: {voiceUi.via}</p>
       ) : null}
       {llmUi.kind === "need-consent" ? (
         <div className="rounded-lg border border-line bg-ink/70 p-1.5">

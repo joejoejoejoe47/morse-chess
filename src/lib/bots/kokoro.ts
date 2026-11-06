@@ -26,13 +26,34 @@ let status: KokoroStatus = hasConsent() ? { kind: "idle" } : { kind: "need-conse
 const listeners = new Set<Listener>();
 let loadPromise: Promise<void> | null = null;
 let speakId = 0;
-const pending = new Map<number, { resolve: (b: Blob) => void; reject: (e: Error) => void }>();
+let forceWasmOnly = false;
+let restarting = false;
+const FORCE_WASM_KEY = "morse-kokoro-force-wasm";
+export type SynthResult = { blob: Blob; genMs: number; audioSec: number };
+const pending = new Map<number, { resolve: (b: SynthResult) => void; reject: (e: Error) => void }>();
 
 function hasConsent() {
   try {
     return localStorage.getItem(CONSENT_KEY) === "1";
   } catch {
     return false;
+  }
+}
+
+function readForceWasm() {
+  try {
+    return sessionStorage.getItem(FORCE_WASM_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberForceWasm() {
+  forceWasmOnly = true;
+  try {
+    sessionStorage.setItem(FORCE_WASM_KEY, "1");
+  } catch {
+    /* private mode */
   }
 }
 
@@ -68,6 +89,37 @@ export function kokoroAssetBase(): string {
   return new URL(rel.endsWith("/") ? rel : `${rel}/`, window.location.href).href;
 }
 
+function dropWorker() {
+  if (!worker) return;
+  restarting = true;
+  try {
+    worker.terminate();
+  } catch {
+    /* already gone */
+  }
+  worker = null;
+  restarting = false;
+}
+
+/** Fresh worker so transformers.js is not stuck on a rejected WebGPU InferenceSession.create. */
+function restartWorkerForWasm(reason: string, replay?: { id: number; text: string; voice: string }) {
+  rememberForceWasm();
+  dropWorker();
+  setStatus({ kind: "downloading", pct: 20, note: "WebGPU unavailable; switching to WASM..." });
+  const w = ensureWorker();
+  w.postMessage({ type: "load", assetBase: kokoroAssetBase(), forceWasm: true });
+  if (replay && pending.has(replay.id)) {
+    const unsub = onKokoroStatus((s) => {
+      if (s.kind === "ready") {
+        unsub();
+        w.postMessage({ type: "speak", id: replay.id, text: replay.text, voice: replay.voice });
+      } else if (s.kind === "error") {
+        unsub();
+      }
+    });
+  }
+}
+
 function ensureWorker() {
   if (worker) return worker;
   worker = new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" });
@@ -79,8 +131,16 @@ function ensureWorker() {
       const p = pending.get(m.id);
       if (p) {
         pending.delete(m.id);
-        p.resolve(new Blob([m.wav], { type: "audio/wav" }));
+        p.resolve({ blob: new Blob([m.wav], { type: "audio/wav" }), genMs: m.genMs ?? 0, audioSec: m.audioSec ?? 0 });
       }
+    } else if (m.type === "skipped") {
+      const p = pending.get(m.id);
+      if (p) {
+        pending.delete(m.id);
+        p.reject(new Error("cancelled"));
+      }
+    } else if (m.type === "reload-wasm") {
+      void restartWorkerForWasm(m.reason, m.replay);
     } else if (m.type === "error") {
       if (m.id != null && pending.has(m.id)) {
         const p = pending.get(m.id)!;
@@ -93,6 +153,7 @@ function ensureWorker() {
     }
   };
   worker.onerror = (e) => {
+    if (restarting) return;
     setStatus({ kind: "error", message: e.message || "Natural voice worker crashed." });
     loadPromise = null;
   };
@@ -114,6 +175,9 @@ export function ensureKokoro(_preferWebGPU = false): Promise<void> {
   }
   if (status.kind === "ready") return Promise.resolve();
   if (loadPromise) return loadPromise;
+  if (readForceWasm()) forceWasmOnly = true;
+  // A prior WebGPU failure poisons this worker's ONNX init promise - start clean.
+  if (status.kind === "error") dropWorker();
   setStatus({ kind: "downloading", pct: 0, note: "Starting on-site natural voice…" });
   const w = ensureWorker();
   loadPromise = new Promise<void>((resolve, reject) => {
@@ -127,33 +191,68 @@ export function ensureKokoro(_preferWebGPU = false): Promise<void> {
         reject(new Error(s.message));
       }
     });
-    w.postMessage({ type: "load", assetBase: kokoroAssetBase() });
+    w.postMessage({ type: "load", assetBase: kokoroAssetBase(), forceWasm: forceWasmOnly });
   });
   return loadPromise;
 }
 
-export async function kokoroSynth(text: string, kind: BotVoice): Promise<Blob> {
+export function cancelKokoro() {
+  if (!worker) return;
+  for (const id of pending.keys()) worker.postMessage({ type: "cancel", id });
+  worker.postMessage({ type: "cancel" });
+}
+
+export async function kokoroSynth(text: string, kind: BotVoice): Promise<SynthResult> {
   await ensureKokoro();
   const w = ensureWorker();
   const id = ++speakId;
-  return new Promise<Blob>((resolve, reject) => {
+  return new Promise<SynthResult>((resolve, reject) => {
     pending.set(id, { resolve, reject });
     w.postMessage({ type: "speak", id, text, voice: voiceForBot(kind) });
   });
 }
 
-export function chunkForSpeech(text: string, max = 160): string[] {
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (!clean) return [];
-  const parts = clean.split(/(?<=[.!?…])\s+/);
+function splitToMax(piece: string, max: number): string[] {
+  if (piece.length <= max) return [piece];
+  const clauses = piece.split(/(?<=[,;:—–-])\s+/);
   const out: string[] = [];
   let buf = "";
-  for (const p of parts) {
-    if ((buf + " " + p).trim().length > max && buf) {
-      out.push(buf.trim());
-      buf = p;
-    } else buf = buf ? `${buf} ${p}` : p;
+  const flushWords = (s: string) => {
+    if (s.length <= max) {
+      out.push(s);
+      return;
+    }
+    let wbuf = "";
+    for (const w of s.split(" ")) {
+      if ((wbuf + " " + w).trim().length > max && wbuf) {
+        out.push(wbuf.trim());
+        wbuf = w;
+      } else wbuf = wbuf ? `${wbuf} ${w}` : w;
+    }
+    if (wbuf.trim()) out.push(wbuf.trim());
+  };
+  for (const c of clauses) {
+    if ((buf + " " + c).trim().length > max && buf) {
+      flushWords(buf.trim());
+      buf = c;
+    } else buf = buf ? `${buf} ${c}` : c;
   }
-  if (buf.trim()) out.push(buf.trim());
-  return out.length ? out : [clean.slice(0, max)];
+  if (buf.trim()) flushWords(buf.trim());
+  return out;
+}
+
+/**
+ * Short first chunk so WASM (often ~1–2× realtime) can start audio quickly.
+ * A 160-char first chunk is ~10s of speech → ~20–30s to first sound on single-thread WASM.
+ */
+export function chunkForSpeech(text: string, firstMax = 56, laterMax = 110): string[] {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  const sentences = clean.split(/(?<=[.!?…])\s+/).filter(Boolean);
+  const out: string[] = [];
+  for (const s of sentences) {
+    const max = out.length === 0 ? firstMax : laterMax;
+    out.push(...splitToMax(s, max));
+  }
+  return out.length ? out : [clean.slice(0, firstMax)];
 }
