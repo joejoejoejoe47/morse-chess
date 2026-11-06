@@ -1,10 +1,12 @@
 /**
- * The bot's ears and mouth: browser speech recognition (mic button) and speechSynthesis.
- * Both are built into the browser; nothing is sent to us. Speech recognition only exists in
- * Chrome/Edge/Safari; other browsers get the chat box only.
+ * Bot mouth + ears.
+ * Speak order: optional server TTS (if host set a key) → Kokoro browser TTS (free, opt-in ~92 MB)
+ * → readable error (never silently use harsh speechSynthesis for the bot).
+ * Mic still uses browser SpeechRecognition when available.
  */
 import type { BotVoice } from "./store";
 import { apiUrl } from "@/lib/base";
+import { KOKORO_SIZE_HINT, chunkForSpeech, consentKokoro, ensureKokoro, getKokoroStatus, kokoroConsented, kokoroSynth, onKokoroStatus, type KokoroStatus } from "./kokoro";
 
 type Rec = {
   lang: string;
@@ -24,7 +26,6 @@ function recCtor(): (new () => Rec) | null {
 }
 
 export const canListen = () => recCtor() !== null;
-export const canSpeak = () => typeof window !== "undefined" && "speechSynthesis" in window;
 
 /** Listen once; resolves with what was heard ("" if nothing). */
 export function listenOnce(onInterim?: (t: string) => void): { done: Promise<string>; stop: () => void } {
@@ -56,50 +57,13 @@ export function listenOnce(onInterim?: (t: string) => void): { done: Promise<str
   return { done, stop: () => rec.stop() };
 }
 
-const FEMALE_HINT = /female|woman|samantha|victoria|karen|moira|tessa|fiona|zira|susan|serena|allison|ava\b|joanna|salli|kendra|kimberly|aria|jenny|libby|sonia|emma|michelle|ana\b|natasha|clara|sara|google us english$|google uk english female/i;
-const MALE_HINT = /\bmale|man\b|daniel|alex\b|fred|david|mark|george|james|guy|ryan|tom\b|aaron|arthur|oliver|rishi|andrew|brian|christopher|eric|roger|steffan|thomas|william|google uk english male/i;
-
-/** Higher = more human. Cloud/neural voices beat the old robotic local ones. */
-function naturalScore(v: SpeechSynthesisVoice) {
-  const n = v.name;
-  let s = 0;
-  if (/natural|neural/i.test(n)) s += 60;
-  if (/online/i.test(n)) s += 25;
-  if (/premium|enhanced|siri/i.test(n)) s += 40;
-  if (/^google/i.test(n)) s += 30;
-  if (/microsoft/i.test(n)) s += 8;
-  if (!v.localService) s += 10;
-  if (/espeak|compact|fred|albert|bahh|bells|boing|bubbles|cellos|zarvox|trinoids|whisper|wobble|jester|organ|superstar|ralph|junior|kathy|bad news|good news/i.test(n)) s -= 80;
-  return s;
-}
-
-let cachedVoices: SpeechSynthesisVoice[] = [];
-if (typeof window !== "undefined" && "speechSynthesis" in window) {
-  const load = () => (cachedVoices = window.speechSynthesis.getVoices());
-  load();
-  window.speechSynthesis.addEventListener?.("voiceschanged", load);
-}
-
-export function pickVoice(kind: BotVoice): SpeechSynthesisVoice | null {
-  const all = cachedVoices.length ? cachedVoices : window.speechSynthesis.getVoices();
-  const lang = (navigator.language || "en").slice(0, 2).toLowerCase();
-  const local = all.filter((v) => v.lang.toLowerCase().startsWith(lang));
-  const pool = local.length ? local : all;
-  const isF = (v: SpeechSynthesisVoice) => FEMALE_HINT.test(v.name) && !/\bmale\b/i.test(v.name.replace(/female/i, ""));
-  const isM = (v: SpeechSynthesisVoice) => MALE_HINT.test(v.name) && !/female/i.test(v.name);
-  const gender = pool.filter(kind === "female" ? isF : isM);
-  const exactLocale = (v: SpeechSynthesisVoice) => (v.lang === (navigator.language || "en-US") ? 5 : 0);
-  const best = (list: SpeechSynthesisVoice[]) =>
-    [...list].sort((a, b) => naturalScore(b) + exactLocale(b) - (naturalScore(a) + exactLocale(a)))[0] ?? null;
-  return best(gender) ?? best(pool.filter((v) => !(kind === "female" ? isM : isF)(v))) ?? best(pool);
-}
-
-/* ---- preferred server voice (PHP /api/tts). ON when OPENAI_API_KEY or ELEVENLABS_API_KEY is set. ---- */
+/* ---- optional server TTS (PHP /api/tts) when OPENAI_API_KEY or ELEVENLABS_API_KEY is set ---- */
 let serverTts: { at: number; p: Promise<boolean> } | null = null;
 let audio: HTMLAudioElement | null = null;
+let speakSeq = 0;
+
 function serverEnabled(): Promise<boolean> {
   const now = Date.now();
-  // Re-check every few minutes so adding a key on the host picks up without a hard reload.
   if (!serverTts || now - serverTts.at > 120_000) {
     serverTts = {
       at: now,
@@ -112,23 +76,7 @@ function serverEnabled(): Promise<boolean> {
   return serverTts.p;
 }
 
-function browserSpeak(text: string, kind: BotVoice, onEnd?: () => void) {
-  if (!canSpeak()) return onEnd?.();
-  const synth = window.speechSynthesis;
-  synth.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  const v = pickVoice(kind);
-  if (v) u.voice = v;
-  const natural = v ? naturalScore(v) >= 30 : false;
-  // Natural voices sound best near default; nudge robotic ones a bit for character.
-  u.pitch = natural ? (kind === "female" ? 1.05 : 0.95) : kind === "female" ? 1.15 : 0.9;
-  u.rate = natural ? 1.0 : 0.97;
-  u.onend = () => onEnd?.();
-  u.onerror = () => onEnd?.();
-  synth.speak(u);
-}
-
-/** Expand short chess notation so browser voices do not say "N f 3" or invent words. */
+/** Expand short chess notation so voices do not say "N f 3". */
 function forSpeech(text: string): string {
   return text
     .replace(/\bO-O-O\b/g, "castle long")
@@ -138,51 +86,140 @@ function forSpeech(text: string): string {
     .replace(/\b([a-h][1-8])x([a-h][1-8])\b/g, "$1 takes $2");
 }
 
-let speakSeq = 0;
-/** Speak a line. Prefers the server natural voice whenever a TTS key is set; browser is fallback only. */
-export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
-  const clean = forSpeech(text.replace(/[*_#`]/g, "").replace(/\s*[—–]\s*/g, ", ")).slice(0, 400);
-  if (!clean.trim()) return onEnd?.();
-  const id = ++speakSeq;
-  hush();
-  void serverEnabled().then(async (on) => {
-    if (id !== speakSeq) return;
-    if (!on) return browserSpeak(clean, kind, onEnd);
-    try {
-      const r = await fetch(apiUrl("/api/tts"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text: clean, voice: kind }),
-      });
-      if (!r.ok) throw new Error(String(r.status));
-      const blob = await r.blob();
-      if (!blob.size) throw new Error("empty audio");
-      const url = URL.createObjectURL(blob);
-      if (id !== speakSeq) return URL.revokeObjectURL(url);
-      audio = new Audio(url);
-      const done = () => {
-        URL.revokeObjectURL(url);
-        if (audio) audio = null;
-        onEnd?.();
-      };
-      audio.onended = done;
-      audio.onerror = () => {
-        // Prefer retrying once via browser only if the audio element fails mid-play.
-        done();
-      };
-      await audio.play();
-    } catch {
-      // Server key is set but the call failed (network/quota). Fall back so the bot still talks.
-      if (id === speakSeq) browserSpeak(clean, kind, onEnd);
-    }
+export type VoiceUiStatus =
+  | { kind: "ok"; via: "server" | "kokoro-wasm" | "kokoro-webgpu" }
+  | { kind: "need-consent"; message: string }
+  | { kind: "downloading"; pct: number; note: string }
+  | { kind: "error"; message: string }
+  | { kind: "idle" };
+
+type UiListener = (s: VoiceUiStatus) => void;
+const uiListeners = new Set<UiListener>();
+let lastUi: VoiceUiStatus = { kind: "idle" };
+
+export function onVoiceUi(fn: UiListener) {
+  uiListeners.add(fn);
+  fn(lastUi);
+  return () => { uiListeners.delete(fn); };
+}
+
+function setUi(s: VoiceUiStatus) {
+  lastUi = s;
+  for (const fn of uiListeners) fn(s);
+}
+
+export function getVoiceUi() {
+  return lastUi;
+}
+
+onKokoroStatus((s: KokoroStatus) => {
+  if (s.kind === "need-consent") setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
+  else if (s.kind === "downloading") setUi({ kind: "downloading", pct: s.pct, note: s.note });
+  else if (s.kind === "ready") setUi({ kind: "ok", via: s.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm" });
+  else if (s.kind === "error") setUi({ kind: "error", message: s.message });
+  else if (s.kind === "idle" && !kokoroConsented()) setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
+});
+
+export function enableNaturalVoice(): Promise<void> {
+  return consentKokoro(false).then(() => {
+    const st = getKokoroStatus();
+    if (st.kind === "ready") setUi({ kind: "ok", via: st.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm" });
   });
 }
 
+function playBlob(blob: Blob, id: number): Promise<void> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    audio = new Audio(url);
+    const done = () => {
+      URL.revokeObjectURL(url);
+      if (audio) audio = null;
+      resolve();
+    };
+    audio.onended = done;
+    audio.onerror = done;
+    if (id !== speakSeq) {
+      done();
+      return;
+    }
+    void audio.play().catch(done);
+  });
+}
+
+async function speakKokoro(clean: string, kind: BotVoice, id: number): Promise<boolean> {
+  try {
+    if (!kokoroConsented()) {
+      setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
+      return false;
+    }
+    await ensureKokoro(false);
+    const chunks = chunkForSpeech(clean);
+    for (const c of chunks) {
+      if (id !== speakSeq) return true;
+      const blob = await kokoroSynth(c, kind);
+      if (id !== speakSeq) return true;
+      const st = getKokoroStatus();
+      if (st.kind === "ready") setUi({ kind: "ok", via: st.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm" });
+      await playBlob(blob, id);
+    }
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Natural voice failed.";
+    setUi({ kind: "error", message: msg });
+    return false;
+  }
+}
+
+/**
+ * Speak a line aloud.
+ * Prefers configured server TTS; else Kokoro. Never falls back to harsh browser speechSynthesis —
+ * the on-screen text stays readable, and VoiceUiStatus explains what went wrong.
+ */
+export function speak(text: string, kind: BotVoice, onEnd?: () => void) {
+  const clean = forSpeech(text.replace(/[*_#`]/g, "").replace(/\s*[—–]\s*/g, ", ")).slice(0, 500);
+  if (!clean.trim()) return onEnd?.();
+  hush(); // bumps speakSeq and stops prior audio
+  const id = speakSeq;
+  void (async () => {
+    if (id !== speakSeq) return;
+    const serverOn = await serverEnabled();
+    if (id !== speakSeq) return;
+    if (serverOn) {
+      try {
+        const r = await fetch(apiUrl("/api/tts"), {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text: clean, voice: kind }),
+        });
+        if (!r.ok) throw new Error(String(r.status));
+        const blob = await r.blob();
+        if (!blob.size) throw new Error("empty audio");
+        if (id !== speakSeq) return;
+        setUi({ kind: "ok", via: "server" });
+        await playBlob(blob, id);
+        if (id === speakSeq) onEnd?.();
+        return;
+      } catch {
+        // Server key set but call failed — try Kokoro, do not use harsh browser TTS.
+      }
+    }
+    const ok = await speakKokoro(clean, kind, id);
+    if (id === speakSeq) onEnd?.();
+    if (!ok && id === speakSeq) {
+      // Text remains on screen; status banner already set.
+    }
+  })();
+}
+
 export function hush() {
-  if (canSpeak()) window.speechSynthesis.cancel();
+  speakSeq++;
   if (audio) {
-    audio.pause();
+    try {
+      audio.pause();
+    } catch {
+      /* ignore */
+    }
     audio = null;
   }
 }

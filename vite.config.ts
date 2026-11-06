@@ -34,6 +34,14 @@ export default defineConfig({
   define: { __ASSET_VERSIONS__: JSON.stringify(assetVersions()) },
   server: { host: "0.0.0.0", port: 8080, proxy: { "/api": "http://127.0.0.1:8099" } },
   resolve: { tsconfigPaths: true },
-  build: { modulePreload: false, chunkSizeWarningLimit: 4000 },
+  build: {
+    modulePreload: false,
+    chunkSizeWarningLimit: 7000,
+    // Kokoro / transformers pull onnxruntime; keep them as their own chunks.
+  },
+  worker: { format: "es" },
+  optimizeDeps: {
+    exclude: ["@huggingface/transformers", "kokoro-js"],
+  },
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: false }), tailwindcss(), viteReact()],
 });

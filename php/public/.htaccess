@@ -15,7 +15,7 @@ DirectoryIndex index.php index.html
 </IfModule>
 
 <IfModule mod_headers.c>
-  <FilesMatch "\.(js|css|woff2?|png|jpe?g|svg|glb|gltf|bin|fbx|ico|wasm|mp3)$">
+  <FilesMatch "\.(js|mjs|css|woff2?|png|jpe?g|svg|glb|gltf|bin|fbx|ico|wasm|mp3|onnx)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
   <FilesMatch "^(index\.html|manifest\.webmanifest)$">
@@ -28,5 +28,9 @@ DirectoryIndex index.php index.html
   AddType model/gltf+json .gltf
   AddType application/manifest+json .webmanifest
   AddType application/wasm .wasm
+  AddType text/javascript .mjs
+  AddType text/javascript .js
+  AddType application/octet-stream .onnx
+  AddType application/octet-stream .bin
   AddType audio/mpeg .mp3
 </IfModule>

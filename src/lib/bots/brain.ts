@@ -55,6 +55,9 @@ const RULES: [RegExp, string][] = [
   [/timed|breeze|clock/, "Timed games give each player a clock. Breeze has no clock, so you can think as long as you like."],
 ];
 
+/** Plain-text rules for the local LLM system prompt (not marketed as AI by itself). */
+export const RULES_TEXT = RULES.map(([, s]) => s).join("\n");
+
 export function think(raw: string, botName: string): BrainReply {
   const t = raw.toLowerCase().trim();
   if (!t) return { kind: "say", text: "I didn't catch that. Try again? I'm all ears. Well, all antennas." };
@@ -80,7 +83,7 @@ export function think(raw: string, botName: string): BrainReply {
   if (/morse chess|this (app|game|site)/.test(t))
     return { kind: "say", text: "Morse Chess is a chess club: play random players, challenge friends, play bots like me, join the Chess Club bracket, and replay your games in History." };
   if (/(are|r) you (smart|ai|real|alive)/.test(t))
-    return { kind: "say", text: "Truth time: when the host hasn't plugged in a cloud brain I run on careful rules — but I know this app inside out, and the coach uses a real chess engine!" };
+    return { kind: "say", text: "Truth time: I may use a small on-device brain you opted into, a host cloud brain, or careful Morse Chess rules. I know this app's buttons; the coach uses a real chess engine. I will not pretend to know things I do not!" };
   if (/stupid|dumb|hate you|shut up|bad bot/.test(t)) return { kind: "say", text: "Aw, that's okay! Even robots have off days. Want a joke to cheer us both up?" };
   if (/bye|see you|later|goodbye/.test(t)) return { kind: "say", text: "Bye bye! Type my summon code any time and I'll zoom back." };
   if (/summon|code/.test(t)) return { kind: "say", text: "Type my summon letters anywhere on the 2D screens and I'll pop right up!" };
