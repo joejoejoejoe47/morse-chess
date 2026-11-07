@@ -3,9 +3,9 @@ import { writeFileSync } from "fs";
 import { performance } from "perf_hooks";
 
 const model = "onnx-community/Kokoro-82M-v1.0-ONNX";
-console.log("loading", model, "dtype=q8 device=cpu");
+console.log("loading", model, "dtype=fp32 device=cpu");
 const t0 = performance.now();
-const tts = await KokoroTTS.from_pretrained(model, { dtype: "q8", device: "cpu" });
+const tts = await KokoroTTS.from_pretrained(model, { dtype: "fp32", device: "cpu" });
 const loadMs = performance.now() - t0;
 console.log("load_ms", Math.round(loadMs));
 console.log("voices_sample", tts.list_voices?.() ? Object.keys(tts.list_voices()).slice(0, 8) : "n/a");

@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:php": "vite build",
+    "build": "node scripts/fetch_kokoro_fp32.mjs && vite build",
+    "build:php": "node scripts/fetch_kokoro_fp32.mjs && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "fetch-kokoro": "node scripts/fetch_kokoro_fp32.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.0",

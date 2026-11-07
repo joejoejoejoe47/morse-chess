@@ -145,31 +145,38 @@ async function playViaElement(blob: Blob): Promise<void> {
   revoke();
 }
 
-/** Play a WAV/MP3 blob. On autoplay block, keep it queued for an explicit Play tap. Never reports success if silent. */
+/** Play a WAV/MP3 blob via HTMLAudio first (official kokoro-js demo). On autoplay block, keep it queued. */
 export async function playWavBlob(blob: Blob): Promise<PlayOutcome> {
   if (!blob || !blob.size) return { kind: "error", message: "Empty audio — nothing to play." };
   queued = blob;
   try {
-    if (ctx) {
-      try {
+    try {
+      await playViaElement(blob);
+      queued = null;
+      unlocked = true;
+      return { kind: "played" };
+    } catch (e) {
+      if (classifyPlayFailure(e) === "needs-gesture") {
+        if (ctx && ctx.state === "running") {
+          try {
+            await playViaContext(blob);
+            queued = null;
+            unlocked = true;
+            return { kind: "played" };
+          } catch {
+            return { kind: "needs-gesture", message: NEEDS_GESTURE };
+          }
+        }
+        return { kind: "needs-gesture", message: NEEDS_GESTURE };
+      }
+      if (ctx) {
         await playViaContext(blob);
         queued = null;
         unlocked = true;
         return { kind: "played" };
-      } catch (e) {
-        if (classifyPlayFailure(e) === "error" && ctx.state === "running") {
-          // decode error — try HTMLAudio
-        } else if (classifyPlayFailure(e) === "needs-gesture") {
-          // fall through to element, then maybe still blocked
-        } else {
-          throw e;
-        }
       }
+      throw e;
     }
-    await playViaElement(blob);
-    queued = null;
-    unlocked = true;
-    return { kind: "played" };
   } catch (e) {
     const kind = classifyPlayFailure(e);
     if (kind === "needs-gesture") return { kind: "needs-gesture", message: NEEDS_GESTURE };

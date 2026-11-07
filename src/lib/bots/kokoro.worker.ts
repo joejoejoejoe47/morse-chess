@@ -73,17 +73,24 @@ async function loadModel(forceWasm: boolean) {
   const gpu = typeof navigator !== "undefined" ? (navigator as Navigator & { gpu?: { requestAdapter?: () => Promise<unknown> } }).gpu : undefined;
   const adapterOk = forceWasm ? false : await probeWebGpuAdapter(gpu);
   if (!forceWasm && adapterOk) {
-    post({ type: "progress", pct: 15, note: "Trying WebGPU with the on-site q8 model…" });
+    post({ type: "progress", pct: 15, note: "Trying WebGPU with the full-precision model…" });
   } else {
-    post({ type: "progress", pct: 18, note: adapterOk ? "Loading WASM q8…" : "No GPU adapter; loading WASM q8…" });
+    post({
+      type: "progress",
+      pct: 18,
+      note: adapterOk ? "Loading WASM full-precision voice…" : "No GPU adapter; loading WASM full-precision voice…",
+    });
   }
 
   const result = await loadKokoroDevice({
     forceWasm,
     adapterOk,
     fromPretrained: async (device) => {
-      if (device === "wasm" && adapterOk && !forceWasm) post({ type: "progress", pct: 20, note: "WebGPU unavailable; using WASM q8…" });
-      tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device, progress_callback: progressCb });
+      if (device === "wasm" && adapterOk && !forceWasm) {
+        post({ type: "progress", pct: 20, note: "WebGPU unavailable; using WASM full-precision…" });
+      }
+      // Official pairing: WebGPU or WASM with fp32. Never load q8.
+      tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "fp32", device, progress_callback: progressCb });
       backend = device;
     },
   });
@@ -100,7 +107,7 @@ async function load(base: string, forceWasm = false) {
   const wasmOpts = env.backends?.onnx?.wasm;
   if (wasmOpts) wasmOpts.wasmPaths = `${assetBase}wasm/`;
 
-  post({ type: "progress", pct: 5, note: "Loading natural voice from this site (~120 MB first time, then cached)…" });
+  post({ type: "progress", pct: 5, note: "Loading the full-precision voice from this site (~343 MB first time, then cached)…" });
   progressCb = (p: { status?: string; progress?: number; file?: string }) => {
     if (p.status === "progress" && typeof p.progress === "number") {
       post({ type: "progress", pct: Math.min(99, Math.round(p.progress)), note: p.file ? `Loading ${p.file}` : "Loading natural voice…" });

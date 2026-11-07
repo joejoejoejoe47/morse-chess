@@ -1,6 +1,6 @@
 /**
  * Bot mouth + ears.
- * Speak order: optional server TTS (if host set a key) → Kokoro browser TTS (free, opt-in ~120 MB)
+ * Speak order: optional server TTS (if host set a key) → Kokoro browser TTS (free, opt-in full-precision pack)
  * → readable error or tap-to-play (never silently use harsh speechSynthesis).
  * Mic (input) is separate from speaker (output). A denied mic must not disable TTS.
  */
@@ -121,11 +121,11 @@ export function getVoiceUi() {
 }
 
 onKokoroStatus((s: KokoroStatus) => {
-  if (s.kind === "need-consent") setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
+  if (s.kind === "need-consent") setUi({ kind: "need-consent", message: "Enable natural voice once (~343 MB first time: 325.5 MB full-precision model + ~33 MB runtime and voices, then cached). Free, no signup, served from this site." });
   else if (s.kind === "downloading") setUi({ kind: "downloading", pct: s.pct, note: s.note });
   else if (s.kind === "ready") setUi({ kind: "ok", via: s.backend === "webgpu" ? "kokoro-webgpu" : "kokoro-wasm" });
   else if (s.kind === "error") setUi({ kind: "error", message: s.message });
-  else if (s.kind === "idle" && !kokoroConsented()) setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
+  else if (s.kind === "idle" && !kokoroConsented()) setUi({ kind: "need-consent", message: "Enable natural voice once (~343 MB first time: 325.5 MB full-precision model + ~33 MB runtime and voices, then cached). Free, no signup, served from this site." });
 });
 
 export function enableNaturalVoice(): Promise<void> {
@@ -169,7 +169,7 @@ function viaNow(): "kokoro-wasm" | "kokoro-webgpu" {
 async function speakKokoro(clean: string, kind: BotVoice, id: number): Promise<boolean> {
   try {
     if (!kokoroConsented()) {
-      setUi({ kind: "need-consent", message: "Enable natural voice once (~120 MB on-site pack, then cached). Free, no signup, served from this site." });
+      setUi({ kind: "need-consent", message: "Enable natural voice once (~343 MB first time: 325.5 MB full-precision model + ~33 MB runtime and voices, then cached). Free, no signup, served from this site." });
       return false;
     }
     await ensureKokoro(false);

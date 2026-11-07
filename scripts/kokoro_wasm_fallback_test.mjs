@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   GPU_ADAPTER_ERROR,
+  SHIPPED_DTYPE,
   isGpuBackendFailure,
   loadKokoroDevice,
   makePoisonedSessionStore,
@@ -93,5 +94,12 @@ assert.ok(main.includes('forceWasm: true') || main.includes('forceWasm: forceWas
 assert.ok(!/speechSynthesis\.speak/.test(voice), 'must not call OS speechSynthesis');
 assert.ok(voice.includes('cancelKokoro'));
 assert.ok(voice.includes('Generating first words'));
+assert.equal(SHIPPED_DTYPE, 'fp32');
+assert.ok(worker.includes('dtype: "fp32"'), 'worker must load official fp32');
+assert.ok(!worker.includes('dtype: "q8"'), 'worker must never request q8');
+assert.ok(!worker.includes('model_quantized'), 'worker must not mention q8 filename');
+assert.ok(!worker.includes('sanitizeKokoroPcm'), 'must not pretend sanitizing bad q8 output is a fix');
+assert.ok(main.includes('morse-kokoro-consent-v3'), 'old q8 consent must be invalidated');
+assert.ok(!main.includes('morse-kokoro-consent-v2'));
 
 console.log('PASS kokoro_wasm_fallback_test');
