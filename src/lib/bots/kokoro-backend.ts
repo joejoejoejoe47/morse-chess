@@ -13,7 +13,12 @@
  * Policy: probe a real adapter before trying WebGPU; if a WebGPU create
  * still fails, ask the main thread to terminate this worker and reload
  * WASM-only in a fresh realm.
+ *
+ * Shipped dtype is official fp32 (not q8). kokoro-js recommends WebGPU with
+ * fp32; WASM fp32 is the tested fallback. Never silently fall back to q8.
  */
+
+export const SHIPPED_DTYPE = "fp32" as const;
 
 export const GPU_ADAPTER_ERROR =
   "no available backend found. ERR: [webgpu] Failed to get GPU adapter";

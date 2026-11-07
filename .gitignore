@@ -1,3 +1,5 @@
 node_modules
 .env
 
+# Full-precision Kokoro ONNX is fetched at build time (325 MB; over GitHub's 100 MB limit).
+public/bots/kokoro/models/**/onnx/*.onnx

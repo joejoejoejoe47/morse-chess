@@ -1,6 +1,6 @@
 /** Warm-model Node q8 timings (not download). Run from repo root: node scripts/kokoro_latency.mjs */
 import { KokoroTTS } from "kokoro-js";
-const tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "q8", device: "cpu" });
+const tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "fp32", device: "cpu" });
 async function timed(label, text) {
   const t0 = performance.now();
   const audio = await tts.generate(text, { voice: "am_michael" });

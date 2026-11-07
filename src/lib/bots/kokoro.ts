@@ -7,9 +7,15 @@ import { asset } from "@/lib/base";
 
 export const KOKORO_MODEL = "onnx-community/Kokoro-82M-v1.0-ONNX";
 /** Honest size of the shipped same-origin pack (model + 2 voices + WASM). */
-export const KOKORO_SIZE_HINT = "~120 MB first enable (then browser-cached)";
+export const KOKORO_MODEL_BYTES = 325532232;
+/** Voices + ORT wasm + tokenizer (same-origin pack without the weights). */
+export const KOKORO_RUNTIME_BYTES = 33843226;
+export const KOKORO_PACK_BYTES = KOKORO_MODEL_BYTES + KOKORO_RUNTIME_BYTES;
+/** Honest first-enable size: 325,532,232-byte fp32 model + ~33 MB runtime/voices. */
+export const KOKORO_SIZE_HINT =
+  "~343 MB first time (325.5 MB full-precision model + ~33 MB runtime and voices, then cached)";
 export const KOKORO_LICENSE = "Apache-2.0 (hexgrad/Kokoro-82M)";
-const CONSENT_KEY = "morse-kokoro-consent-v2";
+const CONSENT_KEY = "morse-kokoro-consent-v3";
 
 export type KokoroStatus =
   | { kind: "need-consent" }

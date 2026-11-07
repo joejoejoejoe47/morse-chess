@@ -1,16 +1,16 @@
 {
   "name": "Kokoro-82M natural voice (same-origin pack)",
   "license": "Apache-2.0 (hexgrad/Kokoro-82M / onnx-community ONNX)",
-  "source": "Local transformers.js cache + kokoro-js/voices + onnxruntime-web dist (no network)",
+  "source": "Official onnx-community/Kokoro-82M-v1.0-ONNX fp32 (SHA-verified fetch at build) + kokoro-js voices + onnxruntime-web dist",
   "onnxruntime_web": "1.22.0-dev.20250409-89f8206ba4",
   "model_id": "onnx-community/Kokoro-82M-v1.0-ONNX",
-  "dtype": "q8 (model_quantized.onnx)",
+  "dtype": "fp32 (model.onnx)",
   "voices": [
     "af_heart",
     "am_michael"
   ],
-  "total_bytes": 126204342,
-  "total_mb": 120.4,
+  "total_bytes": 359375458,
+  "total_mb": 342.7,
   "files": [
     {
       "path": "CREDITS.md",
@@ -21,8 +21,14 @@
       "bytes": 44
     },
     {
-      "path": "models/onnx-community/Kokoro-82M-v1.0-ONNX/onnx/model_quantized.onnx",
-      "bytes": 92361116
+      "path": "models/onnx-community/Kokoro-82M-v1.0-ONNX/onnx/model.onnx",
+      "bytes": 325532232,
+      "fetched": true,
+      "sha256": "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb"
+    },
+    {
+      "path": "models/onnx-community/Kokoro-82M-v1.0-ONNX/onnx/model.onnx.sha256",
+      "bytes": 175
     },
     {
       "path": "models/onnx-community/Kokoro-82M-v1.0-ONNX/tokenizer.json",
@@ -56,5 +62,8 @@
       "path": "wasm/ort-wasm-simd-threaded.wasm",
       "bytes": 11133407
     }
-  ]
+  ],
+  "model_sha256": "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb",
+  "model_bytes": 325532232,
+  "model_url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/onnx/model.onnx"
 }
