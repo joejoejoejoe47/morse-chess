@@ -689,7 +689,13 @@ $box = Mores::startBotGame('cara', ['mode' => 'timed', 'source' => 'sandbox']);
 Db::insertIgnore('game_moves', ['game_id' => $box['gameId'], 'ply' => 1, 'san' => 'e4', 'from_sq' => 'e2', 'to_sq' => 'e4', 'created_at' => Db::now()]);
 Mores::resignGame('cara', ['gameId' => $box['gameId']]);
 $caraFive = Mores::listHistory('cara', ['minutes' => 5]);
-check(count($caraFive['games']) === 1 && $caraFive['games'][0]['minutes'] === 5 && $caraFive['games'][0]['result'] === 'loss', '5 minute filter finds the 5 minute game');
+$match = null;
+foreach ($caraFive['games'] as $hg) {
+    if ($hg['id'] === $five['gameId']) {
+        $match = $hg;
+    }
+}
+check($match !== null && $match['minutes'] === 5 && $match['result'] === 'loss', '5 minute filter finds the 5 minute game');
 $caraAll = array_column(Mores::listHistory('cara', ['minutes' => 'all'])['games'], 'id');
 check(!in_array($box['gameId'], $caraAll, true), 'sandbox games stay out of History');
 check(Mores::listHistory('cara', ['minutes' => 10])['games'] === [], 'empty 10 minute filter');
