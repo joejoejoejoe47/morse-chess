@@ -258,7 +258,7 @@ final class Mores
 
     private static function clockMsFrom(mixed $minutes): int
     {
-        $m = is_numeric($minutes) ? (int) $minutes : 1;
+        $m = is_numeric($minutes) ? (int) $minutes : 5;
         return in_array($m, self::CLOCK_MINUTES, true) ? $m * 60000 : Constants::TURN_MS;
     }
 

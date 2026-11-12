@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import { MessageSquareText, X } from "lucide-react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getHomeState } from "@/lib/server/mores";
@@ -12,13 +13,14 @@ type Shown = { name: string; text: string; key: number };
 const DEMO_NOW = typeof window !== "undefined" && /[?&]mgpopup=now\b/.test(window.location.search);
 
 /**
- * "MasterGus says: ..." — every minSec..maxSec seconds (1-3 min by default) a random
- * message from MasterGus's goblin Pop-ups list appears for signed-in players on every
- * page and game. Never while a pointer is held or right after a click (so it can't
- * steal a move), auto-closes, closeable. Any fetch problem = silently nothing.
+ * "MasterGus says: ..." — on the home page only (same place as the intended pull-up),
+ * every minSec..maxSec seconds a random message from MasterGus's goblin Pop-ups list
+ * appears. Never on a board, never while a pointer is held or right after a click,
  */
 export function MasterPopupHost() {
   const { user, isPending } = useCurrentUserState();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  const home = path === "/" || path === "";
   const [shown, setShown] = useState<Shown | null>(null);
   const hideTimer = useRef<number | undefined>(undefined);
   // The user object can be rebuilt on every render; key the effect on the id so showing
@@ -26,7 +28,7 @@ export function MasterPopupHost() {
   const userId = user?.id ?? null;
 
   useEffect(() => {
-    if (isPending || !userId) return;
+    if (isPending || !userId || !home) return;
     let live = true;
     let timer: number | undefined;
     let pointerDown = false;
@@ -89,9 +91,9 @@ export function MasterPopupHost() {
       upEvents.forEach((e) => window.removeEventListener(e, up, true));
       setShown(null);
     };
-  }, [userId, isPending]);
+  }, [userId, isPending, home]);
 
-  if (!shown) return null;
+  if (!home || !shown) return null;
   return (
     <div
       key={shown.key}

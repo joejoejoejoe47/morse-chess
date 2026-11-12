@@ -377,7 +377,7 @@ $bk[2][0] = ['side' => 'w', 'kind' => 'p', 'id' => 'a2'];
 check(in_array([6, 4], FM::moves($bk, 4, 3), true), 'a knight can land on the king');
 $sK = $at($bk, 'b', $t + 91000);
 check(FM::act($sK, 'b', ['t' => 'move', 'from' => [4, 3], 'to' => [6, 4]], $t + 91100) === null && $sK['phase'] === 'dead', 'the king was tackled');
-check(in_array('e1', $men($sK['board']), true) && ($sK['board'][4][3]['id'] ?? '') === 'e1', 'a tackled king stays on the field');
+check(in_array('e1', $men($sK['board']), true) && ($sK['board'][6][4]['id'] ?? '') === 'e1' && ($sK['board'][4][3]['id'] ?? '') === 'b8', 'a tackled king stays where he was');
 FM::advance($sK, $t + 91100 + 1600);
 $hbK = $ballAt($sK['board']);
 check(in_array('e1', $men($sK['board']), true) && ($hbK[2]['id'] ?? '') === 'e1' && ($hbK[2]['side'] ?? '') === 'w' && (int) ($sK['down'] ?? 0) === 2, 'next down the king has the ball again');

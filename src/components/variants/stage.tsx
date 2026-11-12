@@ -207,7 +207,8 @@ function Actor({
       swung.current = true;
       attackUntil.current = performance.now() + 1700;
     }
-    gait.current.act = performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
+    if (!slay) attackUntil.current = 0;
+    gait.current.act = slay && performance.now() < attackUntil.current ? "attack" : traveling ? "walk" : "idle";
     const dx = target.x - pos.current.x;
     const dz = target.z - pos.current.z;
     if (Math.hypot(dx, dz) > 0.08) node.rotation.y = Math.atan2(dx, dz);
@@ -233,7 +234,7 @@ function Actor({
   return (
     <group ref={ref} position={home}>
       {look === "an" ? (
-        <StonePerson type={unit.hidden ? "p" : unit.kind} white={!unit.hidden && unit.side === "w"} cast="stone" gait={gait} sword={false} clash={slay} />
+        <StonePerson type={unit.hidden ? "p" : unit.kind} white={!unit.hidden && unit.side === "w"} cast="stone" gait={gait} sword={false} blade clash={slay} />
       ) : (
         <PieceMesh unit={unit} look={look} />
       )}

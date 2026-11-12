@@ -509,7 +509,7 @@ export function GameView({ gameId }: { gameId: string }) {
     if (fromMove) pendingMove.current = false;
     setGame(snap);
     setError(null);
-    setClocks({ w: snap.whiteClockMs ?? 60_000, b: snap.blackClockMs ?? 60_000 });
+    setClocks({ w: snap.whiteClockMs ?? 300_000, b: snap.blackClockMs ?? 300_000 });
     if (snap.coinAward > 0) {
       const key = `morse-coin-${snap.id}`;
       let fresh = true;
@@ -781,7 +781,7 @@ export function GameView({ gameId }: { gameId: string }) {
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-[15px] text-mist md:inline">
             {variant ? `${VARIANT_INFO[variant].name} · ` : ""}
-            {game.mode === "timed" ? `Timed · ${Math.max(1, Math.round((game.clockMs ?? 60_000) / 60_000))} min` : "Breeze"}
+            {game.mode === "timed" ? `Timed · ${Math.max(1, Math.round((game.clockMs ?? 300_000) / 60_000))} min` : "Breeze"}
             {" · "}
             {over ? "Board closed" : myTurn ? "Your move" : "Waiting"}
             {" · "}

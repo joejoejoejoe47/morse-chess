@@ -14,7 +14,7 @@ final class Constants
     public const START_SCORE = 1200;
     public const ELO_K = 32;
     public const ELO_FLOOR = 100;
-    public const TURN_MS = 60000;
+    public const TURN_MS = 300000;
     /**
      * Morse coins for games (owner rule, Oct 28): beat a "very high score" player -> 5 coins,
      * beat anyone else -> 2 coins. Losses, draws and aborted games pay nothing.

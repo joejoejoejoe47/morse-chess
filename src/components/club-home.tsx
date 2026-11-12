@@ -50,7 +50,7 @@ type PullScreen = "main" | "other";
 export function ClubHome() {
   const navigate = useNavigate();
   const { user, isPending } = useCurrentUserState();
-  const [botMinutes, setBotMinutes] = useState<1 | 5 | 10>(1);
+  const [botMinutes, setBotMinutes] = useState<1 | 5 | 10>(5);
   const [home, setHome] = useState<HomeState | null>(null);
   const [flow, setFlow] = useState<Flow>({ kind: "idle" });
   // Saved custom bots stay in localStorage; the lounge shows ONE play link for the
@@ -788,7 +788,7 @@ export function ClubHome() {
                     <span className="block text-xs font-normal text-ink/70">
                       {flow.intent === "bot" || flow.intent === "bot-v2" || (flow.intent === "random" && flow.variant)
                         ? `${botMinutes === 1 ? "One minute" : `${botMinutes} minutes`} each. Clock pauses when you move.`
-                        : "One minute each. Clock pauses when you move."}
+                        : "Five minutes each. Clock pauses when you move."}
                     </span>
                   </span>
                 </Button>

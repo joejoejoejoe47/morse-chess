@@ -1127,32 +1127,23 @@ final class FootballMatch
         }
     }
 
-    /** A tackled king is not out. He goes back on the square the tackler left, and lines up on the next down. */
-    private static function parkKing(array &$board, ?array $victim, array $from): void
+    /** A tackled king is not out, and he does not take the tackler's square. He stays where he was. */
+    private static function parkKing(array &$board, ?array $victim, array $from, array $to): void
     {
         if ($victim === null || ($victim['kind'] ?? '') !== 'k') {
             return;
         }
         $id = (string) ($victim['id'] ?? '');
-        foreach ($board as $row) {
-            foreach ($row as $u) {
-                if ($u !== null && ($u['kind'] ?? '') === 'k' && (string) ($u['id'] ?? '') === $id && ($u['side'] ?? '') === ($victim['side'] ?? '')) {
-                    return;
-                }
-            }
-        }
-        $king = ['side' => $victim['side'], 'kind' => 'k', 'id' => $id, 'ball' => false, 'held' => 0];
-        if (($board[$from[0]][$from[1]] ?? null) === null) {
-            $board[$from[0]][$from[1]] = $king;
+        $tackler = $board[$to[0]][$to[1]] ?? null;
+        $board[$to[0]][$to[1]] = ['side' => $victim['side'], 'kind' => 'k', 'id' => $id, 'ball' => false, 'held' => 0];
+        if (!is_array($tackler)) {
             return;
         }
-        for ($r = 0; $r < self::ROWS; $r++) {
-            for ($f = 0; $f < self::COLS; $f++) {
-                if ($board[$r][$f] === null) {
-                    $board[$r][$f] = $king;
-                    return;
-                }
-            }
+        if (($tackler['kind'] ?? '') === 'k' && (string) ($tackler['id'] ?? '') === $id && ($tackler['side'] ?? '') === ($victim['side'] ?? '')) {
+            return;
+        }
+        if (($board[$from[0]][$from[1]] ?? null) === null) {
+            $board[$from[0]][$from[1]] = $tackler;
         }
     }
 
@@ -1311,14 +1302,15 @@ final class FootballMatch
         $held = $u['kind'] === 'k' && $carry ? (int) ($u['held'] ?? 0) + 1 : 0;
         $s['board'][$from[0]][$from[1]] = null;
         $s['board'][$to[0]][$to[1]] = ['side' => $u['side'], 'kind' => $u['kind'], 'id' => $u['id'], 'ball' => $carry, 'held' => $held];
-        self::parkKing($s['board'], is_array($victim) ? $victim : null, $from);
+        self::parkKing($s['board'], is_array($victim) ? $victim : null, $from, $to);
         if ($carry || ($loose !== null && $loose[0] === $to[0] && $loose[1] === $to[1])) {
             $s['loose'] = null;
         }
         if ($carry && is_array($s['flight']) && $s['flight']['catcher'] !== $u['id']) {
             $s['flight'] = null;
         }
-        self::event($s, 'move', $now, ['cue' => ['from' => $from, 'to' => $to, 'unit' => $u['id'], 'side' => $side, 'kind' => $u['kind'], 'capture' => $victim !== null, 'victim' => $victim['kind'] ?? null, 'victimSide' => $victim['side'] ?? null]]);
+        $kingHit = is_array($victim) && ($victim['kind'] ?? '') === 'k';
+        self::event($s, 'move', $now, ['cue' => ['from' => $from, 'to' => $to, 'unit' => $u['id'], 'side' => $side, 'kind' => $u['kind'], 'capture' => $victim !== null && !$kingHit, 'victim' => $kingHit ? null : ($victim['kind'] ?? null), 'victimSide' => $kingHit ? null : ($victim['side'] ?? null)]]);
         if ($carry && self::inEnd($side, $to[0])) {
             self::touchdown($s, $side, (string) $u['id'], $now);
             return null;

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getChallengeInbox, NAMED_CHALLENGE_MS } from "@/lib/server/mores";
@@ -16,12 +17,14 @@ import { loadMasterAudio } from "@/lib/master-audio";
 
 export function BellHost() {
   const { user, isPending } = useCurrentUserState();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  const home = path === "/" || path === "";
   const primed = useRef(false);
   const shown = useRef(new Set<string>());
 
   useEffect(() => {
     stopBellSound();
-    if (isPending || !user) return;
+    if (isPending || !user || !home) return;
     let live = true;
     primed.current = false;
     const accountId = user.id;
@@ -90,7 +93,7 @@ export function BellHost() {
       shown.current.forEach((t) => toast.dismiss(t));
       shown.current.clear();
     };
-  }, [user, isPending]);
+  }, [user, isPending, home]);
 
   return null;
 }

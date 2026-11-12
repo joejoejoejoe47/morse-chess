@@ -876,19 +876,14 @@ function shiftBoard(b: FBoard, row: number, off: Side): FBoard {
   return footballStart(off, off === "w" ? row : F_ROWS - 1 - row, b).board;
 }
 
-/** A tackled king is not out. Put him on the square the tackler just left. */
-function parkKing(b: FBoard, victim: FUnit | null | undefined, from: [number, number]) {
+/** A tackled king is not out, and he does not take the tackler's square.
+ *  He stays where he was. The tackler goes back to the square he left. */
+function parkKing(b: FBoard, victim: FUnit | null | undefined, from: [number, number], to: [number, number]) {
   if (!victim || victim.kind !== "k" || !victim.id) return;
-  for (const row of b) for (const u of row) if (u?.kind === "k" && u.id === victim.id && u.side === victim.side) return;
-  const parked: FUnit = { side: victim.side, kind: "k", id: victim.id, ball: false, held: 0 };
-  if (!b[from[0]][from[1]]) {
-    b[from[0]][from[1]] = parked;
-    return;
-  }
-  for (let r = 0; r < F_ROWS; r++) for (let f = 0; f < F_COLS; f++) if (!b[r][f]) {
-    b[r][f] = parked;
-    return;
-  }
+  const tackler = b[to[0]][to[1]];
+  b[to[0]][to[1]] = { side: victim.side, kind: "k", id: victim.id, ball: false, held: 0 };
+  if (!tackler || (tackler.kind === "k" && tackler.id === victim.id && tackler.side === victim.side)) return;
+  if (!b[from[0]][from[1]]) b[from[0]][from[1]] = tackler;
 }
 
 /** Field goal odds in % (owner t238u): the king may kick from anywhere; 95% next to the end zone, 5% from his own end.
@@ -1092,7 +1087,7 @@ const FOOTBALL_RULES = [
   "Pick a player and move him like his chess piece. Players stay where they are after every move. The down is at the bottom of the screen: 1st, 2nd, 3rd, 4th. Keep the ball on a tackle and it is the next down. Tackled on 4th down, the other team gets the ball. There is no 5th down. A turnover or a score starts over at 1st down.",
   "Passing: tap your ball carrier. The teammates you can pass to glow yellow with a 🏈 over them: tap one and the ball goes to him. A teammate right next to him = a hand-off. (Or press 🏈 Pass to see only the pass targets.)",
   "The king can throw to any of his players, forward too. Everyone else can only throw backward or sideways.",
-  "Land on an enemy player to tackle him. He is out until the next touchdown or turnover, and the tackler stays on that square. You can tackle the king anywhere, with the same chance of a fumble. A tackled king is not out: he lines up on the next down, and if his team kept the ball he has it.",
+  "Land on an enemy player to tackle him. He is out until the next touchdown or turnover, and the tackler stays on that square. You can tackle the king anywhere, with the same chance of a fumble. A tackled king is not out and does not switch places with the tackler: he stays where he was, lines up on the next down, and if his team kept the ball he has it.",
   "Tackle the player with the ball and the play stops: everyone still in the game lines up again at that yard line, two rows apart. He might fumble: then the tacklers' king gets the ball, otherwise his own king does.",
   "Every run and every pass is a risk: the more (and the stronger) enemy players are near, the bigger the chance of a fumble or an interception. A queen is scarier than a pawn! The risk is shown before you move.",
   "Throw to a teammate who is already in the end zone: touchdown! Unless a defender is near him, then it can be intercepted. An interception while the defender is standing in an end zone is not a score. Both teams line up on that end's 20.",
@@ -1724,7 +1719,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
       unit: u.id,
       from,
       to,
-      capture: Boolean(victim),
+      capture: Boolean(victim && victim.kind !== "k"),
       thrown: false,
       side: u.side,
       kind: u.kind,
@@ -1735,7 +1730,7 @@ export function Football({ versus, online }: { versus: string; online?: string }
     next[from[0]][from[1]] = null;
     const held = u.kind === "k" && carry ? (u.held ?? 0) + 1 : 0;
     next[to[0]][to[1]] = { ...u, ball: carry, held };
-    parkKing(next, victim, from);
+    parkKing(next, victim, from, to);
     const looseNow: [number, number] | null = carry ? null : ball && ball[0] === to[0] && ball[1] === to[1] ? null : ball;
     record(next, looseNow, c);
     playSound(c);

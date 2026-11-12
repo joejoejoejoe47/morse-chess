@@ -23,7 +23,7 @@ import { DogCharge, RaCrown, WarDog } from "@/components/chess/war-dog";
 import { PromoMarch } from "@/components/chess/promo-march";
 import { ModelSky, SpaceSky } from "@/components/chess/space-sky";
 import { ROCCO_BOARD_ID, RoccoArmy, RoccoWorld } from "@/components/chess/rocco-board";
-import { ModelSlot, LoadGuard } from "@/components/chess/load-guard";
+import { ModelSlot } from "@/components/chess/load-guard";
 import { LEGO_BOARD_ID, LEGO_CAMERA, LEGO_ZOOM, LegoArmy, LegoWorld } from "@/components/chess/lego-board";
 import { SKY_ARENA_BOARD_ID, SKY_ARENA_CAMERA, SKY_ARENA_ZOOM, SkyArenaWorld } from "@/components/chess/sky-arena-board";
 import { HEIRLOOM, HeirloomArmy, HeirloomWorld, type HeirloomId } from "@/components/chess/heirloom-sets";
@@ -568,8 +568,9 @@ function AnimatedPiece({
         swung.current = true;
         attackUntil.current = performance.now() + (mounted ? 900 : real ? courtFightMs(type) : clash || duelAt ? 1900 : people && gear && type === "k" ? Math.max(980, attackById(gear.attackId).ms ?? 980) : 980);
       }
+      if (!slay) attackUntil.current = 0;
       const charging = mounted && slay && traveling;
-      gait.current.act = performance.now() < attackUntil.current ? "attack" : charging ? "charge" : traveling ? "walk" : "idle";
+      gait.current.act = slay && performance.now() < attackUntil.current ? "attack" : charging ? "charge" : traveling ? "walk" : "idle";
       if ((duelAt && gait.current.act === "attack") || charging) {
         const foe = squareToWorld((duelAt || square) as Square, pitch);
         const fx = foe[0] - pos.current.x;
@@ -652,7 +653,8 @@ function AnimatedPiece({
           white={color === "w"}
           cast={cast}
           sword={false}
-          clash={clash}
+          blade
+          clash={clash && slay}
           wing={square[0] < "e" ? "a" : "b"}
           gait={gait}
           flip={false}
@@ -1649,6 +1651,15 @@ function Scene({
     const key = `${fen}|${lastMove.from}${lastMove.to}`;
     if (seenCapture.current === key) return;
     seenCapture.current = key;
+    // A quiet move (no "x" in the notation) is just a walk. No sword fight.
+    const san = "san" in lastMove ? String((lastMove as { san?: string }).san ?? "") : "";
+    if (san !== "" && !san.includes("x")) {
+      setCaptureSq(null);
+      setDuelAside(null);
+      setFightLook(null);
+      setCrowd(null);
+      return;
+    }
     const was = before.find((p) => p.sq === lastMove.to);
     const mover = pieces.find((p) => p.sq === lastMove.to);
     const pawn = before.find((p) => p.sq === lastMove.from && p.type === "p" && p.color === mover?.color);
@@ -1729,9 +1740,15 @@ function Scene({
     setCaptureSq(lastMove.to);
     setDuelAside(aside !== victim.sq ? aside : null);
     const here = squareToWorld(lastMove.to, pitch);
-    if (real || ((fightZoom || people) && aside !== victim.sq)) {
-      setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
-      if (real) setFightShot(0);
+    const there = squareToWorld(aside, pitch);
+    // Camera first, then the bodies. A bad look must never abort the duel.
+    try {
+      if (real || ((fightZoom || people) && aside !== victim.sq)) {
+        setFightLook({ x: (here[0] + there[0]) / 2, z: (here[2] + there[2]) / 2 });
+        if (real) setFightShot(0);
+      }
+    } catch {
+      setFightLook(null);
     }
     if (real) setCrowd({ x: here[0], z: here[2] });
     const hold = real ? courtFightMs(mover.type) : 2600;
@@ -1882,9 +1899,11 @@ function Scene({
           <SkyArenaWorld />
         </ModelSlot>
       ) : real ? (
-        <ModelSlot>
-          <CourtRoom />
-        </ModelSlot>
+        fightLook ? null : (
+          <ModelSlot>
+            <CourtRoom />
+          </ModelSlot>
+        )
       ) : skin.id === "grassland" ? (
         <ModelSlot>
           <MeadowField cheer={cheer} />
@@ -1936,7 +1955,7 @@ function Scene({
         tints={tints}
       />
       {blast ? <AtomicBlast key={blast.id} sq={blast.sq} pitch={pitch} /> : null}
-      <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />
+      {fightLook ? null : <TableSeat you={you} mode={tableSeat} video={seatVideo} back={meadow ? 11.4 : 5.55} />}
       {rocco ? (
         <ModelSlot>
           <RoccoArmy fen={fen} lastMove={lastMove} real={real} pitch={pitch} onSquare={onSquare} />
@@ -2237,6 +2256,11 @@ function FightCam({ look, shot = 0 }: { look: { x: number; z: number } | null; s
         };
         controls.minDistance = 1.8;
         controls.maxDistance = 16;
+        // A wall or the seat sitting on the lens must not paint the whole picture coffee.
+        if (camera instanceof THREE.PerspectiveCamera && camera.near < 0.8) {
+          camera.near = 0.8;
+          camera.updateProjectionMatrix();
+        }
       }
       if (lookKey.current !== key) {
         lookKey.current = key;
@@ -2273,6 +2297,10 @@ function FightCam({ look, shot = 0 }: { look: { x: number; z: number } | null; s
       controls.target.copy(home.current.target);
       controls.minDistance = home.current.min;
       controls.maxDistance = home.current.max;
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.near = 0.1;
+        camera.updateProjectionMatrix();
+      }
       controls.enabled = true;
       controls.update();
       home.current = null;
@@ -2461,7 +2489,6 @@ export function ChessBoard3D({
           gl.localClippingEnabled = true;
         }}
       >
-        <LoadGuard fallback={<color attach="background" args={["#1a1612"]} />}>
         <Scene
           fen={fen}
           you={you}
@@ -2495,7 +2522,6 @@ export function ChessBoard3D({
           labels={labels}
           tints={tints}
         />
-        </LoadGuard>
         {overlay}
       </Canvas>
       {real ? (

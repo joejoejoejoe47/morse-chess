@@ -303,14 +303,14 @@ check(purse('alice') === $a0 && purse('bob') === $b0, 'draw pays 0 coins');
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby', 'timed');
 $s = Mores::claimTimeout($white, ['gameId' => $gid]);
 check($s['status'] === 'active', 'claimTimeout before expiry is a no-op');
-backdate_turn($gid, 61000);
+backdate_turn($gid, 301000);
 $waiting = $black;
 $s = Mores::claimTimeout($waiting, ['gameId' => $gid]);
 check($s['status'] === 'black_win' && $s['winnerUserId'] === $black, 'white flagged on its own clock');
 check(Mores::claimTimeout('alice', ['gameId' => 'nope']) === null, 'claimTimeout unknown -> null');
 // move after expiry is refused with the final snapshot
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby', 'timed');
-backdate_turn($gid, 61000);
+backdate_turn($gid, 301000);
 $r = Mores::makeMove($white, ['gameId' => $gid, 'from' => 'e2', 'to' => 'e4']);
 check($r['ok'] === false && $r['error'] === 'Time expired.' && $r['game']['status'] === 'black_win', 'late move -> Time expired + snapshot');
 // breeze games never flag
@@ -323,8 +323,8 @@ Mores::resignGame('alice', ['gameId' => $gid]);
 [$gid, $white, $black] = human_game('alice', 'bob', 'bob_bobby', 'timed');
 backdate_turn($gid, 5000);
 $r = Mores::makeMove($white, ['gameId' => $gid, 'from' => 'e2', 'to' => 'e4']);
-check($r['game']['whiteClockMs'] <= 55000 && $r['game']['whiteClockMs'] > 54000 && $r['game']['blackClockMs'] >= 59000, 'mover clock drained');
-check($r['game']['remainingMs'] <= 60000 && $r['game']['serverNow'] > 1.7e12, 'remainingMs/serverNow present');
+check($r['game']['whiteClockMs'] <= 295000 && $r['game']['whiteClockMs'] > 294000 && $r['game']['blackClockMs'] >= 299000, 'mover clock drained');
+check($r['game']['remainingMs'] <= 300000 && $r['game']['remainingMs'] > 290000 && $r['game']['serverNow'] > 1.7e12, 'remainingMs/serverNow present');
 Mores::resignGame('alice', ['gameId' => $gid]);
 
 // promotion handling on a crafted position

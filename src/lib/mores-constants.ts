@@ -5,7 +5,7 @@ export const BOT_V2_USERNAME = "MorseBotv2";
 export const START_SCORE = 1200;
 export const ELO_K = 32;
 export const ELO_FLOOR = 100;
-export const TURN_MS = 60_000;
+export const TURN_MS = 300_000;
 export const USERNAME_RE = /^[a-zA-Z0-9_]{8,20}$/;
 
 export type GameMode = "timed" | "breeze";

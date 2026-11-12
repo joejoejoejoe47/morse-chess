@@ -215,19 +215,18 @@ function WarUnit({
     const blades: THREE.Object3D[] = [];
     next.userData.blades = blades;
     if (sword || blade) {
-      let found = false;
+      const weapon = /sword|knife|axe|staff|wand|crossbow|mace|dagger/i;
       next.traverse((obj) => {
-        if (/sword/i.test(obj.name) && !/offhand/i.test(obj.name)) {
-          obj.visible = true;
-          found = true;
-          blades.push(obj);
-        }
+        if (!weapon.test(obj.name) || /helmet|hat|hood|cape|cloak/i.test(obj.name)) return;
+        if (blade && !sword) obj.visible = false;
+        else obj.visible = true;
+        blades.push(obj);
       });
-      if (!found) {
-        const blade = donor.scene.getObjectByName("1H_Sword") ?? findNamed(donor.scene, /sword/i);
+      if (sword && blades.length === 0) {
+        const donorBlade = donor.scene.getObjectByName("1H_Sword") ?? findNamed(donor.scene, /sword/i);
         const hand = findHand(next);
-        if (blade && hand) {
-          const copy = blade.clone(true);
+        if (donorBlade && hand) {
+          const copy = donorBlade.clone(true);
           copy.visible = true;
           copy.frustumCulled = false;
           copy.traverse((obj) => {
@@ -237,9 +236,9 @@ function WarUnit({
             const copies = src.map((mat) => mat.clone());
             mesh.material = copies.length === 1 ? copies[0] : copies;
           });
-          copy.position.copy(blade.position);
-          copy.quaternion.copy(blade.quaternion);
-          copy.scale.copy(blade.scale);
+          copy.position.copy(donorBlade.position);
+          copy.quaternion.copy(donorBlade.quaternion);
+          copy.scale.copy(donorBlade.scale);
           hand.add(copy);
           blades.push(copy);
         }
@@ -368,7 +367,9 @@ function WarUnit({
     }
     mixer.update(dt);
     const forced = gait.current.clip && actions[gait.current.clip] ? gait.current.clip : null;
-    const key = forced ?? clipName(clips, want);
+    let key = forced ?? clipName(clips, want);
+    // A walk or idle never plays a sword swing. That clip is only for a real capture.
+    if (want !== "attack" && /attack|melee/i.test(key)) key = want === "walk" ? clips.walk : clips.idle;
     if (want !== mode.current || key !== playing.current) {
       const prev = actions[playing.current];
       const next = actions[key];
