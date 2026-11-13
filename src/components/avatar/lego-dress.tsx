@@ -149,6 +149,15 @@ const LEG_RATIO = 0.94;
 const MAX_HEAD_PER_HIP = 0.34;
 
 const HIP_IN_LEGS: Record<string, string> = { "ironman.glb": "Color_154" };
+const HAIR_MATS = new Set(["Dark_Brown", "Brown", "Bright_Light_Yellow"]);
+/** Hair lifted off an Avengers head (the part that sticks up past the face). */
+const FIGURE_HAIR: Record<string, { file: string; mat: string }> = {
+  "hair-bucky": { file: "bucky.glb", mat: "Dark_Brown" },
+  "hair-person": { file: "person.glb", mat: "Brown" },
+  "hair-hawkeye": { file: "hawkeye.glb", mat: "Dark_Brown" },
+  "hair-marvel": { file: "marvel.glb", mat: "Bright_Light_Yellow" },
+  "hair-wasp": { file: "wasp.glb", mat: "Black" },
+};
 
 
 const partFile = (id: string) => legoPartById(id).file;
@@ -327,7 +336,8 @@ export function LegoDress({
   const bodyG = useGLTF(partUrl(body));
   const headG = useGLTF(partUrl(head));
   const legsG = useGLTF(partUrl(legs));
-  const hasHat = hair !== "none";
+  const hasHat = hair !== "none" && !(hair in FIGURE_HAIR);
+  const figureHair = hair in FIGURE_HAIR;
 
   const fig = useMemo(() => {
     const bodyFile = partFile(body);
@@ -403,6 +413,11 @@ export function LegoDress({
           mesh.material = Array.isArray(mesh.material) ? two : two[0];
         }
       });
+    if (figureHair)
+      headN.traverse((node) => {
+        const mesh = node as THREE.Mesh;
+        if (mesh.isMesh && HAIR_MATS.has(matName(mesh))) mesh.visible = false;
+      });
     const lid = HEADGEAR[headFile]?.lid;
     if (hasHat && lid) {
       const disc = new THREE.Mesh(
@@ -429,12 +444,13 @@ export function LegoDress({
     const hatAt: Skull = { x: skullB.x, z: skullB.z, y: skullB.y, top: skullB.y + (top.top - skullH.y) * hk, r: top.r * hk };
     const unit = B.legs.w;
     return { root, skull: skullB, floor, hatAt, grip: gripMatrix(bodyFile, handOf(bodyG.scene, unit, propNames(bodyFile)), unit), unit };
-  }, [bodyG.scene, headG.scene, legsG.scene, body, head, legs, hasHat, weapon]);
+  }, [bodyG.scene, headG.scene, legsG.scene, body, head, legs, hasHat, figureHair, weapon]);
 
   return (
     <group position={[0, 0, 1.2]} scale={1.15}>
       <group position={[-fig.skull.x, -fig.floor, -fig.skull.z]}>
         <primitive object={fig.root} />
+        {figureHair ? <FigureHair id={hair} neck={fig.skull} /> : null}
         {hasHat ? (
           <group position={[fig.hatAt.x, fig.hatAt.top, fig.hatAt.z]}>
             <MinifigHat id={hair} skull={fig.hatAt} />
@@ -450,7 +466,40 @@ export function LegoDress({
   );
 }
 
-/** A hat crown sized to the skull and pushed down over it; local y=0 is the skull top. */
+/** A character's own hair, seated on this body's neck the way its head would be. */
+function FigureHair({ id, neck }: { id: string; neck: Skull }) {
+  const spec = FIGURE_HAIR[id];
+  const gltf = useGLTF(asset(`/lego/chars/${spec.file}`));
+  const obj = useMemo(() => {
+    const rig = rigOf(spec.file);
+    const headN = lift(gltf.scene, ["head"]);
+    const hits: { mesh: THREE.Mesh; top: number }[] = [];
+    headN.updateMatrixWorld(true);
+    headN.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      if (matName(mesh) !== spec.mat) {
+        mesh.visible = false;
+        return;
+      }
+      const b = new THREE.Box3().setFromObject(mesh);
+      hits.push({ mesh, top: b.max.y });
+      if (b.min.y < rig.skull.y + rig.skull.r * 0.4) mesh.visible = false;
+    });
+    if (!hits.some((h) => h.mesh.visible) && hits.length) {
+      const best = hits.reduce((a, b) => (a.top > b.top ? a : b));
+      best.mesh.visible = true;
+    }
+    const hk = neck.r / rig.skull.r;
+    const holder = new THREE.Group();
+    holder.add(headN);
+    headN.position.set(-rig.skull.x, -rig.skull.y, -rig.skull.z);
+    holder.scale.setScalar(hk);
+    holder.position.set(neck.x, neck.y, neck.z);
+    return holder;
+  }, [gltf.scene, id, neck]);
+  return <primitive object={obj} />;
+}
 function MinifigHat({ id, skull }: { id: string; skull: Skull }) {
   const spec = crownById(id);
   const gltf = useGLTF(spec.model || asset("/avatars/crowns/poly-band.glb"));

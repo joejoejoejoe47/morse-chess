@@ -24,7 +24,7 @@ import { squareToWorld } from "@/lib/chess/board-math";
 import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
 import { activeLegoBuild, latestLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
-import { legoGood, legoPawn, legoScene, useLegoLook } from "@/lib/lego-look";
+import { legoBishop, legoGood, legoPawn, legoScene, useLegoLook } from "@/lib/lego-look";
 import { playLegoBeam, playLegoClang, playLegoExplode, playLegoHit, playLegoMagic, playLegoShieldThrow, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
 import { useResilientGLTF } from "@/lib/resilient-gltf";
 import { LoadGuard, Later } from "@/components/chess/load-guard";
@@ -150,7 +150,7 @@ export function pieceChar(color: Color, type: PieceSymbol): LegoCharId {
       k: "cap",
       q: "bucky",
       r: "warmachine",
-      b: "marvel",
+      b: legoBishop() === "marvel" ? "marvel" : "antman",
       n: "vision",
       p: legoPawn() === "dup" ? "dup" : "legion",
     };

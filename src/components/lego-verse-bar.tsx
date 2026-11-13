@@ -1,9 +1,9 @@
-import { setLegoGood, setLegoPawn, setLegoScene, useLegoLook } from "@/lib/lego-look";
+import { setLegoBishop, setLegoGood, setLegoPawn, setLegoScene, useLegoLook } from "@/lib/lego-look";
 import { cn } from "@/lib/utils";
 
 /** Latest saved LG board, the Avengers balcony, or a good-side swap. */
 export function LegoVerseBar({ show }: { show: boolean }) {
-  const { scene, good, pawn } = useLegoLook();
+  const { scene, good, pawn, bishop } = useLegoLook();
   if (!show) return null;
   const chip = (on: boolean) =>
     cn("min-h-10 px-3 py-1.5 text-[13px] font-medium", on ? "bg-ivory text-ink" : "text-mist hover:text-ivory");
@@ -18,6 +18,7 @@ export function LegoVerseBar({ show }: { show: boolean }) {
           Avengers
         </button>
         {avengers ? (
+          <>
           <button
             type="button"
             data-lego-pawn={pawn}
@@ -27,6 +28,16 @@ export function LegoVerseBar({ show }: { show: boolean }) {
           >
             {pawn === "dup" ? "Duplicate pawns" : "Iron Legion pawns"}
           </button>
+          <button
+            type="button"
+            data-lego-bishop={bishop}
+            className={chip(bishop === "marvel")}
+            title={bishop === "ant" ? "Bishops are Ant-Man. Press for Captain Marvel." : "Bishops are Captain Marvel. Press for Ant-Man."}
+            onClick={() => setLegoBishop(bishop === "ant" ? "marvel" : "ant")}
+          >
+            {bishop === "ant" ? "Ant-Man bishop" : "Captain Marvel bishop"}
+          </button>
+          </>
         ) : (
           <button
             type="button"

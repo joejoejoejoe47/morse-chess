@@ -377,6 +377,11 @@ export const LEGO_PARTS: { id: string; name: string; file: string }[] = [
 
 export const LG_HAIR = [
   { id: "none", name: "No hair" },
+  { id: "hair-bucky", name: "Winter Soldier" },
+  { id: "hair-person", name: "Person" },
+  { id: "hair-hawkeye", name: "Hawkeye" },
+  { id: "hair-marvel", name: "Captain Marvel" },
+  { id: "hair-wasp", name: "Wasp" },
   { id: "clown", name: "Clown hat" },
   { id: "chef", name: "Chef hat" },
   { id: "cappello", name: "Cappello" },

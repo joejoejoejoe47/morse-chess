@@ -810,7 +810,7 @@ function AvatarStudio() {
           ) : null}
           {tab === "kings" && loadout.style === "lg" ? (
             <div className="space-y-4">
-              <Note>Swap each piece. Hair is a hat. The weapon sits in the right hand. Brick Verse has to be yours or the lounge will not keep LG.</Note>
+              <Note>Body, head, hair and legs from every Avengers minifig. Free in LG.</Note>
               <PartRow label="Body" value={loadout.lgBody} options={LEGO_PARTS} onPick={(id) => void equip("lgBody", id, 0)} />
               <PartRow label="Head" value={loadout.lgHead} options={LEGO_PARTS} onPick={(id) => void equip("lgHead", id, 0)} />
               <PartRow label="Hair" value={loadout.lgHair} options={LG_HAIR} onPick={(id) => void equip("lgHair", id, 0)} />
