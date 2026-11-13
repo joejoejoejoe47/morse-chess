@@ -12,8 +12,8 @@ const ROLES: { id: CastRole; label: string }[] = [
   { id: "p", label: "Pawn" },
 ];
 
-/** Latest saved LG board, the Avengers balcony, and the lineup you set. */
-export function LegoVerseBar({ show }: { show: boolean }) {
+/** Latest saved LG board. The lineup can be changed on the board preview, not during a real game. */
+export function LegoVerseBar({ show, arrange = false }: { show: boolean; arrange?: boolean }) {
   const { scene, good, cast } = useLegoLook();
   useEffect(() => {
     hydrateCast();
@@ -43,7 +43,7 @@ export function LegoVerseBar({ show }: { show: boolean }) {
           </button>
         )}
       </div>
-      {avengers ? (
+      {avengers && arrange ? (
         <div className="flex max-w-full flex-wrap justify-center gap-1.5 px-2" data-lego-cast>
           {ROLES.map((role) => (
             <label key={role.id} className="flex items-center gap-1 rounded-full border border-line bg-panel px-2 py-1 text-[12px] text-mist">

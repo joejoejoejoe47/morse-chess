@@ -245,7 +245,7 @@ export function BoardLook({
           {ownsLego && view === "lg" ? (
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <div className="pointer-events-auto">
-                <LegoVerseBar show />
+                <LegoVerseBar show arrange />
               </div>
             </div>
           ) : null}

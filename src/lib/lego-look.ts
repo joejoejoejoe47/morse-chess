@@ -44,12 +44,21 @@ const KEY = "morse-lg-cast";
 
 function clean(raw: Partial<Cast> | null | undefined): Cast {
   const next = { ...DEFAULT_CAST };
-  if (!raw) return next;
+  if (raw) {
+    for (const role of ROLES) {
+      const id = raw[role];
+      if (typeof id !== "string" || !ALLOWED.has(id)) continue;
+      if (role === "p" && id === "ironman") continue;
+      next[role] = id;
+    }
+  }
+  const seen = new Set<string>();
   for (const role of ROLES) {
-    const id = raw[role];
-    if (typeof id !== "string" || !ALLOWED.has(id)) continue;
-    if (role === "p" && id === "ironman") continue;
-    next[role] = id;
+    if (seen.has(next[role]) || (role === "p" && next[role] === "ironman")) {
+      const spare = CAST_POOL.find((row) => !seen.has(row.id) && !(role === "p" && row.id === "ironman"));
+      if (spare) next[role] = spare.id;
+    }
+    seen.add(next[role]);
   }
   return next;
 }
@@ -137,7 +146,22 @@ export function setLegoCastRole(role: CastRole, id: string) {
   if (!ALLOWED.has(id)) return;
   if (role === "p" && id === "ironman") return;
   if (cast[role] === id) return;
-  cast = { ...cast, [role]: id };
+  const next = { ...cast };
+  const prev = next[role];
+  const taken = ROLES.find((other) => other !== role && next[other] === id);
+  next[role] = id;
+  if (taken) {
+    // One of each. The square this figure left takes the one that was here,
+    // unless that would put Iron Man on the pawns.
+    if (taken === "p" && prev === "ironman") {
+      const used = new Set(ROLES.map((r) => next[r]));
+      const spare = CAST_POOL.find((row) => row.id !== "ironman" && !used.has(row.id));
+      next[taken] = spare ? spare.id : "dup";
+    } else {
+      next[taken] = prev;
+    }
+  }
+  cast = next;
   try {
     localStorage.setItem(KEY, JSON.stringify(cast));
   } catch {

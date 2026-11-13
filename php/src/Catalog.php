@@ -200,8 +200,21 @@ final class Catalog
                 $def[$pair[0]] = $pair[1];
             }
         }
+        $used = [];
         $out = [];
         foreach ($def as $role => $id) {
+            if (in_array($id, $used, true) || ($role === 'p' && $id === 'ironman')) {
+                foreach ($ok as $spare) {
+                    if ($spare === 'ironman' && $role === 'p') {
+                        continue;
+                    }
+                    if (!in_array($spare, $used, true)) {
+                        $id = $spare;
+                        break;
+                    }
+                }
+            }
+            $used[] = $id;
             $out[] = $role . ':' . $id;
         }
         return implode(',', $out);
