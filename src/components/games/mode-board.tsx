@@ -2,12 +2,11 @@ import { useEffect, useState } from "react";
 import type { Square } from "chess.js";
 import { ChessBoard2D } from "@/components/chess/board-2d";
 import { ChessBoard3D } from "@/components/chess/board-3d";
-import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
 import { LegoVerseBar } from "@/components/lego-verse-bar";
 import { setLegoScene } from "@/lib/lego-look";
 import { RaBuy } from "@/components/avatar/ra-buy";
 import { useTheme } from "@/components/theme";
-import { boardUnlocked, equippedSkin, type BoardSkin } from "@/lib/chess/board-skins";
+import { equippedSkin, type BoardSkin } from "@/lib/chess/board-skins";
 import { useLookPrefs } from "@/lib/chess/look-prefs";
 import { getHomeState } from "@/lib/server/mores";
 import { cn } from "@/lib/utils";
@@ -95,7 +94,7 @@ export function ModeBoard({
     };
   }, []);
   const skin: BoardSkin | undefined = me ? equippedSkin(me.score, me.equippedBoard, me.username, me.ownedBoards) : undefined;
-  const ownsLego = me ? boardUnlocked(me.score, LEGO_BOARD_ID, me.username, me.ownedBoards) : false;
+  const ownsLego: boolean = true;
   const lgOn = view === "lg" && ownsLego;
   function pickView(v: LocalView) {
     if (v === "lg") setLegoScene("latest");

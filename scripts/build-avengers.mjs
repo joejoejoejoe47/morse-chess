@@ -180,24 +180,36 @@ const figs = {
     legL: [line(DBG, "0 42 0 1 0 0 0 1 0 0 0 1", "3817cpbd.dat")],
     legR: [line(DBG, "0 42 0 1 0 0 0 1 0 0 0 1", "3816cpbd.dat")],
   }),
-  // Vision: red face, yellow mind stone, pearl-gold suit, dark red cape.
-  // The stone is the official crystal 30385. He carries no hammer.
+  // Vision: red face, a big yellow mind stone, a second stone on the chest, pearl-gold suit, dark red cape.
   vision: fig({
     body: [
       line(297, "0 0 0 1 0 0 0 1 0 0 0 1", "973.dat"),
       line(297, "0 30 0 1 0 0 0 1 0 0 0 1", "3815b.dat"),
       line(320, "0 0 0 1 0 0 0 1 0 0 0 1", "4524.dat"),
+      line(46, "0 6 -12 0.26 0 0 0 0.26 0 0 0 0.26", "30385.dat"),
     ],
     head: [
       line(4, "0 -24 0 1 0 0 0 1 0 0 0 1", "3626b.dat"),
-      line(226, "0 -40 -9.5 0.42 0 0 0 0.42 0 0 0 0.42", "30385.dat"),
-      line(15, "-3.6 -33 -9.4 0.32 0 0 0 0.32 0 0 0 0.32", "98138.dat"),
-      line(15, "3.6 -33 -9.4 0.32 0 0 0 0.32 0 0 0 0.32", "98138.dat"),
+      line(46, "0 -38 -12 0.5 0 0 0 0.5 0 0 0 0.5", "30385.dat"),
+      line(15, "-4 -33 -10 0.38 0 0 0 0.38 0 0 0 0.38", "98138.dat"),
+      line(15, "4 -33 -10 0.38 0 0 0 0.38 0 0 0 0.38", "98138.dat"),
     ],
     armL: [line(297, ARM_L, "3819.dat"), line(4, HAND_L, "3820.dat")],
     armR: [line(297, ARM_R, "3818.dat"), line(4, HAND_R, "3820.dat")],
     legL: [line(297, "0 42 0 1 0 0 0 1 0 0 0 1", "3817c.dat")],
     legR: [line(297, "0 42 0 1 0 0 0 1 0 0 0 1", "3816c.dat")],
+  }),
+  // A plain person. On a capture the copies split off him.
+  person: fig({
+    body: [line(1, "0 0 0 1 0 0 0 1 0 0 0 1", "973.dat"), line(1, "0 30 0 1 0 0 0 1 0 0 0 1", "3815b.dat")],
+    head: [
+      line(14, "0 -24 0 1 0 0 0 1 0 0 0 1", "3626b.dat"),
+      line(6, "0 -24 0 1 0 0 0 1 0 0 0 1", "3901.dat"),
+    ],
+    armL: [line(1, ARM_L, "3819.dat"), line(14, HAND_L, "3820.dat")],
+    armR: [line(1, ARM_R, "3818.dat"), line(14, HAND_R, "3820.dat")],
+    legL: [line(272, "0 42 0 1 0 0 0 1 0 0 0 1", "3817c.dat")],
+    legR: [line(272, "0 42 0 1 0 0 0 1 0 0 0 1", "3816c.dat")],
   }),
 };
 

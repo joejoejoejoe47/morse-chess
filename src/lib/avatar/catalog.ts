@@ -282,9 +282,9 @@ export const LG_ATTACKS: GearItem[] = [
   {
     id: "shield-block",
     name: "Shield Block",
-    price: 8,
+    price: 0,
     portrait: "",
-    blurb: "Blocks the enemy's hit, throws his shield, the enemy bursts and the shield flies back. Needs a king with a shield.",
+    blurb: "Free with LG. Blocks the enemy's hit, throws his shield, the enemy bursts and the shield flies back. Needs a king with a shield.",
   },
 ];
 
@@ -364,6 +364,15 @@ export const LEGO_PARTS: { id: string; name: string; file: string }[] = [
   { id: "goblin", name: "Bomb Glider", file: "insectoid.glb" },
   { id: "doombot", name: "Tyrant Bot", file: "gigabot.glb" },
   { id: "doom", name: "Iron Tyrant", file: "doom-bigbrick.glb" },
+  { id: "bucky", name: "Winter Soldier", file: "bucky.glb" },
+  { id: "antman", name: "Ant-Man", file: "antman.glb" },
+  { id: "vision", name: "Vision", file: "vision.glb" },
+  { id: "marvel", name: "Captain Marvel", file: "marvel.glb" },
+  { id: "warmachine", name: "War Machine", file: "warmachine.glb" },
+  { id: "hawkeye", name: "Hawkeye", file: "hawkeye.glb" },
+  { id: "wasp", name: "The Wasp", file: "wasp.glb" },
+  { id: "legion", name: "Iron Legion", file: "ironman.glb" },
+  { id: "dup", name: "Duplicate", file: "person.glb" },
 ];
 
 export const LG_HAIR = [

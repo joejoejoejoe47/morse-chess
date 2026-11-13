@@ -46,8 +46,7 @@ import { ChessBoard3D } from "@/components/chess/board-3d";
 import { HEIRLOOM_CREDIT } from "@/components/chess/heirloom-sets";
 import { PieceMark, type PieceKind } from "@/components/chess/marks";
 import { LiveCall } from "@/components/live-call";
-import { boardById, boardUnlocked, equippedSkin } from "@/lib/chess/board-skins";
-import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
+import { boardById, equippedSkin } from "@/lib/chess/board-skins";
 import { LegoVerseBar } from "@/components/lego-verse-bar";
 import { setLegoScene } from "@/lib/lego-look";
 import { isSandboxGame, SANDBOX_BOARD_ID } from "@/lib/sandbox-board";
@@ -736,8 +735,8 @@ export function GameView({ gameId }: { gameId: string }) {
   const over = game.status !== "active";
   // Sandbox games (goblin "End" -> /play-now) are always on the Sky Arena.
   const skin = isSandboxGame(game.id) ? boardById(SANDBOX_BOARD_ID) : equippedSkin(game.myScore, game.myBoard, myName, game.ownedBoards);
-  // LG (LEGO Marvel figures) comes with the Lego Universe board.
-  const ownsLego = boardUnlocked(game.myScore, LEGO_BOARD_ID, myName, game.ownedBoards);
+  // LG figures and the LG avatar cabinet are free. The Brick Verse board in the shop is separate.
+  const ownsLego: boolean = true;
   const lgOn = view === "lg" && ownsLego;
   const vsBot = isBotUserId(opp.userId);
   // A player-made bot (Create Bot) sits in MorseBot's chair: show its name instead.

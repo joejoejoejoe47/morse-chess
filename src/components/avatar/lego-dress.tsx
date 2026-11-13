@@ -94,6 +94,14 @@ const RIG: Record<string, Rig> = {
   "gigabot.glb": { skull: skull(0, -0.09, 0.675, 0.123), legs: { x: 0, top: 0.349, w: 0.37, z: -0.056 }, hipZ: -0.036 },
   // Doom's cape is merged into his body mesh, so his hip centre is where his own legs plug in (z 0.024).
   "doom-bigbrick.glb": { skull: skull(0, 0.031, 0.614, 0.095, { cut: { r: 1.1 } }), legs: { x: 0, top: 0.272, w: 0.26, z: 0.024 }, hipZ: 0.024 },
+  "bucky.glb": { skull: skull(-0.001, -0.005, 0.797, 0.14), legs: { x: 0, top: 0.418, w: 0.438, z: 0.014 }, hipZ: 0 },
+  "person.glb": { skull: skull(-0.001, -0.005, 0.797, 0.14), legs: { x: 0, top: 0.418, w: 0.438, z: 0.014 }, hipZ: 0 },
+  "antman.glb": { skull: skull(0, 0.007, 0.756, 0.15, { cut: { r: 1.05 } }), legs: { x: 0, top: 0.398, w: 0.417, z: 0.014 }, hipZ: 0 },
+  "marvel.glb": { skull: skull(-0.003, -0.025, 0.77, 0.14), legs: { x: 0, top: 0.404, w: 0.423, z: 0.014 }, hipZ: 0 },
+  "warmachine.glb": { skull: skull(0, -0.016, 0.669, 0.14, { cut: { r: 1.05 } }), legs: { x: 0, top: 0.398, w: 0.417, z: 0.014 }, hipZ: 0 },
+  "hawkeye.glb": { skull: skull(-0.001, -0.005, 0.797, 0.14), legs: { x: 0, top: 0.418, w: 0.438, z: 0.014 }, hipZ: -0.057 },
+  "wasp.glb": { skull: skull(-0.001, -0.005, 0.797, 0.14), legs: { x: 0, top: 0.418, w: 0.438, z: 0.014 }, hipZ: -0.105 },
+  "vision.glb": { skull: skull(0, 0.027, 0.627, 0.12), legs: { x: 0, top: 0.329, w: 0.345, z: 0.011 }, hipZ: -0.021 },
 };
 export const SKULL: Record<string, Skull> = Object.fromEntries(Object.entries(RIG).map(([f, rig]) => [f, rig.skull]));
 /**

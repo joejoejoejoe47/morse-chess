@@ -65,7 +65,9 @@ export type LegoCharId =
   | "wasp"
   | "marvel"
   | "warmachine"
-  | "vision";
+  | "vision"
+  | "legion"
+  | "dup";
 
 type CharSpec = {
   file: string;
@@ -122,7 +124,7 @@ export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   // Endgame helmet minifig. file is the real assembled figure (not the drawn stand-in).
   antman: { file: "antman.glb", role: "Ant-Man (good queen)", height: 0.8, gait: "walk", attack: "ant", fx: "#7ee7ff",
     rig: { jointMat: { armL: "Dark_Red", armR: "Dark_Red" } } },
-  bucky: { file: "bucky.glb", role: "Winter Soldier (Avengers king)", height: 0.8, gait: "walk", attack: "punch", fx: "#c5ccd6",
+  bucky: { file: "bucky.glb", role: "Winter Soldier (Avengers queen)", height: 0.8, gait: "walk", attack: "punch", fx: "#c5ccd6",
     rig: { mirror: ["armL"], jointMat: { armR: "Dark_Blue" } } },
   hawkeye: { file: "hawkeye.glb", role: "Hawkeye (Avengers pawn)", height: 0.64, gait: "walk", attack: "punch", fx: "#c9a36b",
     rig: { mirror: ["armR"], jointMat: { armL: "Purple" } } },
@@ -130,8 +132,10 @@ export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   marvel: { file: "marvel.glb", role: "Captain Marvel (Avengers bishop)", height: 0.8, gait: "fly", attack: "repulsor", fx: "#ffe07a",
     rig: { jointMat: { armL: "Dark_Blue", armR: "Dark_Blue" } } },
   warmachine: { file: "warmachine.glb", role: "War Machine (Avengers rook)", height: 0.8, gait: "walk", attack: "blast", fx: "#d7dde8" },
-  vision: { file: "vision.glb", role: "Vision (Avengers knight)", height: 0.8, gait: "fly", attack: "repulsor", fx: "#ffe14a",
+  vision: { file: "vision.glb", role: "Vision (Avengers knight)", height: 0.86, gait: "fly", attack: "repulsor", fx: "#ffe14a",
     rig: { jointMat: { armL: "Pearl_Gold", armR: "Pearl_Gold" } } },
+  legion: { file: "ironman.glb", role: "Iron Legion (Avengers pawn)", height: 0.62, gait: "fly", attack: "blast", fx: "#ffb25a" },
+  dup: { file: "person.glb", role: "Duplicate (Avengers pawn)", height: 0.72, gait: "walk", attack: "punch", fx: "#7fb2ff" },
 };
 
 export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
@@ -139,16 +143,16 @@ export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
   b: { k: "doom", q: "widow", r: "skeleton", b: "blacktron", n: "goblin", p: "doombot" },
 };
 
-/** Good side can swap the queen for Ant-Man. Avengers replaces the whole good side, and Vision is the knight. */
+/** Avengers: Captain America stays king, Bucky is the queen, Vision the knight, Ant-Man the bishop. */
 export function pieceChar(color: Color, type: PieceSymbol): LegoCharId {
   if (color === "w" && legoScene() === "avengers") {
     const alt: Record<PieceSymbol, LegoCharId> = {
-      k: "bucky",
-      q: "antman",
+      k: "cap",
+      q: "bucky",
       r: "warmachine",
-      b: "marvel",
+      b: "antman",
       n: "vision",
-      p: legoPawn() === "wasp" ? "wasp" : "hawkeye",
+      p: legoPawn() === "dup" ? "dup" : "legion",
     };
     return alt[type];
   }
@@ -715,6 +719,8 @@ export type Fight = {
   tricks: Trick[];
   /** The king's Shield Block (bought on AV): he blocks the victim's hit and throws his shield. */
   shield?: boolean;
+  /** Empty square Captain America drops onto when Bucky attacks. */
+  guest?: Square;
 };
 
 /** Kings whose figure carries a shield (Shield Block only plays for these). */
@@ -760,20 +766,48 @@ function fightPlan(f: Fight, pitch: number) {
   const dist = d.length();
   const dir = dist > 1e-4 ? d.clone().divideScalar(dist) : new THREE.Vector3(0, 0, 1);
   if (atk.attack === "ant") {
-    // run a full circle, shrink, grow huge, one step onto the enemy, then back to normal size
-    const loop = 1.7;
-    const shrink = 0.42;
-    const grow = 0.55;
-    const step = 0.36;
-    const mvAnt = { wind: shrink + grow, strike: step, ranged: false, lunge: 0.2, shake: 0.22 };
-    const approach = loop;
-    const impact = approach + mvAnt.wind + mvAnt.strike;
+    // shrink, zip around under their feet, grow, lift them, then rip them apart
+    const shrink = 0.36;
+    const dart = 1.05;
+    const grow = 0.4;
+    const lift = 0.5;
+    const mvAnt = { wind: shrink + dart + grow, strike: lift, ranged: false, lunge: 0.2, shake: 0.2 };
+    const approach = 0.28;
+    const impact = approach + shrink + dart + grow + lift;
     const spot = vic.clone().addScaledVector(dir, -0.15);
-    const finish = spot.distanceTo(dest) > 0.08 ? moveTime("walk", spot.distanceTo(dest)) : 0.35;
-    const total = Math.max(impact + 0.65 + finish, impact + BREAK + 0.1);
+    const finish = 0.55;
+    const total = Math.max(impact + 0.7 + finish, impact + BREAK + 0.1);
     return {
       atkId, atk, mv: mvAnt, from, vic, dest, dir, near: from.clone(), lunge: 0.9, spot, approach, impact,
-      flight: false, finish, total, sh: null as ShieldPlan | null, ant: { loop, shrink, grow, step },
+      flight: false, finish, total, sh: null as ShieldPlan | null, ant: { shrink, dart, grow, lift }, buddy: null,
+    };
+  }
+  if (atkId === "bucky") {
+    // Cap drops on a free square, they pass the shield, it bursts the enemy, Cap leaps off and shatters below.
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const spot = f.guest ? v3(f.guest, pitch) : vic.clone().addScaledVector(side, pitch);
+    const away = spot.clone();
+    away.y = 0;
+    if (Math.abs(away.x) < 0.2 && Math.abs(away.z) < 0.2) away.set(0, 0, 1);
+    const edge = pitch * 4.6;
+    const fall = spot.clone();
+    if (Math.abs(away.x) >= Math.abs(away.z)) fall.x = Math.sign(away.x || 1) * edge;
+    else fall.z = Math.sign(away.z || 1) * edge;
+    fall.y = -1.65;
+    const drop = 0.42;
+    const toBucky = 0.88;
+    const throwAt = 1.12;
+    const impact = 1.52;
+    const back = 2.02;
+    const toCap = 2.18;
+    const jump = 2.62;
+    const shatter = 4.05;
+    const total = 4.45;
+    const mvPass = { wind: 0.3, strike: 0.2, ranged: true, lunge: 0, shake: 0.14 };
+    return {
+      atkId, atk, mv: mvPass, from, vic, dest, dir, near: from.clone(), lunge: 0, spot, approach: drop, impact,
+      flight: false, finish: 0.3, total, sh: null as ShieldPlan | null, ant: null,
+      buddy: { spot, fall, drop, toBucky, throwAt, back, toCap, jump, shatter },
     };
   }
   if (f.shield && f.type === "k" && SHIELD_KINGS.has(atkId)) {
@@ -795,7 +829,7 @@ function fightPlan(f: Fight, pitch: number) {
     const finish = spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
     const total = Math.max(done + finish, impact + BREAK + 0.1);
     const sh: ShieldPlan = { swing, vWind, vStrike, block, wind, release, back, done, reach: Math.max(0, near.distanceTo(vic) - 0.62) };
-    return { atkId, atk, mv, from, vic, dest, dir, near, lunge: 0, spot, approach, impact, flight: false, finish, total, sh, ant: null };
+    return { atkId, atk, mv, from, vic, dest, dir, near, lunge: 0, spot, approach, impact, flight: false, finish, total, sh, ant: null, buddy: null };
   }
   let near = from.clone();
   let lunge = 0;
@@ -813,7 +847,7 @@ function fightPlan(f: Fight, pitch: number) {
   const finish = flight ? trickTime(f.tricks.length) : spot.distanceTo(dest) > 0.05 ? moveTime(atk.gait, spot.distanceTo(dest)) : 0;
   const total = Math.max(impact + RECOVER + finish, impact + BREAK + 0.1);
   const sh: ShieldPlan | null = null;
-  return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total, sh, ant: null };
+  return { atkId, atk, mv, from, vic, dest, dir, near, lunge, spot, approach, impact, flight, finish, total, sh, ant: null, buddy: null };
 }
 
 export const LEGO_FIGHT_SECONDS = (f: Fight, pitch: number) => fightPlan(f, pitch).total;
@@ -1001,7 +1035,7 @@ function useCharColors(id: LegoCharId) {
 const BURST_PIECES = 64;
 const BURST_LIFE = 2.9;
 
-export type Burst = { id: string; victim: LegoCharId; at: THREE.Vector3; dir: THREE.Vector3; seed: number; delay: number; limit: number };
+export type Burst = { id: string; victim: LegoCharId; at: THREE.Vector3; dir: THREE.Vector3; seed: number; delay: number; limit: number; free?: boolean; floor?: number };
 
 /**
  * The captured figure blows apart into a big burst of real studded LEGO bricks and plates in its
@@ -1056,7 +1090,7 @@ function BurstBody({ burst, colors }: { burst: Burst; colors: { color: string; w
         geo: kind,
         // the figure's dominant colours are the ones you see most, like its own bricks
         color: i < colors.length ? colors[i].color : pick(),
-        pos: new THREE.Vector3(at.x + Math.cos(a) * 0.08 * r(), STAND + 0.05 + hy * height * 0.9, at.z + Math.sin(a) * 0.08 * r()),
+        pos: new THREE.Vector3(at.x + Math.cos(a) * 0.08 * r(), (burst.free ? at.y : STAND + 0.05 + Math.max(0, at.y)) + hy * height * 0.9, at.z + Math.sin(a) * 0.08 * r()),
         vel: new THREE.Vector3(Math.cos(a) * sp + dir.x * 0.9, 1.6 + r() * 2.8 + hy * 0.8, Math.sin(a) * sp + dir.z * 0.9),
         rot: new THREE.Euler(r() * 6, r() * 6, r() * 6),
         ang: new THREE.Vector3((r() - 0.5) * 18, (r() - 0.5) * 12, (r() - 0.5) * 18),
@@ -1083,6 +1117,7 @@ function BurstBody({ burst, colors }: { burst: Burst; colors: { color: string; w
       ring.current.scale.setScalar(0.2 + k * 2.6);
       (ring.current.material as THREE.MeshBasicMaterial).opacity = (1 - k) * 0.85;
     }
+    const floorY = burst.floor ?? BOARD_TOP;
     const step = Math.min(dt, 1 / 30);
     const fade = 1 - span(t, BURST_LIFE - 0.7, BURST_LIFE);
     bits.forEach((b, i) => {
@@ -1103,11 +1138,12 @@ function BurstBody({ burst, colors }: { burst: Burst; colors: { color: string; w
         b.pos.x += b.vel.x * step;
         b.pos.z += b.vel.z * step;
       }
-      // stay over the board, bouncing back off its edge
-      for (const ax of ["x", "z"] as const) {
-        if (Math.abs(b.pos[ax]) > limit) {
-          b.pos[ax] = Math.sign(b.pos[ax]) * limit;
-          b.vel[ax] *= -0.4;
+      if (!burst.free) {
+        for (const ax of ["x", "z"] as const) {
+          if (Math.abs(b.pos[ax]) > limit) {
+            b.pos[ax] = Math.sign(b.pos[ax]) * limit;
+            b.vel[ax] *= -0.4;
+          }
         }
       }
       m.position.copy(b.pos);
@@ -1115,8 +1151,8 @@ function BurstBody({ burst, colors }: { burst: Burst; colors: { color: string; w
       m.updateMatrix();
       const e = m.matrix.elements;
       const ext = Math.abs(e[1]) * b.half.x + Math.abs(e[5]) * b.half.y + Math.abs(e[9]) * b.half.z;
-      if (b.pos.y - ext < BOARD_TOP) {
-        b.pos.y = BOARD_TOP + ext;
+      if (b.pos.y - ext < floorY) {
+        b.pos.y = floorY + ext;
         m.position.y = b.pos.y;
         if (b.vel.y < 0) {
           b.vel.y = -b.vel.y * 0.38;
@@ -1317,69 +1353,250 @@ function shieldFrame(S: ShieldPlan, t: number, now: number, seed: number, gait: 
 
 type FightPlan = ReturnType<typeof fightPlan>;
 
-/** Ant-Man: circle the enemy, shrink, grow huge, one stomp, then his own size again. */
+/** Ant-Man: shrink, zip under their feet, grow, lift them up, then the burst rips them apart. */
 function antMotion(t: number, P: FightPlan) {
   const ant = P.ant;
   if (!ant) return null;
-  const { from, vic, dest, dir } = P;
-  const { loop, shrink, grow, step } = ant;
-  const ang0 = Math.atan2(from.x - vic.x, from.z - vic.z);
-  const radius = Math.max(1.05, from.distanceTo(vic));
-  const besideAt = (ang: number) => new THREE.Vector3(vic.x + Math.sin(ang) * radius, 0, vic.z + Math.cos(ang) * radius);
-  const runYaw = (ang: number) => Math.atan2(Math.cos(ang), -Math.sin(ang));
+  const { from, vic, dest, dir, approach } = P;
+  const { shrink, dart, grow, lift } = ant;
+  const under = vic.clone().addScaledVector(dir, -0.05);
+  const face = yawTo(from, vic);
   const stride = (phase: number): Pose => {
     const s = Math.sin(phase);
-    return { legL: s * 0.75, legR: -s * 0.75, armLx: -s * 0.55, armRx: s * 0.55, lean: 0.08 };
+    return { legL: s * 0.8, legR: -s * 0.8, armLx: -s * 0.6, armRx: s * 0.6, lean: 0.12 };
   };
-  if (t < loop) {
-    const ang = ang0 + (t / loop) * Math.PI * 2;
-    return { pos: besideAt(ang), yaw: runYaw(ang), pose: stride(t * 12), y: Math.abs(Math.sin(t * 12)) * 0.03, scale: 1 };
+  if (t < approach) {
+    const u = ease(t / Math.max(0.05, approach));
+    return { pos: from.clone().lerp(under, u * 0.35), yaw: face, pose: stride(t * 14), y: 0, scale: 1 - 0.15 * u };
   }
-  const beside = besideAt(ang0);
-  const face = yawTo(beside, vic);
-  if (t < loop + shrink) {
-    const u = ease((t - loop) / shrink);
-    return { pos: beside, yaw: face, pose: { lean: 0.2 * u, armLx: -0.5 * u, armRx: -0.5 * u, headX: 0.25 * u }, y: 0, scale: 1 - 0.82 * u };
+  const t1 = approach;
+  if (t < t1 + shrink) {
+    const u = ease((t - t1) / shrink);
+    return { pos: from.clone().lerp(under, 0.35 + 0.45 * u), yaw: face, pose: { lean: 0.35 * u, armLx: -0.4 * u, armRx: -0.4 * u, headX: 0.2 * u }, y: 0, scale: 1 - 0.88 * u };
   }
-  const grown = loop + shrink;
-  const back = vic.clone().addScaledVector(dir, -0.95);
-  if (t < grown + grow) {
-    const u = ease((t - grown) / grow);
-    const pos = beside.clone().lerp(back, u);
+  const t2 = t1 + shrink;
+  const radius = 0.38;
+  if (t < t2 + dart) {
+    const u = (t - t2) / dart;
+    const ang = u * Math.PI * 2 * 2.2;
+    const pos = new THREE.Vector3(vic.x + Math.sin(ang) * radius, 0, vic.z + Math.cos(ang) * radius);
+    return { pos, yaw: Math.atan2(Math.cos(ang), -Math.sin(ang)), pose: stride(t * 22), y: 0.02, scale: 0.12 };
+  }
+  const t3 = t2 + dart;
+  const back = vic.clone().addScaledVector(dir, -0.85);
+  if (t < t3 + grow) {
+    const u = ease((t - t3) / grow);
+    const pos = under.clone().lerp(back, u);
     return {
       pos,
       yaw: yawTo(pos, vic),
-      pose: { armLx: -2.5 * u, armRx: -2.5 * u, lean: -0.22 * u, legL: 0.25 * u, legR: 0.25 * u },
-      y: 0.08 * Math.sin(Math.PI * u),
-      scale: 0.18 + (2.75 - 0.18) * u,
+      pose: { armLx: -2.4 * u, armRx: -2.4 * u, lean: -0.2 * u },
+      y: 0.05 * Math.sin(Math.PI * u),
+      scale: 0.12 + (2.35 - 0.12) * u,
     };
   }
-  const stepAt = grown + grow;
-  const impact = stepAt + step;
+  const t4 = t3 + grow;
+  const impact = t4 + lift;
   if (t < impact) {
-    const u = easeOut((t - stepAt) / step);
-    const down = ease(span(u, 0.45, 1));
-    const pos = back.clone().lerp(vic.clone().addScaledVector(dir, -0.12), u);
+    const u = ease((t - t4) / lift);
     return {
-      pos,
+      pos: back.clone().lerp(vic.clone().addScaledVector(dir, -0.35), u),
       yaw: yawTo(back, vic),
-      pose: { armLx: -2.5 + 2.7 * down, armRx: -2.5 + 2.7 * down, lean: -0.22 + 0.75 * down, legL: -0.6 * Math.sin(Math.PI * u), legR: 0.2 },
-      y: 0.4 * Math.sin(Math.PI * u),
-      scale: 2.75,
+      pose: { armLx: -2.6, armRx: -2.6, lean: -0.35 * u, legL: 0.2, legR: 0.2 },
+      y: 0.15 * u,
+      scale: 2.35,
     };
   }
-  const settle = 0.62;
+  const settle = 0.55;
   if (t < impact + settle) {
     const u = ease((t - impact) / settle);
-    const pos = vic.clone().addScaledVector(dir, -0.12).lerp(dest, Math.min(1, u));
-    return { pos, yaw: yawTo(vic, dest), pose: { lean: 0.12 * (1 - u) }, y: 0, scale: 2.75 + (1 - 2.75) * u };
+    return { pos: vic.clone().addScaledVector(dir, -0.35).lerp(dest, u), yaw: yawTo(vic, dest), pose: { lean: 0.1 * (1 - u) }, y: 0, scale: 2.35 + (1 - 2.35) * u };
   }
-  const u = clamp01((t - (impact + settle)) / Math.max(0.25, P.finish));
-  const pos = vic.clone().addScaledVector(dir, -0.12).lerp(dest, ease(u));
-  return { pos, yaw: yawTo(pos, dest), pose: stride(t * 11), y: 0, scale: 1 };
+  return { pos: dest, yaw: yawTo(vic, dest), pose: stride(t * 8), y: 0, scale: 1 };
 }
 
 function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
+  const buddy = useMemo(() => fightPlan(fight, pitch).buddy, [fight, pitch]);
+  if (buddy) return <ShieldPass fight={fight} pitch={pitch} />;
+  return <StandardFight fight={fight} pitch={pitch} />;
+}
+
+function ShieldDisc() {
+  return (
+    <group>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.2, 0.2, 0.028, 28]} />
+        <meshStandardMaterial color="#c0392b" metalness={0.25} roughness={0.4} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[0.12, 0.12, 0.01, 24]} />
+        <meshStandardMaterial color="#f7f7f7" roughness={0.45} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+        <cylinderGeometry args={[0.055, 0.055, 0.012, 20]} />
+        <meshStandardMaterial color="#1d4e89" metalness={0.2} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Bucky's capture: Cap drops in, they pass the shield, the enemy bursts, Cap falls off and shatters. */
+function ShieldPass({ fight, pitch }: { fight: Fight; pitch: number }) {
+  const P = useMemo(() => fightPlan(fight, pitch), [fight, pitch]);
+  const B = P.buddy!;
+  const victimColor: Color = fight.color === "w" ? "b" : "w";
+  const vicId = pieceChar(victimColor, fight.victimType);
+  const A = useFigure("bucky");
+  const C = useFigure("cap");
+  const V = useFigure(vicId);
+  const aMid = LEGO_CHARS.bucky.height * 0.45;
+  const cMid = LEGO_CHARS.cap.height * 0.45;
+  const bOuter = useRef<THREE.Group>(null);
+  const bFig = useRef<THREE.Group>(null);
+  const cOuter = useRef<THREE.Group>(null);
+  const cFig = useRef<THREE.Group>(null);
+  const vOuter = useRef<THREE.Group>(null);
+  const vFig = useRef<THREE.Group>(null);
+  const disc = useRef<THREE.Group>(null);
+  const start = useRef<number | null>(null);
+  const fired = useRef(new Set<string>());
+  useEffect(() => {
+    A.root.position.y = -aMid;
+    C.root.position.y = -cMid;
+    V.root.position.y = -LEGO_CHARS[vicId].height * 0.45;
+  }, [A.root, C.root, V.root, aMid, cMid, vicId]);
+  useFrame((state) => {
+    if (start.current === null) start.current = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime - start.current;
+    const once = (k: string, fn: () => void) => {
+      if (!fired.current.has(k)) {
+        fired.current.add(k);
+        fn();
+      }
+    };
+    const { from, vic, dir } = P;
+    const yawB = yawTo(from, vic);
+    const yawC = yawTo(B.spot, from);
+    if (bOuter.current && bFig.current) {
+      bOuter.current.position.set(from.x, 0, from.z);
+      bFig.current.position.set(0, STAND + aMid, 0);
+      bFig.current.rotation.set(0, yawB, 0);
+      const throwing = t >= B.throwAt - 0.22 && t < B.throwAt + 0.2;
+      const returning = t >= B.back - 0.2 && t < B.toCap;
+      const k = throwing ? ease(span(t, B.throwAt - 0.22, B.throwAt)) : returning ? ease(span(t, B.back - 0.15, B.toCap - 0.15)) : 0;
+      applyPose(A.parts, { armLx: -1.35 * k, twist: 0.4 * k, lean: 0.15 * k, legL: -0.2 * k, legR: 0.15 * k });
+      keepOnBoard(bFig.current, A.root);
+    }
+    let capPos = B.spot.clone();
+    let capY = 0;
+    let capGone = false;
+    if (t < B.drop) {
+      const u = easeOut(t / B.drop);
+      capY = 2.5 * (1 - u);
+    } else if (t < B.jump) {
+      capY = 0;
+    } else if (t < B.shatter) {
+      const u = clamp01((t - B.jump) / (B.shatter - B.jump));
+      const leap = Math.sin(Math.PI * Math.min(1, u * 1.35)) * (u < 0.28 ? 1 : 0.35);
+      capPos = B.spot.clone().lerp(B.fall, ease(u));
+      capY = leap * 1.1 + B.fall.y * ease(span(u, 0.22, 1));
+    } else capGone = true;
+    if (cOuter.current && cFig.current) {
+      cOuter.current.visible = !capGone;
+      cOuter.current.position.set(capPos.x, 0, capPos.z);
+      cFig.current.position.set(0, STAND + cMid + capY, 0);
+      cFig.current.rotation.set(0, yawC, t >= B.jump ? 0.4 : 0);
+      const toss = t < B.toBucky ? ease(span(t, B.drop, B.toBucky - 0.12)) : 0;
+      applyPose(C.parts, { armLx: -1.4 * toss, lean: t >= B.jump ? 0.35 : 0.1 * toss });
+      if (t < B.jump) keepOnBoard(cFig.current, C.root);
+    }
+    if (vOuter.current && vFig.current) {
+      vOuter.current.visible = t < P.impact;
+      vOuter.current.position.set(vic.x, 0, vic.z);
+      vFig.current.position.set(0, STAND, 0);
+      vFig.current.rotation.set(0, yawTo(vic, from), 0);
+      const flinch = ease(span(t, P.impact - 0.2, P.impact));
+      applyPose(V.parts, { armLx: -0.8 * flinch, armRx: -0.8 * flinch, lean: -0.15 * flinch });
+      if (t < P.impact) keepOnBoard(vFig.current, V.root);
+    }
+    const handB = from.clone();
+    handB.y = STAND + 0.55;
+    const handC = capPos.clone();
+    handC.y = STAND + capY + 0.55;
+    const chest = vic.clone();
+    chest.y = STAND + 0.45;
+    let discPos = handC.clone();
+    let show = t < B.shatter;
+    if (t < B.drop + 0.05) discPos = handC;
+    else if (t < B.toBucky) discPos = handC.clone().lerp(handB, ease(span(t, B.drop + 0.05, B.toBucky)));
+    else if (t < B.throwAt) discPos = handB;
+    else if (t < P.impact) discPos = handB.clone().lerp(chest, ease(span(t, B.throwAt, P.impact)));
+    else if (t < B.back) discPos = chest.clone().lerp(handB, ease(span(t, P.impact, B.back)));
+    else if (t < B.toCap + 0.28) discPos = handB.clone().lerp(handC, ease(span(t, B.back, B.toCap + 0.28)));
+    else discPos = handC;
+    if (disc.current) {
+      disc.current.visible = show;
+      disc.current.position.copy(discPos);
+      disc.current.rotation.y = t * 18;
+      disc.current.rotation.z = 0.4;
+    }
+    if (t >= B.drop) once("land", () => playLegoHit());
+    if (t >= B.drop + 0.08) once("toss1", () => playLegoShieldThrow());
+    if (t >= B.throwAt) once("toss2", () => playLegoShieldThrow());
+    if (t >= B.back + 0.05) once("toss3", () => playLegoShieldThrow());
+    void dir;
+  });
+  return (
+    <>
+      <group ref={bOuter}><group ref={bFig}><primitive object={A.root} /></group></group>
+      <group ref={cOuter}><group ref={cFig}><primitive object={C.root} /></group></group>
+      <group ref={vOuter}><group ref={vFig}><primitive object={V.root} /></group></group>
+      <group ref={disc}><ShieldDisc /></group>
+    </>
+  );
+}
+
+function DupCopies({ from, vic }: { from: THREE.Vector3; vic: THREE.Vector3 }) {
+  const A = useFigure("dup");
+  const B = useFigure("dup");
+  const ga = useRef<THREE.Group>(null);
+  const gb = useRef<THREE.Group>(null);
+  const fa = useRef<THREE.Group>(null);
+  const fb = useRef<THREE.Group>(null);
+  const start = useRef<number | null>(null);
+  const mid = LEGO_CHARS.dup.height * 0.45;
+  const side = useMemo(() => new THREE.Vector3(-(vic.z - from.z), 0, vic.x - from.x).normalize(), [from, vic]);
+  useEffect(() => {
+    A.root.position.y = -mid;
+    B.root.position.y = -mid;
+  }, [A.root, B.root, mid]);
+  useFrame((state) => {
+    if (start.current === null) start.current = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime - start.current;
+    const k = ease(span(t, 0.12, 0.45));
+    const yaw = yawTo(from, vic);
+    const place = (g: THREE.Group | null, f: THREE.Group | null, parts: Parts, sign: number) => {
+      if (!g || !f) return;
+      const pos = from.clone().lerp(vic, Math.min(0.7, t * 0.45)).addScaledVector(side, 0.62 * sign * Math.max(k, 0.001));
+      g.visible = k > 0.04 && t < 1.4;
+      g.position.set(pos.x, 0, pos.z);
+      f.position.set(0, STAND + mid, 0);
+      f.rotation.set(0, yaw, 0);
+      f.scale.setScalar(Math.max(0.001, k));
+      applyPose(parts, { armRx: -1.2 * k, armLx: 0.4 * k, lean: 0.12 * k });
+    };
+    place(ga.current, fa.current, A.parts, 1);
+    place(gb.current, fb.current, B.parts, -1);
+  });
+  return (
+    <>
+      <group ref={ga}><group ref={fa}><primitive object={A.root} /></group></group>
+      <group ref={gb}><group ref={fb}><primitive object={B.root} /></group></group>
+    </>
+  );
+}
+
+function StandardFight({ fight, pitch }: { fight: Fight; pitch: number }) {
   const P = useMemo(() => fightPlan(fight, pitch), [fight, pitch]);
   const { atk, mv, from, vic, dest, dir, near, spot } = P;
   const move = atk.attack;
@@ -1755,8 +1972,8 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
       if (t >= S.back) once("catch", () => playLegoHit());
     } else if (t >= tStrike) {
       if (move === "ant" && P.ant) {
-        if (t >= P.ant.loop) once("shrink", () => playLegoWhoosh());
-        if (t >= P.ant.loop + P.ant.shrink) once("grow", () => playLegoWhoosh(true));
+        if (t >= P.approach) once("shrink", () => playLegoWhoosh());
+        if (t >= P.approach + P.ant.shrink + P.ant.dart) once("grow", () => playLegoWhoosh(true));
       }
       once("swing", () => {
         if (move === "repulsor" || move === "blast") playLegoBeam(move === "blast");
@@ -1796,7 +2013,12 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
       for (const n of PART_NAMES) if (V.parts[n] && V.rest[n]) V.parts[n]!.position.copy(V.rest[n]!);
       keepOnBoard(vf, V.root);
     } else if (hitT < 0) {
-      vg.position.set(vic.x, 0, vic.z);
+      let lift = 0;
+      if (P.ant) {
+        const upAt = P.approach + P.ant.shrink + P.ant.dart + P.ant.grow;
+        if (t >= upAt) lift = ease((t - upAt) / Math.max(0.05, P.impact - upAt)) * 1.25;
+      }
+      vg.position.set(vic.x, lift, vic.z);
       const turn = ease(t / Math.max(0.3, Math.min(tStrike, 0.8)));
       vf.position.set(0, STAND, 0);
       vf.rotation.set(0, restYaw(victimColor) + (((vYaw - restYaw(victimColor) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * turn, 0);
@@ -1855,6 +2077,7 @@ function FightScene({ fight, pitch }: { fight: Fight; pitch: number }) {
   const portalYaw = yawTo(from, dest);
   return (
     <>
+      {P.atkId === "dup" ? <DupCopies from={from} vic={vic} /> : null}
       <group ref={aOuter}>
         <group ref={aFig}>
           <primitive object={A.root} />
@@ -1998,6 +2221,23 @@ function StandIn({
   );
 }
 
+function emptySquare(taken: Set<string>, near: Square): Square {
+  const file = near.charCodeAt(0);
+  const rank = Number(near[1]);
+  const steps: [number, number][] = [
+    [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1],
+    [2, 0], [-2, 0], [2, 1], [-2, 1], [0, 2], [0, -2],
+  ];
+  for (const [df, dr] of steps) {
+    const f = file + df;
+    const r = rank + dr;
+    if (f < 97 || f > 104 || r < 1 || r > 8) continue;
+    const sq = `${String.fromCharCode(f)}${r}` as Square;
+    if (!taken.has(sq)) return sq;
+  }
+  return "d5";
+}
+
 export function LegoArmy({
   fen,
   lastMove,
@@ -2080,20 +2320,37 @@ export function LegoArmy({
       victimSq: victim.sq,
       tricks: pickTricks(),
       shield: was.type === "k" && Boolean(shieldRef.current?.[mover.color]) && SHIELD_KINGS.has(pieceChar(mover.color, "k")),
+      guest: emptySquare(new Set(pieces.map((p) => p.sq)), victim.sq),
     };
     setFight(f);
     const plan = fightPlan(f, pitch);
-    const burst: Burst = {
-      id: f.id,
-      victim: pieceChar(victim.color, victim.type),
-      at: plan.vic.clone(),
-      dir: plan.dir.clone(),
-      seed: hash(f.id),
-      delay: plan.impact,
-      limit: pitch * 4 + 0.15,
-    };
-    setBursts((list) => [...list.filter((x) => x.id !== burst.id), burst]);
-    window.setTimeout(() => setBursts((list) => list.filter((x) => x !== burst)), (plan.impact + BURST_LIFE + 0.5) * 1000);
+    const made: Burst[] = [
+      {
+        id: f.id,
+        victim: pieceChar(victim.color, victim.type),
+        at: plan.ant ? plan.vic.clone().setY(1.25) : plan.vic.clone(),
+        dir: plan.dir.clone(),
+        seed: hash(f.id),
+        delay: plan.impact,
+        limit: pitch * 4 + 0.15,
+      },
+    ];
+    if (plan.buddy) {
+      made.push({
+        id: `${f.id}:cap`,
+        victim: "cap",
+        at: plan.buddy.fall.clone(),
+        dir: plan.dir.clone(),
+        seed: hash(`${f.id}cap`),
+        delay: plan.buddy.shatter,
+        limit: pitch * 4 + 2.5,
+        free: true,
+        floor: plan.buddy.fall.y,
+      });
+    }
+    setBursts((list) => [...list.filter((x) => !made.some((m) => m.id === x.id)), ...made]);
+    const doneAt = Math.max(...made.map((m) => m.delay)) + BURST_LIFE + 0.5;
+    window.setTimeout(() => setBursts((list) => list.filter((x) => !made.some((m) => m.id === x.id))), doneAt * 1000);
     const secs = plan.total;
     timer.current = window.setTimeout(() => {
       timer.current = null;

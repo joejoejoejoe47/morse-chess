@@ -330,7 +330,7 @@
       ],
       "lgAttacks": [
         { "id": "lg-none", "price": 0 },
-        { "id": "shield-block", "price": 8 }
+        { "id": "shield-block", "price": 0 }
       ],
       "finishes": [
         {

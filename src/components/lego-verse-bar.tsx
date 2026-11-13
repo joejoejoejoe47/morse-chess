@@ -21,11 +21,11 @@ export function LegoVerseBar({ show }: { show: boolean }) {
           <button
             type="button"
             data-lego-pawn={pawn}
-            className={chip(pawn === "wasp")}
-            title={pawn === "wasp" ? "Pawns are the Wasp. Press for Hawkeye." : "Pawns are Hawkeye. Press for the Wasp."}
-            onClick={() => setLegoPawn(pawn === "wasp" ? "hawk" : "wasp")}
+            className={chip(pawn === "dup")}
+            title={pawn === "dup" ? "Pawns are the person who duplicates. Press for the Iron Legion." : "Pawns are the Iron Legion. Press for the person who duplicates."}
+            onClick={() => setLegoPawn(pawn === "dup" ? "legion" : "dup")}
           >
-            {pawn === "wasp" ? "Wasp pawns" : "Hawkeye pawns"}
+            {pawn === "dup" ? "Duplicate pawns" : "Iron Legion pawns"}
           </button>
         ) : (
           <button

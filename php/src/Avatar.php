@@ -102,7 +102,7 @@ final class Avatar
     {
         $row = self::readRow($userId);
         // lgOk: the account may wear LG (the store's preview shows the LG tab only then).
-        return $row === null ? null : array_merge($row, ['lgOk' => self::ownsLegoBoard($userId)]);
+        return $row === null ? null : array_merge($row, ['lgOk' => true]);
     }
 
     /** @param array<string,mixed> $data */
@@ -118,9 +118,6 @@ final class Avatar
             $style = $wanted['style'];
             if ($style === 'ra' && !in_array('royal', $current['owned'], true) && !$current['raTrial']) {
                 $style = $current['loadout']['style'] === 'ra' ? '3d' : $current['loadout']['style'];
-            }
-            if ($style === 'lg' && !self::ownsLegoBoard($userId)) {
-                $style = $current['loadout']['style'] === 'lg' ? '3d' : $current['loadout']['style'];
             }
             $next['style'] = $style;
             $stored = $current['legacyOff'] ? array_merge($next, ['legacyOff' => true]) : $next;
@@ -201,9 +198,6 @@ final class Avatar
         $style = $data['style'] ?? null;
         // 'cl' (Classic) and 'pa' (Parlor) are free 3D sets.
         $style = in_array($style, ['2d', 'an', 'ra', 'lg', 'cl', 'pa'], true) ? $style : '3d';
-        if ($style === 'lg' && !self::ownsLegoBoard($userId)) {
-            throw new RpcError('LG comes with the Brick Verse board (60 Morse coins).');
-        }
         if ($style === 'ra') {
             $current = self::readRow($userId);
             if ($current === null || (!in_array('royal', $current['owned'], true) && !$current['raTrial'])) {

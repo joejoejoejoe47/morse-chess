@@ -3,12 +3,12 @@ import { useSyncExternalStore } from "react";
 /** What Brick Verse shows around the board, and who stands on the good side. */
 export type LegoScene = "latest" | "avengers";
 export type LegoGood = "heroes" | "ant";
-/** Avengers pawns: Hawkeye, or the Wasp. */
-export type LegoPawn = "hawk" | "wasp";
+/** Avengers pawns: Iron Legion suits, or a person who splits into copies. */
+export type LegoPawn = "legion" | "dup";
 
 let scene: LegoScene = "avengers";
 let good: LegoGood = "heroes";
-let pawn: LegoPawn = "wasp";
+let pawn: LegoPawn = "legion";
 const listeners = new Set<() => void>();
 
 function emit() {

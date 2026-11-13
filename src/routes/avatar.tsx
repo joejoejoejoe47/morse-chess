@@ -38,9 +38,6 @@ import {
   type PieceStyle,
 } from "@/lib/avatar/catalog";
 import { buyGear, getAvatar, saveAvatar, setLegacyKit } from "@/lib/server/avatar";
-import { buyBoard, getHomeState } from "@/lib/server/mores";
-import { boardUnlocked } from "@/lib/chess/board-skins";
-import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
 import { listAvatarModels, saveAvatarModel, wearAvatarModel } from "@/lib/server/store";
 import { cn } from "@/lib/utils";
 import { asset } from "@/lib/base";
@@ -120,7 +117,6 @@ function AvatarStudio() {
 
   const [strike, setStrike] = useState(false);
   const [offer, setOffer] = useState(false);
-  const [ownsLego, setOwnsLego] = useState<boolean | null>(null);
   const [buyingRa, setBuyingRa] = useState(false);
   const [legacyOff, setLegacyOff] = useState(false);
   const [kitBusy, setKitBusy] = useState(false);
@@ -151,15 +147,6 @@ function AvatarStudio() {
         setCoins(row.coins);
         setUsername(row.username || "");
         setReady(true);
-        try {
-          const home = await getHomeState();
-          const profile = home.profile;
-          if (live && profile) {
-            setOwnsLego(boardUnlocked(profile.score, LEGO_BOARD_ID, profile.username, profile.ownedBoards));
-          }
-        } catch {
-          if (live) setOwnsLego(false);
-        }
         try {
           const named = await listAvatarModels();
           if (live) setModels((named.models ?? []).filter((m: { id: string }) => m.id !== "current"));
@@ -517,21 +504,6 @@ function AvatarStudio() {
                 loadout.style === style ? GOLD_BTN : "border border-transparent text-[#b9a98a] hover:text-[#f3e3bd]",
               )}
               onClick={() => {
-                if (style === "lg" && ownsLego === false) {
-                  setError(null);
-                  void buyBoard({ data: { boardId: "lego-universe" } })
-                    .then((res) => {
-                      if (!res.ok) {
-                        setError(res.error ?? "The LG guys are 60 Morse coins.");
-                        return;
-                      }
-                      setCoins(res.coins);
-                      setOwnsLego(true);
-                      void commit({ ...worn, finishId: finishDraft ?? worn.finishId, style: "lg" });
-                    })
-                    .catch((err) => setError(err instanceof Error ? err.message : "The LG guys are 60 Morse coins."));
-                  return;
-                }
                 if (style === "ra" && !owned.includes("royal") && !raTrial) {
                   setError(null);
                   setOffer(true);
@@ -540,7 +512,7 @@ function AvatarStudio() {
                 void commit({ ...worn, finishId: finishDraft ?? worn.finishId, style });
               }}
             >
-              {style === "ra" ? (ownsRoyal ? "RA" : raTrial ? "RA (free game)" : "Buy RA") : style === "lg" && ownsLego === false ? "LG · 60" : style === "an" && fbOn ? "3D AN" : style === "lg" && fbOn ? "3D LG" : style}
+              {style === "ra" ? (ownsRoyal ? "RA" : raTrial ? "RA (free game)" : "Buy RA") : style === "an" && fbOn ? "3D AN" : style === "lg" && fbOn ? "3D LG" : style}
             </button>
           ))}
           <button
