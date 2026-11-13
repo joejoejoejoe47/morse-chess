@@ -180,24 +180,22 @@ const figs = {
     legL: [line(DBG, "0 42 0 1 0 0 0 1 0 0 0 1", "3817cpbd.dat")],
     legR: [line(DBG, "0 42 0 1 0 0 0 1 0 0 0 1", "3816cpbd.dat")],
   }),
-  // Vision: red face, a big yellow mind stone, a second stone on the chest, pearl-gold suit, dark red cape.
+  // Vision: yellow face and cape, red suit, a small mind stone on the forehead (not a spike).
   vision: fig({
     body: [
-      line(297, "0 0 0 1 0 0 0 1 0 0 0 1", "973.dat"),
-      line(297, "0 30 0 1 0 0 0 1 0 0 0 1", "3815b.dat"),
-      line(320, "0 0 0 1 0 0 0 1 0 0 0 1", "4524.dat"),
-      line(46, "0 6 -12 0.26 0 0 0 0.26 0 0 0 0.26", "30385.dat"),
+      line(RED, "0 0 0 1 0 0 0 1 0 0 0 1", "973.dat"),
+      line(RED, "0 30 0 1 0 0 0 1 0 0 0 1", "3815b.dat"),
+      line(YEL, "0 0 0 1 0 0 0 1 0 0 0 1", "4524.dat"),
+      line(46, "0 8 -11 0.16 0 0 0 0.16 0 0 0 0.16", "30385.dat"),
     ],
     head: [
-      line(4, "0 -24 0 1 0 0 0 1 0 0 0 1", "3626b.dat"),
-      line(46, "0 -38 -12 0.5 0 0 0 0.5 0 0 0 0.5", "30385.dat"),
-      line(15, "-4 -33 -10 0.38 0 0 0 0.38 0 0 0 0.38", "98138.dat"),
-      line(15, "4 -33 -10 0.38 0 0 0 0.38 0 0 0 0.38", "98138.dat"),
+      line(YEL, "0 -24 0 1 0 0 0 1 0 0 0 1", "3626b.dat"),
+      line(46, "0 -30 -8 0.16 0 0 0 0.16 0 0 0 0.16", "30385.dat"),
     ],
-    armL: [line(297, ARM_L, "3819.dat"), line(4, HAND_L, "3820.dat")],
-    armR: [line(297, ARM_R, "3818.dat"), line(4, HAND_R, "3820.dat")],
-    legL: [line(297, "0 42 0 1 0 0 0 1 0 0 0 1", "3817c.dat")],
-    legR: [line(297, "0 42 0 1 0 0 0 1 0 0 0 1", "3816c.dat")],
+    armL: [line(RED, ARM_L, "3819.dat"), line(YEL, HAND_L, "3820.dat")],
+    armR: [line(RED, ARM_R, "3818.dat"), line(YEL, HAND_R, "3820.dat")],
+    legL: [line(RED, "0 42 0 1 0 0 0 1 0 0 0 1", "3817c.dat")],
+    legR: [line(RED, "0 42 0 1 0 0 0 1 0 0 0 1", "3816c.dat")],
   }),
   // A plain person. On a capture the copies split off him.
   person: fig({

@@ -24,7 +24,7 @@ import { squareToWorld } from "@/lib/chess/board-math";
 import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
 import { activeLegoBuild, latestLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
-import { legoBishop, legoGood, legoPawn, legoScene, useLegoLook } from "@/lib/lego-look";
+import { boardCast, legoGood, legoScene, useLegoLook } from "@/lib/lego-look";
 import { playLegoBeam, playLegoClang, playLegoExplode, playLegoHit, playLegoMagic, playLegoShieldThrow, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
 import { useResilientGLTF } from "@/lib/resilient-gltf";
 import { LoadGuard, Later } from "@/components/chess/load-guard";
@@ -132,8 +132,8 @@ export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   marvel: { file: "marvel.glb", role: "Captain Marvel (Avengers bishop)", height: 0.8, gait: "fly", attack: "repulsor", fx: "#ffe07a",
     rig: { jointMat: { armL: "Dark_Blue", armR: "Dark_Blue" } } },
   warmachine: { file: "warmachine.glb", role: "War Machine (Avengers rook)", height: 0.8, gait: "walk", attack: "blast", fx: "#d7dde8" },
-  vision: { file: "vision.glb", role: "Vision (Avengers knight)", height: 0.86, gait: "fly", attack: "repulsor", fx: "#ffe14a",
-    rig: { jointMat: { armL: "Pearl_Gold", armR: "Pearl_Gold" } } },
+  vision: { file: "vision.glb", role: "Vision (Avengers knight)", height: 0.8, gait: "fly", attack: "repulsor", fx: "#ffe14a",
+    rig: { jointMat: { armL: "Red", armR: "Red" } } },
   legion: { file: "ironman.glb", role: "Iron Legion (Avengers pawn)", height: 0.62, gait: "fly", attack: "blast", fx: "#ffb25a" },
   dup: { file: "person.glb", role: "Duplicate (Avengers pawn)", height: 0.72, gait: "walk", attack: "punch", fx: "#7fb2ff" },
 };
@@ -143,18 +143,12 @@ export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
   b: { k: "doom", q: "widow", r: "skeleton", b: "blacktron", n: "goblin", p: "doombot" },
 };
 
-/** Avengers: Captain America stays king, Bucky is the queen, Vision the knight, Ant-Man the bishop. */
+/** Avengers white side: the lineup you set. Pawns default to the person who duplicates. Iron Man is never a pawn. */
 export function pieceChar(color: Color, type: PieceSymbol): LegoCharId {
   if (color === "w" && legoScene() === "avengers") {
-    const alt: Record<PieceSymbol, LegoCharId> = {
-      k: "cap",
-      q: "bucky",
-      r: "warmachine",
-      b: legoBishop() === "marvel" ? "marvel" : "antman",
-      n: "vision",
-      p: legoPawn() === "dup" ? "dup" : "legion",
-    };
-    return alt[type];
+    const id = boardCast()[type];
+    if (id && id in LEGO_CHARS && !(type === "p" && id === "ironman")) return id as LegoCharId;
+    if (type === "p") return "dup";
   }
   if (color === "w" && type === "q" && legoGood() === "ant") return "antman";
   return LEGO_ROSTER[color][type];

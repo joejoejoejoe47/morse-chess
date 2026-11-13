@@ -27,6 +27,8 @@ export type AvatarLoadout = {
   fbCelebrate: string;
   /** Song that plays during a score replay. "song-none" is the crowd. */
   fbSong: string;
+  /** Avengers lineup, "k:cap,q:bucky,...". Empty means the usual set. */
+  lgCast?: string;
 };
 
 export type GearItem = {
@@ -474,6 +476,7 @@ export function parseLoadout(raw: unknown): AvatarLoadout {
     lgWeapon: pick(src.lgWeapon, "none", LG_WEAPONS),
     fbCelebrate: pick(src.fbCelebrate, "fireworks", FB_CELEBRATIONS),
     fbSong: pick(src.fbSong, "song-none", FB_SONGS),
+    lgCast: typeof src.lgCast === "string" ? src.lgCast : "",
   };
 }
 

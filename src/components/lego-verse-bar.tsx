@@ -1,15 +1,29 @@
-import { setLegoBishop, setLegoGood, setLegoPawn, setLegoScene, useLegoLook } from "@/lib/lego-look";
+import { CAST_POOL, hydrateCast, setLegoCastRole, setLegoGood, setLegoScene, useLegoLook, type CastRole } from "@/lib/lego-look";
+import { saveCast } from "@/lib/lego-cast-save";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
-/** Latest saved LG board, the Avengers balcony, or a good-side swap. */
+const ROLES: { id: CastRole; label: string }[] = [
+  { id: "k", label: "King" },
+  { id: "q", label: "Queen" },
+  { id: "r", label: "Rook" },
+  { id: "b", label: "Bishop" },
+  { id: "n", label: "Knight" },
+  { id: "p", label: "Pawn" },
+];
+
+/** Latest saved LG board, the Avengers balcony, and the lineup you set. */
 export function LegoVerseBar({ show }: { show: boolean }) {
-  const { scene, good, pawn, bishop } = useLegoLook();
+  const { scene, good, cast } = useLegoLook();
+  useEffect(() => {
+    hydrateCast();
+  }, []);
   if (!show) return null;
   const chip = (on: boolean) =>
     cn("min-h-10 px-3 py-1.5 text-[13px] font-medium", on ? "bg-ivory text-ink" : "text-mist hover:text-ivory");
   const avengers = scene === "avengers";
   return (
-    <div className="mt-2 flex justify-center" data-lego-verse>
+    <div className="mt-2 flex flex-col items-center gap-2" data-lego-verse>
       <div className="flex overflow-hidden rounded-full border border-line bg-panel">
         <button type="button" data-lego-scene="latest" className={chip(scene === "latest")} onClick={() => setLegoScene("latest")}>
           Latest board
@@ -17,28 +31,7 @@ export function LegoVerseBar({ show }: { show: boolean }) {
         <button type="button" data-lego-scene="avengers" className={chip(avengers)} onClick={() => setLegoScene("avengers")}>
           Avengers
         </button>
-        {avengers ? (
-          <>
-          <button
-            type="button"
-            data-lego-pawn={pawn}
-            className={chip(pawn === "dup")}
-            title={pawn === "dup" ? "Pawns are the person who duplicates. Press for the Iron Legion." : "Pawns are the Iron Legion. Press for the person who duplicates."}
-            onClick={() => setLegoPawn(pawn === "dup" ? "legion" : "dup")}
-          >
-            {pawn === "dup" ? "Duplicate pawns" : "Iron Legion pawns"}
-          </button>
-          <button
-            type="button"
-            data-lego-bishop={bishop}
-            className={chip(bishop === "marvel")}
-            title={bishop === "ant" ? "Bishops are Ant-Man. Press for Captain Marvel." : "Bishops are Captain Marvel. Press for Ant-Man."}
-            onClick={() => setLegoBishop(bishop === "ant" ? "marvel" : "ant")}
-          >
-            {bishop === "ant" ? "Ant-Man bishop" : "Captain Marvel bishop"}
-          </button>
-          </>
-        ) : (
+        {avengers ? null : (
           <button
             type="button"
             data-lego-good={good === "ant" ? "ant" : "heroes"}
@@ -50,6 +43,30 @@ export function LegoVerseBar({ show }: { show: boolean }) {
           </button>
         )}
       </div>
+      {avengers ? (
+        <div className="flex max-w-full flex-wrap justify-center gap-1.5 px-2" data-lego-cast>
+          {ROLES.map((role) => (
+            <label key={role.id} className="flex items-center gap-1 rounded-full border border-line bg-panel px-2 py-1 text-[12px] text-mist">
+              {role.label}
+              <select
+                className="bg-transparent text-ivory"
+                data-lego-role={role.id}
+                value={cast[role.id]}
+                onChange={(e) => {
+                  setLegoCastRole(role.id, e.target.value);
+                  saveCast();
+                }}
+              >
+                {CAST_POOL.filter((row) => role.id !== "p" || row.id !== "ironman").map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

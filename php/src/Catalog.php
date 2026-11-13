@@ -166,6 +166,7 @@ final class Catalog
             'lgWeapon' => $pick($src['lgWeapon'] ?? null, 'none', self::lgWeapons()),
             'fbCelebrate' => $pick($src['fbCelebrate'] ?? null, 'fireworks', $groups['celebrations'] ?? []),
             'fbSong' => $pick($src['fbSong'] ?? null, 'song-none', $groups['songs'] ?? []),
+            'lgCast' => self::lgCast($src['lgCast'] ?? null),
         ];
     }
 
@@ -180,6 +181,30 @@ final class Catalog
     private static function lgHair(): array
     {
         return array_map(static fn (string $id): array => ['id' => $id], ['none', 'clown', 'chef', 'cappello', 'gold-crown', 'viking']);
+    }
+
+    /** Avengers lineup. Iron Man is never a pawn. Unknown figures fall back to the usual set. */
+    private static function lgCast(mixed $raw): string
+    {
+        $ok = ['cap', 'bucky', 'hulk', 'dup', 'antman', 'vision', 'marvel', 'warmachine', 'hawkeye', 'wasp', 'spiderman', 'strange', 'panther', 'ironman'];
+        $def = ['k' => 'cap', 'q' => 'bucky', 'r' => 'warmachine', 'b' => 'antman', 'n' => 'vision', 'p' => 'dup'];
+        if (is_string($raw)) {
+            foreach (explode(',', $raw) as $bit) {
+                $pair = explode(':', $bit, 2);
+                if (count($pair) !== 2 || !isset($def[$pair[0]]) || !in_array($pair[1], $ok, true)) {
+                    continue;
+                }
+                if ($pair[0] === 'p' && $pair[1] === 'ironman') {
+                    continue;
+                }
+                $def[$pair[0]] = $pair[1];
+            }
+        }
+        $out = [];
+        foreach ($def as $role => $id) {
+            $out[] = $role . ':' . $id;
+        }
+        return implode(',', $out);
     }
 
     /** @return list<array{id:string}> */

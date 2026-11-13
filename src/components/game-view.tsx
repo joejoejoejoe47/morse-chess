@@ -37,6 +37,7 @@ import {
 import { isOwnerPreview } from "@/lib/games/release";
 import { playBoom, playResult, playYourTurn } from "@/lib/games/variant-fx";
 import { formatClock, formatEloDelta, isBotUserId } from "@/lib/mores-constants";
+import { decodeCast, setGuestCast } from "@/lib/lego-look";
 import { Button } from "@/components/ui/button";
 import { ClubBrand } from "@/components/club-brand";
 import { BoardAdjustPanel } from "@/components/board-adjust";
@@ -602,6 +603,23 @@ export function GameView({ gameId }: { gameId: string }) {
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ block: "end" });
   }, [game?.chat?.length, game?.chatOpen]);
+
+  // An intended pull-up shows the inviter's Avengers lineup. Every other game keeps yours private.
+  useEffect(() => {
+    const human = Boolean(game && !game.pull && !isBotUserId(game.white.userId) && !isBotUserId(game.black.userId));
+    if (!human || !game || game.you === "w") {
+      setGuestCast(null);
+      return;
+    }
+    let raw = "";
+    try {
+      raw = String((JSON.parse(game.whiteLook || "{}") as { lgCast?: string }).lgCast ?? "");
+    } catch {
+      raw = "";
+    }
+    setGuestCast(raw ? decodeCast(raw) : null);
+    return () => setGuestCast(null);
+  }, [game?.pull, game?.you, game?.whiteLook, game?.white.userId, game?.black.userId, game]);
 
   function setBoardView(next: BoardView) {
     setView(next);
