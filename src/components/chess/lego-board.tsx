@@ -24,7 +24,7 @@ import { squareToWorld } from "@/lib/chess/board-math";
 import { fixLegoWinding } from "@/lib/avatar/lego-winding";
 import { BuildBaseplate, BuiltLego, loadPaletteMeta, type PaletteItem } from "@/lib/lego-build";
 import { activeLegoBuild, latestLegoBuild, type LegoBuild } from "@/lib/server/lego-builder";
-import { legoGood, useLegoLook } from "@/lib/lego-look";
+import { legoGood, legoPawn, legoScene, useLegoLook } from "@/lib/lego-look";
 import { playLegoBeam, playLegoClang, playLegoExplode, playLegoHit, playLegoMagic, playLegoShieldThrow, playLegoWhoosh, primeLegoExplode } from "@/lib/lego-sfx";
 import { useResilientGLTF } from "@/lib/resilient-gltf";
 import { LoadGuard, Later } from "@/components/chess/load-guard";
@@ -59,7 +59,13 @@ export type LegoCharId =
   | "blacktron"
   | "goblin"
   | "doombot"
-  | "antman";
+  | "antman"
+  | "bucky"
+  | "hawkeye"
+  | "wasp"
+  | "marvel"
+  | "warmachine"
+  | "vision";
 
 type CharSpec = {
   file: string;
@@ -113,8 +119,19 @@ export const LEGO_CHARS: Record<LegoCharId, CharSpec> = {
   doombot: { file: "gigabot.glb", role: "Tyrant Bot (villain pawn, Insectoids Gigabot robot)", height: 0.72, gait: "walk", attack: "punch", fx: "#5dff6a",
     // a stray brick on the far side sits in the right-arm node; its shoulder mirrors the clean left one
     rig: { mirror: ["armR"], jointMat: { armL: "Dark_Grey" } } },
-  // drawn in code (red suit, silver face, two antennae). file is only a fallback url; the mesh is not that model.
-  antman: { file: "captain-america.glb", role: "Ant-Man (good queen)", height: 0.92, gait: "walk", attack: "ant", fx: "#7ee7ff" },
+  // Endgame helmet minifig. file is the real assembled figure (not the drawn stand-in).
+  antman: { file: "antman.glb", role: "Ant-Man (good queen)", height: 0.8, gait: "walk", attack: "ant", fx: "#7ee7ff",
+    rig: { jointMat: { armL: "Dark_Red", armR: "Dark_Red" } } },
+  bucky: { file: "bucky.glb", role: "Winter Soldier (Avengers king)", height: 0.8, gait: "walk", attack: "punch", fx: "#c5ccd6",
+    rig: { mirror: ["armL"], jointMat: { armR: "Dark_Blue" } } },
+  hawkeye: { file: "hawkeye.glb", role: "Hawkeye (Avengers pawn)", height: 0.64, gait: "walk", attack: "punch", fx: "#c9a36b",
+    rig: { mirror: ["armR"], jointMat: { armL: "Purple" } } },
+  wasp: { file: "wasp.glb", role: "The Wasp (Avengers pawn)", height: 0.64, gait: "fly", attack: "blast", fx: "#ffe14a" },
+  marvel: { file: "marvel.glb", role: "Captain Marvel (Avengers bishop)", height: 0.8, gait: "fly", attack: "repulsor", fx: "#ffe07a",
+    rig: { jointMat: { armL: "Dark_Blue", armR: "Dark_Blue" } } },
+  warmachine: { file: "warmachine.glb", role: "War Machine (Avengers rook)", height: 0.8, gait: "walk", attack: "blast", fx: "#d7dde8" },
+  vision: { file: "vision.glb", role: "Vision (Avengers knight)", height: 0.8, gait: "fly", attack: "repulsor", fx: "#ffe14a",
+    rig: { jointMat: { armL: "Pearl_Gold", armR: "Pearl_Gold" } } },
 };
 
 export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
@@ -122,8 +139,19 @@ export const LEGO_ROSTER: Record<Color, Record<PieceSymbol, LegoCharId>> = {
   b: { k: "doom", q: "widow", r: "skeleton", b: "blacktron", n: "goblin", p: "doombot" },
 };
 
-/** Good side can swap the queen for Ant-Man. Everyone else stays on the usual roster. */
+/** Good side can swap the queen for Ant-Man. Avengers replaces the whole good side, and Vision is the knight. */
 export function pieceChar(color: Color, type: PieceSymbol): LegoCharId {
+  if (color === "w" && legoScene() === "avengers") {
+    const alt: Record<PieceSymbol, LegoCharId> = {
+      k: "bucky",
+      q: "antman",
+      r: "warmachine",
+      b: "marvel",
+      n: "vision",
+      p: legoPawn() === "wasp" ? "wasp" : "hawkeye",
+    };
+    return alt[type];
+  }
   if (color === "w" && type === "q" && legoGood() === "ant") return "antman";
   return LEGO_ROSTER[color][type];
 }
@@ -328,10 +356,10 @@ function buildAntMan() {
 
 /** A figure's own copy: cloned nodes and materials (so a hit flash only lights this one). */
 function useFigure(id: LegoCharId) {
-  const gltf = useResilientGLTF(charUrl(id === "antman" ? "cap" : id));
+  const gltf = useResilientGLTF(charUrl(id));
   return useMemo(() => {
-    if (id !== "antman") fixLegoWinding(gltf.scene);
-    const root = id === "antman" ? buildAntMan() : gltf.scene.clone(true);
+    fixLegoWinding(gltf.scene);
+    const root = gltf.scene.clone(true);
     const mats: THREE.MeshStandardMaterial[] = [];
     root.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -344,7 +372,7 @@ function useFigure(id: LegoCharId) {
         mats.push(c);
       }
     });
-    setJointPivots(root, id === "antman" ? undefined : LEGO_CHARS[id].rig);
+    setJointPivots(root, LEGO_CHARS[id].rig);
     // uniform scale only: the figure keeps its LEGO proportions
     root.scale.setScalar(LEGO_CHARS[id].height);
     const parts = {} as Parts;

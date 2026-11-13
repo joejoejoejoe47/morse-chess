@@ -3,9 +3,12 @@ import { useSyncExternalStore } from "react";
 /** What Brick Verse shows around the board, and who stands on the good side. */
 export type LegoScene = "latest" | "avengers";
 export type LegoGood = "heroes" | "ant";
+/** Avengers pawns: Hawkeye, or the Wasp. */
+export type LegoPawn = "hawk" | "wasp";
 
-let scene: LegoScene = "latest";
+let scene: LegoScene = "avengers";
 let good: LegoGood = "heroes";
+let pawn: LegoPawn = "wasp";
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -32,17 +35,27 @@ export function setLegoGood(next: LegoGood) {
   emit();
 }
 
+export function legoPawn(): LegoPawn {
+  return pawn;
+}
+
+export function setLegoPawn(next: LegoPawn) {
+  if (pawn === next) return;
+  pawn = next;
+  emit();
+}
+
 function subscribe(cb: () => void) {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
 
 function snapshot() {
-  return scene + "|" + good;
+  return scene + "|" + good + "|" + pawn;
 }
 
 export function useLegoLook() {
   const key = useSyncExternalStore(subscribe, snapshot, snapshot);
-  const [s, g] = key.split("|") as [LegoScene, LegoGood];
-  return { scene: s, good: g };
+  const [s, g, p] = key.split("|") as [LegoScene, LegoGood, LegoPawn];
+  return { scene: s, good: g, pawn: p };
 }
