@@ -101,7 +101,7 @@ const RIG: Record<string, Rig> = {
   "warmachine.glb": { skull: skull(0, -0.016, 0.669, 0.14, { cut: { r: 1.05 } }), legs: { x: 0, top: 0.398, w: 0.417, z: 0.014 }, hipZ: 0 },
   "hawkeye.glb": { skull: skull(-0.001, -0.005, 0.797, 0.14), legs: { x: 0, top: 0.418, w: 0.438, z: 0.014 }, hipZ: -0.057 },
   "wasp.glb": { skull: skull(-0.001, -0.005, 0.797, 0.14), legs: { x: 0, top: 0.418, w: 0.438, z: 0.014 }, hipZ: -0.105 },
-  "vision.glb": { skull: skull(0, 0.027, 0.627, 0.12), legs: { x: 0, top: 0.329, w: 0.345, z: 0.011 }, hipZ: -0.021 },
+  "vision.glb": { skull: skull(0, 0.034, 0.782, 0.145), legs: { x: 0, top: 0.41, w: 0.43, z: 0.014 }, hipZ: -0.027 },
 };
 export const SKULL: Record<string, Skull> = Object.fromEntries(Object.entries(RIG).map(([f, rig]) => [f, rig.skull]));
 /**

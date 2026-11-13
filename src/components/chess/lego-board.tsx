@@ -150,7 +150,7 @@ export function pieceChar(color: Color, type: PieceSymbol): LegoCharId {
       k: "cap",
       q: "bucky",
       r: "warmachine",
-      b: "antman",
+      b: "marvel",
       n: "vision",
       p: legoPawn() === "dup" ? "dup" : "legion",
     };
@@ -282,6 +282,13 @@ function setJointPivots(root: THREE.Object3D, rig?: RigFix) {
   for (const n of rig?.mirror ?? []) {
     const other = joints[n === "armL" ? "armR" : "armL"];
     if (other) joints[n] = new THREE.Vector3(2 * bodyMid.x - other.x, other.y, other.z);
+  }
+  // The hip brick and a cape hang below the pin the legs actually turn on. Pivoting the
+  // torso there swings it off the legs the moment she leans into a flight.
+  const hip = [joints.legL, joints.legR].filter(Boolean) as THREE.Vector3[];
+  if (joints.body && hip.length) {
+    const pin = hip.reduce((s, p) => s + p.y, 0) / hip.length;
+    if (joints.body.y < pin - 0.02) joints.body.y = pin;
   }
   for (const n of PART_NAMES) {
     const node = root.getObjectByName(n);
@@ -459,7 +466,9 @@ function travel(gait: Gait, a: THREE.Vector3, b: THREE.Vector3, u: number, t: nu
   if (gait === "fly" || gait === "glide") {
     const h = gait === "fly" ? 0.9 : 0.5;
     pos.y = h * ease(u / 0.25) * (1 - ease((u - 0.75) / 0.25)) + Math.sin(t * 6) * 0.03 * Math.sin(u * Math.PI);
-    pose = gait === "fly" ? { lean: 0.45 * Math.sin(u * Math.PI), armLx: 0.55, armRx: 0.55, armLz: 0.25, armRz: -0.25 } : { lean: 0.25, armLx: -0.5, armRx: -0.5, legL: -0.2, legR: -0.2 };
+    pose = gait === "fly"
+      ? { lean: 0.28 * Math.sin(u * Math.PI), armLx: 0.85, armRx: 0.85, armLz: 0.4, armRz: -0.4, legL: -0.55, legR: -0.35 }
+      : { lean: 0.25, armLx: -0.5, armRx: -0.5, legL: -0.2, legR: -0.2 };
   } else if (gait === "swing") {
     pos.y = Math.max(0, 4 * (0.7 + dist * 0.12) * u * (1 - u));
     flip = dist > 1.2 ? ease(span(u, 0.3, 0.75)) * Math.PI * 2 : 0;

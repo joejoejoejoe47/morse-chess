@@ -293,7 +293,20 @@ for (const [name, spec] of Object.entries(figs)) {
   root.rotation.x = Math.PI;
   root.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(root);
-  const h = box.max.y - box.min.y;
+  let feet = box.min.y;
+  let top = box.max.y;
+  if (name === "vision") {
+    // The mind stone sticks up past the stud. Size him from the minifig, not the gem,
+    // or the legs come out short.
+    top = feet;
+    root.traverse((o) => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+      if (/trans/i.test(o.material.name || "")) return;
+      const b = new THREE.Box3().setFromObject(o);
+      top = Math.max(top, b.max.y);
+    });
+  }
+  const h = Math.max(0.01, top - feet);
   const target = 1.15;
   const s = target / h;
   root.scale.setScalar(s);
