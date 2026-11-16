@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { Navigate, useNavigate, Link } from "@tanstack/react-router";
 import { Lock, Timer, Wind, X } from "lucide-react";
 import { ClubBrand, ClubHeaderActions, MorseCrest } from "@/components/club-brand";
@@ -31,6 +31,9 @@ import { SplashSkeleton } from "@/components/auth-screen";
 import { BOT_EVENT, lastBot, rememberBotGame, touchBot, type MyBot } from "@/lib/bots/store";
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
+import { getAvatar } from "@/lib/server/avatar";
+
+const PieceSetup = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.PieceSetup })));
 
 type VariantId = "checkmate" | "football" | "strategy" | "basketball";
 
@@ -40,7 +43,8 @@ type Flow =
   | { kind: "pick-color"; intent: "bot" | "bot-v2"; mode: GameMode }
   | { kind: "select-game"; intent: "random" | "challenge"; screen?: PullScreen }
   | { kind: "variant-name"; intent: "random" | "challenge"; mode: VariantId }
-  | { kind: "ask-name"; mode: GameMode; game?: string; variant?: RuleVariant }
+  | { kind: "setup"; intent: "random" | "challenge" | "bot" | "bot-v2"; back?: PullScreen }
+  | { kind: "ask-name"; mode: GameMode; game?: string; variant?: RuleVariant; setupFen?: string; seat?: "w" | "b"; setupFrom?: "random" | "challenge" | "bot" | "bot-v2" }
   | { kind: "searching"; mode: GameMode }
   | { kind: "waiting"; mode: GameMode; username: string; challengeId?: string; variant?: RuleVariant; football?: boolean };
 
@@ -69,10 +73,24 @@ export function ClubHome() {
   const [busy, setBusy] = useState(false);
   // football: "Change team!" under the username box opens the team card (saved per user)
   const [teamCard, setTeamCard] = useState<{ team: FootballTeam | null } | null>(null);
+  const [lgStyle, setLgStyle] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const seenInvite = useRef("");
   const now = useNow();
   const live = (c: { deadline?: number }) => c.deadline == null || c.deadline > now;
+
+  useEffect(() => {
+    let live = true;
+    void getAvatar()
+      .then((row) => {
+        const style = (row as { loadout?: { style?: string } } | null)?.loadout?.style;
+        if (live) setLgStyle(style === "lg");
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (claim) return;
@@ -299,7 +317,9 @@ export function ClubHome() {
     }
     setBusy(true);
     try {
-      const res = await sendChallenge({ data: { username: name, mode: flow.mode, variant: flow.variant } });
+      const res = await sendChallenge({
+        data: { username: name, mode: flow.mode, variant: flow.variant, fen: flow.setupFen, seat: flow.seat, minutes: botMinutes },
+      });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -660,7 +680,17 @@ export function ClubHome() {
         </div>
       ) : null}
 
-      {(flow.kind !== "idle" && flow.kind !== "select-game" || home.queued) && (
+      {flow.kind === "setup" ? (
+        <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-[#12110e] text-ivory">Opening the board…</div>}>
+          <PieceSetup
+            lg={lgStyle}
+            onBack={() => setFlow({ kind: "pick-mode", intent: flow.intent, back: flow.back })}
+            onReady={(fen, seat) => setFlow({ kind: "ask-name", mode: "timed", setupFen: fen, seat, setupFrom: flow.intent })}
+          />
+        </Suspense>
+      ) : null}
+
+      {(flow.kind !== "idle" && flow.kind !== "select-game" && flow.kind !== "setup" || home.queued) && (
         <div className="fixed inset-0 z-40 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
           <div className={"w-full rounded-xl border border-line bg-panel p-6 " + (flow.kind === "select-game" ? "max-w-4xl" : "max-w-md")}>
             <div className="flex items-start justify-between gap-3">
@@ -681,7 +711,7 @@ export function ClubHome() {
                   </button>
                 ) : null}
                 {flow.kind === "ask-name" ? (
-                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow({ kind: "pick-mode", intent: "challenge", variant: flow.variant, back: flow.variant ? screenOf(flow.variant) : undefined }); }}>
+                  <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => { setError(null); setFlow(flow.setupFen && flow.setupFrom ? { kind: "setup", intent: flow.setupFrom } : { kind: "pick-mode", intent: "challenge", variant: flow.variant, back: flow.variant ? screenOf(flow.variant) : undefined }); }}>
                     Back
                   </button>
                 ) : null}
@@ -828,6 +858,22 @@ export function ClubHome() {
                     </span>
                   </span>
                 </Button>
+                {flow.variant ? null : (
+                  <Button
+                    type="button"
+                    data-setup
+                    variant="outline"
+                    size="lg"
+                    className="h-auto justify-start py-4"
+                    disabled={busy}
+                    onClick={() => setFlow({ kind: "setup", intent: flow.intent, back: flow.back })}
+                  >
+                    <span className="text-left">
+                      <span className="block">Setup</span>
+                      <span className="block text-xs font-normal text-mist">Put the pieces where you want, then pick who you play.</span>
+                    </span>
+                  </Button>
+                )}
               </div>
             ) : null}
 
@@ -866,6 +912,21 @@ export function ClubHome() {
             {flow.kind === "ask-name" ? (
               <form className="mt-5 space-y-4" onSubmit={submitChallenge}>
                 <Badge>{flow.variant ? `${VARIANT_INFO[flow.variant].name} · ` : ""}{flow.mode} game</Badge>
+                {flow.setupFen ? (
+                  <div className="flex gap-2" role="radiogroup" aria-label="Clock">
+                    {(["timed", "breeze"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={"min-h-9 rounded-full border px-3 text-sm " + (flow.mode === mode ? "border-gold-line bg-walnut text-ivory" : "border-line text-mist")}
+                        onClick={() => setFlow({ ...flow, mode })}
+                      >
+                        {mode === "timed" ? "Timed · 5 min" : "Breeze"}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {flow.seat ? <p className="text-sm text-mist">You are {flow.seat === "w" ? "White" : "Black"}. White moves first.</p> : null}
                 <div className="space-y-2">
                   <Label htmlFor="opp">Username</Label>
                   <Input
@@ -878,7 +939,7 @@ export function ClubHome() {
                 </div>
                 {error ? <p className="text-sm text-danger">{error}</p> : null}
                 <Button type="submit" variant="solid" className="w-full" disabled={busy}>
-                  {busy ? "Sending…" : "Send challenge"}
+                  {busy ? "Sending…" : flow.setupFen ? "Play" : "Send challenge"}
                 </Button>
               </form>
             ) : null}

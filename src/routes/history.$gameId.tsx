@@ -157,7 +157,7 @@ const BASE_STEP_MS = 1500;
 
 function Replay({ game }: { game: HistoryGame }) {
   const search = Route.useSearch();
-  const { fens, played } = useMemo(() => replayLine(game.moves), [game.moves]);
+  const { fens, played } = useMemo(() => replayLine(game.moves, game.startFen), [game.moves, game.startFen]);
   const total = played.length;
   const [ply, setPly] = useState(() => Math.max(0, Math.min(total, search.ply ?? 0)));
   const [playing, setPlaying] = useState(Boolean(search.play));

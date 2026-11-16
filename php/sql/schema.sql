@@ -387,6 +387,10 @@ ALTER TABLE `profiles` ADD COLUMN `football_json` TEXT NULL;
 -- Chess variants (owner t205u): '' = normal chess, else a Variants::IDS id. No coins, no rating.
 ALTER TABLE `games` ADD COLUMN `variant` VARCHAR(16) NOT NULL DEFAULT '';
 ALTER TABLE `challenges` ADD COLUMN `variant` VARCHAR(16) NOT NULL DEFAULT '';
+-- A setup game starts from this position. seat is the challenger's side (w or b).
+ALTER TABLE `challenges` ADD COLUMN `setup_fen` VARCHAR(128) NOT NULL DEFAULT '';
+ALTER TABLE `challenges` ADD COLUMN `seat` CHAR(1) NOT NULL DEFAULT '';
+ALTER TABLE `games` ADD COLUMN `start_fen` VARCHAR(128) NULL;
 -- Football player vs player (owner t234u): the whole game, kept by the server (FootballMatch.php).
 CREATE TABLE IF NOT EXISTS `football_games` (
   `id` VARCHAR(64) NOT NULL,

@@ -57,8 +57,13 @@ function saveJudgment(gameId: string, j: GameJudgment) {
 }
 
 /** Positions before each move and after the last one, plus the verbose moves. */
-export function replayLine(moves: HistoryMove[]) {
-  const chess = new Chess();
+export function replayLine(moves: HistoryMove[], startFen?: string | null) {
+  let chess: Chess;
+  try {
+    chess = startFen ? new Chess(startFen) : new Chess();
+  } catch {
+    chess = new Chess();
+  }
   const fens = [chess.fen()];
   const played: Move[] = [];
   for (const m of moves) {

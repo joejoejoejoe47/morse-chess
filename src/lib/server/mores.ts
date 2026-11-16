@@ -124,6 +124,8 @@ export type HistoryGame = {
   board: string;
   style: "2d" | "3d" | "an" | "ra" | "lg" | "cl" | "pa";
   fen: string;
+  /** Opening position when the game was set up by hand. */
+  startFen?: string | null;
   moves: HistoryMove[];
   whiteLook?: string;
   blackLook?: string;

@@ -277,7 +277,7 @@ function GameTile({ game }: { game: HistoryGame }) {
         const draw = () => {
           const judged = cachedJudgment(game.id);
           const ply = pickMoment(game.moves, judged);
-          const { fens, played } = replayLine(game.moves.slice(0, ply));
+          const { fens, played } = replayLine(game.moves.slice(0, ply), game.startFen);
           const last = played[played.length - 1];
           const kind = judged?.verdicts[ply - 1]?.kind;
           const mark =

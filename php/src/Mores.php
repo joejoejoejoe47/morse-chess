@@ -218,8 +218,38 @@ final class Mores
 
     // ── games ──────────────────────────────────────────────────────────────
 
-    /** $aColor: 'w' / 'b' puts player $a on that side; null flips a coin. */
-    private static function insertGame(string $a, string $b, string $mode, bool $pull = false, int $clockMs = Constants::TURN_MS, string $source = '', ?string $aColor = null, string $variant = ''): string
+    /**
+     * A position the player built. One king each side, no pawns on the end rows.
+     * Anything else (extra queens, rooks, and the rest) is allowed. Null when it is not a setup.
+     */
+    private static function customFen(mixed $raw): ?string
+    {
+        if (!is_string($raw)) {
+            return null;
+        }
+        $raw = trim($raw);
+        if ($raw === '' || strlen($raw) > 120) {
+            return null;
+        }
+        try {
+            $chess = new Chess($raw);
+        } catch (\Throwable) {
+            return null;
+        }
+        $fen = $chess->fen();
+        $parts = explode(' ', $fen);
+        if (($parts[1] ?? '') !== 'w') {
+            return null;
+        }
+        $rows = explode('/', $parts[0]);
+        if (count($rows) !== 8 || preg_match('/[pP]/', $rows[0] . $rows[7])) {
+            return null;
+        }
+        return $fen;
+    }
+
+    /** $aColor: 'w' / 'b' puts player $a on that side; null flips a coin. $fen, when set, is the opening position. */
+    private static function insertGame(string $a, string $b, string $mode, bool $pull = false, int $clockMs = Constants::TURN_MS, string $source = '', ?string $aColor = null, string $variant = '', ?string $fen = null): string
     {
         $variant = Variants::valid($variant) ? $variant : '';
         $id = Util::uuid();
@@ -228,6 +258,8 @@ final class Mores
         $black = $aWhite ? $b : $a;
         $chess = new Chess();
         $now = Db::now();
+        $opening = $variant !== '' ? Variants::START_FEN[$variant] : ($fen ?? $chess->fen());
+        $startFen = $fen !== null && $variant === '' ? $fen : null;
         // Remember each player's board and piece style as the game starts, so History replays it the same way.
         $look = static function (string $uid): array {
             $row = Db::one('SELECT equipped_board, piece_style FROM profiles WHERE user_id = ? LIMIT 1', [$uid]);
@@ -244,11 +276,11 @@ final class Mores
         Db::run(
             "INSERT INTO games (id, white_user_id, black_user_id, mode, fen, status, turn, turn_started_at, created_at,
                                 white_clock_ms, black_clock_ms, pull, clock_ms, white_board, black_board, white_style, black_style, source,
-                                white_start_score, black_start_score, variant)
-             VALUES (?, ?, ?, ?, ?, 'active', 'w', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [$id, $white, $black, $mode, $variant !== '' ? Variants::START_FEN[$variant] : $chess->fen(), $now, $now, $clockMs, $clockMs, $pull ? 1 : 0,
+                                white_start_score, black_start_score, variant, start_fen)
+             VALUES (?, ?, ?, ?, ?, 'active', 'w', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [$id, $white, $black, $mode, $opening, $now, $now, $clockMs, $clockMs, $pull ? 1 : 0,
              $clockMs, $wBoard, $bBoard, $wStyle, $bStyle, $source,
-             $wStart === null ? null : (int) $wStart, $bStart === null ? null : (int) $bStart, $variant]
+             $wStart === null ? null : (int) $wStart, $bStart === null ? null : (int) $bStart, $variant, $startFen]
         );
         return $id;
     }
@@ -1421,7 +1453,12 @@ final class Mores
             return ['ok' => false, 'error' => 'You cannot challenge yourself.'];
         }
         if (Constants::isBotUserId($toId)) {
-            return ['ok' => true, 'gameId' => self::insertGame($userId, $toId, $mode, false, Constants::TURN_MS, '', null, $variant)];
+            $seat = ($data['seat'] ?? '') === 'b' ? 'b' : (($data['seat'] ?? '') === 'w' ? 'w' : null);
+            $fen = self::customFen($data['fen'] ?? null);
+            if (array_key_exists('fen', $data) && $data['fen'] !== '' && $data['fen'] !== null && $fen === null) {
+                return ['ok' => false, 'error' => 'That setup needs one king on each side.'];
+            }
+            return ['ok' => true, 'gameId' => self::insertGame($userId, $toId, $mode, false, self::clockMsFrom($data['minutes'] ?? null), '', $seat, $variant, $fen)];
         }
         $pending = Db::one(
             "SELECT 1 AS x FROM challenges WHERE from_user_id = ? AND to_user_id = ? AND status = 'pending' LIMIT 1",
@@ -1431,9 +1468,14 @@ final class Mores
             return ['ok' => false, 'error' => 'You already sent the user a challenge.'];
         }
         $id = Util::uuid();
+        $fen = self::customFen($data['fen'] ?? null);
+        if (array_key_exists('fen', $data) && $data['fen'] !== '' && $data['fen'] !== null && $fen === null) {
+            return ['ok' => false, 'error' => 'That setup needs one king on each side.'];
+        }
+        $seat = ($data['seat'] ?? '') === 'b' ? 'b' : (($data['seat'] ?? '') === 'w' ? 'w' : '');
         Db::run(
-            "INSERT INTO challenges (id, from_user_id, to_user_id, mode, status, created_at, variant) VALUES (?, ?, ?, ?, 'pending', ?, ?)",
-            [$id, $userId, $toId, $mode, Db::now(), $variant]
+            "INSERT INTO challenges (id, from_user_id, to_user_id, mode, status, created_at, variant, setup_fen, seat) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)",
+            [$id, $userId, $toId, $mode, Db::now(), $variant, $fen ?? '', $seat]
         );
         return ['ok' => true, 'challengeId' => $id];
     }
@@ -1444,7 +1486,7 @@ final class Mores
         $id = self::str($data, 'id');
         $accept = (bool) ($data['accept'] ?? false);
         self::expireNamedChallenges();
-        $ch = Db::one('SELECT id, from_user_id, to_user_id, mode, status, kind, variant FROM challenges WHERE id = ? LIMIT 1', [$id]);
+        $ch = Db::one('SELECT id, from_user_id, to_user_id, mode, status, kind, variant, setup_fen, seat FROM challenges WHERE id = ? LIMIT 1', [$id]);
         if ($ch === null || $ch['to_user_id'] !== $userId) {
             return ['ok' => false, 'error' => 'Challenge not found.'];
         }
@@ -1478,7 +1520,9 @@ final class Mores
                 [$from, $ch['id']]
             );
             Db::run('DELETE FROM match_queue WHERE user_id IN (?, ?)', [$from, $to]);
-            $gameId = self::insertGame($from, $to, self::parseMode($ch['mode']), $isPull, Constants::TURN_MS, '', null, (string) ($ch['variant'] ?? ''));
+            $seat = ($ch['seat'] ?? '') === 'w' || ($ch['seat'] ?? '') === 'b' ? (string) $ch['seat'] : null;
+            $fen = self::customFen($ch['setup_fen'] ?? null);
+            $gameId = self::insertGame($from, $to, self::parseMode($ch['mode']), $isPull, Constants::TURN_MS, '', $seat, (string) ($ch['variant'] ?? ''), $fen);
             Db::run('UPDATE challenges SET game_id = ? WHERE id = ?', [$gameId, $ch['id']]);
             return ['ok' => true, 'gameId' => $gameId];
         });
@@ -1866,6 +1910,7 @@ final class Mores
             'board' => Catalog::boardById($board)['id'],
             'style' => in_array($style, ['2d', '3d', 'an', 'ra', 'lg', 'cl', 'pa'], true) ? $style : '3d',
             'fen' => (string) $g['fen'],
+            'startFen' => isset($g['start_fen']) && (string) $g['start_fen'] !== '' ? (string) $g['start_fen'] : null,
             'moves' => array_map(static fn (array $m): array => ['san' => (string) $m['san'], 'from' => (string) $m['from_sq'], 'to' => (string) $m['to_sq']], $moves),
         ];
     }
