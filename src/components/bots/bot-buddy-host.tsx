@@ -229,9 +229,13 @@ export function BotBuddyHost() {
     return off;
   }, []);
 
-  // Table chat in a game against your bot talks to the bot.
+  // The lounge is the only place the bot is allowed to show.
+  const home = path === "/" || path === "";
+
+  // Table chat used to summon the bot beside a game board. It stays on the lounge now.
   useEffect(() => {
     const onAsk = (e: Event) => {
+      if (path !== "/" && path !== "") return;
       const d = (e as CustomEvent<{ text: string; gameId?: string }>).detail;
       if (!d?.text) return;
       if (!botRef.current) {
@@ -244,7 +248,7 @@ export function BotBuddyHost() {
     window.addEventListener(BOT_ASK_EVENT, onAsk);
     return () => window.removeEventListener(BOT_ASK_EVENT, onAsk);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summon]);
+  }, [summon, path]);
 
   // Summon code typed anywhere (not inside a text box).
   useEffect(() => {
@@ -252,6 +256,7 @@ export function BotBuddyHost() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if (path !== "/" && path !== "") return;
       if (e.key === "Escape") {
         dismiss();
         return;
@@ -265,6 +270,7 @@ export function BotBuddyHost() {
       }
     };
     const onSummon = (e: Event) => {
+      if (path !== "/" && path !== "") return;
       const b = botById((e as CustomEvent<{ botId: string }>).detail?.botId);
       if (b) summon(b);
     };
@@ -274,7 +280,7 @@ export function BotBuddyHost() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(SUMMON_EVENT, onSummon);
     };
-  }, [summon, dismiss]);
+  }, [summon, dismiss, path]);
 
   // Keep the bot record fresh (renamed/deleted elsewhere).
   useEffect(() => {
@@ -283,32 +289,11 @@ export function BotBuddyHost() {
     return () => window.removeEventListener(BOT_EVENT, sync);
   }, []);
 
-  // Playing your own bot: it takes a seat beside the board.
+  // The bot does not sit beside a game board. It only lives on the lounge.
   useEffect(() => {
-    const m = /^\/play\/([^/]+)/.exec(path);
-    if (!m) {
-      seatedFor.current = null;
-      setArrows(null);
-      return;
-    }
-    const gid = decodeURIComponent(m[1]);
-    const t = window.setTimeout(() => {
-      const mine = botForGame(gid);
-      if (mine && seatedFor.current !== gid) {
-        seatedFor.current = gid;
-        if (botRef.current?.id === mine.id) {
-          setMoveMs(0);
-          setPos(seatPos());
-          return;
-        }
-        summon(mine, seatPos(), false, false);
-        setLine(`Hi! I'm ${mine.name}, let's play! Chat with me at the table, or say "coach me" and I'll draw you some arrows.`);
-        showBubble();
-        hideBubbleSoon();
-      }
-    }, 600);
-    return () => window.clearTimeout(t);
-  }, [path, summon]);
+    seatedFor.current = null;
+    setArrows(null);
+  }, [path]);
 
   function seatPos(): Pos {
     const board = [...document.querySelectorAll("[data-board-size]")].find(isVisible);
@@ -476,6 +461,8 @@ export function BotBuddyHost() {
   }
 
   fnRef.current = { ask, listenTurn, seatPos };
+
+  if (!home) return null;
 
   if (!bot) {
     if (!myBots.length || /bot-maker/.test(path)) return null;

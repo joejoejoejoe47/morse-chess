@@ -4,7 +4,6 @@ import { Lock, Timer, Wind, X } from "lucide-react";
 import { ClubBrand, ClubHeaderActions, MorseCrest } from "@/components/club-brand";
 import { CheckTile, PieceMark } from "@/components/chess/marks";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { sandboxUrlFor } from "@/lib/master-sandbox";
 import { asset } from "@/lib/base";
 import { canPlayGame, isOwnerPreview } from "@/lib/games/release";
 import { VARIANT_INFO, type VariantId as RuleVariant } from "@/lib/variants/engine";
@@ -445,19 +444,6 @@ export function ClubHome() {
           </p>
         </button>
       </section>
-      <a
-        href={sandboxUrlFor(home.profile.username)}
-        className="felt-inset relative mt-4 block rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
-      >
-        <div className="flex items-center gap-3">
-          <CheckTile />
-          <PieceMark kind="r" className="size-7 text-cream" />
-        </div>
-        <h2 className="mt-4 font-display text-2xl text-ivory">Sandbox game</h2>
-        <p className="mt-2 text-sm text-mist">
-          The shelf is free. Open it, then buy a game you do not own, or play one you already have.
-        </p>
-      </a>
       <Link
         to="/club"
         className="relative mt-4 flex min-h-14 w-full items-center justify-center rounded-xl border border-gold-line/55 bg-walnut/90 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
