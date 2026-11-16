@@ -831,10 +831,12 @@ final class Mores
             $game['winner_user_id'] = $winner;
 
             if ($status === 'white_win' || $status === 'black_win' || $status === 'draw') {
-                if ($winner !== null) {
-                    self::payWinCoins($game, $winner, true);
+                if (!self::setupVersusBot($game)) {
+                    if ($winner !== null) {
+                        self::payWinCoins($game, $winner, true);
+                    }
+                    self::settleElo($game, $status, $winner);
                 }
-                self::settleElo($game, $status, $winner);
             }
             return null;
         });
