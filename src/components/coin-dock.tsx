@@ -26,6 +26,14 @@ export function CoinDock() {
   const [fly, setFly] = useState(false);
   const [tuck, setTuck] = useState<number | null>(null);
   const home = path === "/" || path === "";
+  const [lounge, setLounge] = useState(false);
+  useEffect(() => {
+    const read = () => setLounge(document.documentElement.hasAttribute("data-lounge-clear"));
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-lounge-clear"] });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -81,7 +89,7 @@ export function CoinDock() {
     };
   }, [home, path]);
 
-  if (!home || coins == null) return null;
+  if (!home || !lounge || coins == null) return null;
 
   return (
     <>

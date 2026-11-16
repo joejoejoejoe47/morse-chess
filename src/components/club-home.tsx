@@ -154,6 +154,12 @@ export function ClubHome() {
     setError(`Your invitation to ${flow.username} expired after 4 minutes.`);
   }, [waitingExpired, flow]);
 
+  useEffect(() => {
+    const clear = !!home?.profile && flow.kind === "idle" && !teamCard;
+    document.documentElement.toggleAttribute("data-lounge-clear", clear);
+    return () => document.documentElement.removeAttribute("data-lounge-clear");
+  }, [home, flow.kind, teamCard]);
+
   if (isPending || !user) return <SplashSkeleton />;
   if (!home) {
     return (

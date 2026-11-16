@@ -385,7 +385,7 @@ export function PieceSetup({
 
   if (step === "side" && fen) {
     return (
-      <div className="fixed inset-0 z-50 grid place-items-center bg-ink/80 p-4">
+      <div className="fixed inset-0 z-[120] grid place-items-center bg-ink/80 p-4">
         <div className="w-full max-w-md rounded-xl border border-line bg-panel p-6">
           <button type="button" className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={() => setStep("board")}>
             Back
@@ -408,7 +408,7 @@ export function PieceSetup({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#12110e] text-ivory" data-piece-setup>
+    <div className="fixed inset-0 z-[120] flex flex-col bg-[#12110e] text-ivory" data-piece-setup>
       <style>{".piece-fall{animation:piece-fall .42s cubic-bezier(.2,.8,.3,1) both}@keyframes piece-fall{from{transform:translateY(-88px)}to{transform:translateY(0)}}"}</style>
       <header className="flex items-center justify-between gap-3 px-4 py-3">
         <button type="button" className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={onBack}>

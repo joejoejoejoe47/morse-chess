@@ -231,6 +231,14 @@ export function BotBuddyHost() {
 
   // The lounge is the only place the bot is allowed to show.
   const home = path === "/" || path === "";
+  const [lounge, setLounge] = useState(false);
+  useEffect(() => {
+    const read = () => setLounge(document.documentElement.hasAttribute("data-lounge-clear"));
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-lounge-clear"] });
+    return () => obs.disconnect();
+  }, []);
 
   // Table chat used to summon the bot beside a game board. It stays on the lounge now.
   useEffect(() => {
@@ -462,7 +470,7 @@ export function BotBuddyHost() {
 
   fnRef.current = { ask, listenTurn, seatPos };
 
-  if (!home) return null;
+  if (!home || !lounge) return null;
 
   if (!bot) {
     if (!myBots.length || /bot-maker/.test(path)) return null;
