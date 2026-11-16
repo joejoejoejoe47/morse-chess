@@ -212,37 +212,46 @@ function Store() {
 
   return (
     <main className="club-wash min-h-dvh bg-ink text-ivory">
-      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-ink/95 px-3 py-3">
-        <Link to="/" className="shrink-0 font-display text-lg text-ivory">Morse</Link>
-        <button type="button" onClick={() => void openSell()} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
-          Sell
-        </button>
-        <button type="button" onClick={() => openGc()} className="shrink-0 rounded-md border border-gold-line bg-walnut px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
-          GC
-        </button>
-        <input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            void refresh(e.target.value).catch(() => undefined);
-          }}
-          placeholder="Search models"
-          className="min-w-0 flex-1 rounded-md border border-line bg-ink-soft px-3 py-2 text-sm text-ivory outline-none"
-        />
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#6d5a32] bg-black/50 px-3 py-1.5">
-          <img src={asset("/morse-coin.png")} alt="" className="size-5" />
-          <span className="font-display tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
-        </span>
+      <header className="sticky top-0 z-20 border-b border-[#6d5a32] bg-[#120f0c]/95 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2">
+          <Link to="/" className="shrink-0 font-display text-2xl text-[#f6e7b2]">Morse</Link>
+          <h1 className="hidden font-display text-2xl text-ivory sm:block">The store</h1>
+          <button type="button" onClick={() => void openSell()} className="shrink-0 rounded-full border border-[#e7c56a] bg-[#3a2c16] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-[#f6e7b2]">
+            Sell
+          </button>
+          <button type="button" onClick={() => openGc()} className="shrink-0 rounded-full border border-[#6d5a32] bg-[#1b1610] px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-ivory">
+            GC
+          </button>
+          <input
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              void refresh(e.target.value).catch(() => undefined);
+            }}
+            placeholder="Search models"
+            className="min-w-[160px] flex-1 rounded-full border border-[#6d5a32] bg-black/40 px-4 py-2 text-sm text-ivory outline-none"
+          />
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#e7c56a] bg-black/50 px-3 py-1.5">
+            <img src={asset("/morse-coin.png")} alt="" className="size-5" />
+            <span className="font-display tabular-nums text-[#f6e7b2]">{coins.toLocaleString()}</span>
+          </span>
+        </div>
       </header>
 
-      {error ? <p className="px-4 pt-3 text-sm text-[#e07a7a]">{error}</p> : null}
+      {error ? <p className="mx-auto max-w-6xl px-4 pt-3 text-sm text-[#e07a7a]">{error}</p> : null}
 
-      <section className="flex flex-wrap gap-2 p-3">
+      <section className="mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
         {listings.length === 0 ? <p className="text-sm text-mist">Nothing is for sale yet. Press Sell to list a king or a Lego board.</p> : null}
         {listings.map((card) => (
-          <button key={card.id} type="button" onClick={() => { setSeeing(false); setOpen(card); }} className="w-[352px] overflow-hidden rounded-md border border-line bg-panel text-left">
-            <img src={card.shot} alt="" className="h-56 w-full object-cover" />
-            <span className="block truncate px-2 py-2 text-base leading-tight text-ivory">{card.name}</span>
+          <button key={card.id} type="button" onClick={() => { setSeeing(false); setOpen(card); }} className="overflow-hidden rounded-2xl border border-[#6d5a32] bg-[#17130f] text-left shadow-[0_16px_36px_rgba(0,0,0,0.35)] transition hover:-translate-y-0.5 hover:border-[#e7c56a]">
+            <img src={card.shot} alt="" className="h-64 w-full object-cover" />
+            <span className="flex items-end justify-between gap-3 px-4 py-3">
+              <span className="min-w-0">
+                <span className="block truncate font-display text-2xl text-ivory">{card.name}</span>
+                <span className="text-[11px] uppercase tracking-[0.16em] text-mist">{card.kind === "lg" ? "LG board" : "AV king"} · {card.seller}</span>
+              </span>
+              <span className="shrink-0 font-display text-xl text-[#f6e7b2]">{card.price}</span>
+            </span>
           </button>
         ))}
       </section>

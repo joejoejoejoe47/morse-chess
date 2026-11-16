@@ -2,7 +2,6 @@ import { Suspense, useEffect, useMemo, useRef, useState, type MutableRefObject, 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import type { Color, PieceSymbol, Square } from "chess.js";
 import * as THREE from "three";
-import { Button } from "@/components/ui/button";
 import { PieceMark } from "@/components/chess/marks";
 import { isLightSquare, squareToWorld } from "@/lib/chess/board-math";
 import { CAST_POOL, hydrateCast, useLegoLook } from "@/lib/lego-look";
@@ -87,6 +86,26 @@ export function setupFen(board: Board): string | null {
   }
   if (whiteKing !== 1 || blackKing !== 1) return null;
   return `${rows.join("/")} w - - 0 1`;
+}
+
+export function boardFromFen(fen: string): Board {
+  const board: Board = {};
+  const rows = fen.split(" ")[0]?.split("/") ?? [];
+  rows.forEach((row, rankFromTop) => {
+    let file = 0;
+    for (const ch of row) {
+      if (file > 7) break;
+      if (ch >= "1" && ch <= "8") {
+        file += Number(ch);
+        continue;
+      }
+      const type = ch.toLowerCase() as PieceSymbol;
+      if (!KINDS.includes(type)) continue;
+      board[squareAt(file, 7 - rankFromTop)] = { c: ch === ch.toUpperCase() ? "w" : "b", t: type };
+      file++;
+    }
+  });
+  return board;
 }
 
 function kingCount(board: Board) {
@@ -230,10 +249,10 @@ function LegoBoard({
 function GuyColumn({ side, lg, onDown }: { side: Color; lg: boolean; onDown: (e: ReactPointerEvent, color: Color, type: PieceSymbol) => void }) {
   useLegoLook();
   return (
-    <div className="flex w-[112px] flex-col gap-1">
+    <div className="flex w-[148px] flex-col gap-1">
       <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-mist">{side === "w" ? "White" : "Black"}</p>
       {lg ? (
-        <div className="relative h-[528px] w-[112px]">
+        <div className="relative h-[528px] w-[148px]">
           <Canvas orthographic camera={{ position: [0, 0, 12], zoom: 80 }} gl={{ alpha: true }} className="pointer-events-none">
             <ambientLight intensity={0.85} />
             <directionalLight position={[2, 4, 3]} intensity={1.1} />
@@ -257,9 +276,9 @@ function GuyColumn({ side, lg, onDown }: { side: Color; lg: boolean; onDown: (e:
                 type="button"
                 data-setup-piece={`${side}${type}`}
                 onPointerDown={(e) => onDown(e, side, type)}
-                className="flex flex-1 touch-none select-none items-end justify-center pb-1 text-[10px] leading-tight text-ivory"
+                className="flex flex-1 touch-none select-none items-center justify-center"
               >
-                <span className="rounded-full bg-black/55 px-1.5 py-0.5">{guyName(side, type, true)}</span>
+                <span className="max-w-[140px] rounded-full border border-[#6d5a32] bg-black/75 px-2 py-0.5 text-center text-[10px] leading-tight text-[#f6e7b2]">{guyName(side, type, true)}</span>
               </button>
             ))}
           </div>
@@ -271,7 +290,7 @@ function GuyColumn({ side, lg, onDown }: { side: Color; lg: boolean; onDown: (e:
             type="button"
             data-setup-piece={`${side}${type}`}
             onPointerDown={(e) => onDown(e, side, type)}
-            className="flex min-h-14 touch-none select-none flex-col items-center justify-center rounded-md border border-line bg-panel px-1 py-1 text-ivory hover:border-gold-line"
+            className="flex min-h-16 touch-none select-none flex-col items-center justify-center rounded-xl border border-[#6d5a32] bg-[#1b1610] px-1 py-1 text-ivory shadow-[0_6px_16px_rgba(0,0,0,0.35)] hover:border-[#e7c56a]"
           >
             <PieceMark kind={type} tone={side} className="size-8" />
             <span className="mt-0.5 text-center text-[10px] leading-tight text-mist">{KIND_NAME[type]}</span>
@@ -302,6 +321,7 @@ export function PieceSetup({
   const [fall, setFall] = useState<Square | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [step, setStep] = useState<"board" | "side">("board");
+  const [look, setLook] = useState<"2d" | "lg">(lg ? "lg" : "2d");
   const held = useRef<Held | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const locateRef = useRef<(x: number, y: number) => Square | null>(() => null);
@@ -408,72 +428,149 @@ export function PieceSetup({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col bg-[#12110e] text-ivory" data-piece-setup>
+    <div className="fixed inset-0 z-[120] flex flex-col bg-[#0e0c0a] text-ivory" data-piece-setup>
       <style>{".piece-fall{animation:piece-fall .42s cubic-bezier(.2,.8,.3,1) both}@keyframes piece-fall{from{transform:translateY(-88px)}to{transform:translateY(0)}}"}</style>
-      <header className="flex items-center justify-between gap-3 px-4 py-3">
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-[#3a3228] bg-black/55 px-4 py-3">
         <button type="button" className="text-xs font-semibold uppercase tracking-[0.16em] text-[#e7c56a]" onClick={onBack}>
           Back
         </button>
-        <h1 className="font-display text-2xl">Set the board</h1>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setBoard({})}>
-            Clear
-          </Button>
-          <Button type="button" variant="solid" size="sm" data-setup-done disabled={!fen} onClick={() => fen && setStep("side")}>
-            Done
-          </Button>
+        <h1 className="font-display text-3xl">Set the board</h1>
+        <div className="flex overflow-hidden rounded-full border border-[#6d5a32] bg-[#1b1610]">
+          <button type="button" className={"min-h-11 px-4 text-sm font-semibold " + (look === "2d" ? "bg-[#f6e7b2] text-[#1c1712]" : "text-[#f3ead6]")} onClick={() => setLook("2d")}>2D</button>
+          <button type="button" className={"min-h-11 px-4 text-sm font-semibold " + (look === "lg" && lg ? "bg-[#f6e7b2] text-[#1c1712]" : "text-[#f3ead6]")} onClick={() => lg && setLook("lg")}>LG</button>
+          <span className="grid min-h-11 place-items-center px-3 text-xs uppercase tracking-[0.14em] text-mist">3D · AN</span>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 gap-2 px-2">
-        <aside className="flex shrink-0 gap-2 overflow-y-auto pb-2">
-          <GuyColumn side="w" lg={lg} onDown={begin} />
-          <GuyColumn side="b" lg={lg} onDown={begin} />
+      <div className="flex min-h-0 flex-1">
+        <aside className="flex shrink-0 gap-2 overflow-y-auto border-r border-[#3a3228] bg-[#14110d] p-3">
+          <GuyColumn side="w" lg={look === "lg" && lg} onDown={begin} />
+          <GuyColumn side="b" lg={look === "lg" && lg} onDown={begin} />
         </aside>
         <div className="relative min-w-0 flex-1" onPointerDown={onBoardDown}>
-          {lg ? (
+          {(look === "lg" && lg) ? (
             <LegoBoard board={board} hover={hover} floatPiece={ghost} fall={fall} locateRef={locateRef} />
           ) : (
-            <div className="grid h-full place-items-center p-2">
-              <div
-                ref={boardRef}
-                className="grid aspect-square w-full max-w-[min(100%,70vh)] grid-cols-8 grid-rows-8 overflow-hidden rounded-md border border-[#3a3228]"
-              >
-                {Array.from({ length: 8 }, (_, row) =>
-                  Array.from({ length: 8 }, (_, file) => {
-                    const sq = squareAt(file, 7 - row);
-                    const spot = board[sq];
-                    const hot = hover === sq && ghost;
-                    const light = isLightSquare(sq);
-                    return (
-                      <div
-                        key={sq}
-                        className="relative grid place-items-center"
-                        style={{ background: hot ? "#ffe14a" : light ? "#f3ead6" : "#8d7044" }}
-                      >
-                        {spot ? (
-                          <span className={fall === sq ? "piece-fall grid place-items-center" : "grid place-items-center"}>
-                            <PieceMark kind={spot.t} tone={spot.c} className="size-8 sm:size-11" />
-                          </span>
-                        ) : null}
-                      </div>
-                    );
-                  }),
-                )}
-              </div>
-            </div>
+            <FlatBoard board={board} hover={hover} ghost={ghost} fall={fall} boardRef={boardRef} />
           )}
         </div>
       </div>
-      <p className="px-4 py-2 text-sm text-mist">
-        Drag a piece over the board. The square glows yellow, then he falls onto it. One white king ({kings.w}) and one black king ({kings.b}). Every other piece, as many as you want.
-        {note ? <span className="mt-1 block text-danger">{note}</span> : null}
-        {!fen && !note ? <span className="mt-1 block text-[#e7c56a]">Need one king on each side before Done.</span> : null}
-      </p>
-      {ghost ? (
-        <div className="pointer-events-none fixed z-[80]" style={{ left: ghost.x, top: ghost.y - 28, transform: "translate(-50%, -100%)" }}>
-          <PieceMark kind={ghost.type} tone={ghost.color} className="size-14 drop-shadow-lg" />
+      <footer className="border-t border-[#6d5a32] bg-[#1b1610] px-4 py-3">
+        <p className="text-sm leading-relaxed text-[#f3ead6]">
+          Drag a piece over the board. The square glows yellow, then he falls onto it. One white king ({kings.w}) and one black king ({kings.b}). Every other piece, as many as you want. This opening is the same board in 2D, 3D, AN and LG.
+          {note ? <span className="mt-1 block text-[#e07a7a]">{note}</span> : null}
+          {!fen ? <span className="mt-1 block text-[#e7c56a]">Put one king on each side, then press Done.</span> : null}
+        </p>
+        <div className="mt-3 flex gap-3">
+          <button type="button" className="min-h-12 flex-1 rounded-full border border-[#6d5a32] text-sm font-semibold uppercase tracking-[0.14em] text-[#f3ead6]" onClick={() => setBoard({})}>
+            Clear
+          </button>
+          <button type="button" data-setup-done disabled={!fen} className="min-h-12 flex-[2] rounded-full bg-[#f6e7b2] font-display text-2xl text-[#1c1712] disabled:opacity-40" onClick={() => fen && setStep("side")}>
+            Done
+          </button>
         </div>
-      ) : null}
+      </footer>
+      {ghost ? <DragGhost ghost={ghost} lg={look === "lg" && lg} /> : null}
+    </div>
+  );
+}
+
+function FlatBoard({
+  board,
+  hover,
+  ghost,
+  fall,
+  boardRef,
+}: {
+  board: Board;
+  hover: Square | null;
+  ghost: Held | null;
+  fall: Square | null;
+  boardRef: MutableRefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="grid h-full place-items-center p-3">
+      <div
+        ref={boardRef}
+        className="grid aspect-square w-full max-h-full max-w-[min(100%,72vh)] grid-cols-8 grid-rows-8 overflow-hidden rounded-md border-4 border-[#3a2c16] shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
+      >
+        {Array.from({ length: 8 }, (_, row) =>
+          Array.from({ length: 8 }, (_, file) => {
+            const sq = squareAt(file, 7 - row);
+            const spot = board[sq];
+            const hot = hover === sq && ghost;
+            const light = isLightSquare(sq);
+            return (
+              <div key={sq} className="relative grid place-items-center" style={{ background: hot ? "#ffe14a" : light ? "#f3ead6" : "#8d7044" }}>
+                {spot ? (
+                  <span className={fall === sq ? "piece-fall grid place-items-center" : "grid place-items-center"}>
+                    <PieceMark kind={spot.t} tone={spot.c} className="size-8 sm:size-12" />
+                  </span>
+                ) : null}
+              </div>
+            );
+          }),
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DragGhost({ ghost, lg }: { ghost: Held & { x: number; y: number }; lg: boolean }) {
+  if (lg) return null;
+  return (
+    <div className="pointer-events-none fixed z-[130]" style={{ left: ghost.x, top: ghost.y - 28, transform: "translate(-50%, -100%)" }}>
+      <PieceMark kind={ghost.type} tone={ghost.color} className="size-14 drop-shadow-lg" />
+    </div>
+  );
+}
+
+/** The opening, shown the way the game board looks, before anyone sits. */
+export function SetupLook({
+  fen,
+  lg,
+  fromName,
+  onNo,
+  onYes,
+}: {
+  fen: string;
+  lg: boolean;
+  fromName: string;
+  onNo: () => void;
+  onYes: () => void;
+}) {
+  const board = useMemo(() => boardFromFen(fen), [fen]);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const locateRef = useRef<(x: number, y: number) => Square | null>(() => null);
+  return (
+    <div className="fixed inset-0 z-[130] flex flex-col bg-[#0e0c0a] text-ivory" data-view-setup-board>
+      <header className="flex items-center justify-between gap-3 border-b border-[#3a3228] bg-black/55 px-4 py-3">
+        <p className="font-display text-2xl sm:text-3xl">{fromName} set this board</p>
+        <div className="flex overflow-hidden rounded-full border border-[#6d5a32] bg-[#1b1610] text-xs font-semibold uppercase tracking-[0.14em]">
+          <span className="bg-[#f6e7b2] px-3 py-2 text-[#1c1712]">{lg ? "LG" : "2D"}</span>
+          <span className="px-3 py-2 text-mist">3D</span>
+          <span className="px-3 py-2 text-mist">AN</span>
+        </div>
+      </header>
+      <div className="min-h-0 flex-1">
+        {lg ? (
+          <LegoBoard board={board} hover={null} floatPiece={null} fall={null} locateRef={locateRef} />
+        ) : (
+          <FlatBoard board={board} hover={null} ghost={null} fall={null} boardRef={boardRef} />
+        )}
+      </div>
+      <footer className="border-t border-[#6d5a32] bg-[#1b1610] px-4 py-3">
+        <p className="text-sm leading-relaxed text-[#f3ead6]">
+          This is the board at the start of the game. The same pieces, in every mode. Still up for the challenge sits you down. No walks away.
+        </p>
+        <div className="mt-3 flex gap-3">
+          <button type="button" data-setup-no className="min-h-14 flex-1 rounded-full border-2 border-[#e07a7a] bg-[#2a1212] font-display text-2xl tracking-[0.14em] text-[#f4d2c8]" onClick={onNo}>
+            NO
+          </button>
+          <button type="button" data-setup-yes className="min-h-14 flex-[1.4] rounded-full bg-[#f6e7b2] font-display text-xl text-[#1c1712] sm:text-2xl" onClick={onYes}>
+            Still up for the challenge
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }

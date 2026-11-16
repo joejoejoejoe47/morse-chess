@@ -472,6 +472,15 @@ $gid = Mores::startBotGame('cara', ['mode' => 'breeze', 'bot' => 'v2'])['gameId'
 check(purse('cara') === 5, 'starting a bot game takes no stake');
 Mores::resignGame('cara', ['gameId' => $gid]);
 check(purse('cara') === 5, 'losing to the bot pays 0');
+// a hand-built setup against MorseBot pays nothing and does not move ratings
+$eloBeforeSetup = (int) Db::value("SELECT score FROM profiles WHERE user_id = 'cara'");
+$coinsBeforeSetup = purse('cara');
+$setup = Mores::sendChallenge('cara', ['username' => 'MorseBot', 'mode' => 'breeze', 'fen' => '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', 'seat' => 'w']);
+check(($setup['ok'] ?? false) === true && !empty($setup['gameId']), 'setup vs MorseBot starts at once');
+$mate = Mores::makeMove('cara', ['gameId' => $setup['gameId'], 'from' => 'a1', 'to' => 'a8']);
+check($mate['ok'] === true && $mate['game']['winnerUserId'] === 'cara', 'checkmate on a setup board');
+check(purse('cara') === $coinsBeforeSetup && (int) $mate['game']['coinAward'] === 0, 'setup vs MorseBot pays no coins');
+check((int) Db::value("SELECT score FROM profiles WHERE user_id = 'cara'") === $eloBeforeSetup, 'setup vs MorseBot changes no rating');
 // self-play is never paid
 $self = ['id' => 'selfgame', 'white_user_id' => 'cara', 'black_user_id' => 'cara', 'white_start_score' => 9000, 'black_start_score' => 9000];
 check(Mores::payWinCoins($self, 'cara', true) === 0, 'self-play pays 0');

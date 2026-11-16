@@ -58,6 +58,8 @@ export type ChallengeCard = {
   kind: "named" | "pull" | "football";
   /** Chess variant of the challenge, or null for normal chess. */
   variant?: VariantId | null;
+  /** Custom opening, when this invite was built on the setup board. */
+  setupFen?: string | null;
   /** Ms left before a named challenge lapses (null for pull-ups), relative to when the server answered. */
   expiresInMs?: number | null;
   /** Client-only: local Date.now() deadline derived from expiresInMs. */

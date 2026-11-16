@@ -16,6 +16,7 @@ import {
   respondChallenge,
   sendChallenge,
   startBotGame,
+  type ChallengeCard,
   type HomeState,
 } from "@/lib/server/mores";
 import { BOT_USERNAME, BOT_V2_USERNAME, USERNAME_RE, suggestClubName, type GameMode } from "@/lib/mores-constants";
@@ -33,6 +34,7 @@ import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 import { getAvatar } from "@/lib/server/avatar";
 
 const PieceSetup = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.PieceSetup })));
+const SetupLook = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.SetupLook })));
 
 type VariantId = "checkmate" | "football" | "strategy" | "basketball";
 
@@ -73,6 +75,7 @@ export function ClubHome() {
   // football: "Change team!" under the username box opens the team card (saved per user)
   const [teamCard, setTeamCard] = useState<{ team: FootballTeam | null } | null>(null);
   const [lgStyle, setLgStyle] = useState(false);
+  const [setupInvite, setSetupInvite] = useState<ChallengeCard | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const seenInvite = useRef("");
   const now = useNow();
@@ -524,7 +527,11 @@ export function ClubHome() {
                   className="flex flex-col gap-3 rounded-md border border-line bg-ink-soft p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <p className="text-sm text-ivory">
-                    {c.kind === "football" ? (
+                    {c.setupFen ? (
+                      <span data-inbox-setup>
+                        <span className="font-medium">{c.fromUsername}</span> sent you a setup game. The pieces are already on the board.
+                      </span>
+                    ) : c.kind === "football" ? (
                       <span data-inbox-football>
                         <span className="font-medium">{c.fromUsername}</span> wants to play <span className="font-medium">Football</span> with you (no coins, no Elo).
                       </span>
@@ -542,6 +549,17 @@ export function ClubHome() {
                   </p>
                   <div className="flex items-center gap-2">
                     {c.deadline != null ? <ChallengeCountdown deadline={c.deadline} now={now} /> : null}
+                    {c.setupFen ? (
+                      <button
+                        type="button"
+                        data-view-setup
+                        className="min-h-14 min-w-[180px] rounded-xl border-2 border-[#e7c56a] bg-[#3a2c16] px-5 font-display text-2xl tracking-[0.08em] text-[#f6e7b2] shadow-[0_0_22px_rgba(231,197,106,0.45)]"
+                        onClick={() => setSetupInvite(c)}
+                      >
+                        View setup
+                      </button>
+                    ) : (
+                      <>
                     <Button
                       size="sm"
                       variant="solid"
@@ -565,6 +583,8 @@ export function ClubHome() {
                     >
                       Decline
                     </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))
@@ -577,7 +597,7 @@ export function ClubHome() {
                   className="flex items-center justify-between gap-3 rounded-md border border-line p-4"
                 >
                   <p className="text-sm text-mist">
-                    {c.kind === "football" ? `Waiting on ${c.toUsername} for a Football game.` : <>Waiting on {c.toUsername} for a {c.mode}{c.variant ? ` ${VARIANT_INFO[c.variant].name}` : ""} game.</>}
+                    {c.kind === "football" ? `Waiting on ${c.toUsername} for a Football game.` : c.setupFen ? `Waiting on ${c.toUsername} for a setup game.` : <>Waiting on {c.toUsername} for a {c.mode}{c.variant ? ` ${VARIANT_INFO[c.variant].name}` : ""} game.</>}
                   </p>
                   {c.deadline != null ? <ChallengeCountdown deadline={c.deadline} now={now} /> : null}
                   <Button size="sm" variant="ghost" onClick={() => cancelChallenge({ data: { id: c.id, confirm: true } })}>
@@ -670,6 +690,28 @@ export function ClubHome() {
             }}
           />
         </div>
+      ) : null}
+
+      {setupInvite?.setupFen ? (
+        <Suspense fallback={null}>
+          <SetupLook
+            fen={setupInvite.setupFen}
+            lg={lgStyle}
+            fromName={setupInvite.fromUsername}
+            onNo={() => {
+              const id = setupInvite.id;
+              setSetupInvite(null);
+              void respondChallenge({ data: { id, accept: false } });
+            }}
+            onYes={async () => {
+              const id = setupInvite.id;
+              setSetupInvite(null);
+              const res = await respondChallenge({ data: { id, accept: true } });
+              if (res.ok && res.gameId) await navigate({ to: "/play/$gameId", params: { gameId: res.gameId } });
+              else if (!res.ok && res.error) setError(res.error);
+            }}
+          />
+        </Suspense>
       ) : null}
 
       {flow.kind === "setup" ? (
