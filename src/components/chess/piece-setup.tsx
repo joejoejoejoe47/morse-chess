@@ -6,6 +6,7 @@ import { PieceMark } from "@/components/chess/marks";
 import { isLightSquare, squareToWorld } from "@/lib/chess/board-math";
 import { CAST_POOL, hydrateCast, useLegoLook } from "@/lib/lego-look";
 import { LEGO_CHARS, LegoStatic, pieceChar, type LegoCharId } from "@/components/chess/lego-board";
+import { readBoardFile } from "@/lib/chess/read-board-image";
 
 const FILES = "abcdefgh";
 const KINDS: PieceSymbol[] = ["k", "q", "r", "b", "n", "p"];
@@ -246,6 +247,46 @@ function LegoBoard({
   );
 }
 
+function PictureDrop({ shot, busy, onFile }: { shot: string | null; busy: boolean; onFile: (file: File) => void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <label
+      data-setup-picture
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("image/"));
+        if (file) onFile(file);
+      }}
+      className={
+        "flex min-h-[108px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-2 py-2 text-center " +
+        (over ? "border-[#f6e7b2] bg-[#3a2c16]" : "border-[#e7c56a] bg-[#1b1610]")
+      }
+    >
+      <input
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) onFile(file);
+        }}
+      />
+      {shot ? <img src={shot} alt="" className="h-14 w-full rounded-md object-contain" /> : null}
+      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#f6e7b2]">
+        {busy ? "Reading the board…" : "Drop a game picture"}
+      </span>
+      <span className="text-[11px] leading-snug text-mist">It lands on the 2D or 3D board you have open. Then drag the pieces.</span>
+    </label>
+  );
+}
+
 function GuyColumn({ side, lg, onDown }: { side: Color; lg: boolean; onDown: (e: ReactPointerEvent, color: Color, type: PieceSymbol) => void }) {
   useLegoLook();
   return (
@@ -322,6 +363,8 @@ export function PieceSetup({
   const [note, setNote] = useState<string | null>(null);
   const [step, setStep] = useState<"board" | "side">("board");
   const [look, setLook] = useState<"2d" | "lg">(lg ? "lg" : "2d");
+  const [reading, setReading] = useState(false);
+  const [shot, setShot] = useState<string | null>(null);
   const held = useRef<Held | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const locateRef = useRef<(x: number, y: number) => Square | null>(() => null);
@@ -389,6 +432,29 @@ export function PieceSetup({
     setDragging(true);
   }
 
+  async function usePicture(file: File) {
+    setReading(true);
+    setNote(null);
+    const url = URL.createObjectURL(file);
+    setShot((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+    try {
+      const seen = await readBoardFile(file);
+      if (!seen) {
+        setNote("I couldn't see a board in that picture.");
+        return;
+      }
+      setBoard(seen);
+      setNote("Pieces are on this board. Drag any that landed wrong.");
+    } catch {
+      setNote("That picture didn't open.");
+    } finally {
+      setReading(false);
+    }
+  }
+
   function onBoardDown(e: ReactPointerEvent) {
     if (held.current) return;
     const sq = locateRef.current(e.clientX, e.clientY);
@@ -442,9 +508,12 @@ export function PieceSetup({
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
-        <aside className="flex shrink-0 gap-2 overflow-y-auto border-r border-[#3a3228] bg-[#14110d] p-3">
-          <GuyColumn side="w" lg={look === "lg" && lg} onDown={begin} />
-          <GuyColumn side="b" lg={look === "lg" && lg} onDown={begin} />
+        <aside className="flex w-[348px] shrink-0 flex-col gap-2 overflow-y-auto border-r border-[#3a3228] bg-[#14110d] p-3">
+          <PictureDrop shot={shot} busy={reading} onFile={(file) => void usePicture(file)} />
+          <div className="flex gap-2">
+            <GuyColumn side="w" lg={look === "lg" && lg} onDown={begin} />
+            <GuyColumn side="b" lg={look === "lg" && lg} onDown={begin} />
+          </div>
         </aside>
         <div className="relative min-w-0 flex-1" onPointerDown={onBoardDown}>
           {(look === "lg" && lg) ? (
@@ -457,7 +526,7 @@ export function PieceSetup({
       <footer className="border-t border-[#6d5a32] bg-[#1b1610] px-4 py-3">
         <p className="text-sm leading-relaxed text-[#f3ead6]">
           Drag a piece over the board. The square glows yellow, then he falls onto it. One white king ({kings.w}) and one black king ({kings.b}). Every other piece, as many as you want. This opening is the same board in 2D, 3D, AN and LG.
-          {note ? <span className="mt-1 block text-[#e07a7a]">{note}</span> : null}
+          {note ? <span className={"mt-1 block " + (note.startsWith("Pieces") ? "text-[#f6e7b2]" : "text-[#e07a7a]")}>{note}</span> : null}
           {!fen ? <span className="mt-1 block text-[#e7c56a]">Put one king on each side, then press Done.</span> : null}
         </p>
         <div className="mt-3 flex gap-3">

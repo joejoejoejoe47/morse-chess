@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 export type PieceKind = "k" | "q" | "r" | "b" | "n" | "p";
 
-const PATHS: Record<PieceKind, string> = {
+export const PATHS: Record<PieceKind, string> = {
   k: "M20 3.2v2.4h-2.1V8h2.1v1.6c-4.2.6-7.4 4.1-7.4 8.2V26h14.8v-8.2c0-4.1-3.2-7.6-7.4-8.2V8h2.1V5.6H22.1V3.2H20zm-9.2 24.2V30h18.4v-2.6H10.8z",
   q: "M8.2 11.2 11 13.4 13.4 8l2.6 6.4L20 6.4l4 8 2.6-6.4 2.4 5.4 2.8-2.2-.8 10.4H9zm1.6 16.2V30h20.4v-2.6H9.8zM11 23h18v2.2H11z",
   r: "M8 6.4h5.2V10H12v4h16V10h-1.2V6.4H32V14h-1.4v8.6H9.4V14H8zm2.8 18.4V30h18.4v-5.2H10.8z",
