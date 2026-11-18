@@ -43,4 +43,4 @@ frame('frame-btn', [(0,(28,22,26)),(1,(14,11,15))], c=20, outer=6, gap=0, inner_
 # gear-menu buttons: thick outer gold band, dark seam, bright inner gold line, chamfered ends
 MGOLD=[(0,(255,236,170)),(0.2,(232,186,90)),(0.5,(150,104,36)),(0.8,(222,176,86)),(1,(255,228,150))]
 frame('frame-menu-gold', [(0,(40,30,22)),(0.45,(20,15,12)),(1,(12,9,8))], c=30, line=MGOLD, outer=10, gap=6, inner_line=(236,192,98,255))
-frame('frame-menu-purple', [(0,(78,36,128)),(0.5,(48,18,92)),(1,(30,10,62))], c=30, line=MGOLD, outer=10, gap=6, inner_line=(236,192,98,255))
+frame('frame-menu-purple', [(0,(58,28,104)),(0.5,(34,14,70)),(1,(20,8,44))], c=30, line=MGOLD, outer=10, gap=6, inner_line=(236,192,98,255))
