@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bot, CalendarDays, Eye, Globe, Settings, ShoppingCart, Swords, X } from "lucide-react";
+import { CalendarDays, Eye, Settings, X } from "lucide-react";
 import { getAvatar } from "@/lib/server/avatar";
 import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
 import { claimLegendaryDaily, legendaryDaily, legendaryLobby, legendaryPhotos, type Daily, type Lobby, type PhotoInfo } from "@/lib/server/legendary";
@@ -157,7 +157,7 @@ export function LegendaryLounge({
 
   function openMenu() {
     window.clearTimeout(closeTimer.current);
-    if (!menu) playSfx("whoosh");
+    if (!menu) playSfx("menu");
     setMenu(true);
   }
   function closeMenuSoon() {
@@ -165,14 +165,15 @@ export function LegendaryLounge({
     closeTimer.current = window.setTimeout(() => setMenu(false), 260);
   }
 
+  const mi = (n: string) => <img src={ui(`mi-${n}.webp`)} alt="" className="mcl-mi" draggable={false} />;
   const items: { label: string; icon: ReactNode; act: () => void; key: string; purple?: boolean }[] = [
-    { key: "online", label: "Play Online", icon: <Globe className="mcl-mi" strokeWidth={1.6} />, act: onPlayOnline },
-    { key: "bot", label: "Play MorseBot", icon: <Bot className="mcl-mi" strokeWidth={2} />, act: onPlayBot, purple: true },
-    { key: "create", label: "Create Bot", icon: <SolidGear className="mcl-mi" />, act: () => void navigate({ to: "/bot-maker" }), purple: true },
-    { key: "boards", label: "Boards", icon: <CheckerIcon />, act: () => void navigate({ to: "/boards" }) },
-    { key: "store", label: "Store", icon: <ShoppingCart className="mcl-mi" strokeWidth={2.2} />, act: () => void navigate({ to: "/store" }) },
-    { key: "av", label: "AV King", icon: <Swords className="mcl-mi" strokeWidth={2} />, act: () => void navigate({ to: "/avatar" }) },
-    { key: "settings", label: "Settings", icon: <SolidGear className="mcl-mi" />, act: () => setSettings("main") },
+    { key: "online", label: "Play Online", icon: mi("globe"), act: onPlayOnline },
+    { key: "bot", label: "Play MorseBot", icon: mi("robot"), act: onPlayBot, purple: true },
+    { key: "create", label: "Create Bot", icon: mi("gear"), act: () => void navigate({ to: "/bot-maker" }), purple: true },
+    { key: "boards", label: "Boards", icon: mi("boards"), act: () => void navigate({ to: "/boards" }) },
+    { key: "store", label: "Store", icon: mi("cart"), act: () => void navigate({ to: "/store" }) },
+    { key: "av", label: "AV King", icon: mi("swords"), act: () => void navigate({ to: "/avatar" }) },
+    { key: "settings", label: "Settings", icon: mi("gear"), act: () => setSettings("main") },
   ];
 
   const leaders = lobby?.leaders ?? [];
@@ -333,7 +334,7 @@ export function LegendaryLounge({
               key={it.key}
               type="button"
               tabIndex={menu ? 0 : -1}
-              className={cn("mcl-menu-btn", it.purple ? "mcl-f-purple" : "mcl-f-gold")}
+              className={cn("mcl-menu-btn", it.purple ? "mcl-f-mpurple" : "mcl-f-mgold")}
               style={{ transitionDelay: menu ? `${(items.length - 1 - i) * 32}ms` : "0ms" }}
               onClick={() => {
                 playSfx("whoosh");
@@ -343,7 +344,7 @@ export function LegendaryLounge({
               data-menu={it.key}
             >
               <span className="mcl-mi-wrap">{it.icon}</span>
-              {it.label}
+              <span className="mcl-mlabel" data-text={it.label}>{it.label}</span>
             </button>
           ))}
         </nav>
@@ -498,13 +499,3 @@ function SolidGear({ className }: { className?: string }) {
   );
 }
 
-function CheckerIcon() {
-  const cells = [];
-  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if ((r + c) % 2 === 0) cells.push(<rect key={`${r}${c}`} x={2 + c * 7} y={2 + r * 7} width="7" height="7" />);
-  return (
-    <svg viewBox="0 0 32 32" className="mcl-mi mcl-solid" aria-hidden>
-      <rect x="1" y="1" width="30" height="30" fill="none" stroke="url(#mcl-gold-fill)" strokeWidth="2" />
-      {cells}
-    </svg>
-  );
-}
