@@ -795,16 +795,16 @@ html.legendary .border-line {
 /* gear menu: the mockup's wide chamfered buttons (thick double gold border, gold type, 3D gold icons) */
 .mcl-f-mgold, .mcl-f-mpurple {
   border: solid transparent;
-  border-width: calc(var(--px) * 6);
+  border-width: calc(var(--px) * 7);
   border-image-source: var(--mcl-frame-menu-gold);
   border-image-slice: 24 fill;
-  border-image-width: calc(var(--px) * 10);
+  border-image-width: calc(var(--px) * 12);
   border-image-repeat: stretch;
   background: none;
 }
 .mcl-f-mpurple { border-image-source: var(--mcl-frame-menu-purple); }
-.mcl-home .mcl-menu { width: calc(var(--px) * 212) !important; gap: calc(var(--px) * 3.5) !important; }
-.mcl-home .mcl-menu-btn { height: calc(var(--px) * 30); padding: 0 calc(var(--px) * 10) 0 calc(var(--px) * 14); gap: calc(var(--px) * 13); border-radius: 0; font-family: var(--bsc); font-weight: 700; font-size: calc(var(--px) * 16.5); letter-spacing: 0.045em; box-shadow: none; filter: drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 5) rgba(0, 0, 0, 0.7)); }
+.mcl-home .mcl-menu { width: calc(var(--px) * 222) !important; gap: calc(var(--px) * 3.5) !important; }
+.mcl-home .mcl-menu-btn { height: calc(var(--px) * 32); padding: 0 calc(var(--px) * 10) 0 calc(var(--px) * 14); gap: calc(var(--px) * 13); border-radius: 0; font-family: var(--bsc); font-weight: 700; font-size: calc(var(--px) * 18); letter-spacing: 0.045em; box-shadow: none; filter: drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 5) rgba(0, 0, 0, 0.7)); }
 .mcl-home .mcl-menu-btn:hover, .mcl-home .mcl-menu-btn:focus-visible { filter: brightness(1.2) drop-shadow(0 0 calc(var(--px) * 6) rgba(255, 210, 110, 0.55)); background: none; border-color: transparent; }
 .mcl-mlabel { position: relative; white-space: nowrap; line-height: 1; padding-top: calc(var(--px) * 1); background: linear-gradient(180deg, #fff1bf 0%, #f3cf72 40%, #d29a35 70%, #f7d886 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 calc(var(--px) * 1) 0 rgba(40, 20, 4, 0.95)); }
 .mcl-mi-wrap { display: grid; place-items: center; width: calc(var(--px) * 27); flex: none; }
@@ -838,7 +838,7 @@ html.legendary .border-line {
   .mcl-h-dcoin { width: 20px !important; height: 20px !important; }
   .mcl-h-dreward { min-width: 64px; padding-left: 10px; }
   .mcl-home .mcl-menu { width: min(84vw, 320px) !important; gap: 6px !important; }
-  .mcl-home .mcl-menu-btn { height: 50px; font-size: 19px; gap: 14px; padding: 0 14px 0 18px; border-width: 7px; border-image-width: 13px; }
+  .mcl-home .mcl-menu-btn { height: 54px; font-size: 20px; gap: 14px; padding: 0 14px 0 18px; border-width: 7px; border-image-width: 13px; }
   .mcl-mi { width: 30px !important; height: 30px !important; }
   .mcl-mi-wrap { width: 32px; }
 }
