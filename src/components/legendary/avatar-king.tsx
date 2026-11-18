@@ -48,10 +48,14 @@ function Fit({ children }: { children: React.ReactNode }) {
     });
     const key = `${meshes}:${verts}`;
     if (key === sig.current || meshes === 0) return;
-    // Measure the figure with no fit applied (this group sits at the scene root).
+    // Measure the figure with no fit applied.
+    // Measure unturned, so the figure's centre lands on the turning axis of <Sway>.
+    const par = g.parent;
+    const ry = par?.rotation.y ?? 0;
+    if (par) par.rotation.y = 0;
     g.scale.setScalar(1);
     g.position.set(0, 0, 0);
-    g.updateMatrixWorld(true);
+    (par ?? g).updateMatrixWorld(true);
     // Flat things (shadow discs, floor circles) are not the figure: measure only solid meshes.
     const box = new THREE.Box3();
     const part = new THREE.Box3();
@@ -67,6 +71,7 @@ function Fit({ children }: { children: React.ReactNode }) {
       if (ps.y < 0.02 * Math.max(ps.x, ps.z)) return;
       box.union(part);
     });
+    if (par) par.rotation.y = ry;
     if (box.isEmpty()) return;
     const size = box.getSize(new THREE.Vector3());
     const tall = Math.max(size.y, size.x * 1.5, size.z * 1.5, 1e-4);
@@ -120,22 +125,22 @@ export function AvatarKing({ loadout, username }: { loadout: AvatarLoadout; user
                 <circleGeometry args={[2, 48]} />
                 <shadowMaterial transparent opacity={0.45} />
               </mesh>
-              <Fit>
               <Sway>
+              <Fit>
                 {lego ? (
                   <LegoDress body={loadout.lgBody} head={loadout.lgHead} hair={loadout.lgHair} legs={loadout.lgLegs} weapon={loadout.lgWeapon} />
                 ) : (
                   <Figurine characterId={style === "ra" ? "royal" : loadout.anId} mountId="none" swordId="none" crownId={loadout.crownId} team={loadout.team} attackId={loadout.attackId} />
                 )}
-              </Sway>
               </Fit>
+              </Sway>
             </>
           ) : (
-            <Fit>
             <Sway>
+            <Fit>
               <PedestalStage finish={finish} crownId={loadout.crownId} team={loadout.team} board={false} spin={false} legacy={Boolean(finish.legendary)} letter={kitInitial(username)} bare />
-            </Sway>
             </Fit>
+            </Sway>
           )}
         </ModelSlot>
       </Suspense>
