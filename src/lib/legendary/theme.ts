@@ -29,6 +29,14 @@ export function installLegendaryChrome() {
         `@font-face{font-family:"Cinzel";font-style:normal;font-weight:${w};font-display:swap;src:url("${asset(`/legendary/fonts/cinzel-${w}.woff2`)}") format("woff2");}`,
     )
     .join("\n");
+  style.textContent += [500, 600, 700]
+    .map(
+      (w) =>
+        `\n@font-face{font-family:"Barlow Semi Condensed";font-style:normal;font-weight:${w};font-display:swap;src:url("${asset(`/legendary/fonts/barlow-sc-${w}.woff2`)}") format("woff2");}`,
+    )
+    .join("");
+  // 9-slice frame art for the panels (drawn by scripts, see public/legendary/CREDITS.md).
+  style.textContent += `\nhtml.legendary{${["gold", "purple", "row", "violet", "chip", "btn"].map((n) => `--mcl-frame-${n}:url("${asset(`/legendary/ui/frame-${n}.png`)}");`).join("")}}`;
   document.head.appendChild(style);
   document.title = "Morse Chess Legendary";
 }

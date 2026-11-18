@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { asset } from "@/lib/base";
-import { frameById, parseLoadout } from "@/lib/avatar/catalog";
+import { characterById, finishById, frameById, parseLoadout } from "@/lib/avatar/catalog";
 import { rankFor, RARITY, SEASON_PARTICLE, seasonImage, type Rarity, type Season } from "@/lib/legendary/theme";
 import { myLegendaryPhoto, photoUrl, type MyPhoto, type PhotoInfo } from "@/lib/server/legendary";
 import { cn } from "@/lib/utils";
@@ -9,27 +9,18 @@ import { cn } from "@/lib/utils";
 
 export function RankBadge({ score, size = 28, className, showName = false }: { score: number; size?: number; className?: string; showName?: boolean }) {
   const { tier, index } = rankFor(score);
-  const pips = Math.min(3, index % 3) + 1;
+  void index;
   const badge = (
-    <svg width={size} height={size} viewBox="0 0 40 44" className={cn("shrink-0 drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]", className)} aria-label={`${tier.name} rank`} role="img" data-rank={tier.id}>
-      <defs>
-        <linearGradient id={`rb-${tier.id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.55" />
-          <stop offset="0.35" stopColor={tier.color} />
-          <stop offset="1" stopColor="#1a1024" />
-        </linearGradient>
-      </defs>
-      <path d="M20 1.5 37 8v13.5C37 32 29.5 39.5 20 42.5 10.5 39.5 3 32 3 21.5V8Z" fill="#160d22" stroke={tier.color} strokeWidth="2.4" />
-      <path d="M20 6.5 32.5 11.2v10.3C32.5 29.4 27 35 20 37.4 13 35 7.5 29.4 7.5 21.5V11.2Z" fill={`url(#rb-${tier.id})`} opacity="0.95" />
-      {tier.id === "legendary" ? (
-        <path d="M11 25l2-9 4.2 4.4L20 13l2.8 7.4L27 16l2 9Z" fill="#fff6cf" stroke="#8a5a10" strokeWidth="1" />
-      ) : (
-        <path d="M20 13.5l2.3 4.8 5.2.7-3.8 3.6.9 5.2-4.6-2.5-4.6 2.5.9-5.2-3.8-3.6 5.2-.7Z" fill="#fffaf0" opacity="0.92" />
-      )}
-      {Array.from({ length: pips }, (_, i) => (
-        <circle key={i} cx={20 + (i - (pips - 1) / 2) * 5} cy={33.2} r={1.5} fill="#fff8e1" />
-      ))}
-    </svg>
+    <img
+      src={asset(`/legendary/ui/tier-${tier.id}.webp`)}
+      width={size}
+      height={Math.round(size * 1.12)}
+      alt={`${tier.name} rank`}
+      className={cn("shrink-0 object-contain drop-shadow-[0_2px_5px_rgba(0,0,0,0.65)]", className)}
+      style={{ width: size, height: Math.round(size * 1.12) }}
+      data-rank={tier.id}
+      draggable={false}
+    />
   );
   if (!showName) return badge;
   return (
@@ -114,6 +105,48 @@ export function PlayerAvatar({
         <img src={photoUrl(userId!, photo!.v)} alt="" className="size-full rounded-full object-cover" onError={() => setBroken(true)} draggable={false} />
       ) : (
         <LetterDisc letter={l} className="size-full" style={{ fontSize: size * 0.46 }} />
+      )}
+    </span>
+  );
+}
+
+// ── square portraits (leaderboard): photo, else the player's AV king, else the letter ──
+
+export const ui = (name: string) => asset(`/legendary/ui/${name}`);
+
+/** A portrait picture for a player's saved AV look (their king), or null. */
+export function lookPortrait(look?: string | null): string | null {
+  if (!look) return null;
+  try {
+    const lo = parseLoadout(JSON.parse(look));
+    if (lo.style === "an") return characterById(lo.anId).portrait || ui("pf-king-gold.webp");
+    if (lo.style === "ra") return characterById("royal").portrait || ui("pf-king-gold.webp");
+    if (lo.style === "lg") return ui("pf-brick.webp");
+    const f = finishById(lo.finishId);
+    const hex = (f.body || "#b8872f").replace("#", "");
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) || 0);
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (lum > 170) return ui("pf-king-ivory.webp");
+    if (r > 150 && g > 100 && b < 90) return ui("pf-king-gold.webp");
+    return ui("pf-king-onyx.webp");
+  } catch {
+    return null;
+  }
+}
+
+export function SquarePortrait({ userId, photo, look, letter, className }: { userId?: string | null; photo?: PhotoInfo | null; look?: string | null; letter?: string; className?: string }) {
+  const [broken, setBroken] = useState(false);
+  const showPhoto = !!userId && photo?.kind === "photo" && photo.v > 0 && !broken;
+  const av = showPhoto ? null : lookPortrait(look);
+  const l = (letter || "?").slice(0, 1).toUpperCase();
+  return (
+    <span className={cn("mcl-portrait", className)} data-portrait={showPhoto ? "photo" : av ? "king" : "letter"}>
+      {showPhoto ? (
+        <img src={photoUrl(userId!, photo!.v)} alt="" onError={() => setBroken(true)} draggable={false} />
+      ) : av ? (
+        <img src={av} alt="" draggable={false} />
+      ) : (
+        <LetterDisc letter={l} className="size-full !rounded-none text-[1.4em]" />
       )}
     </span>
   );
@@ -222,9 +255,9 @@ export function SeasonBackdrop({ season, dim = false }: { season: Season; dim?: 
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" data-season={season} aria-hidden>
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${seasonImage(season, true)}")` }} />
       <div className={cn("absolute inset-0 bg-cover bg-center transition-opacity duration-700", ready ? "opacity-100" : "opacity-0")} style={{ backgroundImage: `url("${seasonImage(season)}")` }} />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(8,4,14,0.55)_100%)]" />
-      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/55 to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/60 to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(8,4,14,0.32)_100%)]" />
+      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/35 to-transparent" />
       {dim ? <div className="absolute inset-0 bg-[#0a0612]/70 backdrop-blur-[2px]" /> : null}
       <Particles kind={SEASON_PARTICLE[season]} />
     </div>

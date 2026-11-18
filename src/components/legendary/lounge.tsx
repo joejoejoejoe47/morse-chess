@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bot, Cpu, Eye, Globe, LayoutGrid, Mail, Settings, ShoppingCart, Swords, Users, X } from "lucide-react";
+import { Bot, CalendarDays, Eye, Globe, Settings, ShoppingCart, Swords, X } from "lucide-react";
 import { getAvatar } from "@/lib/server/avatar";
 import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
 import { claimLegendaryDaily, legendaryDaily, legendaryLobby, legendaryPhotos, type Daily, type Lobby, type PhotoInfo } from "@/lib/server/legendary";
@@ -14,7 +14,7 @@ import { activeSeason, rankFor, RANKS, type Season } from "@/lib/legendary/theme
 import { playSfx } from "@/lib/legendary/sfx";
 import { openGc } from "@/components/gc-mail";
 import { AvatarKing } from "@/components/legendary/avatar-king";
-import { Coin, CrownMark, frameIdOf, GoldPanel, hms, PlayerAvatar, RankBadge, SeasonBackdrop, useCountdown, useMyPhoto } from "@/components/legendary/bits";
+import { Coin, hms, PlayerAvatar, RankBadge, SeasonBackdrop, SquarePortrait, ui, useCountdown, useMyPhoto } from "@/components/legendary/bits";
 import { PhotoSetup } from "@/components/legendary/photo-setup";
 import { LegendarySettings } from "@/components/legendary/settings";
 import { cn } from "@/lib/utils";
@@ -165,14 +165,14 @@ export function LegendaryLounge({
     closeTimer.current = window.setTimeout(() => setMenu(false), 260);
   }
 
-  const items: { label: string; icon: ReactNode; act: () => void; key: string }[] = [
-    { key: "online", label: "Play Online", icon: <Globe className="size-[18px]" />, act: onPlayOnline },
-    { key: "bot", label: "Play MorseBot", icon: <Bot className="size-[18px]" />, act: onPlayBot },
-    { key: "create", label: "Create Bot", icon: <Cpu className="size-[18px]" />, act: () => void navigate({ to: "/bot-maker" }) },
-    { key: "boards", label: "Boards", icon: <LayoutGrid className="size-[18px]" />, act: () => void navigate({ to: "/boards" }) },
-    { key: "store", label: "Store", icon: <ShoppingCart className="size-[18px]" />, act: () => void navigate({ to: "/store" }) },
-    { key: "av", label: "AV King", icon: <Swords className="size-[18px]" />, act: () => void navigate({ to: "/avatar" }) },
-    { key: "settings", label: "Settings", icon: <Settings className="size-[18px]" />, act: () => setSettings("main") },
+  const items: { label: string; icon: ReactNode; act: () => void; key: string; purple?: boolean }[] = [
+    { key: "online", label: "Play Online", icon: <Globe className="mcl-mi" strokeWidth={1.6} />, act: onPlayOnline },
+    { key: "bot", label: "Play MorseBot", icon: <Bot className="mcl-mi" strokeWidth={2} />, act: onPlayBot, purple: true },
+    { key: "create", label: "Create Bot", icon: <SolidGear className="mcl-mi" />, act: () => void navigate({ to: "/bot-maker" }), purple: true },
+    { key: "boards", label: "Boards", icon: <CheckerIcon />, act: () => void navigate({ to: "/boards" }) },
+    { key: "store", label: "Store", icon: <ShoppingCart className="mcl-mi" strokeWidth={2.2} />, act: () => void navigate({ to: "/store" }) },
+    { key: "av", label: "AV King", icon: <Swords className="mcl-mi" strokeWidth={2} />, act: () => void navigate({ to: "/avatar" }) },
+    { key: "settings", label: "Settings", icon: <SolidGear className="mcl-mi" />, act: () => setSettings("main") },
   ];
 
   const leaders = lobby?.leaders ?? [];
@@ -183,73 +183,84 @@ export function LegendaryLounge({
       <SeasonBackdrop season={season} />
 
       {/* the king */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-[14%] top-[12%] z-[1] mx-auto w-[min(88vw,520px)] sm:bottom-[10%]">
+      <div className="mcl-h-king pointer-events-none absolute z-[1]">
         {loadout ? <AvatarKing loadout={loadout} username={username} /> : null}
       </div>
 
+      <GoldDefs />
+
       {/* top bar */}
-      <header className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 px-3 pt-[max(0.6rem,env(safe-area-inset-top))] sm:px-5 sm:pt-4">
-        <button type="button" className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3" onClick={() => setSettings("photo")} data-me-card>
-          <PlayerAvatar userId={userId} photo={photo} letter={photo?.letter || userLetter} size={58} frame={loadout?.frameId ?? "gold"} className="max-sm:!size-12" />
+      <header className="mcl-h-top absolute inset-x-0 top-0 z-20 flex items-start justify-between">
+        <button type="button" className="mcl-h-me flex min-w-0 items-center text-left" onClick={() => setSettings("photo")} data-me-card>
+          <PlayerAvatar userId={userId} photo={photo} letter={photo?.letter || userLetter} size={58} frame={loadout?.frameId ?? "gold"} className="mcl-h-meav" />
           <span className="min-w-0">
-            <span className="block truncate font-[Cinzel] text-[15px] font-bold leading-tight text-[#fff3d1] sm:text-base">{username}</span>
-            <span className="block whitespace-nowrap text-[12px] leading-tight text-[#d9c79c]">
-              {rank.tier.name} · {score}<span className="hidden sm:inline"> Elo</span>
+            <span className="mcl-h-name block truncate">{username}</span>
+            <span className="mcl-h-level block whitespace-nowrap">
+              {rank.tier.name} · {score.toLocaleString()} Elo
             </span>
-            <span className="mt-1 block h-[7px] w-28 overflow-hidden rounded-full border border-black/50 bg-black/55 sm:w-36" title={rank.next ? `${rank.next.min - score} Elo to ${rank.next.name}` : "Top rank"}>
-              <span className="block h-full rounded-full bg-[linear-gradient(90deg,#f7d774,#d29b2a)]" style={{ width: `${Math.round(rank.progress * 100)}%` }} />
+            <span className="mcl-h-bar block" title={rank.next ? `${rank.next.min - score} Elo to ${rank.next.name}` : "Top rank"}>
+              <span className="block h-full" style={{ width: `${Math.round(rank.progress * 100)}%` }} />
             </span>
           </span>
         </button>
 
-        <div className="flex items-center gap-1.5 sm:gap-3">
-          <Link to="/store" className="mcl-chip" data-coins onClick={() => playSfx("tap")}>
-            <Coin className="size-6" />
-            <span className="font-[Cinzel] text-[15px] font-bold tabular-nums">{purse.toLocaleString()}</span>
-            <span className="mcl-chip-plus hidden sm:grid">+</span>
+        <div className="mcl-h-chips flex items-center">
+          <Link to="/store" className="mcl-h-chip" data-coins onClick={() => playSfx("tap")} title="Coins">
+            <Coin className="mcl-h-chipicon" />
+            <span className="mcl-h-chipnum tabular-nums">{purse.toLocaleString()}</span>
+            <span className="mcl-h-plus">+</span>
           </Link>
-          <span className="mcl-chip hidden md:inline-flex" data-rank-chip>
-            <RankBadge score={score} size={30} />
+          <span className="mcl-h-chip max-md:!hidden" title="Your Elo rating" data-elo-chip>
+            <img src={ui("gem.webp")} alt="" className="mcl-h-chipicon" draggable={false} />
+            <span className="mcl-h-chipnum tabular-nums">{score.toLocaleString()}</span>
+            <span className="mcl-h-chiptag">Elo</span>
+          </span>
+          <span className="mcl-h-rank max-md:!hidden" data-rank-chip>
+            <RankBadge score={score} size={30} className="mcl-h-rankbadge" />
             <span className="leading-none">
-              <span className="block font-[Cinzel] text-[13px] font-bold uppercase" style={{ color: rank.tier.color }}>{rank.tier.name}</span>
-              <span className="block text-[11px] text-[#d9c79c]">{lobby?.myRank ? `Rank ${lobby.myRank}` : "Ranked"}</span>
+              <span className="mcl-h-rankname block" style={{ color: rank.tier.color }}>{rank.tier.name}</span>
+              <span className="mcl-h-ranksub block">{lobby?.myRank ? `Rank ${lobby.myRank}` : "Ranked"}</span>
             </span>
           </span>
-          <Link to="/club" className="mcl-icon-btn" aria-label="Friends and clubs" title="Chess Club" onClick={() => playSfx("tap")}>
-            <Users className="size-[22px]" />
-          </Link>
-          <button type="button" className="mcl-icon-btn relative" aria-label="Mail and challenges" title="Mail & challenges" onClick={() => { playSfx("tap"); if (inboxCount > 0) setInboxOpen(true); else openGc(); }} data-mail>
-            <Mail className="size-[22px]" />
-            {inboxCount > 0 ? <span className="absolute -right-0.5 -top-0.5 grid size-[18px] place-items-center rounded-full bg-[#ff3b5c] text-[10px] font-bold text-white">{inboxCount}</span> : null}
-          </button>
-          <button type="button" className="mcl-icon-btn" aria-label="Settings" onClick={() => { playSfx("tap"); setSettings("main"); }} data-settings>
-            <Settings className="size-[22px]" />
-          </button>
+          <div className="mcl-h-icons flex items-center">
+            <Link to="/club" className="mcl-h-icon" aria-label="Friends and clubs" title="Chess Club" onClick={() => playSfx("tap")}>
+              <SolidUsers />
+            </Link>
+            <button type="button" className="mcl-h-icon relative" aria-label="Mail and challenges" title="Mail & challenges" onClick={() => { playSfx("tap"); if (inboxCount > 0) setInboxOpen(true); else openGc(); }} data-mail>
+              <SolidMail />
+              {inboxCount > 0 ? <span className="mcl-h-dot">{inboxCount}</span> : null}
+            </button>
+            <button type="button" className="mcl-h-icon" aria-label="Settings" onClick={() => { playSfx("tap"); setSettings("main"); }} data-settings>
+              <SolidGear />
+            </button>
+          </div>
         </div>
       </header>
 
       {error ? <p className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-sm text-[#ff9a9a]">{error}</p> : null}
 
       {/* leaderboard */}
-      <GoldPanel crown title="Leaderboard" className="absolute right-3 top-[86px] z-10 hidden w-[256px] pb-3 md:block lg:right-5 lg:top-[92px] lg:w-[284px]" data-leaderboard>
-        <ol className="mt-2 space-y-2 px-3">
-          {leaders.length === 0 ? <li className="py-3 text-center text-xs text-[#bfae86]">Loading…</li> : null}
-          {leaders.map((p) => (
-            <li key={p.username} className={cn("flex items-center gap-2.5 rounded-lg border border-[#e2b84e]/25 bg-black/35 px-2 py-1.5", p.you && "border-[#f2c94c]/80 bg-[#3a2410]/50")}>
-              <PlaceBadge place={p.place} />
-              <PlayerAvatar userId={p.userId} photo={leaderPhotos[p.userId]} letter={p.username[0]} size={42} frame={frameIdOf(p.look)} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-semibold text-[#fff3d1]">{p.username}</span>
-                <span className="block font-[Cinzel] text-[15px] font-bold leading-tight text-[#f2d27a] tabular-nums">{p.score.toLocaleString()}</span>
+      <section className="mcl-h-lb mcl-f-gold absolute z-10 hidden md:block" data-leaderboard>
+        <img src={ui("crown.webp")} alt="" className="mcl-h-lbcrown" draggable={false} />
+        <h3 className="mcl-h-lbtitle">Leaderboard</h3>
+        <ol className="mcl-h-lbrows">
+          {leaders.length === 0 ? <li className="mcl-h-lbempty">Loading…</li> : null}
+          {leaders.slice(0, 3).map((p) => (
+            <li key={p.username} className={cn("mcl-h-lbrow mcl-f-row", p.you && "is-you")} data-leader={p.place}>
+              <img src={ui(p.place === 1 ? "rank1.webp" : p.place === 2 ? "rank2.webp" : "rank3.webp")} alt={`Place ${p.place}`} className="mcl-h-lbemblem" draggable={false} />
+              <SquarePortrait userId={p.userId} photo={leaderPhotos[p.userId]} look={p.look} letter={p.username[0]} className="mcl-h-lbpic" />
+              <span className="mcl-h-lbtext min-w-0 flex-1">
+                <span className="mcl-h-lbname block truncate">{p.username}</span>
+                <span className="mcl-h-lbscore block tabular-nums">{p.score.toLocaleString()}</span>
               </span>
-              <RankBadge score={p.score} size={24} />
+              <img src={ui(p.place === 1 ? "trophy.webp" : p.place === 2 ? "gem.webp" : "bronze.webp")} alt="" className="mcl-h-lbicon" draggable={false} />
             </li>
           ))}
         </ol>
-        <button type="button" className="mcl-btn mcl-btn-ghost mx-3 mt-3 w-[calc(100%-1.5rem)] !min-h-9 text-[12px]" onClick={() => setRankings(true)}>
-          View full rankings ›
+        <button type="button" className="mcl-h-lbbtn mcl-f-btn" onClick={() => setRankings(true)}>
+          View full rankings <span aria-hidden>›</span>
         </button>
-      </GoldPanel>
+      </section>
 
       {/* watch live */}
       {lobby?.watch ? (
@@ -260,56 +271,55 @@ export function LegendaryLounge({
 
       {/* daily challenge */}
       {daily ? (
-        <GoldPanel className={cn("absolute bottom-[max(4.6rem,calc(env(safe-area-inset-bottom)+4.2rem))] left-3 z-10 w-[min(92vw,300px)] p-3 transition-opacity sm:bottom-6 sm:left-5 sm:w-[320px]", menu && "max-md:pointer-events-none max-md:opacity-0")} data-daily>
-          <div className="flex items-center justify-between">
-            <h3 className="mcl-title text-[14px]">Daily Challenge</h3>
-            <span className="font-mono text-[11px] tabular-nums text-[#cdb98c]" title="Resets at midnight (Chicago time)">
+        <section className={cn("mcl-h-daily mcl-f-gold absolute z-10 transition-opacity", menu && "max-md:pointer-events-none max-md:opacity-0")} data-daily>
+          <div className="mcl-h-dhead flex items-center">
+            <CalendarDays className="mcl-h-dcal" />
+            <h3 className="mcl-h-dtitle">Daily Challenge</h3>
+            <span className="mcl-h-dtime ml-auto tabular-nums" title="Resets at midnight (Chicago time)">
               {hh}:{mm}:{ss}
             </span>
           </div>
-          <div className="mt-2 flex items-center gap-3">
-            <span className="grid size-12 shrink-0 place-items-center rounded-lg border border-[#e8c25a]/60 bg-[radial-gradient(circle,#4a2580,#1d0e36)]">
-              <CrownMark className="h-6 w-8" />
-            </span>
+          <div className="mcl-h-dbody flex items-center">
+            <img src={ui("daily-star.webp")} alt="" className="mcl-h-dstar" draggable={false} />
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-[#fff3d1]">{daily.title}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="h-2 flex-1 overflow-hidden rounded-full bg-black/60">
-                  <span className="block h-full rounded-full bg-[linear-gradient(90deg,#f7d774,#d29b2a)] transition-[width] duration-700" style={{ width: `${(daily.progress / daily.goal) * 100}%` }} />
+              <p className="mcl-h-dtask truncate">{daily.title}</p>
+              <div className="flex items-center">
+                <span className="mcl-h-dbar">
+                  <span className="block h-full transition-[width] duration-700" style={{ width: `${(daily.progress / daily.goal) * 100}%` }} />
                 </span>
-                <span className="text-[12px] tabular-nums text-[#e9d9b0]">{daily.progress}/{daily.goal}</span>
+                <span className="mcl-h-dcount tabular-nums">{daily.progress}/{daily.goal}</span>
               </div>
             </div>
-            <div className="border-l border-[#e8c25a]/30 pl-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#cdb98c]">Reward</p>
+            <div className="mcl-h-dreward text-center">
+              <p className="mcl-h-dlabel">Reward</p>
               {daily.claimed ? (
-                <p className="mt-0.5 text-[12px] font-bold text-[#7be3a0]">Claimed</p>
+                <p className="mcl-h-dclaimed">Claimed</p>
               ) : daily.progress >= daily.goal ? (
-                <button type="button" className="mcl-btn mcl-btn-gold mt-1 !min-h-8 !px-3 text-[12px]" disabled={claiming} onClick={() => void claim()} data-daily-claim>
-                  <Coin className="size-4" /> {daily.reward}
+                <button type="button" className="mcl-h-dclaim" disabled={claiming} onClick={() => void claim()} data-daily-claim>
+                  <Coin className="mcl-h-dcoin" /> Claim {daily.reward}
                 </button>
               ) : (
-                <p className="mt-0.5 inline-flex items-center gap-1 font-[Cinzel] text-[15px] font-bold text-[#f2d27a]"><Coin className="size-5" />{daily.reward}</p>
+                <p className="mcl-h-damount inline-flex items-center"><Coin className="mcl-h-dcoin" />{daily.reward.toLocaleString()}</p>
               )}
             </div>
           </div>
-        </GoldPanel>
+        </section>
       ) : null}
 
       {/* playing now (real counts) */}
       {lobby ? (
-        <div className="mcl-panel absolute bottom-6 right-5 z-10 hidden items-center gap-3 rounded-xl px-4 py-3 md:flex" data-playing-now>
-          <svg viewBox="0 0 60 24" className="h-6 w-14 text-[#b06bff]" aria-hidden>
-            <path d="M0 12h10l4-9 6 18 6-14 4 8 4-4h26" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        <div className="mcl-h-online mcl-f-violet absolute z-10 hidden items-center md:flex" data-playing-now>
+          <svg viewBox="0 0 64 32" className="mcl-h-wave" aria-hidden>
+            <path d="M0 16h9l3-5 3 9 4-17 5 26 4-20 4 14 3-7 3 4 3-3h23" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
-          <span className="leading-tight">
-            <span className="block font-[Cinzel] text-[26px] font-bold tabular-nums text-[#f6e3ff]">{lobby.online.toLocaleString()}</span>
-            <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#d6b8ff]">online now · {lobby.liveGames} live {lobby.liveGames === 1 ? "game" : "games"}</span>
+          <span className="mcl-h-onum tabular-nums">{lobby.online.toLocaleString()}</span>
+          <span className="mcl-h-olabel">
+            Online now
+            <small>{lobby.liveGames} live {lobby.liveGames === 1 ? "game" : "games"}</small>
           </span>
-          <span className="mcl-live-dot" />
+          <span className="mcl-h-odot" />
         </div>
       ) : null}
-
       {/* the gear menu */}
       <div
         className="absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center pb-[max(0.75rem,env(safe-area-inset-bottom))]"
@@ -323,7 +333,7 @@ export function LegendaryLounge({
               key={it.key}
               type="button"
               tabIndex={menu ? 0 : -1}
-              className="mcl-menu-btn"
+              className={cn("mcl-menu-btn", it.purple ? "mcl-f-purple" : "mcl-f-gold")}
               style={{ transitionDelay: menu ? `${(items.length - 1 - i) * 32}ms` : "0ms" }}
               onClick={() => {
                 playSfx("whoosh");
@@ -332,7 +342,7 @@ export function LegendaryLounge({
               }}
               data-menu={it.key}
             >
-              <span className="text-[#f2d27a]">{it.icon}</span>
+              <span className="mcl-mi-wrap">{it.icon}</span>
               {it.label}
             </button>
           ))}
@@ -349,7 +359,7 @@ export function LegendaryLounge({
         </button>
       </div>
 
-      <p className="pointer-events-none absolute bottom-1 left-3 z-[5] hidden text-[10px] text-white/45 lg:block">© 2026 Morse Chess Legendary · same club, same coins</p>
+      <p className="mcl-h-copy pointer-events-none z-[5] hidden lg:block">© 2026 Morse Chess Legendary. Same club, same coins.</p>
 
       {rankings ? <RankingsModal lobby={lobby} photos={leaderPhotos} onClose={() => setRankings(false)} /> : null}
       {inboxOpen ? (
@@ -398,7 +408,8 @@ function RankingsModal({ lobby, photos, onClose }: { lobby: Lobby | null; photos
         <ol className="mt-3 space-y-2">
           {(lobby?.leaders ?? []).map((p) => (
             <li key={p.username} className="mcl-row flex items-center gap-3 rounded-lg px-3 py-2">
-              <PlaceBadge place={p.place} />
+              {p.place <= 3 ? <img src={ui(`rank${p.place}.webp`)} alt={`Place ${p.place}`} className="h-9 w-8 object-contain" /> : <PlaceBadge place={p.place} />}
+              <SquarePortrait userId={p.userId} photo={photos[p.userId]} look={p.look} letter={p.username[0]} className="!size-10" />
               <PlayerAvatar userId={p.userId} photo={photos[p.userId]} letter={p.username[0]} size={36} />
               <span className="flex-1 truncate text-sm font-semibold">{p.username}</span>
               <RankBadge score={p.score} size={24} showName />
@@ -437,5 +448,63 @@ function RankUp({ tierId, score, onDone }: { tierId: string; score: number; onDo
         <p className="font-[Cinzel] text-5xl font-bold" style={{ color: tier.color }}>{tier.name}</p>
       </div>
     </div>
+  );
+}
+
+/** Shared gold gradient for the solid icons (top bar), like the mockup's cast-gold glyphs. */
+function GoldDefs() {
+  return (
+    <svg width="0" height="0" className="absolute" aria-hidden>
+      <defs>
+        <linearGradient id="mcl-gold-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffe9a8" />
+          <stop offset="0.45" stopColor="#e7b450" />
+          <stop offset="1" stopColor="#a8711f" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function SolidUsers() {
+  return (
+    <svg viewBox="0 0 32 28" className="mcl-solid" aria-hidden>
+      <circle cx="11" cy="8" r="6" />
+      <path d="M0 26c0-7 5-11 11-11s11 4 11 11Z" />
+      <circle cx="23" cy="9" r="5" />
+      <path d="M21 15.5c1-.3 1.8-.5 2.6-.5 5 0 8.4 3.6 8.4 10H24c0-3.8-1.1-7-3-9.5Z" />
+    </svg>
+  );
+}
+
+function SolidMail() {
+  return (
+    <svg viewBox="0 0 34 26" className="mcl-solid" aria-hidden>
+      <path d="M2 3h30v20H2Z" />
+      <path d="M2.5 4 17 15 31.5 4" fill="none" stroke="#1a1208" strokeWidth="2.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SolidGear({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={cn("mcl-solid", className)} aria-hidden>
+      <path
+        fillRule="evenodd"
+        d="M13.4 1h5.2l.9 4.1c1 .3 2 .7 2.9 1.2l3.6-2.3 3.7 3.7-2.3 3.6c.5.9.9 1.9 1.2 2.9l4.1.9v5.2l-4.1.9c-.3 1-.7 2-1.2 2.9l2.3 3.6-3.7 3.7-3.6-2.3c-.9.5-1.9.9-2.9 1.2l-.9 4.1h-5.2l-.9-4.1c-1-.3-2-.7-2.9-1.2l-3.6 2.3L2.3 25.7l2.3-3.6c-.5-.9-.9-1.9-1.2-2.9L-.7 18.3v-5.2l4.1-.9c.3-1 .7-2 1.2-2.9L2.3 5.7 6 2l3.6 2.3c.9-.5 1.9-.9 2.9-1.2ZM16 10.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"
+        transform="translate(.35 0) scale(.98)"
+      />
+    </svg>
+  );
+}
+
+function CheckerIcon() {
+  const cells = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if ((r + c) % 2 === 0) cells.push(<rect key={`${r}${c}`} x={2 + c * 7} y={2 + r * 7} width="7" height="7" />);
+  return (
+    <svg viewBox="0 0 32 32" className="mcl-mi mcl-solid" aria-hidden>
+      <rect x="1" y="1" width="30" height="30" fill="none" stroke="url(#mcl-gold-fill)" strokeWidth="2" />
+      {cells}
+    </svg>
   );
 }
