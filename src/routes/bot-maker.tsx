@@ -184,10 +184,13 @@ function BotMaker() {
                   type="button"
                   data-summon-code={made.code}
                   onClick={() => summonBot(made.id)}
-                  className="mt-2 flex w-full justify-center gap-2"
+                  className="mt-2 flex w-full items-center justify-center gap-2.5"
                 >
                   {made.code.split("").map((ch, i) => (
-                    <span key={i} className="grid size-14 place-items-center rounded-lg border border-gold-line bg-walnut font-display text-3xl text-[#f6e7b2]">
+                    <span
+                      key={i}
+                      className="inline-flex size-14 shrink-0 items-center justify-center rounded-[10px] border border-gold-line bg-walnut font-display text-[1.75rem] leading-none text-[#f6e7b2]"
+                    >
                       {ch}
                     </span>
                   ))}
