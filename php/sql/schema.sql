@@ -422,3 +422,26 @@ CREATE TABLE IF NOT EXISTS `football_history` (
   KEY `football_history_white_idx` (`white_user_id`, `created_at`),
   KEY `football_history_black_idx` (`black_user_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Morse Chess Legendary (alltherex.com/chessledgendary): one row per player per Chicago day once the
+-- daily challenge reward is paid. The primary key makes the claim idempotent (additive table only).
+CREATE TABLE IF NOT EXISTS `legendary_daily_claims` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `day` VARCHAR(10) NOT NULL,
+  `challenge` VARCHAR(32) NOT NULL,
+  `reward` INT NOT NULL DEFAULT 0,
+  `claimed_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`, `day`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Legendary profile pictures (t337). The picture is re-encoded server-side (GD, ~256px square, no
+-- EXIF) and kept in the database as base64, never as a file on disk. kind = 'photo' or 'letter'
+-- (the player skipped and wears the first letter of their email). Additive table only.
+CREATE TABLE IF NOT EXISTS `legendary_photos` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `kind` VARCHAR(8) NOT NULL DEFAULT 'letter',
+  `letter` VARCHAR(4) NOT NULL DEFAULT '',
+  `mime` VARCHAR(32) NOT NULL DEFAULT '',
+  `data` MEDIUMTEXT NULL,
+  `version` INT NOT NULL DEFAULT 1,
+  `updated_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

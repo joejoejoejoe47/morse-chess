@@ -35,6 +35,10 @@ final class Api
                 Brain::handle();
             }
 
+            if ($path === '/api/photo') {
+                LegendaryPhoto::serve();
+            }
+
             if ($path === '/api/rtc') {
                 Signaling::handle();
             }
