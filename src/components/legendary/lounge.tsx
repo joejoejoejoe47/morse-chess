@@ -248,11 +248,14 @@ export function LegendaryLounge({
           {leaders.length === 0 ? <li className="mcl-h-lbempty">Loading…</li> : null}
           {leaders.slice(0, 3).map((p) => (
             <li key={p.username} className={cn("mcl-h-lbrow mcl-f-row", p.you && "is-you")} data-leader={p.place}>
-              <img src={ui(p.place === 1 ? "rank1.webp" : p.place === 2 ? "rank2.webp" : "rank3.webp")} alt={`Place ${p.place}`} className="mcl-h-lbemblem" draggable={false} />
+              <span className="mcl-h-lbbadge" title={`${rankFor(p.score).tier.name} rank`}>
+                <img src={ui(`tier-${rankFor(p.score).tier.id}.webp`)} alt={`${rankFor(p.score).tier.name} rank`} className="mcl-h-lbemblem" data-rank={rankFor(p.score).tier.id} draggable={false} />
+              </span>
               <SquarePortrait userId={p.userId} photo={leaderPhotos[p.userId]} look={p.look} letter={p.username[0]} className="mcl-h-lbpic" />
               <span className="mcl-h-lbtext min-w-0 flex-1">
                 <span className="mcl-h-lbname block truncate">{p.username}</span>
                 <span className="mcl-h-lbscore block tabular-nums">{p.score.toLocaleString()}</span>
+                <span className="mcl-h-lbtier block truncate" style={{ color: rankFor(p.score).tier.color }}>{rankFor(p.score).tier.name}</span>
               </span>
               <img src={ui(p.place === 1 ? "trophy.webp" : p.place === 2 ? "gem.webp" : "bronze.webp")} alt="" className="mcl-h-lbicon" draggable={false} />
             </li>
@@ -409,7 +412,7 @@ function RankingsModal({ lobby, photos, onClose }: { lobby: Lobby | null; photos
         <ol className="mt-3 space-y-2">
           {(lobby?.leaders ?? []).map((p) => (
             <li key={p.username} className="mcl-row flex items-center gap-3 rounded-lg px-3 py-2">
-              {p.place <= 3 ? <img src={ui(`rank${p.place}.webp`)} alt={`Place ${p.place}`} className="h-9 w-8 object-contain" /> : <PlaceBadge place={p.place} />}
+              <PlaceBadge place={p.place} />
               <SquarePortrait userId={p.userId} photo={photos[p.userId]} look={p.look} letter={p.username[0]} className="!size-10" />
               <PlayerAvatar userId={p.userId} photo={photos[p.userId]} letter={p.username[0]} size={36} />
               <span className="flex-1 truncate text-sm font-semibold">{p.username}</span>
