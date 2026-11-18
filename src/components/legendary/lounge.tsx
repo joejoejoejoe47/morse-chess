@@ -183,7 +183,7 @@ export function LegendaryLounge({
       <SeasonBackdrop season={season} />
 
       {/* the king */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-[14%] top-[12%] z-[1] mx-auto w-[min(70vw,520px)] sm:bottom-[10%]">
+      <div className="pointer-events-none absolute inset-x-0 bottom-[14%] top-[12%] z-[1] mx-auto w-[min(88vw,520px)] sm:bottom-[10%]">
         {loadout ? <AvatarKing loadout={loadout} username={username} /> : null}
       </div>
 
