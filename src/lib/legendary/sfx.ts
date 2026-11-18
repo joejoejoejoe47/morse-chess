@@ -5,10 +5,13 @@
  */
 import { asset } from "@/lib/base";
 
-export type Sfx = "whoosh" | "boom" | "coin" | "rankup" | "tap";
+export type Sfx = "whoosh" | "boom" | "coin" | "rankup" | "tap" | "menu";
 const KEY = "mcl-sfx-muted";
 export const SFX_EVENT = "mcl-sfx-changed";
-const VOLUME: Record<Sfx, number> = { whoosh: 0.28, boom: 0.75, coin: 0.5, rankup: 0.5, tap: 0.25 };
+const VOLUME: Record<Sfx, number> = { whoosh: 0.28, boom: 0.75, coin: 0.5, rankup: 0.5, tap: 0.25, menu: 0.6 };
+/** File per sound; "menu" is the user's own menu-open sound, whoosh if it is missing. */
+const FILE: Partial<Record<Sfx, string>> = { menu: "menu-open" };
+const broken = new Set<Sfx>();
 const cache = new Map<Sfx, HTMLAudioElement>();
 let lastAt = 0;
 
@@ -31,19 +34,24 @@ export function setSfxMuted(muted: boolean) {
 
 export function playSfx(name: Sfx) {
   if (typeof window === "undefined" || sfxMuted()) return;
+  if (broken.has(name)) name = "whoosh";
   const now = performance.now();
   if ((name === "whoosh" || name === "tap") && now - lastAt < 90) return;
   lastAt = now;
   try {
     let base = cache.get(name);
     if (!base) {
-      base = new Audio(asset(`/legendary/sfx/${name}.mp3`));
+      base = new Audio(asset(`/legendary/sfx/${FILE[name] ?? name}.mp3`));
       base.preload = "auto";
+      const which = name;
+      base.addEventListener("error", () => { if (which !== "whoosh") { broken.add(which); cache.delete(which); } });
       cache.set(name, base);
     }
     const a = base.cloneNode(true) as HTMLAudioElement;
     a.volume = VOLUME[name];
-    void a.play().catch(() => undefined);
+    void a.play().catch(() => {
+      if (name === "menu" && !broken.has("menu") && base?.error) { broken.add("menu"); playSfx("whoosh"); }
+    });
   } catch {
     /* audio is optional */
   }

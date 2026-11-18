@@ -40,3 +40,7 @@ frame('frame-row', [(0,(22,18,24)),(1,(12,10,14))], c=20, line=[(0,(176,138,70))
 frame('frame-violet', [(0,(16,11,30)),(0.5,(10,7,20)),(1,(14,9,28))], glow=(170,90,255,230))
 frame('frame-chip', [(0,(30,24,30)),(1,(12,10,14))], c=40, line=[(0,(120,96,60)),(1,(70,54,30))], outer=4, gap=0, inner_line=None, round_=True)
 frame('frame-btn', [(0,(28,22,26)),(1,(14,11,15))], c=20, outer=6, gap=0, inner_line=None)
+# gear-menu buttons: thick outer gold band, dark seam, bright inner gold line, chamfered ends
+MGOLD=[(0,(255,236,170)),(0.2,(232,186,90)),(0.5,(150,104,36)),(0.8,(222,176,86)),(1,(255,228,150))]
+frame('frame-menu-gold', [(0,(40,30,22)),(0.45,(20,15,12)),(1,(12,9,8))], c=30, line=MGOLD, outer=10, gap=6, inner_line=(236,192,98,255))
+frame('frame-menu-purple', [(0,(78,36,128)),(0.5,(48,18,92)),(1,(30,10,62))], c=30, line=MGOLD, outer=10, gap=6, inner_line=(236,192,98,255))
