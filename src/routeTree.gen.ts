@@ -28,6 +28,7 @@ import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as HistoryGameIdRouteImport } from './routes/history.$gameId'
 import { Route as PlayGameIdRouteImport } from './routes/play.$gameId'
 import { Route as VariantModeRouteImport } from './routes/variant.$mode'
+import { Route as WatchGameIdRouteImport } from './routes/watch.$gameId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -124,6 +125,11 @@ const VariantModeRoute = VariantModeRouteImport.update({
   path: '/variant/$mode',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WatchGameIdRoute = WatchGameIdRouteImport.update({
+  id: '/watch/$gameId',
+  path: '/watch/$gameId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
+  '/watch/$gameId': typeof WatchGameIdRoute
   '/history/': typeof HistoryIndexRoute
 }
 export interface FileRoutesByTo {
@@ -165,6 +172,7 @@ export interface FileRoutesByTo {
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
+  '/watch/$gameId': typeof WatchGameIdRoute
   '/history': typeof HistoryIndexRoute
 }
 export interface FileRoutesById {
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
+  '/watch/$gameId': typeof WatchGameIdRoute
   '/history/': typeof HistoryIndexRoute
 }
 export interface FileRouteTypes {
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
+    | '/watch/$gameId'
     | '/history/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
+    | '/watch/$gameId'
     | '/history'
   id:
     | '__root__'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
+    | '/watch/$gameId'
     | '/history/'
   fileRoutesById: FileRoutesById
 }
@@ -273,6 +285,7 @@ export interface RootRouteChildren {
   HistoryGameIdRoute: typeof HistoryGameIdRoute
   PlayGameIdRoute: typeof PlayGameIdRoute
   VariantModeRoute: typeof VariantModeRoute
+  WatchGameIdRoute: typeof WatchGameIdRoute
   HistoryIndexRoute: typeof HistoryIndexRoute
 }
 
@@ -411,6 +424,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VariantModeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/watch/$gameId': {
+      id: '/watch/$gameId'
+      path: '/watch/$gameId'
+      fullPath: '/watch/$gameId'
+      preLoaderRoute: typeof WatchGameIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -443,6 +463,7 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryGameIdRoute: HistoryGameIdRoute,
   PlayGameIdRoute: PlayGameIdRoute,
   VariantModeRoute: VariantModeRoute,
+  WatchGameIdRoute: WatchGameIdRoute,
   HistoryIndexRoute: HistoryIndexRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { LEGENDARY } from "@/lib/legendary/theme";
 
 export type RoomScene = "color" | "photo" | "space" | "model";
 
@@ -26,7 +27,8 @@ export const DEFAULT_LOOK: LookPrefs = {
   roomImage: null,
   roomScene: "color",
   modelRev: 0,
-  pieceTip: true,
+  // Legendary keeps the board calm: piece marks start off (one tap in More turns them on).
+  pieceTip: !LEGENDARY,
   fightZoom: false,
   dayRun: true,
   dayHold: 0.62,
@@ -77,7 +79,7 @@ function parsePrefs(raw: string | null): LookPrefs {
       roomImage,
       roomScene: roomSceneOf(parsed, roomImage),
       modelRev: typeof parsed.modelRev === "number" && Number.isFinite(parsed.modelRev) ? parsed.modelRev : 0,
-      pieceTip: parsed.pieceTip !== false,
+      pieceTip: typeof parsed.pieceTip === "boolean" ? parsed.pieceTip : DEFAULT_LOOK.pieceTip,
       fightZoom: parsed.fightZoom === true,
       dayRun: parsed.dayRun !== false,
       dayHold: typeof parsed.dayHold === "number" && Number.isFinite(parsed.dayHold) ? Math.min(1, Math.max(0, parsed.dayHold)) : 0.62,

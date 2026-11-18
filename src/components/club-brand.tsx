@@ -4,6 +4,7 @@ import { ThemeToggle } from "@/components/theme";
 import { ClubSignOut } from "@/components/club-sign-out";
 import { BellControls } from "@/components/bell-button";
 import { cn } from "@/lib/utils";
+import { LEGENDARY } from "@/lib/legendary/theme";
 
 export function MorseCrest({ className }: { className?: string }) {
   return (
@@ -21,7 +22,12 @@ export function MorseCrest({ className }: { className?: string }) {
 
 export function ClubBrand({ to, tone = "light" }: { to?: "/"; tone?: "light" | "dark" }) {
   const color = tone === "dark" ? "#1c1914" : "#f6f1e4";
-  const inner = (
+  const inner = LEGENDARY ? (
+    <span className="flex flex-col items-start leading-none" data-legendary-brand>
+      <span className="mcl-wordmark text-[1.55rem]">MORSE CHESS</span>
+      <span className="mt-0.5 font-[Cinzel] text-[10px] font-bold tracking-[0.45em] text-[#b58cff]">LEGENDARY</span>
+    </span>
+  ) : (
     <>
       <MorseCrest />
       <span

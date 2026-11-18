@@ -190,6 +190,7 @@ export function PedestalStage({
   spin,
   legacy = false,
   letter = "",
+  bare = false,
 }: {
   finish: KingFinish;
   crownId: string;
@@ -198,6 +199,8 @@ export function PedestalStage({
   spin: boolean;
   legacy?: boolean;
   letter?: string;
+  /** Just the king and a soft shadow (Legendary home: he stands on the background picture). */
+  bare?: boolean;
 }) {
   const finish = useMemo(() => (team === "b" ? darkFinish(chosen) : chosen), [chosen, team]);
   const coronet = legacy && crownId === "poly-band";
@@ -208,7 +211,7 @@ export function PedestalStage({
     if (spin) spun.current = Math.min(spun.current + dt * 5.2, Math.PI * 2);
     else spun.current = 0;
     turn.current.rotation.y = spun.current;
-    turn.current.position.y = 0.26 + Math.sin((spun.current / (Math.PI * 2)) * Math.PI) * 0.35;
+    turn.current.position.y = (bare ? 0 : 0.26) + Math.sin((spun.current / (Math.PI * 2)) * Math.PI) * 0.35;
   });
   return (
     <>
@@ -216,7 +219,13 @@ export function PedestalStage({
       <spotLight position={[2.4, 6, 3.4]} angle={0.42} penumbra={0.7} intensity={70} castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[-3, 2.5, -2.5]} intensity={1.1} color="#ffd9a0" />
       <pointLight position={[0, 1.4, 2.6]} intensity={2.2} color="#fff1d6" />
-      {board ? <BoardFloor /> : <WoodFloor />}
+      {bare ? (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
+          <circleGeometry args={[2.2, 64]} />
+          <shadowMaterial transparent opacity={0.45} />
+        </mesh>
+      ) : board ? <BoardFloor /> : <WoodFloor />}
+      {bare ? null : (<>
       <mesh position={[0, 0.07, 0]} receiveShadow castShadow>
         <cylinderGeometry args={[1.25, 1.32, 0.14, 96]} />
         <meshStandardMaterial color="#1c1a18" roughness={0.55} metalness={0.25} />
@@ -229,7 +238,8 @@ export function PedestalStage({
         <torusGeometry args={[1.255, 0.008, 8, 128]} />
         <meshStandardMaterial color="#8a6a2c" metalness={1} roughness={0.35} />
       </mesh>
-      <group ref={turn} position={[0, 0.26, 0]} rotation={[0, 0, 0]}>
+      </>)}
+      <group ref={turn} position={[0, bare ? 0 : 0.26, 0]} rotation={[0, 0, 0]}>
         {legacy ? (
           <LegacyKing finish={finish} coronet={coronet} letter={letter} crownId={crownId} team={team} />
         ) : (

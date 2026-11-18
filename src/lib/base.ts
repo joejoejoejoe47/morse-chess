@@ -16,6 +16,21 @@ function readBase(): string {
 
 export const BASE = readBase();
 
+/**
+ * Where the router lives. Morse Chess Legendary is served from /chessledgendary/ but shares the
+ * /chess API, models and sounds, so its page sets MORSE_ROUTER_BASE while MORSE_BASE stays "/chess".
+ */
+export const ROUTER_BASE = (() => {
+  if (typeof window === "undefined") return BASE;
+  const raw = (window as { MORSE_ROUTER_BASE?: string }).MORSE_ROUTER_BASE;
+  return typeof raw === "string" && raw.trim() !== "" ? raw.trim().replace(/\/+$/, "") : BASE;
+})();
+
+/** A page path inside the app ("/boards") for full-page navigation. */
+export function pageUrl(path: string): string {
+  return ROUTER_BASE + path;
+}
+
 /** Content hashes of the models and sounds in public/, filled in at build time (vite.config.ts). */
 declare const __ASSET_VERSIONS__: Record<string, string> | undefined;
 const VERSIONS: Record<string, string> = typeof __ASSET_VERSIONS__ === "undefined" ? {} : __ASSET_VERSIONS__;
