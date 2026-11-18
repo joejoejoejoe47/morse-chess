@@ -1,0 +1,9 @@
+# Apache / LiteSpeed / Plesk: every Legendary page is the same app shell.
+Options -Indexes
+DirectoryIndex index.php
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+  RewriteRule ^ index.php [L]
+</IfModule>

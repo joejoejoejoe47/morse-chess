@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Chess, type Square } from "chess.js";
-import { Flag, ImagePlus, Undo2 } from "lucide-react";
+import { Flag, ImagePlus, Undo2, Volume2, VolumeX } from "lucide-react";
 import { BOT_REPLY_EVENT, askBot, botForGame, publishLiveGame } from "@/lib/bots/store";
 import { coachAllowed } from "@/lib/fair-play";
 import {
@@ -56,6 +56,11 @@ import { useRoomModelUrl } from "@/lib/chess/room-model";
 import { LoadingTitle } from "@/components/loading-title";
 import { NamePlate } from "@/components/avatar/name-plate";
 import { RaBuy } from "@/components/avatar/ra-buy";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { playSfx, setSfxMuted } from "@/lib/legendary/sfx";
+import { useSfxMuted } from "@/components/legendary/settings";
+import { LegendaryWin } from "@/components/legendary/win-screen";
+import { LgBarButton, LgLogo, LgMoveHistory, LgPlayerCard, usePhotos } from "@/components/legendary/game-chrome";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
@@ -64,6 +69,8 @@ const PULL_LINES = ["WOW! Great Move!", "NOOOOO!", "Good Game!!!", "Nice!"] as c
 
 const DARK_ROOM = "#0c0d0b";
 const LIGHT_ROOM = "#f6f1e4";
+/** Legendary: a calm deep purple-black room (game-ref.jpg). */
+const LEGENDARY_ROOM = "#0b0810";
 
 function colorLightness(r: number, g: number, b: number) {
   return (Math.max(r, g, b) + Math.min(r, g, b)) / 2 / 255;
@@ -347,9 +354,34 @@ function ResultOverlay({ game }: { game: GameSnapshot }) {
 
   const [closed, setClosed] = useState(false);
   if (closed) return null;
+  if (LEGENDARY && won && !again) {
+    return (
+      <LegendaryWin
+        coinAward={game.coinAward}
+        elo={game.myScore}
+        eloDelta={formatEloDelta(game.scorePrize ?? 0)}
+        reason={game.lastMove?.san.includes("#") ? "Checkmate is yours" : "Your opponent resigned or ran out of time"}
+        actions={
+          <>
+            {game.pull ? (
+              <button type="button" className="mcl-btn mcl-btn-gold" onClick={() => setAgain(true)}>
+                Play again
+              </button>
+            ) : null}
+            <Link to="/" className={game.pull ? "mcl-btn mcl-btn-ghost" : "mcl-btn mcl-btn-gold"}>
+              Return to the lounge
+            </Link>
+            <button type="button" className="text-xs text-[#a998c4] underline-offset-4 hover:underline" onClick={() => setClosed(true)}>
+              Look at the board
+            </button>
+          </>
+        }
+      />
+    );
+  }
   return (
     <div className="absolute inset-0 z-20 grid place-items-center bg-ink/75 px-5">
-      <div className="relative w-full max-w-md rounded-xl border border-line bg-panel p-8 text-center">
+      <div className="relative w-full max-w-md rounded-xl border border-line bg-panel p-8 text-center" data-result-card>
         <button type="button" aria-label="Close" className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-2xl leading-none text-ivory hover:bg-panel-2" onClick={() => setClosed(true)}>
           ×
         </button>
@@ -408,7 +440,7 @@ export function GameView({ gameId }: { gameId: string }) {
   const roomColor = prefs.roomColor ?? DARK_ROOM;
   const modelUrl = useRoomModelUrl(prefs.roomScene === "model", prefs.modelRev);
   const cosmic = wash === "color" && (prefs.roomScene === "space" || prefs.roomScene === "model");
-  const room = wash === "light" ? LIGHT_ROOM : wash === "dark" ? DARK_ROOM : cosmic ? "#05060c" : roomColor;
+  const room = wash === "light" ? LIGHT_ROOM : wash === "dark" ? (LEGENDARY ? LEGENDARY_ROOM : DARK_ROOM) : cosmic ? "#05060c" : roomColor;
   const roomImage = wash === "color" && prefs.roomScene === "photo" ? prefs.roomImage : null;
   const liveScene = wash === "color" ? prefs.roomScene : "color";
   const backdropLight =
@@ -464,6 +496,17 @@ export function GameView({ gameId }: { gameId: string }) {
   const [shakeId, setShakeId] = useState(0);
   const turnRef = useRef<string | null>(null);
   const resultRef = useRef<string | null>(null);
+  // Legendary: deep boom on checkmate, mute switch in the bar, player photos on the cards.
+  const boomFor = useRef<string | null>(null);
+  const sfxOff = useSfxMuted();
+  const [lgMore, setLgMore] = useState(false);
+  const photos = usePhotos(LEGENDARY && game ? [game.white.userId, game.black.userId] : []);
+  useEffect(() => {
+    if (!LEGENDARY || !game || game.status === "active") return;
+    if (boomFor.current === game.id || !game.lastMove?.san.includes("#")) return;
+    boomFor.current = game.id;
+    playSfx("boom");
+  }, [game]);
 
   function fireBlast(sq: string, id: string, accountId: string) {
     setBlast({ sq, id });
@@ -787,13 +830,15 @@ export function GameView({ gameId }: { gameId: string }) {
     blast: variant === "atomic" ? blast : null,
   };
   const preview = variant ? isOwnerPreview(variant, myName) : false;
+  const myLook = game.you === "w" ? game.whiteLook : game.blackLook;
+  const oppLook = game.you === "w" ? game.blackLook : game.whiteLook;
 
   return (
     <main
       className="relative flex h-dvh max-h-dvh flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
       style={roomBackdrop(room, roomImage)}
     >
-      <header data-coin-bar className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
+      <header data-coin-bar className={cn("relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3", LEGENDARY && "hidden")}>
         <ClubBrand to="/" tone={backdropLight ? "dark" : "light"} />
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <span className="hidden text-[15px] text-mist md:inline">
@@ -1040,7 +1085,7 @@ export function GameView({ gameId }: { gameId: string }) {
             />
           </div>
         ) : null}
-        <div className="pointer-events-none absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 flex justify-between gap-2 sm:inset-x-4 sm:bottom-4">
+        <div className={cn("pointer-events-none absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 flex justify-between gap-2 sm:inset-x-4 sm:bottom-4", LEGENDARY && "hidden")}>
           <div className="pl-16">
             <HudChip
               label="Opponent"
@@ -1059,6 +1104,117 @@ export function GameView({ gameId }: { gameId: string }) {
             align="right"
           />
         </div>
+        {LEGENDARY ? (
+          <>
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4 sm:pt-3" data-legendary-top>
+              <div className="pointer-events-auto">
+                <LgPlayerCard
+                  name={oppName}
+                  score={opp.score}
+                  userId={vsBot ? null : opp.userId}
+                  photo={vsBot ? null : photos[opp.userId]}
+                  look={oppLook}
+                  clock={game.mode === "timed" ? oppClock : null}
+                  hot={!myTurn && !over}
+                />
+              </div>
+              <div className="hidden pt-1 sm:block">
+                <LgLogo small />
+                <p className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#9c8f74]">
+                  {variant ? `${VARIANT_INFO[variant].name} · ` : ""}
+                  {game.mode === "timed" ? `Timed ${Math.max(1, Math.round((game.clockMs ?? 300_000) / 60_000))} min` : "Breeze"} · {over ? "Board closed" : myTurn ? "Your move" : "Waiting"}
+                </p>
+              </div>
+              <div className="pointer-events-auto">
+                <LgPlayerCard
+                  name={myName}
+                  score={game.myScore}
+                  userId={selfId}
+                  photo={photos[selfId]}
+                  look={myLook}
+                  clock={game.mode === "timed" ? myClock : null}
+                  hot={myTurn && !over}
+                  label="You"
+                  align="right"
+                />
+              </div>
+            </div>
+            <LgMoveHistory moves={game.moves} className={cn("absolute bottom-[4.25rem] right-3 z-10 hidden md:block", game.chatOpen && "md:hidden")} />
+            <div className="absolute inset-x-0 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-20 flex justify-center px-2" data-legendary-bar>
+              <div className="relative flex max-w-full flex-wrap items-center justify-center gap-1.5">
+                {game.status === "active" ? (
+                  <LgBarButton
+                    title="Resign"
+                    onClick={async () => {
+                      playSfx("tap");
+                      const snap = await resignGame({ data: { gameId } });
+                      if (snap) applySnap(snap, true);
+                    }}
+                    data-lg-resign
+                  >
+                    <Flag className="size-3.5" /> Resign
+                  </LgBarButton>
+                ) : (
+                  <Link to="/" className="mcl-bar-btn">
+                    <Undo2 className="size-3.5" /> Lounge
+                  </Link>
+                )}
+                <div className="mcl-bar-seg" data-lg-modes>
+                  {(["2d", "3d", "an"] as const).map((m) => (
+                    <button key={m} type="button" className={cn(view === m && "is-on")} onClick={() => { playSfx("tap"); setBoardView(m); }}>
+                      {m.toUpperCase()}
+                    </button>
+                  ))}
+                  <button type="button" className={cn(lgOn && "is-on")} onClick={() => { playSfx("tap"); setLegoScene("latest"); setBoardView("lg"); }}>
+                    LG
+                  </button>
+                  <RaBuy active={view === "ra"} onView={() => setBoardView("ra")} onLocked={() => setBoardView("3d")} className={cn(view === "ra" && "is-on")} />
+                </div>
+                <LgBarButton
+                  title="Table chat"
+                  active={Boolean(game.chatOpen)}
+                  onClick={async () => {
+                    playSfx("tap");
+                    const snap = game.chatOpen ? await closeGameChat({ data: { gameId } }) : await openGameChat({ data: { gameId } });
+                    if (snap) applySnap(snap, true);
+                  }}
+                  data-lg-chat
+                >
+                  Chat
+                </LgBarButton>
+                <LgBarButton title="More" active={lgMore} onClick={() => setLgMore((v) => !v)} data-lg-more>
+                  More
+                </LgBarButton>
+                <LgBarButton title={sfxOff ? "Sound effects off" : "Sound effects on"} onClick={() => setSfxMuted(!sfxOff)} className="!px-2.5" data-lg-sfx={sfxOff ? "off" : "on"}>
+                  {sfxOff ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+                </LgBarButton>
+                {lgMore ? (
+                  <div className="mcl-card absolute bottom-full right-0 mb-2 grid w-56 gap-1.5 rounded-lg p-2" data-lg-more-menu>
+                    <LgBarButton active={prefs.pieceTip} onClick={() => saveLookPrefs({ pieceTip: !prefs.pieceTip })}>Mark pieces</LgBarButton>
+                    <LgBarButton active={prefs.fightZoom} onClick={() => saveLookPrefs({ fightZoom: !prefs.fightZoom })}>Fight zoom</LgBarButton>
+                    <LgBarButton onClick={() => { setLgMore(false); setTuning(true); }}>Board look</LgBarButton>
+                    <div className="mcl-bar-seg w-full">
+                      <button type="button" className={cn("flex-1", wash === "dark" && "is-on")} onClick={() => setWash("dark")}>Dark</button>
+                      <button type="button" className={cn("flex-1", wash === "light" && "is-on")} onClick={() => setWash("light")}>Light</button>
+                      <button type="button" className={cn("flex-1", wash === "color" && "is-on")} onClick={() => setWash("color")}>Color</button>
+                    </div>
+                    {vsBot ? null : (
+                      <LgBarButton
+                        active={Boolean(game.cameraOpen)}
+                        onClick={async () => {
+                          const snap = game.cameraOpen ? await closeGameCamera({ data: { gameId } }) : await openGameCamera({ data: { gameId } });
+                          if (snap) applySnap(snap, true);
+                        }}
+                      >
+                        {game.cameraOpen ? "Camera off" : "Real life camera"}
+                      </LgBarButton>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </>
+        ) : null}
         {promo && !over ? (
           <PromotionPicker
             you={game.you}
@@ -1273,7 +1429,7 @@ export function GameView({ gameId }: { gameId: string }) {
             )}
           </aside>
         ) : (
-          <div className="absolute right-3 top-[42%] z-10 flex -translate-y-1/2 flex-col items-end gap-2">
+          <div className={cn("absolute right-3 top-[42%] z-10 flex -translate-y-1/2 flex-col items-end gap-2", LEGENDARY && "hidden")}>
             <button
               type="button"
               className="min-h-11 rounded-full border border-line bg-ink/80 px-4 py-2 text-sm text-ivory backdrop-blur-sm hover:border-line-strong"

@@ -20,5 +20,9 @@ for d in site/app; do
 <configuration><system.webServer><security><authorization><remove users="*" roles="" verbs="" /><add accessType="Deny" users="*" /></authorization></security></system.webServer></configuration>
 XML
 done
+# Morse Chess Legendary: a tiny front controller that re-skins the same build from a sibling folder.
+rm -rf site-legendary && mkdir -p site-legendary
+cp php/public-legendary/index.php php/public-legendary/.htaccess php/public-legendary/web.config site-legendary/
 echo "Built site/ — upload its CONTENTS to your chess folder."
+echo "Built site-legendary/ — upload its CONTENTS to chessledgendary/ next to chess/."
 command -v zip >/dev/null && (cd site && zip -qr ../site.zip . && echo "Also wrote site.zip") || true

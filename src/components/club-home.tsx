@@ -32,6 +32,8 @@ import { BOT_EVENT, lastBot, rememberBotGame, touchBot, type MyBot } from "@/lib
 import { JoinSlips } from "@/components/club/join-slips";
 import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 import { getAvatar } from "@/lib/server/avatar";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { LegendaryLounge } from "@/components/legendary/lounge";
 
 const PieceSetup = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.PieceSetup })));
 const SetupLook = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.SetupLook })));
@@ -381,141 +383,8 @@ export function ClubHome() {
     );
   }
 
-  return (
-    <main className="relative mx-auto min-h-dvh w-full max-w-6xl px-4 py-3 sm:px-8 sm:py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      <div className="check-wash pointer-events-none absolute inset-0" />
-      <header className="sticky top-0 z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-ink/88 px-4 py-3 backdrop-blur-md sm:-mx-8 sm:px-8">
-        <ClubBrand />
-        <ClubHeaderActions
-          username={home.profile.username}
-          score={home.profile.score}
-          extra={
-            <>
-            <Link
-              to="/boards"
-              className="felt-inset inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-5 text-[15px] font-medium text-ivory hover:border-line-strong"
-            >
-              <PieceMark kind="k" className="size-4 text-cream" />
-              Board
-            </Link>
-            <Link
-              to="/avatar"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-line/55 bg-walnut px-5 text-[15px] font-medium text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] hover:border-gold-line hover:text-ivory"
-            >
-              AV
-            </Link>
-            </>
-          }
-        />
-      </header>
-
-      <section className="relative mt-5">
-        <p className="text-xs uppercase tracking-[0.2em] text-mist">The lounge</p>
-        <h1 className="mt-2 max-w-2xl font-display text-4xl text-ivory">Your board is waiting.</h1>
-        <p className="mt-3 max-w-xl text-base text-mist">
-          Pull a random seat. Everyone online is asked. The first yes sits. Two random players in the same five
-          seconds pair at once. Alone in the chair, MorseBot sits. Timed games give each player one
-          minute per turn.
-        </p>
-        {error && flow.kind === "idle" ? <p className="mt-3 text-base text-danger">{error}</p> : null}
-      </section>
-
-      <section className="relative mt-8 grid gap-4 md:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => setFlow({ kind: "select-game", intent: "random" })}
-          className="felt-inset rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
-        >
-          <div className="flex items-center gap-3">
-            <CheckTile />
-            <PieceMark kind="n" className="size-7 text-cream" />
-          </div>
-          <h2 className="mt-4 font-display text-2xl text-ivory">Random pull-up</h2>
-          <p className="mt-2 text-sm text-mist">
-            Sit across from whoever answers first. Everyone at the boards is asked. Two random players pair
-            at once. Five seconds with no yes is an error — unless you are sitting alone, then MorseBot
-            takes the chair.
-          </p>
-        </button>
-        <button
-          type="button"
-          onClick={() => setFlow({ kind: "select-game", intent: "challenge" })}
-          className="felt-inset rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
-        >
-          <div className="flex items-center gap-3">
-            <CheckTile />
-            <PieceMark kind="k" className="size-7 text-cream" />
-          </div>
-          <h2 className="mt-4 font-display text-2xl text-ivory">Intended pull-up</h2>
-          <p className="mt-2 text-sm text-mist">
-            Type the user's username. The user must have signed in and created that account. The user taps yes, and you
-            both sit at the 3D table. MorseBot answers if you name MorseBot.
-          </p>
-        </button>
-      </section>
-      <Link
-        to="/club"
-        className="relative mt-4 flex min-h-14 w-full items-center justify-center rounded-xl border border-gold-line/55 bg-walnut/90 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
-      >
-        CHESS CLUB
-      </Link>
-      <Link
-        to="/history"
-        data-history-button
-        className="relative mt-3 flex min-h-14 w-full items-center justify-center rounded-none border border-gold-line/55 bg-ink/80 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
-      >
-        HISTORY
-      </Link>
-      <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-2">
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
-          onClick={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot" }); }}
-        >
-          <PieceMark kind="p" className="size-4 text-cream" />
-          Timed or breeze vs {BOT_USERNAME}
-        </button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
-          onClick={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot-v2" }); }}
-        >
-          <PieceMark kind="q" className="size-4 text-cream" />
-          Timed or breeze vs {BOT_V2_USERNAME}
-        </button>
-        {loungeBot ? (
-          <button
-            key={loungeBot.id}
-            type="button"
-            data-my-bot-play={loungeBot.id}
-            className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
-            onClick={() => {
-              touchBot(loungeBot.id);
-              setMyBot(loungeBot);
-              setFlow({ kind: "pick-mode", intent: "bot-v2" });
-            }}
-          >
-            <PieceMark kind="b" className="size-4 text-cream" />
-            Timed or breeze vs {loungeBot.name}
-          </button>
-        ) : null}
-        <Link
-          to="/bot-maker"
-          data-create-bot-link
-          className="inline-flex items-center gap-2 text-sm text-[#e7c56a] underline-offset-4 hover:text-ivory hover:underline"
-        >
-          <PieceMark kind="n" className="size-4 text-cream" />
-          Create Bot / Coach / Teacher
-        </Link>
-      </div>
-
-      <section className="relative mt-10 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="min-h-48">
-          <div className="flex items-center gap-2">
-            <PieceMark kind="q" className="size-5 text-cream" />
-            <h2 className="font-display text-2xl">Challenges</h2>
-          </div>
-          <p className="mt-1 text-sm text-mist">Slips land here the moment someone names you.</p>
+  const challengesList = (
+    <>
           <JoinSlips />
           <div className="mt-5 space-y-3">
             {home.inbox.filter(live).length === 0 ? (
@@ -606,62 +475,10 @@ export function ClubHome() {
                 </div>
               ))}
           </div>
-        </Card>
-
-        <div className="space-y-4">
-          <Card>
-            <div className="flex items-center gap-2">
-              <PieceMark kind="r" className="size-5 text-cream" />
-              <h2 className="font-display text-2xl">At the boards</h2>
-            </div>
-            <div className="mt-4 space-y-2">
-              {home.online.length === 0 ? (
-                <p className="text-sm text-mist">
-                  The other chairs are empty. Only people you have already played on an intended pull-up show up here. MorseBot, the house chess master, is always ready.
-                </p>
-              ) : (
-                home.online.map((p) => (
-                  <button
-                    key={p.username}
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left hover:bg-panel-2"
-                    onClick={() => {
-                      setTarget(p.username);
-                      setFlow({ kind: "pick-mode", intent: "challenge" });
-                    }}
-                  >
-                    <span className="inline-flex items-center gap-2 text-sm text-ivory">
-                      <PieceMark kind="p" className="size-4 text-mist" />
-                      {p.username}
-                    </span>
-                    <span className="font-mono text-xs tabular-nums text-mist">{p.score}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          </Card>
-          <Card>
-            <div className="flex items-center gap-2">
-              <PieceMark kind="b" className="size-5 text-cream" />
-              <h2 className="font-display text-2xl">Standings</h2>
-            </div>
-            <ol className="mt-4 space-y-2">
-              {home.leaders.map((p, i) => (
-                <li key={p.username} className="flex items-center justify-between text-sm">
-                  <span className="text-mist">
-                    <span className="mr-2 font-mono tabular-nums text-cream">{i + 1}</span>
-                    {p.username}
-                  </span>
-                  <span className="font-mono tabular-nums text-ivory">{p.score}</span>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        </div>
-      </section>
-
-      <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
-
+    </>
+  );
+  const overlays = (
+    <>
       {flow.kind === "select-game" ? (
         <PullUpScreen
           intent={flow.intent}
@@ -1023,6 +840,223 @@ export function ClubHome() {
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (LEGENDARY) {
+    const liveInbox = home.inbox.filter(live).length;
+    return (
+      <>
+        <LegendaryLounge
+          userId={user.id}
+          username={home.profile.username}
+          score={home.profile.score}
+          coins={home.profile.coins}
+          email={user.primaryEmail ?? null}
+          onPlayOnline={() => setFlow({ kind: "select-game", intent: "random" })}
+          onPlayBot={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot" }); }}
+          challenges={challengesList}
+          inboxCount={liveInbox}
+          error={error && flow.kind === "idle" ? error : null}
+        />
+        {overlays}
+      </>
+    );
+  }
+
+  return (
+    <main className="relative mx-auto min-h-dvh w-full max-w-6xl px-4 py-3 sm:px-8 sm:py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="check-wash pointer-events-none absolute inset-0" />
+      <header className="sticky top-0 z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-ink/88 px-4 py-3 backdrop-blur-md sm:-mx-8 sm:px-8">
+        <ClubBrand />
+        <ClubHeaderActions
+          username={home.profile.username}
+          score={home.profile.score}
+          extra={
+            <>
+            <Link
+              to="/boards"
+              className="felt-inset inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-5 text-[15px] font-medium text-ivory hover:border-line-strong"
+            >
+              <PieceMark kind="k" className="size-4 text-cream" />
+              Board
+            </Link>
+            <Link
+              to="/avatar"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-gold-line/55 bg-walnut px-5 text-[15px] font-medium text-cream shadow-[0_8px_20px_rgba(0,0,0,0.28)] hover:border-gold-line hover:text-ivory"
+            >
+              AV
+            </Link>
+            </>
+          }
+        />
+      </header>
+
+      <section className="relative mt-5">
+        <p className="text-xs uppercase tracking-[0.2em] text-mist">The lounge</p>
+        <h1 className="mt-2 max-w-2xl font-display text-4xl text-ivory">Your board is waiting.</h1>
+        <p className="mt-3 max-w-xl text-base text-mist">
+          Pull a random seat. Everyone online is asked. The first yes sits. Two random players in the same five
+          seconds pair at once. Alone in the chair, MorseBot sits. Timed games give each player one
+          minute per turn.
+        </p>
+        {error && flow.kind === "idle" ? <p className="mt-3 text-base text-danger">{error}</p> : null}
+      </section>
+
+      <section className="relative mt-8 grid gap-4 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setFlow({ kind: "select-game", intent: "random" })}
+          className="felt-inset rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
+        >
+          <div className="flex items-center gap-3">
+            <CheckTile />
+            <PieceMark kind="n" className="size-7 text-cream" />
+          </div>
+          <h2 className="mt-4 font-display text-2xl text-ivory">Random pull-up</h2>
+          <p className="mt-2 text-sm text-mist">
+            Sit across from whoever answers first. Everyone at the boards is asked. Two random players pair
+            at once. Five seconds with no yes is an error — unless you are sitting alone, then MorseBot
+            takes the chair.
+          </p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setFlow({ kind: "select-game", intent: "challenge" })}
+          className="felt-inset rounded-xl border border-line p-6 text-left transition-[border-color] duration-200 hover:border-line-strong"
+        >
+          <div className="flex items-center gap-3">
+            <CheckTile />
+            <PieceMark kind="k" className="size-7 text-cream" />
+          </div>
+          <h2 className="mt-4 font-display text-2xl text-ivory">Intended pull-up</h2>
+          <p className="mt-2 text-sm text-mist">
+            Type the user's username. The user must have signed in and created that account. The user taps yes, and you
+            both sit at the 3D table. MorseBot answers if you name MorseBot.
+          </p>
+        </button>
+      </section>
+      <Link
+        to="/club"
+        className="relative mt-4 flex min-h-14 w-full items-center justify-center rounded-xl border border-gold-line/55 bg-walnut/90 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
+      >
+        CHESS CLUB
+      </Link>
+      <Link
+        to="/history"
+        data-history-button
+        className="relative mt-3 flex min-h-14 w-full items-center justify-center rounded-none border border-gold-line/55 bg-ink/80 px-6 font-display text-2xl tracking-[0.28em] text-ivory shadow-[0_10px_24px_rgba(0,0,0,0.28)] hover:border-gold-line"
+      >
+        HISTORY
+      </Link>
+      <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
+          onClick={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot" }); }}
+        >
+          <PieceMark kind="p" className="size-4 text-cream" />
+          Timed or breeze vs {BOT_USERNAME}
+        </button>
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
+          onClick={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot-v2" }); }}
+        >
+          <PieceMark kind="q" className="size-4 text-cream" />
+          Timed or breeze vs {BOT_V2_USERNAME}
+        </button>
+        {loungeBot ? (
+          <button
+            key={loungeBot.id}
+            type="button"
+            data-my-bot-play={loungeBot.id}
+            className="inline-flex items-center gap-2 text-sm text-mist underline-offset-4 hover:text-ivory hover:underline"
+            onClick={() => {
+              touchBot(loungeBot.id);
+              setMyBot(loungeBot);
+              setFlow({ kind: "pick-mode", intent: "bot-v2" });
+            }}
+          >
+            <PieceMark kind="b" className="size-4 text-cream" />
+            Timed or breeze vs {loungeBot.name}
+          </button>
+        ) : null}
+        <Link
+          to="/bot-maker"
+          data-create-bot-link
+          className="inline-flex items-center gap-2 text-sm text-[#e7c56a] underline-offset-4 hover:text-ivory hover:underline"
+        >
+          <PieceMark kind="n" className="size-4 text-cream" />
+          Create Bot / Coach / Teacher
+        </Link>
+      </div>
+
+      <section className="relative mt-10 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <Card className="min-h-48">
+          <div className="flex items-center gap-2">
+            <PieceMark kind="q" className="size-5 text-cream" />
+            <h2 className="font-display text-2xl">Challenges</h2>
+          </div>
+          <p className="mt-1 text-sm text-mist">Slips land here the moment someone names you.</p>
+          {challengesList}
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <div className="flex items-center gap-2">
+              <PieceMark kind="r" className="size-5 text-cream" />
+              <h2 className="font-display text-2xl">At the boards</h2>
+            </div>
+            <div className="mt-4 space-y-2">
+              {home.online.length === 0 ? (
+                <p className="text-sm text-mist">
+                  The other chairs are empty. Only people you have already played on an intended pull-up show up here. MorseBot, the house chess master, is always ready.
+                </p>
+              ) : (
+                home.online.map((p) => (
+                  <button
+                    key={p.username}
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left hover:bg-panel-2"
+                    onClick={() => {
+                      setTarget(p.username);
+                      setFlow({ kind: "pick-mode", intent: "challenge" });
+                    }}
+                  >
+                    <span className="inline-flex items-center gap-2 text-sm text-ivory">
+                      <PieceMark kind="p" className="size-4 text-mist" />
+                      {p.username}
+                    </span>
+                    <span className="font-mono text-xs tabular-nums text-mist">{p.score}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </Card>
+          <Card>
+            <div className="flex items-center gap-2">
+              <PieceMark kind="b" className="size-5 text-cream" />
+              <h2 className="font-display text-2xl">Standings</h2>
+            </div>
+            <ol className="mt-4 space-y-2">
+              {home.leaders.map((p, i) => (
+                <li key={p.username} className="flex items-center justify-between text-sm">
+                  <span className="text-mist">
+                    <span className="mr-2 font-mono tabular-nums text-cream">{i + 1}</span>
+                    {p.username}
+                  </span>
+                  <span className="font-mono tabular-nums text-ivory">{p.score}</span>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </div>
+      </section>
+
+      <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
+
+      {overlays}
     </main>
   );
 }

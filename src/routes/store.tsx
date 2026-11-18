@@ -9,6 +9,8 @@ import { openGc } from "@/components/gc-mail";
 import { KingPreview, type PreviewMode } from "@/components/avatar/king-preview";
 import { getAvatar } from "@/lib/server/avatar";
 import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { LegendaryStore } from "@/components/legendary/store";
 
 export const Route = createFileRoute("/store")({
   component: StoreDoor,
@@ -44,7 +46,7 @@ function StoreDoor() {
   const door = useClubDoor();
   if (door.status === "pending") return <SplashSkeleton />;
   if (door.status === "auth") return <AuthScreen />;
-  return <Store />;
+  return LEGENDARY ? <LegendaryStore /> : <Store />;
 }
 
 function paintCard(title: string, sub: string) {

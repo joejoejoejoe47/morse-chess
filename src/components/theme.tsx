@@ -14,7 +14,7 @@ function readTheme(): ClubTheme {
 
 function applyTheme(theme: ClubTheme) {
   const root = document.documentElement;
-  root.classList.toggle("light", theme === "light");
+  root.classList.toggle("light", theme === "light" && !root.classList.contains("legendary"));
   root.classList.remove("dark");
   if (theme === "dark") root.classList.add("dark");
   root.style.colorScheme = theme;
@@ -58,6 +58,8 @@ export function ThemeToggle({ className }: { className?: string }) {
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   const next = theme === "dark" ? "light" : "dark";
+  // Legendary is always the dark gold room.
+  if (typeof document !== "undefined" && document.documentElement.classList.contains("legendary")) return null;
   return (
     <Button
       type="button"

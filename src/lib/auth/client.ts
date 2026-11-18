@@ -1,5 +1,5 @@
 import { createAuthClient } from "better-auth/react";
-import { BASE } from "@/lib/base";
+import { BASE, pageUrl } from "@/lib/base";
 
 /**
  * Auth client for the PHP backend. It speaks the same wire format the original
@@ -39,5 +39,5 @@ export async function signOut(redirectTo = "/"): Promise<void> {
   } catch {
     /* storage unavailable */
   }
-  window.location.href = BASE + redirectTo;
+  window.location.href = pageUrl(redirectTo);
 }
