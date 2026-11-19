@@ -8,6 +8,15 @@ import { cn } from "@/lib/utils";
 import { LegoShop, LegoTile } from "@/components/lego-shop";
 import { LEGO_BOARD_ID } from "@/components/chess/lego-board";
 import { FootballFields } from "@/components/football-fields";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { SeasonBackdrop } from "@/components/legendary/bits";
+import { useSeason } from "@/components/legendary/lounge";
+
+/** Legendary (/chessledgendary/) draws the home page's season picture behind the cabinet. */
+function LegendaryBackdrop() {
+  const season = useSeason();
+  return <SeasonBackdrop season={season} />;
+}
 
 function MiniBoard({ light, dark }: { light: string; dark: string }) {
   return (
@@ -61,7 +70,8 @@ export function BoardGallery({
     );
   }
   return (
-    <main className="relative mx-auto min-h-dvh w-full max-w-6xl px-5 py-6 sm:px-8">
+    <main className={cn("relative mx-auto min-h-dvh w-full max-w-6xl px-5 py-6 sm:px-8", LEGENDARY && "mcl-boards")}>
+      {LEGENDARY ? <LegendaryBackdrop /> : null}
       {legoShop ? (
         <LegoShop
           coins={purse.coins}
@@ -74,21 +84,30 @@ export function BoardGallery({
           onBought={(next) => setPurse({ coins: next.coins, owned: next.owned })}
         />
       ) : null}
-      <div className="check-wash pointer-events-none absolute inset-0" />
-      <header className="relative flex flex-wrap items-center justify-between gap-4">
+      {LEGENDARY ? null : <div className="check-wash pointer-events-none absolute inset-0" />}
+      <header className="mcb-top relative flex flex-wrap items-center justify-between gap-4">
         <ClubBrand to="/" />
         <ClubHeaderActions username={username} score={score} />
       </header>
 
-      <section className="relative mt-10">
-        <p className="text-xs uppercase tracking-[0.2em] text-mist">The cabinet</p>
-        <h1 className="mt-2 font-display text-4xl text-ivory">Boards</h1>
-        <p className="mt-3 max-w-xl text-base text-mist">
+      <section className="mcb-head relative mt-10">
+        {LEGENDARY ? (
+          <div className="mcb-plaque">
+            <span className="mcb-tag">The cabinet</span>
+            <h1 className="mcb-title" data-text="Boards">Boards</h1>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs uppercase tracking-[0.2em] text-mist">The cabinet</p>
+            <h1 className="mt-2 font-display text-4xl text-ivory">Boards</h1>
+          </>
+        )}
+        <p className="mcb-desc mt-3 max-w-xl text-base text-mist">
           Click a picture to walk around it. Click Use to set the outline, background color, or upload a background photo before you play. Once a game starts, the background stays put.
         </p>
       </section>
 
-      <div className="relative mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mcb-grid relative mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {BOARD_CATALOG.map((board) => {
           const open = boardUnlocked(score, board, username, purse.owned);
           const peek = boardCanPreview(score, board, username);
@@ -105,10 +124,14 @@ export function BoardGallery({
                 }
                 setLooking(board.id);
               }}
+              data-board-card={board.id}
               className={cn(
-                "rounded-xl border p-3 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-line-strong",
+                "mcb-card rounded-xl border p-3 text-left transition-[border-color,transform] hover:-translate-y-0.5 hover:border-line-strong",
                 inUse ? "border-gold-line bg-panel" : "border-line bg-panel/80",
                 !peek ? "cursor-not-allowed hover:translate-y-0 hover:border-line" : "",
+                inUse && "is-using",
+                !open && "is-locked",
+                !peek && "is-sealed",
               )}
             >
               {board.id === LEGO_BOARD_ID ? (
@@ -120,10 +143,10 @@ export function BoardGallery({
                   <span className="font-display text-3xl">?</span>
                 </div>
               )}
-              <div className="mt-3 flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-display text-xl text-ivory">{board.name}</p>
-                  <p className="mt-0.5 text-[13px] text-mist">
+              <div className="mcb-foot mt-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="mcb-name font-display text-xl text-ivory">{board.name}</p>
+                  <p className="mcb-status mt-0.5 text-[13px] text-mist">
                     {(board.coinCost ?? 0) > 0 || board.cost > 0 ? boardPriceLabel(board) : "Yours"}
                   </p>
                 </div>
@@ -131,7 +154,7 @@ export function BoardGallery({
                   <span
                     role="button"
                     tabIndex={0}
-                    className="rounded-full border border-line px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-ivory hover:border-line-strong"
+                    className="mcb-use rounded-full border border-line px-2 py-1 text-[11px] uppercase tracking-[0.14em] text-ivory hover:border-line-strong"
                     onClick={(e) => {
                       e.stopPropagation();
                       setTune(true);
@@ -144,7 +167,7 @@ export function BoardGallery({
                     {inUse ? "Using" : "Use"}
                   </span>
                 ) : (
-                  <span className="text-[11px] uppercase tracking-[0.14em] text-mist">
+                  <span className="mcb-use is-muted text-[11px] uppercase tracking-[0.14em] text-mist">
                     {peek ? "Look" : "Sealed"}
                   </span>
                 )}
@@ -171,11 +194,12 @@ export function BoardGallery({
 
       <FootballFields />
 
-      <div className="relative mt-10 flex justify-center pb-10">
+      <div className="mcb-back relative mt-10 flex justify-center pb-10">
         <Button asChild variant="outline" className="rounded-full">
           <Link to="/">Back</Link>
         </Button>
       </div>
+      {LEGENDARY ? <p className="mcb-copy">© {new Date().getFullYear()} Morse Chess Legendary. Same club, same coins.</p> : null}
     </main>
   );
 }
