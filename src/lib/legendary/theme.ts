@@ -36,7 +36,7 @@ export function installLegendaryChrome() {
     )
     .join("");
   // 9-slice frame art for the panels (drawn by scripts, see public/legendary/CREDITS.md).
-  style.textContent += `\nhtml.legendary{${["gold", "purple", "row", "violet", "chip", "btn", "menu-gold", "menu-purple", "card", "ribbon"].map((n) => `--mcl-frame-${n}:url("${asset(`/legendary/ui/frame-${n}.png`)}");`).join("")}}`;
+  style.textContent += `\nhtml.legendary{${["gold", "purple", "row", "violet", "chip", "btn", "menu-gold", "menu-purple", "card", "ribbon", "gcbar", "gcrow", "gcsearch"].map((n) => `--mcl-frame-${n}:url("${asset(`/legendary/ui/frame-${n}.png`)}");`).join("")}${["scroll", "corner", "thumb", "up", "down", "gem"].map((n) => `--mcl-gc-${n}:url("${asset(`/legendary/ui/gc-${n}.svg`)}");`).join("")}}`;
   document.head.appendChild(style);
   document.title = "Morse Chess Legendary";
 }

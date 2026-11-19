@@ -15,13 +15,13 @@ GOLD=[(0,(255,232,160)),(0.18,(226,180,84)),(0.5,(140,98,34)),(0.82,(214,168,80)
 def mask(shape_fn):
     m=Image.new('L',(N,N),0); d=ImageDraw.Draw(m); shape_fn(d); return m
 def layer(img, fill_img, m): img.paste(fill_img, (0,0), m)
-def frame(name, fill, c=28, line=GOLD, outer=7, gap=5, inner_line=(205,160,78,120), round_=False, glow=None):
+def frame(name, fill, c=28, line=GOLD, outer=7, gap=5, inner_line=(205,160,78,120), round_=False, glow=None, alpha=255):
     img=Image.new('RGBA',(N,N),(0,0,0,0))
     shp=(lambda ins: (lambda d: d.rounded_rectangle(rr(c,ins)[0], radius=rr(c,ins)[1], fill=255))) if round_ else (lambda ins: (lambda d: d.polygon(cham(c,ins), fill=255)))
     layer(img, vgrad(line).convert('RGBA'), mask(shp(0)))
     # dark seam under the gold line
     layer(img, Image.new('RGBA',(N,N),(20,12,6,255)), mask(shp(outer)))
-    layer(img, vgrad(fill).convert('RGBA'), mask(shp(outer+1)))
+    fi=vgrad(fill).convert('RGBA'); fi.putalpha(alpha); layer(img, fi, mask(shp(outer+1)))
     if inner_line:
         lm=mask(shp(outer+gap)); inner=mask(shp(outer+gap+2))
         ring=Image.fromarray(np.clip(np.asarray(lm,np.int16)-np.asarray(inner,np.int16),0,255).astype(np.uint8),'L')
@@ -49,3 +49,7 @@ CGOLD=[(0,(255,240,180)),(0.15,(240,196,96)),(0.5,(168,116,40)),(0.85,(236,190,9
 frame('frame-card', [(0,(46,22,78)),(0.45,(30,14,54)),(1,(20,9,38))], c=16, line=CGOLD, outer=12, gap=4, inner_line=(250,206,110,255))
 # ribbon tag behind "THE CABINET"
 frame('frame-ribbon', [(0,(84,40,140)),(1,(46,18,88))], c=10, line=CGOLD, outer=6, gap=0, inner_line=None)
+# GC inbox: header bar, conversation rows (translucent purple), search field
+frame('frame-gcbar', [(0,(40,16,70)),(1,(20,8,38))], c=18, line=CGOLD, outer=9, gap=4, inner_line=(240,196,100,220), alpha=120)
+frame('frame-gcrow', [(0,(60,24,102)),(0.5,(38,12,70)),(1,(28,8,54))], c=10, line=CGOLD, outer=8, gap=3, inner_line=(255,214,120,240), alpha=150)
+frame('frame-gcsearch', [(0,(52,24,92)),(1,(28,10,56))], c=60, line=CGOLD, outer=8, gap=4, inner_line=(240,196,100,230), round_=True, alpha=235)
