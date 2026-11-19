@@ -2,8 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { gcThread, listGc, sendMail, type GcLetter, type GcPerson } from "@/lib/server/mail";
+import { activeSeason, LEGENDARY } from "@/lib/legendary/theme";
+import { SeasonBackdrop } from "@/components/legendary/bits";
+import { cn } from "@/lib/utils";
 
 const INK = ["#6b4a2a", "#3d5c45", "#7a3d3d", "#3e4d6b", "#6b5a2a", "#4a3d5c"];
+/** Legendary medallion enamel: green, blue, bronze, olive, gold, indigo, crimson, amber. */
+const ENAMEL = ["#2f6a2c", "#2b4590", "#7a4a1e", "#4f6e26", "#857224", "#3f3c94", "#8a2424", "#76601c"];
 const VIDEO_MAX = 3_200_000;
 const VIDEO_URL_MAX = 4_800_000;
 
@@ -29,9 +34,10 @@ export function GcHost() {
 }
 
 function tint(name: string) {
+  const pal = LEGENDARY ? ENAMEL : INK;
   let n = 0;
-  for (const ch of name) n = (n + ch.charCodeAt(0)) % INK.length;
-  return INK[n];
+  for (const ch of name) n = (n + ch.charCodeAt(0)) % pal.length;
+  return pal[n];
 }
 
 function when(iso: string) {
@@ -228,13 +234,24 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-ink text-ivory" data-gc-open={open?.userId ?? ""}>
-      <div className="check-wash pointer-events-none absolute inset-0" />
-      <header className="relative z-10 flex items-center gap-3 border-b border-line bg-ink/88 px-4 py-3 backdrop-blur-md">
-        <button type="button" aria-label="Close" className="grid size-11 place-items-center text-mist hover:text-ivory" onClick={onClose}>
+    <div className={cn("fixed inset-0 z-[100] flex flex-col bg-ink text-ivory", LEGENDARY && "mcg", open && "is-thread")} data-gc-open={open?.userId ?? ""}>
+      {LEGENDARY ? (
+        <>
+          <SeasonBackdrop season={activeSeason()} />
+          <div className="mcg-tint pointer-events-none fixed inset-0 z-0" />
+        </>
+      ) : (
+        <div className="check-wash pointer-events-none absolute inset-0" />
+      )}
+      <header className="mcg-top relative z-10 flex items-center gap-3 border-b border-line bg-ink/88 px-4 py-3 backdrop-blur-md">
+        {LEGENDARY ? <i className="mcg-corner is-l" aria-hidden /> : null}
+        {LEGENDARY ? <i className="mcg-corner is-r" aria-hidden /> : null}
+        {LEGENDARY ? <i className="mcg-gem is-l" aria-hidden /> : null}
+        {LEGENDARY ? <i className="mcg-gem is-r" aria-hidden /> : null}
+        <button type="button" aria-label="Close" className="mcg-x grid size-11 place-items-center text-mist hover:text-ivory" onClick={onClose}>
           <X className="size-5" />
         </button>
-        <h1 className="font-display text-3xl tracking-[0.18em] text-ivory">GC</h1>
+        <h1 className="mcg-title font-display text-3xl tracking-[0.18em] text-ivory" data-text="GC">GC</h1>
         <input
           value={q}
           onChange={(e) => {
@@ -242,15 +259,16 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
             void load(e.target.value).catch(() => undefined);
           }}
           placeholder="Search people"
-          className="ml-auto w-full max-w-md rounded-full border border-line bg-ink-soft px-4 py-2 text-sm text-ivory outline-none placeholder:text-mist"
+          aria-label="Search people"
+          className="mcg-search ml-auto w-full max-w-md rounded-full border border-line bg-ink-soft px-4 py-2 text-sm text-ivory outline-none placeholder:text-mist"
         />
       </header>
 
-      {error ? <p className="relative px-4 pt-3 text-sm text-[#e07a7a]">{error}</p> : null}
+      {error ? <p className="mcg-error relative px-4 pt-3 text-sm text-[#e07a7a]">{error}</p> : null}
 
       {open ? (
         <section
-          className="relative flex min-h-0 flex-1 flex-col"
+          className="mcg-thread relative flex min-h-0 flex-1 flex-col"
           onDragEnter={(e) => {
             if (![...e.dataTransfer.types].includes("Files")) return;
             e.preventDefault();
@@ -277,14 +295,14 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
               Drop the picture or video
             </div>
           ) : null}
-          <button type="button" className="flex items-center gap-3 border-b border-line px-4 py-3 text-left" onClick={() => setOpen(null)}>
-            <span className="text-mist">‹</span>
+          <button type="button" className="mcg-who flex items-center gap-3 border-b border-line px-4 py-3 text-left" onClick={() => setOpen(null)}>
+            <span className="mcg-back text-mist">‹</span>
             <Letter name={open.username} letter={open.letter} />
-            <span className="font-display text-2xl text-ivory">{open.username}</span>
+            <span className="mcg-name font-display text-2xl text-ivory">{open.username}</span>
           </button>
           <div
             ref={scroller}
-            className="min-h-0 flex-1 space-y-3 overflow-auto px-4 py-4"
+            className="mcg-letters mcg-scroll min-h-0 flex-1 space-y-3 overflow-auto px-4 py-4"
             onScroll={() => {
               const el = scroller.current;
               if (!el) return;
@@ -293,21 +311,21 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
           >
             {letters.length === 0 ? <p className="text-sm text-mist">No letters yet. Write the first one.</p> : null}
             {letters.map((letter) => (
-              <article key={letter.id} className="rounded-md border border-line bg-panel/80 px-4 py-3">
+              <article key={letter.id} className={cn("mcg-letter rounded-md border border-line bg-panel/80 px-4 py-3", letter.mine && "is-mine")}>
                 <div className="flex items-center gap-3">
                   <Letter name={letter.mine ? "Me" : open.username} letter={letter.mine ? "M" : open.letter} />
                   <div className="min-w-0">
-                    <p className="font-medium text-ivory">{letter.mine ? "Me" : open.username}</p>
-                    <p className="text-xs text-mist">{when(letter.at)}</p>
+                    <p className="mcg-lname font-medium text-ivory">{letter.mine ? "Me" : open.username}</p>
+                    <p className="mcg-time text-xs text-mist">{when(letter.at)}</p>
                   </div>
                 </div>
                 <LetterMedia letter={letter} play={letter.id === playId} />
-                {letter.body ? <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed text-ivory">{letter.body}</p> : null}
+                {letter.body ? <p className="mcg-body mt-3 whitespace-pre-wrap text-[15px] leading-relaxed text-ivory">{letter.body}</p> : null}
               </article>
             ))}
           </div>
           <form
-            className="relative border-t border-line bg-ink/90 px-4 py-3"
+            className="mcg-compose relative border-t border-line bg-ink/90 px-4 py-3"
             onSubmit={(e) => {
               e.preventDefault();
               void send();
@@ -332,7 +350,7 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
                   void take(next);
                 }}
                 placeholder={`Write to ${open.username}, or drop a picture or video`}
-                className="min-w-0 flex-1 rounded-full border border-line bg-ink-soft px-4 py-3 text-sm text-ivory outline-none placeholder:text-mist"
+                className="mcg-draft min-w-0 flex-1 rounded-full border border-line bg-ink-soft px-4 py-3 text-sm text-ivory outline-none placeholder:text-mist"
               />
               <input
                 ref={picker}
@@ -345,32 +363,33 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
                   void take(next);
                 }}
               />
-              <button type="button" aria-label="Add a picture or a video" className="grid size-11 place-items-center rounded-full border border-line text-ivory" onClick={() => picker.current?.click()}>
+              <button type="button" aria-label="Add a picture or a video" className="mcg-pick grid size-11 place-items-center rounded-full border border-line text-ivory" onClick={() => picker.current?.click()}>
                 <ImagePlus className="size-4" />
               </button>
-              <button type="submit" disabled={busy || (!draft.trim() && !file)} className="rounded-full border border-gold-line bg-walnut px-5 py-3 text-sm font-medium text-cream disabled:opacity-50">
+              <button type="submit" disabled={busy || (!draft.trim() && !file)} className="mcg-send rounded-full border border-gold-line bg-walnut px-5 py-3 text-sm font-medium text-cream disabled:opacity-50">
                 {busy ? "Sending…" : "Send"}
               </button>
             </div>
           </form>
         </section>
       ) : (
-        <ul className="relative min-h-0 flex-1 overflow-auto">
+        <ul className="mcg-list mcg-scroll relative min-h-0 flex-1 overflow-auto">
           {people.length === 0 ? <li className="px-4 py-8 text-sm text-mist">No one else is at the club yet.</li> : null}
           {people.map((person) => (
             <li key={person.userId}>
-              <button type="button" onClick={() => void choose(person)} className="flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left hover:bg-panel">
+              <button type="button" onClick={() => void choose(person)} className={cn("mcg-row flex w-full items-center gap-3 border-b border-line px-4 py-3 text-left hover:bg-panel", person.unread && "is-unread")}>
                 <Letter name={person.username} letter={person.letter} />
                 <span className="min-w-0 flex-1">
-                  <span className={"block truncate text-[15px] " + (person.unread ? "font-semibold text-ivory" : "text-ivory")}>{person.username}</span>
-                  <span className="block truncate text-sm text-mist">{person.preview || "No letters yet"}</span>
+                  <span className={"mcg-name block truncate text-[15px] " + (person.unread ? "font-semibold text-ivory" : "text-ivory")}>{person.username}</span>
+                  <span className="mcg-prev block truncate text-sm text-mist">{person.preview || "No letters yet"}</span>
                 </span>
-                <span className="shrink-0 text-xs text-mist">{when(person.at)}</span>
+                <span className="mcg-time shrink-0 text-xs text-mist">{when(person.at)}</span>
               </button>
             </li>
           ))}
         </ul>
       )}
+      {LEGENDARY ? <p className="mcg-copy">© {new Date().getFullYear()} Morse Chess Legendary. Same club, same coins.</p> : null}
     </div>
   );
 }
@@ -407,7 +426,7 @@ function LetterMedia({ letter, play }: { letter: GcLetter; play: boolean }) {
 
 function Letter({ name, letter }: { name: string; letter: string }) {
   return (
-    <span className="grid size-10 shrink-0 place-items-center rounded-full font-display text-xl text-ivory" style={{ background: tint(name) }}>
+    <span className="mcg-medal grid size-10 shrink-0 place-items-center rounded-full font-display text-xl text-ivory" style={{ background: tint(name), ["--enamel" as string]: tint(name) }}>
       {letter}
     </span>
   );
