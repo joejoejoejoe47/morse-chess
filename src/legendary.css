@@ -993,3 +993,123 @@ html.legendary .border-line {
   .mcl-s-feature { width: 100%; height: 54px; font-size: 19px; }
 }
 }
+
+/* ══ Legendary skin for every classic page reached from /chessledgendary/ ══════════════
+ * Unlayered so it wins over Tailwind utilities; scoped to html.legendary (never /chess/),
+ * and skips the mockup-built home and store. */
+html.legendary {
+  --color-gold-line: #d4a94e;
+  --color-mist: #b9aecb;
+  --color-walnut: #3b1d66;
+  --color-forest: #5b25a8;
+  --color-forest-2: #7a3be0;
+  --color-panel: #170f22;
+  --color-panel-2: #22152f;
+  --font-display: Cinzel, "Trajan Pro", Georgia, serif;
+  --font-sans: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --tracking-display: 0.02em;
+  --mcl-goldfill: linear-gradient(180deg, #fff2c2 0%, #f2cd6a 40%, #c98a1c 66%, #ffe08a 100%);
+}
+html.legendary body { font-family: var(--font-sans); font-weight: 500; letter-spacing: 0.01em; }
+
+/* headings: gold Cinzel like the mockups */
+html.legendary :is(h1, h2):not(.mcl-home *, .mcl-store *, .mcl-title, .mcl-victory),
+html.legendary .font-display:is([class*="text-2xl"], [class*="text-3xl"], [class*="text-4xl"], [class*="text-5xl"], [class*="text-[2"], [class*="text-[3"], [class*="text-[4"]):not(.mcl-home *, .mcl-store *, button, button *) {
+  font-family: Cinzel, Georgia, serif;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background-image: var(--mcl-goldfill);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(50, 25, 4, 0.9)) drop-shadow(0 0 12px rgba(242, 182, 50, 0.2));
+}
+html.legendary h3.font-display:not(.mcl-home *, .mcl-store *) { font-family: Cinzel, Georgia, serif; font-weight: 700; color: #f2d27a; letter-spacing: 0.04em; }
+
+/* small uppercase eyebrows ("THE CABINET", "CHESS CLUB") go gold */
+html.legendary p.uppercase:not(.mcl-home *, .mcl-store *),
+html.legendary span.uppercase.text-xs:not(.mcl-home *, .mcl-store *, button *, a *) { color: #d8b768; letter-spacing: 0.2em; }
+
+/* panels and cards: dark purple with the gold double line */
+html.legendary :is([class*="bg-panel"], [class*="bg-ink-soft"]):not(.mcl-home *, .mcl-store *) {
+  background-image: linear-gradient(180deg, rgba(42, 24, 66, 0.92), rgba(16, 10, 26, 0.95));
+  background-color: transparent;
+}
+html.legendary :is([class*="bg-panel"], [class*="bg-ink-soft"])[class*="border"]:not(.mcl-home *, .mcl-store *, button, a) {
+  border-color: rgba(212, 169, 78, 0.6);
+  box-shadow: inset 0 0 0 3px rgba(10, 7, 16, 0.85), inset 0 0 0 4px rgba(212, 169, 78, 0.22), 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+html.legendary [class*="border-line"]:not(.mcl-home *, .mcl-store *) { border-color: rgba(212, 169, 78, 0.3); }
+html.legendary [class*="border-gold-line"]:not(.mcl-home *, .mcl-store *) { border-color: rgba(222, 180, 88, 0.75); }
+
+/* primary buttons (classic ivory pills) become gold bars */
+html.legendary :is(button, a, label, [role="button"]):is([class*="bg-ivory"], [class*="bg-forest"]):not(.mcl-home *, .mcl-store *) {
+  background-image: linear-gradient(180deg, #ffeab0 0%, #f2c04a 45%, #b87c14 100%);
+  background-color: #e2b84e;
+  color: #241402 !important;
+  border: 1px solid #ffe7a0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -2px 0 rgba(90, 50, 4, 0.45), 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 14px rgba(242, 182, 50, 0.2);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255, 240, 190, 0.5);
+}
+html.legendary :is(button, a, label, [role="button"]):is([class*="bg-ivory"], [class*="bg-forest"]):not(.mcl-home *, .mcl-store *):hover:not(:disabled) { filter: brightness(1.1); }
+
+/* secondary buttons (walnut / forest) become royal purple with a gold rim */
+html.legendary [class*="bg-walnut"]:not(.mcl-home *, .mcl-store *),
+html.legendary :not(button, a, label, [role="button"])[class*="bg-forest"]:not(.mcl-home *, .mcl-store *) {
+  background-image: linear-gradient(180deg, #6a33b8 0%, #3e1a78 55%, #2a0f56 100%);
+  background-color: #3b1d66;
+  border-color: #d4a94e !important;
+  color: #f8ecd0;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 140, 0.25), 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+html.legendary :is(button, a)[class*="bg-walnut"]:not(.mcl-home *, .mcl-store *):not([class*="border"]) { border: 1px solid #d4a94e; }
+
+html.legendary :is(button, a)[class*="bg-walnut"]:not(.mcl-home *, .mcl-store *):hover:not(:disabled) { filter: brightness(1.18); }
+html.legendary [class*="bg-cream"]:not(.mcl-home *, .mcl-store *) { background-color: #f2d27a; color: #241402; }
+
+/* outline pill buttons/chips in headers */
+html.legendary :is(button, a).rounded-full[class*="border"]:not([class*="bg-"]):not(.mcl-home *, .mcl-store *) {
+  background: linear-gradient(180deg, rgba(34, 24, 44, 0.92), rgba(14, 10, 20, 0.92));
+  border-color: rgba(212, 169, 78, 0.6);
+  color: #f2d27a;
+}
+html.legendary :is(button, a).rounded-full[class*="border"]:not([class*="bg-"]):not(.mcl-home *, .mcl-store *):hover { border-color: #ffe08a; color: #fff1c4; }
+
+/* form fields */
+html.legendary :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), textarea, select):not(.mcl-home *, .mcl-store *) {
+  background-color: rgba(10, 7, 18, 0.88);
+  border-color: rgba(212, 169, 78, 0.45);
+  color: #f6ecd4;
+  font-family: var(--font-sans);
+}
+html.legendary :is(input, textarea, select):not(.mcl-home *, .mcl-store *):focus { border-color: #f2c75c; outline: none; box-shadow: 0 0 0 2px rgba(242, 199, 92, 0.25), 0 0 12px rgba(242, 199, 92, 0.15); }
+html.legendary :is(input, textarea)::placeholder { color: rgba(185, 174, 203, 0.6); }
+html.legendary input[type="checkbox"], html.legendary input[type="radio"], html.legendary input[type="range"] { accent-color: #e2b84e; }
+
+/* dialogs and overlays: deep purple backdrop, the panel gets the ornate gold frame */
+html.legendary .fixed.inset-0:not(.mcl-home *, .mcl-store *, .pointer-events-none)[class*="bg-"] { background-color: rgba(8, 4, 14, 0.72); backdrop-filter: blur(6px); }
+html.legendary .fixed.inset-0:not(.mcl-home *, .mcl-store *) > :is([class*="bg-panel"], [class*="bg-ink"]) ,
+html.legendary .pull-panel {
+  border: solid transparent !important;
+  border-width: 10px !important;
+  border-image-source: var(--mcl-frame-gold) !important;
+  border-image-slice: 24 fill !important;
+  border-image-width: 20px !important;
+  background: none !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(139, 61, 255, 0.18) !important;
+}
+
+/* tab strips / segmented controls: the active one is gold */
+html.legendary [aria-selected="true"]:not(.mcl-home *, .mcl-store *),
+html.legendary [aria-pressed="true"]:not(.mcl-home *, .mcl-store *, .mcl-s-rrow) { border-color: #f2c75c !important; color: #ffe8a8; box-shadow: inset 0 0 10px rgba(242, 190, 80, 0.25); }
+
+/* muted text a touch lavender, links gold */
+html.legendary .text-mist { color: #b9aecb; }
+html.legendary main a.underline, html.legendary main a[class*="underline"] { color: #f2cd6a; }
+
+/* thin gold scrollbars */
+html.legendary * { scrollbar-color: #8a6a2c rgba(0, 0, 0, 0.2); }
