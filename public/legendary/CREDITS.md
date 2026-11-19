@@ -13,3 +13,7 @@ existing Morse Chess artwork, with its own credits in the main app (e.g. `avatar
 - `ui/crown.webp`, `ui/rank1-3.webp`, `ui/trophy|gem|bronze.webp`, `ui/daily-star.webp`, `ui/tier-*.webp`, `ui/pf-*.webp`: generated for Morse Chess Legendary (original artwork, no third-party assets).
 - `ui/frame-*.png`: 9-slice panel frames drawn by `scripts/legendary_frames.py` (original).
 - `fonts/barlow-sc-*.woff2`: Barlow Semi Condensed by Jeremy Tribby, SIL Open Font License 1.1 (see fonts/OFL.txt).
+
+## Store art and menu icons
+- public/legendary/store/*.webp (board and gear card art, board-of-the-week banner), ui/logo-shield.webp and ui/mi-*.webp (gear menu icons): generated in-house for Morse Chess Legendary with Grok Bot image generation; free to use in this project.
+- sfx/menu-open.mp3: supplied by the site owner.

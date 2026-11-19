@@ -5,7 +5,8 @@
  */
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Crown, Gem, LayoutGrid, Lock, Package, Shield, Sparkles } from "lucide-react";
+import { Bell, LayoutGrid, Lock, Package, Search, Shield, Sparkles } from "lucide-react";
+import { asset } from "@/lib/base";
 import { BOARD_CATALOG, boardUnlocked, type BoardSkin } from "@/lib/chess/board-skins";
 import { CHARACTERS, CROWNS, FINISHES, FRAMES, MOUNTS, SWORDS, ATTACKS, type GearItem } from "@/lib/avatar/catalog";
 import { getHomeState, buyBoard } from "@/lib/server/mores";
@@ -14,7 +15,7 @@ import { buyMarketListing, listMarket } from "@/lib/server/store";
 import { useKingThumbs } from "@/components/avatar/pedestal-king";
 import { RARITY, RARITY_ORDER, rarityForCoins, rarityForElo, chicagoDate, type Rarity } from "@/lib/legendary/theme";
 import { playSfx } from "@/lib/legendary/sfx";
-import { Coin, CrownMark, PlayerAvatar, RarityTag, SeasonBackdrop, hms, useCountdown, useMyPhoto } from "@/components/legendary/bits";
+import { Coin, PlayerAvatar, SeasonBackdrop, hms, ui, useCountdown, useMyPhoto } from "@/components/legendary/bits";
 import { useSeason } from "@/components/legendary/lounge";
 import { cn } from "@/lib/utils";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -38,12 +39,12 @@ type Item = {
 type Listing = { id: string; seller: string; mine: boolean; kind: string; name: string; price: number; blurb: string; shot: string };
 
 const CATS: { id: Cat; name: string; icon: ReactNode }[] = [
-  { id: "all", name: "All Items", icon: <LayoutGrid className="size-4" /> },
-  { id: "boards", name: "Boards", icon: <span className="text-base leading-none">♜</span> },
-  { id: "pieces", name: "Piece Sets", icon: <span className="text-base leading-none">♚</span> },
-  { id: "gear", name: "Frames & Gear", icon: <Shield className="size-4" /> },
-  { id: "bundles", name: "Bundles", icon: <Package className="size-4" /> },
-  { id: "exclusive", name: "Exclusive", icon: <Sparkles className="size-4" /> },
+  { id: "all", name: "All Items", icon: <LayoutGrid className="size-[1em]" /> },
+  { id: "boards", name: "Boards", icon: <span className="leading-none">♟</span> },
+  { id: "pieces", name: "Piece Sets", icon: <Search className="size-[1em]" /> },
+  { id: "gear", name: "Frames & Gear", icon: <Shield className="size-[1em]" /> },
+  { id: "bundles", name: "Bundles", icon: <Package className="size-[1em]" /> },
+  { id: "exclusive", name: "Exclusive", icon: <Sparkles className="size-[1em]" /> },
 ];
 
 /** Gear costs 2–200 coins; its rarity bands are tighter than boards'. */
@@ -102,6 +103,10 @@ function GlyphThumb({ glyph, rarity }: { glyph: string; rarity: Rarity }) {
     </div>
   );
 }
+
+const BOARD_ART = new Set(["walnut", "crimson", "frost", "emerald", "gilt", "cherry", "tide", "aurora", "marble", "mahogany", "ring-host", "grassland", "castle", "rocco", "sky-arena", "lego-universe", "classic", "parlor"]);
+const GEAR_ART = new Set(["devil", "talwar", "rook", "halo", "royal-crown", "dog", "chop", "whirl", "leap", "fireball", "thunder"]);
+const storeArt = (name: string) => asset(`/legendary/store/${name}.webp`);
 
 function ImgThumb({ src }: { src: string }) {
   return <img src={src} alt="" className="size-full object-cover" loading="lazy" draggable={false} />;
@@ -164,7 +169,7 @@ export function LegendaryStore() {
         price: coinCost,
         lockElo: coinCost > 0 ? undefined : b.cost,
         owned: boardUnlocked(score, b, username, ownedBoards),
-        thumb: <BoardThumb board={b} />,
+        thumb: BOARD_ART.has(b.id) ? <ImgThumb src={storeArt(`board-${b.id}`)} /> : <BoardThumb board={b} />,
         buy:
           coinCost > 0
             ? async () => {
@@ -229,7 +234,7 @@ export function LegendaryStore() {
           rarity: gearRarity(g),
           price: g.price,
           owned: ownedGear.includes(g.id),
-          thumb: g.portrait ? <ImgThumb src={g.portrait} /> : <GlyphThumb glyph={glyph} rarity={gearRarity(g)} />,
+          thumb: GEAR_ART.has(g.id) ? <ImgThumb src={storeArt(`gear-${g.id}`)} /> : g.portrait ? <ImgThumb src={g.portrait} /> : <GlyphThumb glyph={glyph} rarity={gearRarity(g)} />,
           buy: () => gear(g.id),
         });
       }
@@ -283,126 +288,190 @@ export function LegendaryStore() {
     }
   }
 
+  const navs: { label: string; to: string; on?: boolean }[] = [
+    { label: "Store", to: "/store", on: true },
+    { label: "Play", to: "/" },
+    { label: "Career", to: "/history" },
+    { label: "Collection", to: "/boards" },
+  ];
+
   return (
-    <main className="relative min-h-dvh overflow-x-hidden text-[#efe6d2]" data-legendary-store>
-      <SeasonBackdrop season={season} dim />
-      <div className="relative z-10 mx-auto flex max-w-[1400px] flex-col gap-4 px-3 pb-6 pt-3 sm:px-5">
-        <header className="flex items-center justify-between gap-3">
-          <Link to="/" className="mcl-chip gap-2" data-store-back>
-            <ArrowLeft className="size-4" /> Lounge
-          </Link>
-          <div className="flex items-center gap-2">
-            <Link to="/boards" className="mcl-chip hidden sm:inline-flex">My boards</Link>
-            <Link to="/avatar" className="mcl-chip hidden sm:inline-flex">My AV king</Link>
-            <span className="mcl-chip gap-2" data-store-coins>
-              <Coin /> <b className="tabular-nums">{coins == null ? "…" : coins.toLocaleString()}</b>
+    <main className="mcl-store relative min-h-dvh text-[#efe6d2]" data-legendary-store>
+      <div className="mcl-s-bg" aria-hidden>
+        <div className="absolute inset-0 opacity-[0.16]">
+          <SeasonBackdrop season={season} dim />
+        </div>
+      </div>
+      <div className="mcl-s-stage">
+        <header className="mcl-s-head">
+          <Link to="/" className="mcl-s-logo" data-store-back aria-label="Back to the lounge" onClick={() => playSfx("tap")}>
+            <img src={ui("logo-shield.webp")} alt="" className="mcl-s-shield" draggable={false} />
+            <span className="mcl-s-word">
+              <span className="mcl-s-wordtop">Morse Chess</span>
+              <span className="mcl-s-wordsub">Legendary</span>
             </span>
-          </div>
-        </header>
-        <div className="relative text-center">
-          <h1 className="mcl-title inline-flex items-center gap-4 text-[clamp(28px,5vw,58px)] leading-none">
-            <span className="mcl-flourish" aria-hidden />
-            Legendary Store
-            <span className="mcl-flourish is-right" aria-hidden />
-          </h1>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <aside className="flex shrink-0 flex-col gap-3 lg:w-56">
-            <nav className="mcl-panel rounded-xl p-2" aria-label="Browse">
-              <p className="mcl-label px-3 pb-1 pt-2">Browse</p>
-              <div className="flex gap-1 overflow-x-auto lg:flex-col">
-                {CATS.map((c) => (
-                  <button key={c.id} type="button" className={cn("mcl-row shrink-0", cat === c.id && "is-on")} onClick={() => { setCat(c.id); playSfx("tap"); }} data-store-cat={c.id}>
-                    <span className="grid w-5 place-items-center text-[#d9b45a]">{c.icon}</span>
-                    {c.name}
-                    <span className="ml-auto pl-2 text-[11px] tabular-nums text-[#8f8296]">
-                      {c.id === "all" ? items.length : c.id === "exclusive" ? items.filter((i) => i.rarity === "legendary").length : items.filter((i) => i.cat === c.id).length}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </nav>
-            <div className="mcl-panel rounded-xl p-2">
-              <p className="mcl-label px-3 pb-1 pt-2">Rarity filter</p>
-              <div className="flex flex-wrap gap-1 lg:flex-col">
-                {RARITY_ORDER.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    className={cn("mcl-row", filter.has(r) && "is-on")}
-                    onClick={() =>
-                      setFilter((f) => {
-                        const n = new Set(f);
-                        if (n.has(r)) n.delete(r);
-                        else n.add(r);
-                        return n;
-                      })
-                    }
-                    aria-pressed={filter.has(r)}
-                    data-rarity-filter={r}
-                  >
-                    <span className="size-3 rounded-full" style={{ background: RARITY[r].color, boxShadow: `0 0 8px ${RARITY[r].glow}` }} />
-                    <span style={{ color: RARITY[r].color }}>{RARITY[r].name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Link to="/store" search={{ classic: 1 } as never} className="hidden px-3 text-xs text-[#9f93ad] underline-offset-4 hover:underline lg:block" onClick={(e) => { e.preventDefault(); window.location.href = "/chess/store"; }}>
-              Sell your own king or brick board in the classic store →
+          </Link>
+          <nav className="mcl-s-nav" aria-label="Sections">
+            {navs.map((n) => (
+              <Link key={n.label} to={n.to} className={cn("mcl-s-navlink", n.on && "is-on")} onClick={() => playSfx("tap")}>
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="mcl-s-right">
+            <span className="mcl-s-chip" data-store-coins title="Coins">
+              <Coin className="mcl-s-chipicon" />
+              <b className="tabular-nums">{coins == null ? "…" : coins.toLocaleString()}</b>
+              <span className="mcl-s-plus">+</span>
+            </span>
+            <span className="mcl-s-chip max-md:!hidden" title="Your Elo rating">
+              <img src={ui("gem.webp")} alt="" className="mcl-s-chipicon" draggable={false} />
+              <b className="tabular-nums">{score.toLocaleString()}</b>
+              <span className="mcl-s-plus">+</span>
+            </span>
+            <Link to="/bell" className="mcl-s-bell max-md:!hidden" aria-label="Notifications" onClick={() => playSfx("tap")}>
+              <Bell className="size-full" fill="url(#mcl-s-gold)" stroke="#8a5a12" strokeWidth={1.2} />
             </Link>
-          </aside>
+            <Link to="/avatar" className="mcl-s-me" aria-label="My AV king" onClick={() => playSfx("tap")}>
+              <PlayerAvatar userId={userId} photo={photo} letter={photo?.letter || (username || "M").slice(0, 1).toUpperCase()} size={44} frame="plain" />
+            </Link>
+          </div>
+          <svg width="0" height="0" className="absolute" aria-hidden>
+            <defs>
+              <linearGradient id="mcl-s-gold" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor="#fff0b0" />
+                <stop offset=".45" stopColor="#f2c445" />
+                <stop offset="1" stopColor="#b97d10" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </header>
 
-          <section className="min-w-0 flex-1">
-            {msg ? (
-              <p className={cn("mb-3 rounded-lg border px-3 py-2 text-sm", msg.ok ? "border-[#5bd18b]/50 bg-[#0f2a1a]/80 text-[#a9f0c4]" : "border-[#ff6b6b]/50 bg-[#2a0f12]/80 text-[#ffb3b3]")} role="status">
-                {msg.text}
-              </p>
-            ) : null}
-            {shown.length === 0 ? (
-              <div className="mcl-panel grid h-64 place-items-center rounded-xl text-sm text-[#a99fb4]">
-                {cat === "bundles" ? "No player bundles are listed right now." : "Nothing matches that filter."}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5" data-store-grid>
-                {shown.map((it) => (
-                  <StoreCard key={it.key} item={it} busy={busy === it.key} score={score} coins={coins} onBuy={() => void buy(it)} />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+        <h1 className="mcl-s-title">
+          <span className="mcl-s-orn" aria-hidden />
+          <span className="mcl-s-titletext">Legendary Store</span>
+          <span className="mcl-s-orn is-right" aria-hidden />
+        </h1>
+
+        <aside className="mcl-s-side">
+          <nav className="mcl-s-panel mcl-s-browse" aria-label="Browse">
+            <p className="mcl-s-plabel">Browse</p>
+            <div className="mcl-s-rows">
+              {CATS.map((c) => (
+                <button key={c.id} type="button" className={cn("mcl-s-row", cat === c.id && "is-on")} onClick={() => { setCat(c.id); playSfx("tap"); }} data-store-cat={c.id}>
+                  <span className="mcl-s-rowicon">{c.icon}</span>
+                  <span className="truncate">{c.name}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+          <div className="mcl-s-panel mcl-s-rarity">
+            <p className="mcl-s-plabel">Rarity filter</p>
+            <div className="mcl-s-rows">
+              {RARITY_ORDER.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={cn("mcl-s-rrow", filter.has(r) && "is-on")}
+                  onClick={() =>
+                    setFilter((f) => {
+                      const n = new Set(f);
+                      if (n.has(r)) n.delete(r);
+                      else n.add(r);
+                      return n;
+                    })
+                  }
+                  aria-pressed={filter.has(r)}
+                  data-rarity-filter={r}
+                >
+                  <span className="mcl-s-dot" style={{ background: `radial-gradient(circle at 35% 30%, #fff8, ${RARITY[r].color} 45%, color-mix(in oklab, ${RARITY[r].color} 55%, black))`, boxShadow: `0 0 6px ${RARITY[r].glow}` }} />
+                  <span style={{ color: r === "legendary" ? RARITY[r].color : r === "common" ? "#e8e2ea" : RARITY[r].color }}>{RARITY[r].name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <a href="/chess/store" className="mcl-s-sell">Sell your own king or brick board →</a>
+        </aside>
+
+        <section className="mcl-s-grid-wrap">
+          {msg ? (
+            <p className={cn("mcl-s-msg", msg.ok ? "is-ok" : "is-bad")} role="status">
+              {msg.text}
+            </p>
+          ) : null}
+          {shown.length === 0 ? (
+            <div className="mcl-s-empty">{cat === "bundles" ? "No player bundles are listed right now." : "Nothing matches that filter."}</div>
+          ) : (
+            <div className="mcl-s-grid" data-store-grid>
+              {shown.map((it) => (
+                <StoreCard key={it.key} item={it} busy={busy === it.key} score={score} coins={coins} onBuy={() => void buy(it)} />
+              ))}
+            </div>
+          )}
+        </section>
 
         {featured ? (
-          <section className="mcl-panel mcl-feature relative grid items-center gap-4 overflow-hidden rounded-xl p-3 sm:grid-cols-[220px_1fr_auto_auto] sm:p-4" data-board-of-week={featured.id}>
-            <div className="h-28 overflow-hidden rounded-lg bg-[radial-gradient(circle_at_50%_40%,#3b2a5c,#0d0716)] sm:h-32">
-              <BoardThumb board={featured} />
+          <section className="mcl-s-week" data-board-of-week={featured.id}>
+            <div className="mcl-s-weekart">
+              {BOARD_ART.has(featured.id) ? <img src={storeArt(`board-${featured.id}`)} alt="" draggable={false} /> : <img src={storeArt("banner-week")} alt="" draggable={false} />}
             </div>
-            <div>
-              <h2 className="mcl-title text-[clamp(18px,2.4vw,28px)] leading-tight">Legendary board of the week</h2>
-              <p className="font-[Cinzel] text-sm font-bold uppercase tracking-[0.3em] text-[#c17dff]">{featured.name}</p>
-              <p className="mt-1 text-sm text-[#cfc3dc]">{featured.blurb}</p>
+            <div className="mcl-s-weektext">
+              <h2 className="mcl-s-weektitle">Legendary board of the week</h2>
+              <p className="mcl-s-weekname">{featured.name}</p>
+              <p className="mcl-s-weekblurb">This week only! {featured.blurb}</p>
             </div>
-            <div className="text-center sm:border-l sm:border-[#d9b45a]/25 sm:px-5">
-              <p className="mcl-label">Time left</p>
-              <p className="font-[Cinzel] text-3xl font-bold tabular-nums text-[#f6efe0]" data-week-countdown>
-                {days > 0 ? `${days}d ` : ""}
-                {h}:{m}:{s}
+            <div className="mcl-s-weektime">
+              <p className="mcl-s-weeklabel">Time left</p>
+              <p className="mcl-s-clock" data-week-countdown>
+                {days > 0 ? (
+                  <>
+                    <span>{days}d</span>
+                    <i>:</i>
+                  </>
+                ) : null}
+                <span>{days > 0 ? h : h}</span>
+                <i>:</i>
+                <span>{m}</span>
+                <i>:</i>
+                <span>{s}</span>
               </p>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#8f8296]">{days > 0 ? "days · hrs · min · sec" : "hrs · min · sec"}</p>
+              <p className="mcl-s-clocklabels">
+                {days > 0 ? <span>Days</span> : null}
+                <span>Hrs</span>
+                <span>Min</span>
+                <span>Sec</span>
+              </p>
             </div>
             {featuredItem?.owned ? (
-              <span className="mcl-btn mcl-btn-ghost justify-center">Owned</span>
+              <Link to="/boards" className="mcl-s-feature is-owned" onClick={() => playSfx("tap")}>
+                Owned · Play it
+              </Link>
             ) : featuredItem ? (
-              <button type="button" className="mcl-btn mcl-btn-gold justify-center text-base" onClick={() => void buy(featuredItem)} disabled={busy !== null}>
-                <Crown className="size-4" /> Buy · <Coin className="size-4" /> {featuredItem.price}
+              <button
+                type="button"
+                className="mcl-s-feature"
+                onClick={() => {
+                  playSfx("tap");
+                  setCat("all");
+                  setFilter(new Set());
+                  window.setTimeout(() => {
+                    const el = document.querySelector<HTMLElement>(`[data-store-item="board:${featured.id}"]`);
+                    if (!el) return;
+                    el.scrollIntoView({ block: "center", behavior: "smooth" });
+                    el.classList.remove("is-flash");
+                    void el.offsetWidth;
+                    el.classList.add("is-flash");
+                  }, 60);
+                }}
+                title={`${featured.name}: ${featuredItem.price} coins`}
+                data-feature-buy
+              >
+                <span>View Feature</span>
+                <span className="mcl-s-featgem" aria-hidden />
               </button>
             ) : null}
           </section>
         ) : null}
-        <p className="text-center text-[11px] text-[#7f7489]">
-          Same coins, boards and kings as Morse Chess. Board pictures are drawn from each board's real colours.
-        </p>
       </div>
     </main>
   );
@@ -412,38 +481,33 @@ function StoreCard({ item, busy, score, coins, onBuy }: { item: Item; busy: bool
   const r = RARITY[item.rarity];
   const short = coins != null && item.price > coins;
   return (
-    <article className="mcl-store-card group relative flex flex-col overflow-hidden rounded-lg" style={{ "--rc": r.color, "--rg": r.glow } as CSSProperties} data-store-item={item.key} data-rarity={item.rarity}>
-      <div className="px-2.5 pt-2">
-        <RarityTag rarity={item.rarity} />
-      </div>
-      <div className="relative h-28 overflow-hidden sm:h-32">{item.thumb}</div>
-      <div className="flex flex-1 flex-col items-center px-2 pb-2.5 text-center">
-        <h3 className="font-[Cinzel] text-[13px] font-bold uppercase leading-tight tracking-wide text-[#f6efe0]">{item.name}</h3>
-        <p className="mt-0.5 line-clamp-2 min-h-[2.2em] text-[11px] leading-snug text-[#b7aec2]">{item.blurb}</p>
-        <p className="mt-1 flex items-center gap-1 text-sm font-bold tabular-nums text-[#f2d27a]">
-          {item.lockElo ? (
-            <>
-              <Gem className="size-3.5" /> {item.lockElo} Elo
-            </>
-          ) : (
-            <>
-              <Coin className="size-4" /> {item.price.toLocaleString()}
-            </>
-          )}
-        </p>
-        {item.owned ? (
-          <span className="mcl-buy is-owned mt-1.5">Owned</span>
-        ) : item.lockElo ? (
-          <span className="mcl-buy is-locked mt-1.5" title={`Reach ${item.lockElo} Elo to unlock`}>
-            <Lock className="size-3" /> {Math.max(0, item.lockElo - score)} Elo to go
-          </span>
+    <article className="mcl-s-card" style={{ "--rc": r.color, "--rg": r.glow } as CSSProperties} data-store-item={item.key} data-rarity={item.rarity}>
+      <span className="mcl-s-tag">{r.name}</span>
+      <div className="mcl-s-thumb">{item.thumb}</div>
+      <h3 className="mcl-s-name">{item.name}</h3>
+      <p className="mcl-s-blurb">{item.blurb}</p>
+      <p className="mcl-s-price">
+        {item.lockElo ? (
+          <>
+            <img src={ui("gem.webp")} alt="" className="mcl-s-pricecoin" draggable={false} /> {item.lockElo.toLocaleString()} Elo
+          </>
         ) : (
-          <button type="button" className={cn("mcl-buy mt-1.5", short && "is-short")} onClick={onBuy} disabled={busy} title={short ? "Not enough coins yet" : undefined} data-buy={item.key}>
-            {busy ? "…" : "Buy"}
-          </button>
+          <>
+            <Coin className="mcl-s-pricecoin" /> {item.price.toLocaleString()}
+          </>
         )}
-      </div>
-      {item.rarity === "legendary" ? <CrownMark className="pointer-events-none absolute right-2 top-1.5 h-4 w-5 opacity-80" /> : null}
+      </p>
+      {item.owned ? (
+        <span className="mcl-s-buy is-owned">Owned</span>
+      ) : item.lockElo ? (
+        <span className="mcl-s-buy is-locked" title={`Reach ${item.lockElo} Elo to unlock`}>
+          <Lock className="mcl-s-lock" /> {Math.max(0, item.lockElo - score)} to go
+        </span>
+      ) : (
+        <button type="button" className={cn("mcl-s-buy", short && "is-short")} onClick={onBuy} disabled={busy} title={short ? "Not enough coins yet" : undefined} data-buy={item.key}>
+          {busy ? "…" : "Buy"}
+        </button>
+      )}
     </article>
   );
 }
