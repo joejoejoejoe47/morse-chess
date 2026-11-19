@@ -1118,3 +1118,82 @@ html.legendary * { scrollbar-color: #8a6a2c rgba(0, 0, 0, 0.2); }
 html.legendary [class*="bg-[#0d0b09]"] { background: radial-gradient(ellipse at 50% -10%, rgba(120, 60, 200, 0.22), transparent 60%), linear-gradient(180deg, #120b1c, #0b0810 60%, #08060c) !important; }
 html.legendary [class*="bg-[radial-gradient(circle_at_center,#2a241c"] { background: radial-gradient(circle at center, #2c1a48 0%, #0b0810 68%) !important; }
 html.legendary :is([class*="bg-[#14110d]"], [class*="bg-[#171310]"], [class*="bg-[linear-gradient(180deg,#1a1612"]) { background: linear-gradient(180deg, rgba(42, 24, 66, 0.92), rgba(16, 10, 26, 0.95)) !important; border-color: rgba(212, 169, 78, 0.5); }
+
+/* ══ Boards cabinet, mockup-exact (boards-ref.png is 1024×576; 1 ref px = var(--px)) ══════ */
+html.legendary .mcl-boards {
+  --px: clamp(1px, 0.0977vw, 2.4px);
+  --bsc: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  max-width: none !important;
+  width: calc(var(--px) * 590) !important;
+  padding: calc(var(--px) * 10) 0 calc(var(--px) * 20) !important;
+  font-family: var(--bsc);
+}
+@media (max-width: 767px) {
+  html.legendary .mcl-boards { --px: calc((100vw - 28px) / 231); width: calc(100vw - 28px) !important; padding-top: max(10px, env(safe-area-inset-top)) !important; }
+}
+html.legendary .mcl-boards > :not(.fixed) { position: relative; z-index: 1; }
+
+/* slim top bar */
+html.legendary .mcl-boards .mcb-top { min-height: calc(var(--px) * 32); gap: calc(var(--px) * 8); }
+html.legendary .mcl-boards .mcb-top > :last-child { gap: calc(var(--px) * 6); }
+html.legendary .mcl-boards .mcb-top > :last-child > span:first-child { font-size: calc(var(--px) * 9.5); font-weight: 600; color: #fff; text-shadow: 0 1px 3px #000; }
+html.legendary .mcl-boards .mcb-top :is(a, button, span).rounded-full { min-height: 0 !important; min-width: 0 !important; height: calc(var(--px) * 21); font-size: calc(var(--px) * 9); padding: 0 calc(var(--px) * 10); background: linear-gradient(180deg, rgba(30, 22, 38, 0.92), rgba(12, 9, 16, 0.92)) !important; border: calc(var(--px) * 1) solid rgba(212, 169, 78, 0.65) !important; color: #f4ead6 !important; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); display: inline-flex; align-items: center; gap: 0.3em; }
+html.legendary .mcl-boards .mcb-top :is(a, button).rounded-full:has(svg):not(:has(span)) ,
+html.legendary .mcl-boards .mcb-top button[aria-label]:not(:has(span)) { width: calc(var(--px) * 21); padding: 0 !important; justify-content: center; background: radial-gradient(circle at 35% 30%, #8a4ee6, #4b1d94 60%, #2a0f5a) !important; border: calc(var(--px) * 1.4) solid #e0b65a !important; color: #fff !important; }
+html.legendary .mcl-boards .mcb-top button[aria-label]:not(:has(span)) svg { width: 52%; height: 52%; }
+html.legendary .mcl-boards .mcb-top :is(a, button)[aria-label]:not(:has(span)):nth-last-child(2) { order: 5; background: radial-gradient(circle at 35% 30%, #ffe9a0, #e0ad3c 55%, #9a6812) !important; color: #3a2204 !important; }
+html.legendary .mcl-boards .mcb-top > :first-child { transform-origin: left center; }
+html.legendary .mcl-boards .mcb-top > :last-child > :last-child { order: 6; }
+
+/* ribbon tag + big gold plaque title */
+html.legendary .mcl-boards .mcb-head { margin-top: calc(var(--px) * 12) !important; }
+html.legendary .mcl-boards .mcb-plaque { position: relative; display: inline-block; margin-left: calc(var(--px) * -17); padding: calc(var(--px) * 16) calc(var(--px) * 34) calc(var(--px) * 4) calc(var(--px) * 18); background: linear-gradient(90deg, rgba(10, 6, 16, 0.82) 0%, rgba(16, 10, 24, 0.7) 70%, rgba(16, 10, 24, 0)); border-top: calc(var(--px) * 1.2) solid rgba(212, 169, 78, 0.7); border-left: calc(var(--px) * 1.2) solid rgba(212, 169, 78, 0.5); border-radius: calc(var(--px) * 3) 0 0 0; }
+html.legendary .mcl-boards .mcb-tag { position: absolute; left: calc(var(--px) * 4); top: calc(var(--px) * -2); display: inline-flex; align-items: center; height: calc(var(--px) * 15); padding: 0 calc(var(--px) * 40) 0 calc(var(--px) * 10); border: solid transparent; border-width: calc(var(--px) * 2.5); border-image-source: var(--mcl-frame-ribbon); border-image-slice: 24 fill; border-image-width: calc(var(--px) * 5); font-family: var(--bsc); font-weight: 700; font-size: calc(var(--px) * 8); letter-spacing: 0.06em; text-transform: uppercase; color: #fff4d8; text-shadow: 0 1px 1px #000; clip-path: polygon(0 0, 100% 0, calc(100% - var(--px) * 8) 50%, 100% 100%, 0 100%); }
+html.legendary .mcl-boards .mcb-title { margin: 0; font-family: Cinzel, Georgia, serif; font-weight: 800; font-size: calc(var(--px) * 47); line-height: 1.05; letter-spacing: 0.02em; text-transform: uppercase; background-image: linear-gradient(180deg, #fff6d0 0%, #ffe08a 30%, #e2a73a 55%, #b8781a 72%, #ffd877 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 calc(var(--px) * 1.5) 0 #5a3206) drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 4) rgba(0, 0, 0, 0.75)) drop-shadow(0 0 calc(var(--px) * 10) rgba(255, 190, 70, 0.35)); }
+html.legendary .mcl-boards .mcb-desc { margin-top: calc(var(--px) * 7) !important; max-width: calc(var(--px) * 318) !important; font-size: calc(var(--px) * 9.7) !important; line-height: 1.36; font-weight: 500; color: #f6eedf !important; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.6); }
+
+/* the cabinet grid */
+html.legendary .mcl-boards .mcb-grid { margin-top: calc(var(--px) * 16) !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: calc(var(--px) * 7) !important; }
+@media (max-width: 767px) { html.legendary .mcl-boards .mcb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+html.legendary .mcl-boards .mcb-card {
+  position: relative; display: flex; flex-direction: column;
+  min-height: calc(var(--px) * 164);
+  padding: calc(var(--px) * 3) calc(var(--px) * 3) calc(var(--px) * 6) !important;
+  border: solid transparent !important; border-width: calc(var(--px) * 6) !important;
+  border-image-source: var(--mcl-frame-card) !important; border-image-slice: 24 fill !important; border-image-width: calc(var(--px) * 10) !important;
+  border-radius: 0 !important; background: none !important; box-shadow: none !important;
+  filter: drop-shadow(0 0 calc(var(--px) * 6) rgba(255, 170, 60, 0.75)) drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 5) rgba(0, 0, 0, 0.55));
+  transition: transform 0.2s, filter 0.2s !important;
+}
+html.legendary .mcl-boards .mcb-card:hover:not(.is-sealed) { transform: translateY(calc(var(--px) * -2)); filter: drop-shadow(0 0 calc(var(--px) * 9) rgba(255, 190, 80, 0.85)) drop-shadow(0 calc(var(--px) * 4) calc(var(--px) * 6) rgba(0, 0, 0, 0.6)); }
+html.legendary .mcl-boards .mcb-card.is-using { filter: drop-shadow(0 0 calc(var(--px) * 8) rgba(255, 205, 100, 0.95)) drop-shadow(0 calc(var(--px) * 3) calc(var(--px) * 5) rgba(0, 0, 0, 0.6)); }
+html.legendary .mcl-boards .mcb-card.is-sealed { filter: grayscale(0.35) brightness(0.85) drop-shadow(0 0 calc(var(--px) * 4) rgba(255, 168, 60, 0.3)); }
+html.legendary .mcl-boards .mcb-card > :first-child { border-radius: calc(var(--px) * 7) !important; border: calc(var(--px) * 1) solid rgba(0, 0, 0, 0.55) !important; box-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 4) rgba(0, 0, 0, 0.55), inset 0 0 0 calc(var(--px) * 0.5) rgba(255, 255, 255, 0.08) !important; overflow: hidden; }
+html.legendary .mcl-boards .mcb-foot { margin-top: calc(var(--px) * 8) !important; align-items: flex-end !important; gap: calc(var(--px) * 4) !important; padding: 0 calc(var(--px) * 1) calc(var(--px) * 1); }
+html.legendary .mcl-boards .mcb-name { font-family: Cinzel, Georgia, serif !important; font-weight: 700; font-size: calc(var(--px) * 14) !important; line-height: 1.12 !important; letter-spacing: 0.01em; text-transform: none; color: #fbf3e2 !important; background: none !important; -webkit-background-clip: border-box !important; filter: none !important; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+html.legendary .mcl-boards .mcb-status { margin-top: calc(var(--px) * 3) !important; font-size: calc(var(--px) * 7.5) !important; font-weight: 500; color: #ddd3e6 !important; letter-spacing: 0.02em; }
+html.legendary .mcl-boards .mcb-use {
+  flex: none; display: grid; place-items: center;
+  width: calc(var(--px) * 21); height: calc(var(--px) * 21); padding: 0 !important; margin-bottom: calc(var(--px) * 1);
+  border-radius: 9999px !important; border: calc(var(--px) * 1.3) solid #f0c766 !important;
+  background: radial-gradient(circle at 40% 35%, #3e2266, #1c0d33 70%) !important;
+  box-shadow: 0 0 0 calc(var(--px) * 1.6) #1a0c2c, 0 0 0 calc(var(--px) * 2.6) #b98a34, 0 0 calc(var(--px) * 5) rgba(255, 190, 80, 0.45) !important;
+  font-family: var(--bsc); font-weight: 700; font-size: calc(var(--px) * 5) !important; letter-spacing: 0.02em !important; color: #f6dc96 !important; line-height: 1; cursor: pointer;
+  min-height: 0 !important; min-width: 0 !important;
+}
+html.legendary .mcl-boards .mcb-use:hover { filter: brightness(1.25); }
+html.legendary .mcl-boards .mcb-card.is-using .mcb-use { background: radial-gradient(circle at 40% 35%, #ffe9a0, #d9a43a 60%, #8a5c12) !important; color: #2a1702 !important; }
+html.legendary .mcl-boards .mcb-use.is-muted { color: #b9aecb !important; border-color: rgba(212, 169, 78, 0.55) !important; cursor: default; }
+html.legendary .mcl-boards .mcb-back a { font-size: calc(var(--px) * 10); }
+html.legendary .mcl-boards ~ * { position: relative; }
+html.legendary .mcl-boards .mcb-copy { margin: calc(var(--px) * 6) 0 0; font-size: calc(var(--px) * 9); color: rgba(246, 238, 223, 0.8); text-shadow: 0 1px 2px #000; pointer-events: none; }
+@media (max-width: 767px) { html.legendary .mcl-boards .mcb-copy { font-size: 11px; } }
+@media (max-width: 767px) {
+  html.legendary .mcl-boards :is(.mcb-top, .mcb-head) { --px: 1.12px; }
+  html.legendary .mcl-boards .mcb-top { flex-wrap: nowrap !important; }
+  html.legendary .mcl-boards .mcb-top > :first-child { flex: none; white-space: nowrap; zoom: 0.78; }
+  html.legendary .mcl-boards .mcb-top > :first-child * { white-space: nowrap; }
+  html.legendary .mcl-boards .mcb-top > :last-child { flex-wrap: wrap; row-gap: 6px; }
+  html.legendary .mcl-boards .mcb-plaque { margin-left: -14px; }
+  html.legendary .mcl-boards .mcb-desc { max-width: none !important; font-size: 13px !important; }
+}
