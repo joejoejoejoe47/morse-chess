@@ -1160,6 +1160,16 @@ export function ClubHome() {
       <p className="file-rail relative mt-8 text-center text-xs">a b c d e f g h</p>
 
       {overlays}
+      {flow.kind === "idle" && !home.queued ? (
+        <a
+          href="https://alltherex.com/chessLegendary/"
+          data-legendary
+          className="fixed bottom-3 right-3 z-30 block w-[min(420px,58vw)] overflow-hidden rounded-md shadow-[0_12px_28px_rgba(0,0,0,0.5)] transition hover:brightness-110"
+          style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <img src={asset("/legendary.png")} alt="Morse Chess Legendary" className="h-auto w-full" />
+        </a>
+      ) : null}
     </main>
   );
 }
