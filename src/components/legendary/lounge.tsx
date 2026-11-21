@@ -45,6 +45,7 @@ export function LegendaryLounge({
   onPlayBot,
   challenges,
   inboxCount,
+  duel,
   error,
 }: {
   userId: string;
@@ -56,6 +57,8 @@ export function LegendaryLounge({
   onPlayBot: () => void;
   challenges: ReactNode;
   inboxCount: number;
+  /** Live challenges (in and out): shown over the Daily Challenge box until they run out. */
+  duel?: ReactNode;
   error?: string | null;
 }) {
   const navigate = useNavigate();
@@ -273,8 +276,14 @@ export function LegendaryLounge({
         </button>
       ) : null}
 
+      {/* live challenges sit on top of the daily challenge until their timer is up */}
+      {duel ? (
+        <section className={cn("mcl-h-daily mcl-h-duel mcl-f-gold absolute z-10 transition-opacity", menu && "max-md:pointer-events-none max-md:opacity-0")} data-duel-slot>
+          {duel}
+        </section>
+      ) : null}
       {/* daily challenge */}
-      {daily ? (
+      {daily && !duel ? (
         <section className={cn("mcl-h-daily mcl-f-gold absolute z-10 transition-opacity", menu && "max-md:pointer-events-none max-md:opacity-0")} data-daily>
           <div className="mcl-h-dhead flex items-center">
             <CalendarDays className="mcl-h-dcal" />
@@ -377,7 +386,7 @@ export function LegendaryLounge({
             <button type="button" className="mcl-btn mcl-btn-ghost mt-4 w-full" onClick={() => { setInboxOpen(false); openGc(); }}>Open mail</button>
           </div>
         </div>
-      ) : inboxCount > 0 ? (
+      ) : inboxCount > 0 && !duel ? (
         <div className="absolute left-1/2 top-[124px] z-20 w-[min(92vw,520px)] -translate-x-1/2" data-incoming>
           <div className="mcl-panel rounded-xl p-3">{challenges}</div>
         </div>
