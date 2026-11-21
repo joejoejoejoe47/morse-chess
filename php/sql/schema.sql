@@ -458,3 +458,13 @@ CREATE TABLE IF NOT EXISTS `coin_gifts` (
   KEY `coin_gifts_from_idx` (`from_id`, `created_at`),
   KEY `coin_gifts_to_idx` (`to_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Ranks (owner t370u): a rank tier earned from Elo + wins over real players, with decay.
+-- Grandfather floors keep every player who had a tier before the stricter rules from being demoted
+-- (owner decides later). Additive table only; existing ratings untouched.
+CREATE TABLE IF NOT EXISTS `player_rank_floors` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `tier` VARCHAR(16) NOT NULL,
+  `reason` VARCHAR(64) NOT NULL DEFAULT '',
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

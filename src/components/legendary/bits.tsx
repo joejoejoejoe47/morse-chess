@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { asset } from "@/lib/base";
 import { characterById, finishById, frameById, parseLoadout } from "@/lib/avatar/catalog";
-import { rankFor, RARITY, SEASON_PARTICLE, seasonImage, type Rarity, type Season } from "@/lib/legendary/theme";
+import { rankFor, tierById, RARITY, SEASON_PARTICLE, seasonImage, type Rarity, type Season } from "@/lib/legendary/theme";
 import { myLegendaryPhoto, photoUrl, type MyPhoto, type PhotoInfo } from "@/lib/server/legendary";
 import { cn } from "@/lib/utils";
 
 // ── rank badge ────────────────────────────────────────────────────────────
 
-export function RankBadge({ score, size = 28, className, showName = false }: { score: number; size?: number; className?: string; showName?: boolean }) {
-  const { tier, index } = rankFor(score);
-  void index;
+export function RankBadge({ score, tierId, size = 28, className, showName = false }: { score: number; tierId?: string | null; size?: number; className?: string; showName?: boolean }) {
+  const tier = tierById(tierId) ?? rankFor(score).tier;
   const badge = (
     <img
       src={asset(`/legendary/ui/tier-${tier.id}.webp`)}

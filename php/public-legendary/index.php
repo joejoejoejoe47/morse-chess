@@ -67,6 +67,25 @@ $html = str_contains($html, '<!--MORSE_BASE-->')
     ? str_replace('<!--MORSE_BASE-->', $inject, $html)
     : (string) preg_replace('/<head([^>]*)>/i', '<head$1>' . $inject, $html, 1);
 $html = (string) preg_replace('#<title>.*?</title>#is', '<title>Morse Chess Legendary</title>', $html, 1);
+// Tab look (owner t368u): Legendary's own king favicon + names. /chess keeps its own icons.
+$lg = htmlspecialchars($chessBase . '/legendary/', ENT_QUOTES);
+$html = (string) preg_replace('#<link rel="(icon|apple-touch-icon|manifest)"[^>]*>\s*#i', '', $html);
+$html = (string) preg_replace(
+    '#</title>#i',
+    '</title><link rel="icon" type="image/svg+xml" href="' . $lg . 'favicon.svg" />'
+    . '<link rel="icon" type="image/png" sizes="32x32" href="' . $lg . 'icon-32.png" />'
+    . '<link rel="icon" type="image/png" sizes="16x16" href="' . $lg . 'icon-16.png" />'
+    . '<link rel="shortcut icon" href="' . $lg . 'favicon.ico" />'
+    . '<link rel="apple-touch-icon" sizes="180x180" href="' . $lg . 'icon-180.png" />'
+    . '<link rel="manifest" href="' . $lg . 'manifest.webmanifest" />',
+    $html,
+    1
+);
+$html = str_replace(
+    ['<meta name="application-name" content="Morse Chess" />', '<meta property="og:title" content="Morse Chess" />'],
+    ['<meta name="application-name" content="Morse Chess Legendary" />', '<meta property="og:title" content="Morse Chess Legendary" />'],
+    $html
+);
 
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-cache');

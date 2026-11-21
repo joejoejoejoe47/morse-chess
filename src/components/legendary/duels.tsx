@@ -62,7 +62,7 @@ export function DuelStack({
   const [seen, setSeen] = useState("");
   useEffect(() => {
     const fresh = duels.some((d) => d.dir === "in" && !seen.split(".").includes(d.id));
-    if (fresh) playSfx("menu");
+    if (fresh) playSfx("menu", 0.45);
     setSeen(key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

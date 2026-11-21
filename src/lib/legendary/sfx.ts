@@ -8,7 +8,7 @@ import { asset } from "@/lib/base";
 export type Sfx = "whoosh" | "boom" | "coin" | "rankup" | "tap" | "menu";
 const KEY = "mcl-sfx-muted";
 export const SFX_EVENT = "mcl-sfx-changed";
-const VOLUME: Record<Sfx, number> = { whoosh: 0.55, boom: 0.75, coin: 0.5, rankup: 0.5, tap: 0.25, menu: 0.6 };
+const VOLUME: Record<Sfx, number> = { whoosh: 0.55, boom: 0.75, coin: 0.5, rankup: 0.5, tap: 0.25, menu: 1 }; // menu-open.mp3 is peak-normalized to -1.5 dB (t373u: gear-hover whoosh louder)
 /**
  * File per sound. "menu" is the user's own menu-open sound (whoosh if it is missing). "whoosh" (gear
  * menu taps, and the fallback) is the user's own board sound (t361), replacing the old synthesized
@@ -36,7 +36,8 @@ export function setSfxMuted(muted: boolean) {
   window.dispatchEvent(new Event(SFX_EVENT));
 }
 
-export function playSfx(name: Sfx) {
+/** `gain` scales the sound (0–1), e.g. the challenge-arrival chime plays menu-open softer than the gear hover. */
+export function playSfx(name: Sfx, gain = 1) {
   if (typeof window === "undefined" || sfxMuted()) return;
   if (broken.has(name)) name = "whoosh";
   const now = performance.now();
@@ -52,7 +53,7 @@ export function playSfx(name: Sfx) {
       cache.set(name, base);
     }
     const a = base.cloneNode(true) as HTMLAudioElement;
-    a.volume = VOLUME[name];
+    a.volume = Math.max(0, Math.min(1, VOLUME[name] * gain));
     void a.play().catch(() => {
       if (name === "menu" && !broken.has("menu") && base?.error) { broken.add("menu"); playSfx("whoosh"); }
     });

@@ -6,7 +6,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronLeft, X } from "lucide-react";
 import { ui } from "@/components/legendary/bits";
-import { playSfx } from "@/lib/legendary/sfx";
 import { cn } from "@/lib/utils";
 
 export function LegendaryModePick({
@@ -37,14 +36,13 @@ export function LegendaryModePick({
 }) {
   const [open, setOpen] = useState(false);
   const [mins, setMins] = useState<1 | 5 | 10>(clockChoice ? minutes : 5);
+  // No sounds in this popup (owner t373u: "lots of wasted whooshes"); the gear menu already played its sound.
   useEffect(() => {
-    playSfx("menu");
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   const shown = clockChoice ? mins : 5;
-  const hover = () => playSfx("tap");
   return (
     <div className="mcl-hp-wrap fixed inset-0 z-40 grid place-items-center p-3" onClick={(e) => e.target === e.currentTarget && onClose()} data-mode-pick>
       <div role="dialog" aria-modal="true" aria-label="How do you want to play?" className="mcl-hp">
@@ -65,10 +63,8 @@ export function LegendaryModePick({
           aria-expanded={open}
           className={cn("mcl-hp-card is-gold", open && "is-open")}
           data-mode="timed"
-          onMouseEnter={hover}
           onClick={() => {
             if (busy) return;
-            if (!open) playSfx("menu");
             setOpen(true);
           }}
           onKeyDown={(e) => {
@@ -97,11 +93,9 @@ export function LegendaryModePick({
                   className={cn("mcl-hp-chip", shown === m && "is-on")}
                   disabled={busy || !open}
                   data-clock={m}
-                  onMouseEnter={hover}
-                  onClick={(e) => {
+                          onClick={(e) => {
                     e.stopPropagation();
                     setMins(m);
-                    playSfx("menu");
                     onTimed(m);
                   }}
                 >
@@ -112,7 +106,7 @@ export function LegendaryModePick({
           </div>
         </div>
 
-        <button type="button" className="mcl-hp-card is-purple" data-mode="breeze" disabled={busy} onMouseEnter={hover} onClick={() => { playSfx("menu"); onBreeze(); }}>
+        <button type="button" className="mcl-hp-card is-purple" data-mode="breeze" disabled={busy} onClick={onBreeze}>
           <span className="mcl-hp-row">
             <img src={ui("hp-wind.webp")} alt="" className="mcl-hp-medal" draggable={false} />
             <span className="min-w-0 text-left">
@@ -123,7 +117,7 @@ export function LegendaryModePick({
         </button>
 
         {showSetup ? (
-          <button type="button" className="mcl-hp-card is-purple" data-setup disabled={busy} onMouseEnter={hover} onClick={() => { playSfx("menu"); onSetup(); }}>
+          <button type="button" className="mcl-hp-card is-purple" data-setup disabled={busy} onClick={onSetup}>
             <span className="mcl-hp-row">
               <img src={ui("hp-rook.webp")} alt="" className="mcl-hp-medal" draggable={false} />
               <span className="min-w-0 text-left">

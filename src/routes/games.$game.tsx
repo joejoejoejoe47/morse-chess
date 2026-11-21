@@ -6,6 +6,7 @@ import { KnightsTour } from "@/components/games/knights-tour";
 import { HordeChess } from "@/components/games/horde";
 import { Breakthrough } from "@/components/games/breakthrough";
 import { Apocalypse } from "@/components/games/apocalypse";
+import { BoardGame } from "@/components/games/board-game";
 import { getHomeState } from "@/lib/server/mores";
 import { canPlayGame } from "@/lib/games/release";
 
@@ -44,6 +45,7 @@ function GameDoor() {
   if (game === "horde") return <HordeChess />;
   if (game === "breakthrough") return <Breakthrough />;
   if (game === "apocalypse") return <Apocalypse />;
+  if (game === "checkers" || game === "xiangqi") return <BoardGame key={game} game={game} />;
   return (
     <main className="grid min-h-dvh place-items-center bg-ink text-ivory">
       <Link to="/">Back to the lounge</Link>
