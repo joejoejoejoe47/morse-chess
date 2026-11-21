@@ -17,7 +17,7 @@ function readBase(): string {
 export const BASE = readBase();
 
 /**
- * Where the router lives. Morse Chess Legendary is served from /chessledgendary/ but shares the
+ * Where the router lives. Morse Chess Legendary is served from /chessLegendary/ but shares the
  * /chess API, models and sounds, so its page sets MORSE_ROUTER_BASE while MORSE_BASE stays "/chess".
  */
 export const ROUTER_BASE = (() => {

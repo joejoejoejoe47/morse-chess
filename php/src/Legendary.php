@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 
 /**
- * Morse Chess Legendary (alltherex.com/chessledgendary/): the same accounts, games, coins and
+ * Morse Chess Legendary (alltherex.com/chessLegendary/): the same accounts, games, coins and
  * database as Morse Chess, with a few read-only lobby reads plus the daily challenge.
  *
  *  - legendaryLobby: real "online now" / "live games" counts, the top 3 human players, and a
