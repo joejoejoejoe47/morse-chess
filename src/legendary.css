@@ -1515,3 +1515,113 @@ html.legendary .mcl-hp-card.is-purple:hover:not(:disabled) { border-color: #f2cf
 html.legendary .mcl-hp-card.is-purple .mcl-hp-name { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; font-size: calc(var(--u) * 42); line-height: 1; color: #fbf6ee; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
 html.legendary .mcl-hp-card.is-purple .mcl-hp-desc { margin-top: calc(var(--u) * 10); font-family: "Source Sans 3", Arial, sans-serif; font-size: calc(var(--u) * 19); line-height: 1.5; color: #c7bfd3; }
 html.legendary .mcl-hp-err { margin-top: calc(var(--u) * 14); text-align: center; color: #ff9a8a; font-size: calc(var(--u) * 15); }
+
+/* ───────── Legendary UNRANKED pull-up (owner t369u, reference unranked-ref2.png) ───────── */
+/* Light dim, no blur: the Legendary page shows through (owner: "not too dark blurred"). */
+.lpu-backdrop { position: fixed; inset: 0; z-index: 65; background: rgba(8, 5, 14, 0.42); overflow-y: auto; animation: lpu-fade 0.2s ease-out; }
+.lpu-scroll { display: flex; min-height: 100%; align-items: center; justify-content: center; padding: clamp(26px, 4vw, 44px) clamp(8px, 2vw, 24px) clamp(10px, 2vw, 24px); }
+.lpu-panel {
+  --gold: #d7a94b;
+  position: relative; width: min(100%, 1060px); padding: clamp(22px, 3.2vw, 40px) clamp(12px, 2.6vw, 30px) clamp(12px, 1.8vw, 20px);
+  border-radius: 14px; color: #f6efe2;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(214, 160, 60, 0.16), transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(110, 60, 160, 0.12), transparent 60%),
+    linear-gradient(180deg, #15110d 0%, #0e0b09 60%, #0b0907 100%);
+  border: 2px solid #b8883a;
+  box-shadow: 0 0 0 1px #2a1d0c, inset 0 0 0 5px #0e0b09, inset 0 0 0 6.5px rgba(215, 169, 75, 0.55), 0 24px 70px rgba(0, 0, 0, 0.7), 0 0 40px rgba(215, 169, 75, 0.12);
+  animation: lpu-rise 0.3s cubic-bezier(0.2, 0.9, 0.25, 1.05);
+}
+.lpu-crown { position: absolute; left: 50%; top: 0; width: clamp(54px, 7vw, 82px); transform: translate(-50%, -58%); filter: drop-shadow(0 0 12px rgba(242, 182, 50, 0.55)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.8)); pointer-events: none; z-index: 2; }
+.lpu-corner { position: absolute; width: clamp(34px, 4.6vw, 56px); height: clamp(34px, 4.6vw, 56px); pointer-events: none; filter: drop-shadow(0 0 3px rgba(242, 182, 50, 0.35)); }
+.lpu-corner.is-tl { top: 4px; left: 4px; }
+.lpu-corner.is-tr { top: 4px; right: 4px; transform: scaleX(-1); }
+.lpu-corner.is-bl { bottom: 4px; left: 4px; transform: scaleY(-1); }
+.lpu-corner.is-br { bottom: 4px; right: 4px; transform: scale(-1, -1); }
+.lpu-head { position: relative; display: flex; flex-direction: column; align-items: center; margin-bottom: clamp(12px, 1.8vw, 20px); text-align: center; }
+.lpu-title {
+  margin: 0; font-family: Cinzel, "Trajan Pro", Georgia, serif; font-weight: 700; text-transform: uppercase; line-height: 1;
+  font-size: clamp(40px, 7.2vw, 84px); letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #fff3c4 0%, #f8d77c 30%, #e2a536 58%, #b8761c 78%, #f6cf6e 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(70, 36, 4, 0.95)) drop-shadow(0 0 18px rgba(255, 190, 70, 0.45));
+}
+.lpu-sub { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 1.4vw, 16px); width: min(100%, 560px); margin: clamp(6px, 0.9vw, 10px) 0 0; font-family: Cinzel, Georgia, serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3em; font-size: clamp(10px, 1.45vw, 16px); color: #e9dcc0; white-space: nowrap; }
+.lpu-rule { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #d7a94b 40%, #d7a94b); }
+.lpu-rule:last-child { background: linear-gradient(270deg, transparent, #d7a94b 40%, #d7a94b); }
+.lpu-back { position: absolute; left: 0; top: 0; padding: 6px 12px; border-radius: 7px; border: 1.5px solid #b8883a; background: #15100b; color: #f2cf74; font-family: Cinzel, Georgia, serif; font-weight: 700; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.lpu-back:hover { box-shadow: 0 0 14px rgba(242, 182, 50, 0.4); }
+/* Ranked header (owner t370u): the badge + tier + rank replaces UNRANKED, like rank-badge-ref. */
+.lpu-rank { display: inline-flex; align-items: center; gap: clamp(10px, 1.4vw, 16px); padding: clamp(4px, 0.6vw, 8px) clamp(18px, 2.4vw, 30px) clamp(4px, 0.6vw, 8px) clamp(8px, 1vw, 12px); border-radius: 14px; background: linear-gradient(180deg, rgba(42, 30, 22, 0.92), rgba(20, 14, 10, 0.92)); border: 1.5px solid rgba(215, 169, 75, 0.7); box-shadow: inset 0 1px 0 rgba(255, 230, 160, 0.15), 0 0 26px rgba(242, 182, 50, 0.22); }
+.lpu-rank-badge { width: clamp(60px, 8vw, 96px); height: auto; filter: drop-shadow(0 0 14px rgba(255, 200, 80, 0.45)) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.8)); }
+.lpu-rank-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+.lpu-rank-name { font-family: Cinzel, Georgia, serif; font-weight: 800; text-transform: uppercase; font-size: clamp(28px, 4.6vw, 54px); letter-spacing: 0.03em; background: linear-gradient(180deg, #fff3c4 0%, #f6d272 40%, #d39522 70%, #ffe08a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 2px 0 rgba(60, 30, 4, 0.9)) drop-shadow(0 0 14px rgba(255, 190, 70, 0.35)); }
+.lpu-rank-place { margin-top: clamp(4px, 0.6vw, 8px); font-family: Cinzel, Georgia, serif; font-weight: 600; font-size: clamp(15px, 2.2vw, 26px); color: #f3ead8; }
+.lpu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(8px, 1.3vw, 14px); }
+.lpu-grid.is-other { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.lpu-card {
+  position: relative; display: flex; flex-direction: column; overflow: hidden; text-align: left; cursor: pointer; isolation: isolate;
+  border-radius: 8px; padding: 3px; background: linear-gradient(160deg, #f2d38a, #a77a2c 30%, #6e4c18 55%, #c9973f 80%, #f6dc94);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px #1c1206;
+  transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2), box-shadow 0.22s, filter 0.22s;
+  animation: lpu-card-in 0.42s cubic-bezier(0.2, 0.9, 0.25, 1) both; animation-delay: var(--d, 0ms);
+}
+.lpu-card::after { content: ""; position: absolute; inset: 6px; border: 1px solid rgba(242, 207, 116, 0.45); border-radius: 4px; pointer-events: none; z-index: 3; }
+.lpu-card:hover:not(.is-soon), .lpu-card:focus-visible { transform: translateY(-4px) scale(1.012); box-shadow: 0 0 0 1px #1c1206, 0 0 26px rgba(255, 196, 80, 0.55), 0 16px 30px rgba(0, 0, 0, 0.65); outline: none; }
+.lpu-card:active:not(.is-soon) { transform: translateY(-1px) scale(0.99); }
+.lpu-artbox { position: relative; display: block; aspect-ratio: 1.38; overflow: hidden; border-radius: 5px 5px 0 0; background: #0d0a08; }
+.lpu-card.is-compact .lpu-artbox { aspect-ratio: 1.3; border-radius: 5px; }
+.lpu-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; user-select: none; transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.3s; }
+.lpu-card:hover .lpu-art { transform: scale(1.06); }
+.lpu-shade { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(8, 6, 4, 0.82) 0%, rgba(8, 6, 4, 0.35) 26%, rgba(8, 6, 4, 0) 45%, rgba(8, 6, 4, 0) 68%, rgba(8, 6, 4, 0.6) 100%); }
+.lpu-shine { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 30%, rgba(255, 236, 180, 0.2) 45%, transparent 60%); transform: translateX(-120%); }
+.lpu-card:hover .lpu-shine { transform: translateX(120%); transition: transform 0.9s ease; }
+.lpu-head-text { position: absolute; inset: clamp(8px, 1.2vw, 14px) 6px auto; display: flex; flex-direction: column; align-items: center; text-align: center; pointer-events: none; }
+.lpu-big {
+  display: block; font-family: Cinzel, "Trajan Pro", Georgia, serif; font-weight: 700; text-transform: uppercase; line-height: 1; letter-spacing: 0.02em; white-space: nowrap;
+  font-size: clamp(17px, 2.6vw, 30px);
+  background: linear-gradient(180deg, #fff3c4 0%, #f6d272 40%, #d39522 70%, #ffe08a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(40, 20, 4, 0.95)) drop-shadow(0 0 10px rgba(255, 190, 70, 0.3));
+}
+.lpu-card.is-compact .lpu-big { font-size: clamp(13px, 1.7vw, 20px); }
+.lpu-small { display: block; margin-top: clamp(3px, 0.4vw, 5px); font-family: Cinzel, Georgia, serif; font-weight: 600; font-size: clamp(8px, 0.95vw, 11.5px); letter-spacing: 0.16em; text-transform: uppercase; color: #efe3c6; text-shadow: 0 1px 3px #000, 0 0 6px #000; white-space: nowrap; }
+.lpu-owner { position: absolute; left: clamp(8px, 1vw, 12px); bottom: clamp(8px, 1vw, 12px); display: flex; align-items: center; pointer-events: none; }
+.lpu-medal { position: relative; z-index: 1; display: grid; place-items: center; width: clamp(30px, 3.6vw, 42px); height: clamp(30px, 3.6vw, 42px); border-radius: 50%; background: radial-gradient(circle at 40% 35%, #3a2a16, #120c06); border: 2px solid #e2b55a; box-shadow: 0 0 0 1px #3a2608, 0 0 10px rgba(242, 182, 50, 0.4), 0 2px 6px rgba(0, 0, 0, 0.8); }
+.lpu-medal svg { width: 62%; height: 62%; }
+.lpu-owner-pill { display: flex; flex-direction: column; margin-left: calc(clamp(30px, 3.6vw, 42px) * -0.32); padding: 3px clamp(8px, 1vw, 12px) 3px calc(clamp(30px, 3.6vw, 42px) * 0.42); border-radius: 0 6px 6px 0; background: rgba(12, 9, 6, 0.86); border: 1px solid rgba(215, 169, 75, 0.6); border-left: 0; line-height: 1.15; }
+.lpu-owner-pill small { font-family: Cinzel, Georgia, serif; font-size: clamp(7px, 0.75vw, 9px); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #cdb98c; }
+.lpu-owner-pill b { font-family: Cinzel, Georgia, serif; font-size: clamp(8.5px, 0.95vw, 11.5px); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #f6efe2; white-space: nowrap; }
+.lpu-tag { position: absolute; right: clamp(8px, 1vw, 12px); bottom: clamp(10px, 1.2vw, 14px); display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 4px; font-family: Cinzel, Georgia, serif; font-weight: 800; font-size: clamp(7px, 0.72vw, 9px); letter-spacing: 0.08em; text-transform: uppercase; color: #2a1704; background: linear-gradient(180deg, #ffe9a8, #e2b04a 60%, #c48f2c); border: 1px solid #7a5418; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); pointer-events: none; }
+.lpu-tag.is-soon { color: #e8d7b0; background: rgba(14, 10, 6, 0.88); border-color: rgba(201, 154, 60, 0.6); }
+.lpu-tag svg { width: 1.1em; height: 1.1em; }
+.lpu-tagline { display: flex; align-items: center; justify-content: center; gap: 7px; padding: clamp(6px, 0.8vw, 9px) 8px clamp(7px, 0.9vw, 10px); background: linear-gradient(180deg, #17120d, #0f0c09); border-top: 1.5px solid #c9973f; border-radius: 0 0 5px 5px; font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; font-size: clamp(10px, 1.15vw, 14px); color: #e9dfc9; white-space: nowrap; overflow: hidden; }
+.lpu-tagline svg { width: 1.15em; height: 1.15em; flex: none; }
+.lpu-tagline span { overflow: hidden; text-overflow: ellipsis; }
+.lpu-card.is-soon { cursor: not-allowed; }
+.lpu-card.is-soon .lpu-art { filter: grayscale(0.5) brightness(0.62); }
+.lpu-error { margin: 12px 0 0; text-align: center; color: #f0c968; font-size: 14px; }
+.lpu-foot { position: relative; display: flex; justify-content: center; align-items: center; margin-top: clamp(12px, 1.8vw, 20px); }
+.lpu-cancel { min-width: clamp(130px, 15vw, 170px); padding: clamp(8px, 1vw, 11px) 26px; border-radius: 7px; font-family: Cinzel, Georgia, serif; font-weight: 700; font-size: clamp(13px, 1.4vw, 16px); letter-spacing: 0.24em; text-transform: uppercase; color: #f2d58a; background: linear-gradient(180deg, #1d1610, #0f0b08); border: 2px solid #c9973f; box-shadow: inset 0 0 0 3px #0f0b08, inset 0 0 0 4px rgba(215, 169, 75, 0.45), 0 4px 12px rgba(0, 0, 0, 0.5); transition: box-shadow 0.15s, color 0.15s, transform 0.15s; }
+.lpu-cancel:hover { color: #fff1bf; transform: translateY(-1px); box-shadow: inset 0 0 0 3px #0f0b08, inset 0 0 0 4px rgba(215, 169, 75, 0.6), 0 0 18px rgba(242, 182, 50, 0.4); }
+.lpu-x { position: absolute; right: clamp(2px, 0.8vw, 8px); top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 36px; height: 36px; color: #d7a94b; transition: color 0.15s, transform 0.15s; }
+.lpu-x svg { width: 26px; height: 26px; }
+.lpu-x:hover { color: #fff1bf; transform: translateY(-50%) rotate(90deg); }
+@keyframes lpu-fade { from { opacity: 0; } }
+@keyframes lpu-rise { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+@keyframes lpu-card-in { from { opacity: 0; transform: translateY(12px) scale(0.97); } }
+.lpu-card.is-long .lpu-big { font-size: clamp(15px, 2.25vw, 27px); }
+@media (min-width: 641px) and (max-height: 960px) { .lpu-artbox { aspect-ratio: 1.55; } .lpu-panel { padding-top: 22px; } .lpu-head { margin-bottom: 10px; } }
+@media (min-width: 641px) and (max-height: 800px) { .lpu-artbox { aspect-ratio: 1.8; } }
+@media (max-width: 900px) { .lpu-grid.is-other { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .lpu-grid, .lpu-grid.is-other { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .lpu-artbox { aspect-ratio: 1.08; }
+  .lpu-big { font-size: clamp(15px, 4.9vw, 21px); }
+  .lpu-card.is-long .lpu-big { font-size: clamp(12px, 3.7vw, 16px); }
+  .lpu-small { font-size: 7.5px; letter-spacing: 0.1em; }
+  .lpu-owner-pill b { font-size: 8px; }
+  .lpu-tagline { font-size: 10.5px; gap: 5px; }
+  .lpu-tag { top: 6px; right: 6px; bottom: auto; font-size: 6.5px; padding: 2px 5px; }
+  .lpu-head-text { top: 20px; }
+  .lpu-sub { letter-spacing: 0.2em; }
+}
+@media (prefers-reduced-motion: reduce) { .lpu-card, .lpu-panel, .lpu-backdrop { animation: none; } .lpu-card, .lpu-art { transition: none; } }

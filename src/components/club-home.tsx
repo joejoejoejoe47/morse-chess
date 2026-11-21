@@ -36,6 +36,7 @@ import { LEGENDARY } from "@/lib/legendary/theme";
 import { LegendaryLounge } from "@/components/legendary/lounge";
 import { DuelStack, type Duel } from "@/components/legendary/duels";
 import { LegendaryModePick } from "@/components/legendary/mode-pick";
+import { LegendaryPullUp, type LegendaryTile } from "@/components/legendary/pullup";
 
 const PieceSetup = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.PieceSetup })));
 const SetupLook = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.SetupLook })));
@@ -237,7 +238,7 @@ export function ClubHome() {
     }
   }
 
-  function openGame(game: "knights-tour" | "horde" | "breakthrough" | "apocalypse") {
+  function openGame(game: "knights-tour" | "horde" | "breakthrough" | "apocalypse" | "checkers" | "xiangqi") {
     setFlow({ kind: "idle" });
     setError(null);
     void navigate({ to: "/games/$game", params: { game } });
@@ -1156,11 +1157,12 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
 
 /** Which pull-up screen a rules variant's tile lives on (for Back). */
 function screenOf(v: RuleVariant): PullScreen {
-  return v === "horde" || v === "atomic" ? "main" : "other";
+  // Legendary moved Horde and Atomic to "Other games" (Chinese Chess and Checkers took their spots, t363u).
+  return !LEGENDARY && (v === "horde" || v === "atomic") ? "main" : "other";
 }
 
 type TileState = "play" | "preview" | "soon";
-type LocalGame = "knights-tour" | "apocalypse";
+type LocalGame = "knights-tour" | "apocalypse" | "checkers" | "xiangqi";
 
 type TileSpec = {
   id: string;
@@ -1230,6 +1232,30 @@ function PullUpScreen({
     rules("cavalry", "other"),
     rules("mini", "other"),
   ];
+  if (LEGENDARY) {
+    // Legendary pull-up (owner t362u–t367u): Chinese Chess replaces Horde, Checkers replaces Atomic;
+    // Horde and Atomic move to the front of "Other games".
+    const L = (a: string) => `/legendary/pullup/${a}.webp`;
+    const lmain: LegendaryTile[] = [
+      { ...main[0], art: L("1v1"), small: "Classic duel", owner: "King Alaric", medal: "crown", tagline: "One on one. Pure strategy.", tagIcon: "swords" },
+      { ...main[1], art: L("apocalypse"), small: "Clash of legends", owner: "Lord Vorren", medal: "bolt", tagline: "Chaos reigns. Only legends remain.", tagIcon: "bolt" },
+      { id: "xiangqi", art: L("xiangqi"), big: "Chinese Chess", small: "Generals & Cannons", state: gate("xiangqi"), go: () => onLocal("xiangqi"), owner: "General Han", medal: "general", tagline: "Cross the river. Trap the general.", tagIcon: "general" },
+      { id: "checkers", art: L("checkers"), big: "Checkers", small: "Jump & Crown", state: gate("checkers"), go: () => onLocal("checkers"), owner: "Baron Kingsley", medal: "checker", tagline: "Jump them all. Get crowned.", tagIcon: "checker" },
+      { ...main[4], art: L("football"), small: "Gridiron knights", owner: "Sir Brutus", medal: "helmet", tagline: "Smash. Tackle. Score.", tagIcon: "ball" },
+      { ...main[5], art: L("other"), big: "Other Games", small: "Beyond the board", owner: "Lady Nordwatch", medal: "snow", tagline: "New rules. New worlds.", tagIcon: "compass" },
+    ];
+    const lother: LegendaryTile[] = [rules("horde", "other"), rules("atomic", "other"), ...other].map((t) => ({ ...t, art: `/pullup/${t.art}.webp` }));
+    return (
+      <LegendaryPullUp
+        screen={screen}
+        intent={intent}
+        tiles={screen === "other" ? lother : lmain}
+        error={error}
+        onBack={() => onScreen("main")}
+        onClose={onClose}
+      />
+    );
+  }
   const tiles = screen === "other" ? other : main;
   return (
     <div className="pull-backdrop fixed inset-0 z-[65] overflow-y-auto" data-pullup-screen data-pullup-view={screen}>

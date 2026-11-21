@@ -9,8 +9,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, Eye, Settings, X } from "lucide-react";
 import { getAvatar } from "@/lib/server/avatar";
 import { parseLoadout, type AvatarLoadout } from "@/lib/avatar/catalog";
-import { claimLegendaryDaily, legendaryDaily, legendaryLobby, legendaryPhotos, type Daily, type Lobby, type PhotoInfo } from "@/lib/server/legendary";
-import { activeSeason, rankFor, RANKS, type Season } from "@/lib/legendary/theme";
+import { claimLegendaryDaily, legendaryDaily, legendaryLobby, legendaryPhotos, myRank as myRankRpc, type Daily, type Lobby, type MyRank, type PhotoInfo } from "@/lib/server/legendary";
+import { activeSeason, rankFor, RANK_NEEDS, RANKS, tierById, type Season } from "@/lib/legendary/theme";
 import { playSfx } from "@/lib/legendary/sfx";
 import { openGc } from "@/components/gc-mail";
 import { AvatarKing } from "@/components/legendary/avatar-king";
@@ -78,6 +78,14 @@ export function LegendaryLounge({
   const closeTimer = useRef<number | undefined>(undefined);
   const userLetter = (email || username).match(/[\p{L}\p{N}]/u)?.[0]?.toUpperCase() ?? "M";
   const rank = rankFor(score);
+  const [mine, setMine] = useState<MyRank | null>(null);
+  useEffect(() => {
+    let live = true;
+    void myRankRpc().then((r) => { if (live) setMine(r); }).catch(() => {});
+    return () => { live = false; };
+  }, [score]);
+  const myTier = mine ? (mine.ranked ? tierById(mine.tier) : null) : rank.tier;
+  const leaderTier = (p: { tier?: string | null; score: number }) => (p.tier !== undefined ? tierById(p.tier) : rankFor(p.score).tier);
 
   useEffect(() => setPurse(coins), [coins]);
 
@@ -124,18 +132,20 @@ export function LegendaryLounge({
 
   // Rank up: the first time this browser sees a higher tier, play the badge animation.
   useEffect(() => {
+    if (!mine?.ranked || !mine.tier) return; // earned ranks only (Ranks.php)
     try {
-      const seen = localStorage.getItem(`${RANK_SEEN}:${username}`);
+      const idx = RANKS.findIndex((r) => r.id === mine.tier);
+      const seen = localStorage.getItem(`${RANK_SEEN}:v2:${username}`);
       const seenIdx = RANKS.findIndex((r) => r.id === seen);
-      if (seen && seenIdx >= 0 && rank.index > seenIdx) {
-        setRankUp(rank.tier.id);
+      if (seen && seenIdx >= 0 && idx > seenIdx) {
+        setRankUp(mine.tier);
         playSfx("rankup");
       }
-      localStorage.setItem(`${RANK_SEEN}:${username}`, rank.tier.id);
+      localStorage.setItem(`${RANK_SEEN}:v2:${username}`, mine.tier);
     } catch {
       /* ignore */
     }
-  }, [rank.index, rank.tier.id, username]);
+  }, [mine?.ranked, mine?.tier, username]);
 
   const left = useCountdown(daily?.endsAt ?? null);
   const [hh, mm, ss] = hms(left);
@@ -200,7 +210,7 @@ export function LegendaryLounge({
           <span className="min-w-0">
             <span className="mcl-h-name block truncate">{username}</span>
             <span className="mcl-h-level block whitespace-nowrap">
-              {rank.tier.name} · {score.toLocaleString()} Elo
+              {myTier ? myTier.name : "Unranked"} · {score.toLocaleString()} Elo
             </span>
             <span className="mcl-h-bar block" title={rank.next ? `${rank.next.min - score} Elo to ${rank.next.name}` : "Top rank"}>
               <span className="block h-full" style={{ width: `${Math.round(rank.progress * 100)}%` }} />
@@ -220,10 +230,10 @@ export function LegendaryLounge({
             <span className="mcl-h-chiptag">Elo</span>
           </span>
           <span className="mcl-h-rank max-md:!hidden" data-rank-chip>
-            <RankBadge score={score} size={30} className="mcl-h-rankbadge" />
+            {myTier ? <RankBadge score={score} tierId={myTier.id} size={30} className="mcl-h-rankbadge" /> : <RankBadge score={0} size={30} className="mcl-h-rankbadge opacity-50 grayscale" />}
             <span className="leading-none">
-              <span className="mcl-h-rankname block" style={{ color: rank.tier.color }}>{rank.tier.name}</span>
-              <span className="mcl-h-ranksub block">{lobby?.myRank ? `Rank ${lobby.myRank}` : "Ranked"}</span>
+              <span className="mcl-h-rankname block" style={{ color: myTier?.color ?? "#cdb98c" }}>{myTier ? myTier.name : "Unranked"}</span>
+              <span className="mcl-h-ranksub block">{mine?.ranked && mine.place ? `Rank ${mine.place}` : mine && !mine.ranked ? `${mine.placementLeft} games to place` : lobby?.myRank ? `Rank ${lobby.myRank}` : "Ranked"}</span>
             </span>
           </span>
           <div className="mcl-h-icons flex items-center">
@@ -251,14 +261,14 @@ export function LegendaryLounge({
           {leaders.length === 0 ? <li className="mcl-h-lbempty">Loading…</li> : null}
           {leaders.slice(0, 3).map((p) => (
             <li key={p.username} className={cn("mcl-h-lbrow mcl-f-row", p.you && "is-you")} data-leader={p.place}>
-              <span className="mcl-h-lbbadge" title={`${rankFor(p.score).tier.name} rank`}>
-                <img src={ui(`tier-${rankFor(p.score).tier.id}.webp`)} alt={`${rankFor(p.score).tier.name} rank`} className="mcl-h-lbemblem" data-rank={rankFor(p.score).tier.id} draggable={false} />
+              <span className="mcl-h-lbbadge" title={`${leaderTier(p)?.name ?? "Unranked"} rank`}>
+                <img src={ui(`tier-${leaderTier(p)?.id ?? "bronze"}.webp`)} alt={`${leaderTier(p)?.name ?? "Unranked"} rank`} className={cn("mcl-h-lbemblem", !leaderTier(p) && "opacity-50 grayscale")} data-rank={leaderTier(p)?.id ?? "unranked"} draggable={false} />
               </span>
               <SquarePortrait userId={p.userId} photo={leaderPhotos[p.userId]} look={p.look} letter={p.username[0]} className="mcl-h-lbpic" />
               <span className="mcl-h-lbtext min-w-0 flex-1">
                 <span className="mcl-h-lbname block truncate">{p.username}</span>
                 <span className="mcl-h-lbscore block tabular-nums">{p.score.toLocaleString()}</span>
-                <span className="mcl-h-lbtier block truncate" style={{ color: rankFor(p.score).tier.color }}>{rankFor(p.score).tier.name}</span>
+                <span className="mcl-h-lbtier block truncate" style={{ color: leaderTier(p)?.color ?? "#cdb98c" }}>{leaderTier(p)?.name ?? "Unranked"}</span>
               </span>
               <img src={ui(p.place === 1 ? "trophy.webp" : p.place === 2 ? "gem.webp" : "bronze.webp")} alt="" className="mcl-h-lbicon" draggable={false} />
             </li>
@@ -425,7 +435,7 @@ function RankingsModal({ lobby, photos, onClose }: { lobby: Lobby | null; photos
               <SquarePortrait userId={p.userId} photo={photos[p.userId]} look={p.look} letter={p.username[0]} className="!size-10" />
               <PlayerAvatar userId={p.userId} photo={photos[p.userId]} letter={p.username[0]} size={36} />
               <span className="flex-1 truncate text-sm font-semibold">{p.username}</span>
-              <RankBadge score={p.score} size={24} showName />
+              <RankBadge score={p.score} tierId={p.tier} size={24} showName />
               <span className="w-14 text-right font-[Cinzel] font-bold text-[#f2d27a] tabular-nums">{p.score}</span>
             </li>
           ))}
@@ -436,7 +446,7 @@ function RankingsModal({ lobby, photos, onClose }: { lobby: Lobby | null; photos
             <span key={r.id} className="flex flex-col items-center gap-1">
               <RankBadge score={r.min} size={26} />
               {r.name}
-              <span className="text-[#8f80ad]">{r.min}+</span>
+              <span className="text-[#8f80ad]">{RANK_NEEDS[r.id]?.elo ?? r.min}+{RANK_NEEDS[r.id]?.wins ? ` · ${RANK_NEEDS[r.id].wins}W` : ""}</span>
             </span>
           ))}
         </div>

@@ -2,7 +2,7 @@
 import { rpc } from "@/lib/rpc";
 import { apiUrl } from "@/lib/base";
 
-export type LobbyLeader = { place: number; userId: string; username: string; score: number; look: string; you: boolean };
+export type LobbyLeader = { place: number; userId: string; username: string; score: number; tier?: string | null; look: string; you: boolean };
 export type Lobby = {
   online: number;
   liveGames: number;
@@ -50,3 +50,21 @@ export const legendaryPhotos = rpc<Record<string, PhotoInfo>>("legendaryPhotos")
 export function photoUrl(userId: string, v: number) {
   return apiUrl(`/api/photo?u=${encodeURIComponent(userId)}&v=${v}`);
 }
+
+/** Ranks (php/src/Ranks.php, owner t370u). */
+export type MyRank = {
+  username?: string;
+  ranked: boolean;
+  tier: string | null;
+  place: number | null;
+  score: number;
+  earned?: string | null;
+  grandfathered?: boolean;
+  pinned?: boolean;
+  games: number;
+  wins: number;
+  placementLeft: number;
+  decayInDays: number | null;
+};
+export const myRank = rpc<MyRank>("myRank");
+export const rankTable = rpc<MyRank[]>("rankTable");

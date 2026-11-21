@@ -148,6 +148,7 @@ final class Legendary
                 'userId' => $r['user_id'],
                 'username' => $r['username'],
                 'score' => $r['score'],
+                'tier' => Ranks::tierOf($r['user_id']),
                 'look' => Kit::look($r['user_id'], $r['avatar_json']),
                 'you' => $r['user_id'] === $userId,
             ], $top, array_keys($top)),

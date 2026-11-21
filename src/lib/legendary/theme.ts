@@ -55,6 +55,21 @@ export const RANKS: RankTier[] = [
   { id: "legendary", name: "Legendary", min: 2100, color: "#ffd86b", glow: "rgba(255,216,107,0.75)" },
 ];
 
+/** Stricter earned ranks (php/src/Ranks.php TIERS, owner t370u): Elo AND wins over real players. */
+export const RANK_NEEDS: Record<string, { elo: number; wins: number }> = {
+  bronze: { elo: 0, wins: 0 },
+  silver: { elo: 1200, wins: 10 },
+  gold: { elo: 1500, wins: 40 },
+  platinum: { elo: 1650, wins: 75 },
+  diamond: { elo: 1800, wins: 120 },
+  master: { elo: 2000, wins: 200 },
+  legendary: { elo: 2200, wins: 300 },
+};
+
+export function tierById(id: string | null | undefined): RankTier | null {
+  return (id && RANKS.find((r) => r.id === id)) || null;
+}
+
 export function rankFor(score: number): { tier: RankTier; index: number; next: RankTier | null; progress: number } {
   let index = 0;
   for (let i = 0; i < RANKS.length; i++) if (score >= RANKS[i].min) index = i;
