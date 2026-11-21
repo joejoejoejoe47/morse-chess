@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, X } from "lucide-react";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
-import { gcThread, listGc, sendMail, type GcLetter, type GcPerson } from "@/lib/server/mail";
+import { gcThread, giveCoins, listGc, sendMail, type GcLetter, type GcPerson } from "@/lib/server/mail";
+import { getPurse } from "@/lib/server/mores";
+import { playSfx } from "@/lib/legendary/sfx";
+import { asset } from "@/lib/base";
 import { activeSeason, LEGENDARY } from "@/lib/legendary/theme";
 import { SeasonBackdrop } from "@/components/legendary/bits";
 import { cn } from "@/lib/utils";
@@ -106,6 +109,7 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
   const [dropOver, setDropOver] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [gift, setGift] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -310,7 +314,10 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
             }}
           >
             {letters.length === 0 ? <p className="text-sm text-mist">No letters yet. Write the first one.</p> : null}
-            {letters.map((letter) => (
+            {letters.map((letter) =>
+              letter.kind === "coins" ? (
+                <GiftCard key={letter.id} letter={letter} other={open.username} />
+              ) : (
               <article key={letter.id} className={cn("mcg-letter rounded-md border border-line bg-panel/80 px-4 py-3", letter.mine && "is-mine")}>
                 <div className="flex items-center gap-3">
                   <Letter name={letter.mine ? "Me" : open.username} letter={letter.mine ? "M" : open.letter} />
@@ -322,7 +329,8 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
                 <LetterMedia letter={letter} play={letter.id === playId} />
                 {letter.body ? <p className="mcg-body mt-3 whitespace-pre-wrap text-[15px] leading-relaxed text-ivory">{letter.body}</p> : null}
               </article>
-            ))}
+              ),
+            )}
           </div>
           <form
             className="mcg-compose relative border-t border-line bg-ink/90 px-4 py-3"
@@ -363,6 +371,11 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
                   void take(next);
                 }}
               />
+              {LEGENDARY ? (
+                <button type="button" aria-label={`Give Morse Coins to ${open.username}`} title="Give Morse Coins" className="mcg-coinbtn" data-give-coins onClick={() => setGift(true)}>
+                  <img src={asset("/morse-coin.png")} alt="" draggable={false} />
+                </button>
+              ) : null}
               <button type="button" aria-label="Add a picture or a video" className="mcg-pick grid size-11 place-items-center rounded-full border border-line text-ivory" onClick={() => picker.current?.click()}>
                 <ImagePlus className="size-4" />
               </button>
@@ -371,6 +384,23 @@ export function GcMail({ onClose, userId, playId }: { onClose: () => void; userI
               </button>
             </div>
           </form>
+          {gift ? (
+            <GiveCoins
+              to={open}
+              onClose={() => setGift(false)}
+              onGiven={async (coins) => {
+                window.dispatchEvent(new CustomEvent("morse-coins", { detail: { coins } }));
+                stick.current = true;
+                try {
+                  const row = await gcThread({ data: { userId: open.userId } });
+                  setLetters(row.letters ?? []);
+                } catch {
+                  /* the poll brings the gift letter in */
+                }
+                void load(q).catch(() => undefined);
+              }}
+            />
+          ) : null}
         </section>
       ) : (
         <ul className="mcg-list mcg-scroll relative min-h-0 flex-1 overflow-auto">
@@ -429,5 +459,133 @@ function Letter({ name, letter }: { name: string; letter: string }) {
     <span className="mcg-medal grid size-10 shrink-0 place-items-center rounded-full font-display text-xl text-ivory" style={{ background: tint(name), ["--enamel" as string]: tint(name) }}>
       {letter}
     </span>
+  );
+}
+
+function plural(n: number) {
+  return `${n.toLocaleString()} Morse ${n === 1 ? "Coin" : "Coins"}`;
+}
+
+/** The gold coin card a gift leaves in the chat. Worded for whoever is reading it. */
+function GiftCard({ letter, other }: { letter: GcLetter; other: string }) {
+  const n = letter.amount ?? 0;
+  const text = letter.mine ? `You gave ${other} ${plural(n)}!` : `${other} gave you ${plural(n)}!`;
+  return (
+    <article data-gift={n} className={cn("mcg-gift flex items-center gap-3 rounded-md border border-[#c9a24a] bg-[#2a2010] px-4 py-3", letter.mine && "is-mine ml-auto")}>
+      <img src={asset("/morse-coin.png")} alt="" className="mcg-gift-coin size-10 shrink-0 rounded-full" draggable={false} />
+      <div className="min-w-0">
+        <p className="mcg-gift-eyebrow text-[11px] uppercase tracking-[0.16em] text-[#d9b65e]">Morse Coin gift</p>
+        <p className="mcg-gift-text text-[15px] font-medium text-ivory">{text}</p>
+        <p className="mcg-time text-xs text-mist">{when(letter.at)}</p>
+      </div>
+      <span className="mcg-gift-amt ml-auto shrink-0 font-display text-2xl text-[#f2cf6b]">{letter.mine ? "−" : "+"}{n.toLocaleString()}</span>
+    </article>
+  );
+}
+
+const QUICK = [5, 10, 25, 50];
+
+/** Give Morse Coins popup: pick an amount, confirm, the server moves the coins. */
+function GiveCoins({ to, onClose, onGiven }: { to: GcPerson; onClose: () => void; onGiven: (coins: number) => void | Promise<void> }) {
+  const [purse, setPurse] = useState<number | null>(null);
+  const [amount, setAmount] = useState("10");
+  const [step, setStep] = useState<"pick" | "confirm" | "done">("pick");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void getPurse()
+      .then((p) => setPurse((p as { coins?: number } | null)?.coins ?? 0))
+      .catch(() => setPurse(null));
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const n = /^\d+$/.test(amount.trim()) ? Number(amount.trim()) : 0;
+  const tooMuch = purse !== null && n > purse;
+  const bad = n < 1 ? "Pick at least 1 coin." : n > 10000 ? "Up to 10,000 coins at a time." : tooMuch ? "You don't have that many coins." : "";
+
+  async function give() {
+    if (busy) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await giveCoins({ data: { userId: to.userId, amount: n } });
+      setPurse(r.coins);
+      setStep("done");
+      playSfx("coin");
+      await onGiven(r.coins);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "The coins did not go.");
+      setStep("pick");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mcg-give-wrap fixed inset-0 z-[130] grid place-items-center bg-black/70 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={`Give Morse Coins to ${to.username}`} className="mcg-give relative w-full max-w-sm rounded-xl border border-[#c9a24a] bg-[#1b1424] p-5 text-ivory">
+        <button type="button" aria-label="Close" className="mcg-give-x absolute right-3 top-3 grid size-9 place-items-center text-mist hover:text-ivory" onClick={onClose}>
+          <X className="size-4" />
+        </button>
+        <img src={asset("/morse-coin.png")} alt="" className="mcg-give-coin mx-auto size-16 rounded-full" draggable={false} />
+        <h2 className="mcg-give-title mt-2 text-center font-display text-2xl">
+          Give Morse Coins to <span className="mcg-give-name">{to.username}</span>
+        </h2>
+        <p className="mcg-give-bal mt-1 text-center text-sm text-mist">
+          Your balance: <b>{purse === null ? "…" : purse.toLocaleString()}</b> coins
+        </p>
+        {step === "done" ? (
+          <div className="mcg-give-done mt-5 text-center">
+            <p className="text-lg">Sent {plural(n)} to {to.username}!</p>
+            <button type="button" className="mcg-give-btn mt-4 w-full rounded-full px-5 py-3" onClick={onClose}>
+              Done
+            </button>
+          </div>
+        ) : step === "confirm" ? (
+          <div className="mcg-give-confirm mt-5 text-center">
+            <p className="text-base">
+              Give <b>{plural(n)}</b> to <b>{to.username}</b>? This can&apos;t be undone.
+            </p>
+            {err ? <p className="mcg-give-err mt-2 text-sm text-[#ff8f8f]">{err}</p> : null}
+            <div className="mt-4 flex gap-2">
+              <button type="button" className="mcg-give-back flex-1 rounded-full border border-line px-4 py-3" onClick={() => setStep("pick")} disabled={busy}>
+                Back
+              </button>
+              <button type="button" className="mcg-give-btn flex-1 rounded-full px-4 py-3" data-give-confirm onClick={() => void give()} disabled={busy}>
+                {busy ? "Giving…" : "Yes, give"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mcg-give-pick mt-4">
+            <div className="grid grid-cols-4 gap-2">
+              {QUICK.map((q) => (
+                <button key={q} type="button" className={cn("mcg-give-quick rounded-full border border-line py-2 text-sm", n === q && "is-on")} onClick={() => setAmount(String(q))}>
+                  {q}
+                </button>
+              ))}
+            </div>
+            <label className="mt-3 block">
+              <span className="sr-only">Amount</span>
+              <input
+                inputMode="numeric"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+                aria-label="Amount of Morse Coins"
+                className="mcg-give-amt w-full rounded-full border border-line bg-ink-soft px-4 py-3 text-center text-lg text-ivory outline-none"
+                data-give-amount
+              />
+            </label>
+            {bad || err ? <p className="mcg-give-err mt-2 text-center text-sm text-[#ff8f8f]">{err || bad}</p> : null}
+            <button type="button" className="mcg-give-btn mt-4 w-full rounded-full px-5 py-3" data-give-next disabled={!!bad} onClick={() => { setErr(""); setStep("confirm"); }}>
+              Give {n > 0 ? plural(n) : "coins"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
