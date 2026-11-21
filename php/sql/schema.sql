@@ -422,7 +422,7 @@ CREATE TABLE IF NOT EXISTS `football_history` (
   KEY `football_history_white_idx` (`white_user_id`, `created_at`),
   KEY `football_history_black_idx` (`black_user_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
--- Morse Chess Legendary (alltherex.com/chessledgendary): one row per player per Chicago day once the
+-- Morse Chess Legendary (alltherex.com/chessLegendary): one row per player per Chicago day once the
 -- daily challenge reward is paid. The primary key makes the claim idempotent (additive table only).
 CREATE TABLE IF NOT EXISTS `legendary_daily_claims` (
   `user_id` VARCHAR(64) NOT NULL,

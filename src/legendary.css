@@ -1,6 +1,6 @@
 /*
  * Morse Chess Legendary skin. Everything here is scoped to html.legendary, which only the
- * /chessledgendary/ front controller turns on (window.MORSE_THEME = "legendary"), so the
+ * /chessLegendary/ front controller turns on (window.MORSE_THEME = "legendary"), so the
  * classic /chess/ site never sees these rules.
  */
 
@@ -994,7 +994,7 @@ html.legendary .border-line {
 }
 }
 
-/* ══ Legendary skin for every classic page reached from /chessledgendary/ ══════════════
+/* ══ Legendary skin for every classic page reached from /chessLegendary/ ══════════════
  * Unlayered so it wins over Tailwind utilities; scoped to html.legendary (never /chess/),
  * and skips the mockup-built home and store. */
 html.legendary {

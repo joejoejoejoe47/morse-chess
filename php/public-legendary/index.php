@@ -3,14 +3,14 @@
 declare(strict_types=1);
 
 /**
- * Morse Chess Legendary front controller (alltherex.com/chessledgendary/).
+ * Morse Chess Legendary front controller (alltherex.com/chessLegendary/).
  *
  * Legendary is a second skin over the SAME Morse Chess app: it serves the classic build's
  * app.html with the API and assets still pointed at /chess (same database, accounts, coins,
  * session cookie), the router mounted here, and the Legendary theme switched on.
  * Nothing in this folder talks to the database.
  *
- * Layout (deployed):  httpdocs/chess/app.html  +  httpdocs/chessledgendary/index.php
+ * Layout (deployed):  httpdocs/chess/app.html  +  httpdocs/chessLegendary/index.php
  * Override the sibling with MORSE_CHESS_DIR / MORSE_CHESS_BASE when testing locally.
  */
 
@@ -18,12 +18,24 @@ $chessDir = getenv('MORSE_CHESS_DIR') ?: dirname(__DIR__) . '/chess';
 $chessBase = rtrim((string) (getenv('MORSE_CHESS_BASE') ?: '/chess'), '/');
 $here = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'))), '/');
 
+// The live folder is /chessLegendary/. IIS matches folders without caring about case, so
+// /chesslegendary/... lands here too: send it to the one canonical spelling (permanent).
+$canonical = '/chessLegendary';
+if ($here !== $canonical && strcasecmp($here, $canonical) === 0) {
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+    $q = strpos($uri, '?');
+    $rest = substr((string) parse_url($uri, PHP_URL_PATH), strlen($here)) ?: '/';
+    header('Location: ' . $canonical . $rest . ($q === false ? '' : substr($uri, $q)), true, 301);
+    header('Cache-Control: public, max-age=86400');
+    exit;
+}
+
 $path = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
 if ($here !== '' && ($path === $here || str_starts_with($path, $here . '/'))) {
     $path = substr($path, strlen($here)) ?: '/';
 }
 
-// The API lives under /chess. A stray /chessledgendary/api call gets a pointer, not the page.
+// The API lives under /chess. A stray /chessLegendary/api call gets a pointer, not the page.
 if ($path === '/api' || str_starts_with($path, '/api/')) {
     http_response_code(404);
     header('Content-Type: application/json; charset=utf-8');

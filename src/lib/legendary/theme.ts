@@ -1,7 +1,7 @@
 /**
- * Morse Chess Legendary (alltherex.com/chessledgendary/). The same build as Morse Chess: the
- * /chessledgendary/ front controller sets window.MORSE_THEME = "legendary" and
- * window.MORSE_ROUTER_BASE = "/chessledgendary", while MORSE_BASE stays "/chess" so every API
+ * Morse Chess Legendary (alltherex.com/chessLegendary/). The same build as Morse Chess: the
+ * /chessLegendary/ front controller sets window.MORSE_THEME = "legendary" and
+ * window.MORSE_ROUTER_BASE = "/chessLegendary", while MORSE_BASE stays "/chess" so every API
  * call, model and sound still comes from the one shared Morse Chess backend and database.
  */
 import { asset } from "@/lib/base";

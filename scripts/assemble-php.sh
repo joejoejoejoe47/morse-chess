@@ -23,6 +23,10 @@ done
 # Morse Chess Legendary: a tiny front controller that re-skins the same build from a sibling folder.
 rm -rf site-legendary && mkdir -p site-legendary
 cp php/public-legendary/index.php php/public-legendary/.htaccess php/public-legendary/web.config site-legendary/
+# The old misspelled address (/chessledgendary/): 301s every path to /chessLegendary/.
+rm -rf site-legendary-redirect && mkdir -p site-legendary-redirect
+cp php/public-legendary-redirect/index.php php/public-legendary-redirect/.htaccess php/public-legendary-redirect/web.config site-legendary-redirect/
 echo "Built site/ — upload its CONTENTS to your chess folder."
-echo "Built site-legendary/ — upload its CONTENTS to chessledgendary/ next to chess/."
+echo "Built site-legendary/ — upload its CONTENTS to chessLegendary/ next to chess/."
+echo "Built site-legendary-redirect/ — upload its CONTENTS to chessledgendary/ (old address, redirects)."
 command -v zip >/dev/null && (cd site && zip -qr ../site.zip . && echo "Also wrote site.zip") || true

@@ -12,7 +12,7 @@ import { LEGENDARY } from "@/lib/legendary/theme";
 import { SeasonBackdrop } from "@/components/legendary/bits";
 import { useSeason } from "@/components/legendary/lounge";
 
-/** Legendary (/chessledgendary/) draws the home page's season picture behind the cabinet. */
+/** Legendary (/chessLegendary/) draws the home page's season picture behind the cabinet. */
 function LegendaryBackdrop() {
   const season = useSeason();
   return <SeasonBackdrop season={season} />;
