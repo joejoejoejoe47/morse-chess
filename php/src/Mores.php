@@ -995,7 +995,7 @@ final class Mores
         $variant = self::variantOf($game);
         if ($variant !== '') {
             // Variant MorseBot (Variants::botMove): waits out the capture duel / Atomic blast first.
-            $capture = str_contains((string) ($game['last_move_san'] ?? ''), 'x');
+            $capture = str_contains((string) ($game['last_move_san'] ?? ''), 'x') || str_contains((string) ($game['last_move_san'] ?? ''), '*');
             $waitMs = $capture ? ($variant === 'atomic' ? 2200 : (BoardGames::is($variant) ? 1500 : 4200)) : 450;
             // A checkers multi-jump continues at once (the same side moves again).
             if (BoardGames::is($variant) && $capture && (string) ($game['last_move_san'] ?? '') !== '' && self::lastMoverWas($game, $botSide)) {

@@ -13,7 +13,7 @@ final class Variants
 {
     // mini = Gardner minichess on 5x5 (owner t220u), played in the a1-e5 corner of a normal 8x8 FEN.
     // checkers + xiangqi (owner t377u) ride on the same game rows; their rules live in BoardGames.
-    public const IDS = ['horde', 'atomic', 'koth', 'breakthrough', 'heist', 'parade', 'cavalry', 'mini', 'checkers', 'xiangqi'];
+    public const IDS = ['horde', 'atomic', 'koth', 'breakthrough', 'heist', 'parade', 'cavalry', 'mini', 'checkers', 'xiangqi', 'battlechess'];
 
     public const START_FEN = [
         'horde' => 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1',
@@ -26,6 +26,7 @@ final class Variants
         'mini' => '8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1',
         'checkers' => BoardGames::START['checkers'],
         'xiangqi' => BoardGames::START['xiangqi'],
+        'battlechess' => BoardGames::START['battlechess'],
     ];
 
     /** Squares per side of the board moves are generated on (5 while generating Minichess moves). */
@@ -62,7 +63,7 @@ final class Variants
 
     public static function name(string $v): string
     {
-        return ['horde' => 'Horde', 'atomic' => 'Atomic', 'koth' => 'King of the Hill', 'breakthrough' => 'Breakthrough', 'heist' => 'Queen Heist', 'parade' => 'Pawn Parade', 'cavalry' => 'Cavalry Charge', 'mini' => 'Minichess 5×5', 'checkers' => 'Checkers', 'xiangqi' => 'Chinese Chess'][$v] ?? 'Chess';
+        return ['horde' => 'Horde', 'atomic' => 'Atomic', 'koth' => 'King of the Hill', 'breakthrough' => 'Breakthrough', 'heist' => 'Queen Heist', 'parade' => 'Pawn Parade', 'cavalry' => 'Cavalry Charge', 'mini' => 'Minichess 5×5', 'checkers' => 'Checkers', 'xiangqi' => 'Chinese Chess', 'battlechess' => 'Battle Chess'][$v] ?? 'Chess';
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
@@ -701,7 +702,7 @@ final class Variants
     public static function tryMove(string $v, string $fen, string $from, string $to, ?string $promo): ?array
     {
         if (BoardGames::is($v)) {
-            $r = BoardGames::tryMove($v, $fen, $from, $to);
+            $r = BoardGames::tryMove($v, $fen, $from, $to, $promo);
             return $r === null ? null : $r + ['exploded' => []];
         }
         if (!self::validSq($from) || !self::validSq($to)) {
