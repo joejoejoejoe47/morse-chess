@@ -14,8 +14,10 @@ export type GcLetter = {
   mine: boolean;
   body: string;
   at: string;
-  kind?: "" | "image" | "video";
+  kind?: "" | "image" | "video" | "coins";
   media?: string;
+  /** Morse Coins in a gift letter (kind "coins"). */
+  amount?: number;
 };
 
 export const listGc = rpc<{ me: string; people: GcPerson[] }>("listGc");
@@ -23,3 +25,4 @@ export const gcThread = rpc<{ userId: string; username: string; letter: string; 
 export const sendMail = rpc<{ id: string }>("sendMail");
 export const gcPops = rpc<{ letters: { id: string; fromId?: string; name: string; text: string; kind?: string; thumb?: string }[] }>("gcPops");
 export const gcRead = rpc<{ ok: boolean }>("gcRead");
+export const giveCoins = rpc<{ ok: boolean; amount: number; coins: number; id: string; to: string }>("giveCoins");

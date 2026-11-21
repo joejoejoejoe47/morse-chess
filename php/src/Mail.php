@@ -7,6 +7,10 @@ namespace Morse;
 /** GC: letters between players, laid out like a mail box. */
 final class Mail
 {
+    /** Give Morse Coins: biggest single gift, and how many gifts one player can send per hour. */
+    public const GIFT_MAX = 10000;
+    public const GIFTS_PER_HOUR = 20;
+
     public static function register(): void
     {
         Rpc::register('listGc', [self::class, 'listGc']);
@@ -14,6 +18,7 @@ final class Mail
         Rpc::register('sendMail', [self::class, 'sendMail']);
         Rpc::register('gcPops', [self::class, 'gcPops']);
         Rpc::register('gcRead', [self::class, 'gcRead']);
+        Rpc::register('giveCoins', [self::class, 'giveCoins']);
     }
 
     /** First capital in the name, or the first letter when there is none. */
@@ -91,6 +96,18 @@ final class Mail
         $letters = [];
         foreach ($rows as $row) {
             $kind = (string) ($row['media_kind'] ?? '');
+            if ($kind === 'coins') {
+                $letters[] = [
+                    'id' => (string) $row['id'],
+                    'mine' => (string) $row['from_id'] === $userId,
+                    'body' => (string) $row['body'],
+                    'at' => Db::iso((string) $row['created_at']),
+                    'kind' => 'coins',
+                    'media' => '',
+                    'amount' => self::giftAmount((string) $row['body']),
+                ];
+                continue;
+            }
             if ($kind !== 'image' && $kind !== 'video') {
                 $kind = '';
             }
@@ -197,6 +214,74 @@ final class Mail
             return [$raw, 'video'];
         }
         throw new RpcError('That file did not send.');
+    }
+
+    /** The amount written in a gift letter ("... gave X 25 Morse Coins!"). */
+    private static function giftAmount(string $body): int
+    {
+        return preg_match('/(\d[\d,]*) Morse Coins?/u', $body, $m) === 1 ? (int) str_replace(',', '', $m[1]) : 0;
+    }
+
+    /**
+     * Give Morse Coins to another player from GC. One transaction: the conditional debit
+     * (coins >= amount) means two parallel gifts can never spend the same coins, the credit,
+     * the gift log row and the gold coin letter in the chat all commit together or not at all.
+     * @param array<string,mixed> $data
+     */
+    public static function giveCoins(string $userId, array $data): mixed
+    {
+        $raw = $data['amount'] ?? null;
+        if (is_string($raw) && preg_match('/^\d+$/', trim($raw)) === 1) {
+            $raw = (int) trim($raw);
+        }
+        if (!is_int($raw) || $raw < 1) {
+            throw new RpcError('Give at least 1 Morse coin.');
+        }
+        if ($raw > self::GIFT_MAX) {
+            throw new RpcError('You can give up to ' . number_format(self::GIFT_MAX) . ' Morse coins at a time.');
+        }
+        $amount = $raw;
+        $other = self::person((string) ($data['userId'] ?? ''));
+        if ($other === null) {
+            throw new RpcError('That player is not at the club.', 404);
+        }
+        if ($other['user_id'] === $userId) {
+            throw new RpcError('You cannot give coins to yourself.');
+        }
+        return Db::transaction(static function () use ($userId, $other, $amount): array {
+            $me = Db::one('SELECT username, coins FROM profiles WHERE user_id = ? LIMIT 1' . Db::forUpdate(), [$userId]);
+            if ($me === null) {
+                throw new RpcError('Sign in first.', 401);
+            }
+            $since = Db::ts(Db::nowMs() - 3600 * 1000);
+            $recent = (int) Db::value('SELECT COUNT(*) FROM coin_gifts WHERE from_id = ? AND created_at >= ?', [$userId, $since]);
+            if ($recent >= self::GIFTS_PER_HOUR) {
+                throw new RpcError('You have given a lot of gifts this hour. Try again a bit later.', 429);
+            }
+            $paid = Db::run('UPDATE profiles SET coins = coins - ? WHERE user_id = ? AND coins >= ?', [$amount, $userId, $amount]);
+            if ($paid === 0) {
+                throw new RpcError('Not enough Morse coins.');
+            }
+            $got = Db::run('UPDATE profiles SET coins = coins + ? WHERE user_id = ?', [$amount, $other['user_id']]);
+            if ($got === 0) {
+                throw new RpcError('That player is not at the club.', 404); // rolls the debit back
+            }
+            $myName = mb_substr((string) $me['username'], 0, 64);
+            $theirName = mb_substr((string) $other['username'], 0, 64);
+            $mailId = Util::uuid();
+            $now = Db::now();
+            $body = "\u{1FA99} {$myName} gave {$theirName} " . number_format($amount) . ' Morse ' . ($amount === 1 ? 'Coin' : 'Coins') . '!';
+            Db::run(
+                'INSERT INTO mail (id, from_id, from_name, to_id, to_name, body, media, media_kind, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$mailId, $userId, $myName, $other['user_id'], $theirName, $body, null, 'coins', $now]
+            );
+            Db::run(
+                'INSERT INTO coin_gifts (id, from_id, to_id, amount, mail_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                [Util::uuid(), $userId, $other['user_id'], $amount, $mailId, $now]
+            );
+            $coins = (int) Db::value('SELECT coins FROM profiles WHERE user_id = ? LIMIT 1', [$userId]);
+            return ['ok' => true, 'amount' => $amount, 'coins' => $coins, 'id' => $mailId, 'to' => $theirName];
+        });
     }
 
     /** @return array{user_id:string,username:string}|null */

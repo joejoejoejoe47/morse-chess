@@ -445,3 +445,16 @@ CREATE TABLE IF NOT EXISTS `legendary_photos` (
   `updated_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- GC "Give Morse Coins" (t353): one row per gift. Coins move inside one transaction with a
+-- conditional debit, so the sender can never go below zero. Additive table only.
+CREATE TABLE IF NOT EXISTS `coin_gifts` (
+  `id` VARCHAR(64) NOT NULL,
+  `from_id` VARCHAR(64) NOT NULL,
+  `to_id` VARCHAR(64) NOT NULL,
+  `amount` INT NOT NULL,
+  `mail_id` VARCHAR(64) NOT NULL DEFAULT '',
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `coin_gifts_from_idx` (`from_id`, `created_at`),
+  KEY `coin_gifts_to_idx` (`to_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
