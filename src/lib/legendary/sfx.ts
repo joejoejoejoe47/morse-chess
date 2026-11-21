@@ -8,9 +8,13 @@ import { asset } from "@/lib/base";
 export type Sfx = "whoosh" | "boom" | "coin" | "rankup" | "tap" | "menu";
 const KEY = "mcl-sfx-muted";
 export const SFX_EVENT = "mcl-sfx-changed";
-const VOLUME: Record<Sfx, number> = { whoosh: 0.28, boom: 0.75, coin: 0.5, rankup: 0.5, tap: 0.25, menu: 0.6 };
-/** File per sound; "menu" is the user's own menu-open sound, whoosh if it is missing. */
-const FILE: Partial<Record<Sfx, string>> = { menu: "menu-open" };
+const VOLUME: Record<Sfx, number> = { whoosh: 0.55, boom: 0.75, coin: 0.5, rankup: 0.5, tap: 0.25, menu: 0.6 };
+/**
+ * File per sound. "menu" is the user's own menu-open sound (whoosh if it is missing). "whoosh" (gear
+ * menu taps, and the fallback) is the user's own board sound (t361), replacing the old synthesized
+ * "shhh" noise sweep, which is deleted.
+ */
+const FILE: Partial<Record<Sfx, string>> = { menu: "menu-open", whoosh: "board-sound" };
 const broken = new Set<Sfx>();
 const cache = new Map<Sfx, HTMLAudioElement>();
 let lastAt = 0;

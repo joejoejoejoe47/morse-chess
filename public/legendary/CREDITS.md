@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | `fonts/cinzel-600/700/800.woff2` | **Cinzel** by The Cinzel Project Authors (Natanael Gama), via Fontsource / Google Fonts — https://github.com/NDISCOVER/Cinzel | SIL Open Font License 1.1 — see `fonts/OFL.txt` |
 | `bg/*.webp` (fall, winter, spring, summer, christmas, new year, halloween, thanksgiving, easter) | Generated for Morse Chess Legendary with Grok Bot's image generator (no third-party photos or artwork), then resized/sharpened with ffmpeg | Original to this project |
-| `sfx/whoosh, boom, coin, rankup, tap .mp3` | Synthesised from scratch for this project (numpy + ffmpeg: filtered noise sweeps, sine partials, envelopes) | Original to this project |
+| `sfx/boom, coin, rankup, tap .mp3` | Synthesised from scratch for this project (numpy + ffmpeg: filtered noise sweeps, sine partials, envelopes) | Original to this project |
 
 Everything else on the Legendary pages (pieces, boards, AV kings, coin art, crown/rank SVGs) is the
 existing Morse Chess artwork, with its own credits in the main app (e.g. `avatars/crowns/CREDITS.md`).
@@ -17,3 +17,4 @@ existing Morse Chess artwork, with its own credits in the main app (e.g. `avatar
 ## Store art and menu icons
 - public/legendary/store/*.webp (board and gear card art, board-of-the-week banner), ui/logo-shield.webp and ui/mi-*.webp (gear menu icons): generated in-house for Morse Chess Legendary with Grok Bot image generation; free to use in this project.
 - sfx/menu-open.mp3: supplied by the site owner.
+- sfx/board-sound.mp3: supplied by the site owner (t361); replaced the old synthesized whoosh.mp3, which was deleted.
