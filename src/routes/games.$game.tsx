@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AuthScreen, SplashSkeleton } from "@/components/auth-screen";
 import { useClubDoor } from "@/lib/auth/use-club-door";
@@ -27,6 +27,9 @@ function GameDoor() {
       .catch(() => { if (live) setName(null); });
     return () => { live = false; };
   }, [door.status]);
+  // Once the game is on screen, a late door re-check must not unmount it (it would reset the board).
+  const shown = useRef(false);
+  if (shown.current && door.status !== "auth") return renderGame(game);
   if (door.status === "pending") return <SplashSkeleton />;
   if (door.status === "auth") return <AuthScreen />;
   if (name === undefined) return <SplashSkeleton />;
@@ -41,6 +44,11 @@ function GameDoor() {
       </main>
     );
   }
+  shown.current = true;
+  return renderGame(game);
+}
+
+function renderGame(game: string) {
   if (game === "knights-tour") return <KnightsTour />;
   if (game === "horde") return <HordeChess />;
   if (game === "breakthrough") return <Breakthrough />;
