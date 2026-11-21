@@ -34,6 +34,8 @@ import { ChallengeCountdown, useNow } from "@/components/challenge-countdown";
 import { getAvatar } from "@/lib/server/avatar";
 import { LEGENDARY } from "@/lib/legendary/theme";
 import { LegendaryLounge } from "@/components/legendary/lounge";
+import { DuelStack, type Duel } from "@/components/legendary/duels";
+import { LegendaryModePick } from "@/components/legendary/mode-pick";
 
 const PieceSetup = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.PieceSetup })));
 const SetupLook = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.SetupLook })));
@@ -257,7 +259,7 @@ export function ClubHome() {
     setFlow({ kind: "pick-mode", intent: flow.intent, variant, back });
   }
 
-  async function chooseMode(mode: GameMode) {
+  async function chooseMode(mode: GameMode, minutes: 1 | 5 | 10 = botMinutes) {
     if (flow.kind !== "pick-mode") return;
     setError(null);
     if (flow.intent === "challenge") {
@@ -269,7 +271,7 @@ export function ClubHome() {
       setBusy(true);
       try {
         const { gameId } = await startBotGame({
-          data: { mode, bot: "v1", minutes: botMinutes, color: "random", variant: flow.variant },
+          data: { mode, bot: "v1", minutes, color: "random", variant: flow.variant },
         });
         await navigate({ to: "/play/$gameId", params: { gameId } });
       } catch (err) {
@@ -541,7 +543,43 @@ export function ClubHome() {
         </Suspense>
       ) : null}
 
-      {(flow.kind !== "idle" && flow.kind !== "select-game" && flow.kind !== "setup" || home.queued) && (
+      {LEGENDARY && flow.kind === "pick-mode" ? (
+        <LegendaryModePick
+          key={`${flow.intent}-${flow.variant ?? ""}`}
+          clockChoice={flow.intent === "bot" || flow.intent === "bot-v2" || (flow.intent === "random" && !!flow.variant)}
+          minutes={botMinutes}
+          busy={busy}
+          error={error}
+          showSetup={!flow.variant}
+          onBack={
+            flow.intent === "random" || flow.intent === "challenge"
+              ? () => { setError(null); setFlow({ kind: "select-game", intent: flow.intent === "challenge" ? "challenge" : "random", screen: flow.back }); }
+              : undefined
+          }
+          onClose={() => { setFlow({ kind: "idle" }); setError(null); }}
+          onTimed={(m) => { setBotMinutes(m); void chooseMode("timed", m); }}
+          onBreeze={() => void chooseMode("breeze")}
+          onSetup={() => setFlow({ kind: "setup", intent: flow.intent, back: flow.back })}
+          note={
+            flow.variant ? (
+              <>
+                <p data-pick-variant={flow.variant}>
+                  <b>{VARIANT_INFO[flow.variant].name}</b> · {VARIANT_INFO[flow.variant].short}.{" "}
+                  {flow.intent === "random" ? "MorseBot sits across." : "Your friend plays the same rules."} Unranked — no Elo, no coins.
+                </p>
+                <ol data-pick-rules={flow.variant}>
+                  {VARIANT_INFO[flow.variant].rules.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ol>
+              </>
+            ) : flow.intent === "challenge" && target ? (
+              <p>Sitting across <b>{target}</b>. Timed or breeze?</p>
+            ) : null
+          }
+        />
+      ) : null}
+      {(flow.kind !== "idle" && flow.kind !== "select-game" && flow.kind !== "setup" || home.queued) && !(LEGENDARY && flow.kind === "pick-mode") && (
         <div className="fixed inset-0 z-40 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
           <div className={"w-full rounded-xl border border-line bg-panel p-6 " + (flow.kind === "select-game" ? "max-w-4xl" : "max-w-md")}>
             <div className="flex items-start justify-between gap-3">
@@ -845,6 +883,38 @@ export function ClubHome() {
 
   if (LEGENDARY) {
     const liveInbox = home.inbox.filter(live).length;
+    const duels: Duel[] = [
+      ...home.inbox.filter(live).map((c) => ({ ...c, dir: "in" as const })),
+      ...home.outgoing.filter((c) => c.status === "pending" && live(c)).map((c) => ({ ...c, dir: "out" as const })),
+    ].sort((a, b) => (a.dir === b.dir ? (a.deadline ?? Infinity) - (b.deadline ?? Infinity) : a.dir === "in" ? -1 : 1));
+    const duelSlot = duels.length ? (
+      <DuelStack
+        duels={duels}
+        now={now}
+        onAccept={async (c) => {
+          if (c.setupFen) {
+            setSetupInvite(c);
+            return;
+          }
+          const res = await respondChallenge({ data: { id: c.id, accept: true } });
+          if (res.ok && res.gameId && c.kind === "football") {
+            await navigate({ to: "/variant/$mode", params: { mode: "football" }, search: { game: res.gameId } });
+          } else if (res.ok && res.gameId) {
+            await navigate({ to: "/play/$gameId", params: { gameId: res.gameId } });
+          } else if (!res.ok && res.error) {
+            setError(res.error);
+          }
+        }}
+        onDecline={async (c) => {
+          await respondChallenge({ data: { id: c.id, accept: false } }).catch(() => undefined);
+          setHome((h) => (h ? { ...h, inbox: h.inbox.filter((x) => x.id !== c.id) } : h));
+        }}
+        onCancel={async (c) => {
+          await cancelChallenge({ data: { id: c.id, confirm: true } }).catch(() => undefined);
+          setHome((h) => (h ? { ...h, outgoing: h.outgoing.filter((x) => x.id !== c.id) } : h));
+        }}
+      />
+    ) : null;
     return (
       <>
         <LegendaryLounge
@@ -857,6 +927,7 @@ export function ClubHome() {
           onPlayBot={() => { setMyBot(null); setFlow({ kind: "pick-mode", intent: "bot" }); }}
           challenges={challengesList}
           inboxCount={liveInbox}
+          duel={duelSlot}
           error={error && flow.kind === "idle" ? error : null}
         />
         {overlays}
