@@ -74,3 +74,32 @@
 .bg-modal { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 16px; background: rgba(6, 3, 12, 0.6); }
 .bg-modal-card { width: min(100%, 560px); max-height: 86dvh; overflow-y: auto; padding: 20px 22px; border-radius: 14px; border: 1.5px solid #c99a3c; background: linear-gradient(180deg, #1c0f2c, #0f0818); }
 .bg-modal-card ul { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 8px; font-size: 16px; color: #ece0c5; list-style: disc; }
+
+/* in-game 2D board (owner t377u) */
+.bg2-wrap { position: absolute; inset: 0; display: grid; place-items: center; padding: 96px 12px 112px; }
+.bg2-board { width: min(100%, calc(100dvh - 220px)); height: auto; max-height: 100%; user-select: none; -webkit-tap-highlight-color: transparent; }
+.bg2-wrap.is-xq .bg2-board { width: min(100%, calc((100dvh - 220px) * 0.9)); }
+.bg2-piece { transition: transform .32s cubic-bezier(.25,.85,.3,1.05); cursor: pointer; }
+.bg2-dot { fill: #f6d77a; opacity: .85; filter: drop-shadow(0 0 6px rgba(246,215,122,.9)); pointer-events: none; }
+.bg2-sel { fill: none; stroke: #f6d77a; stroke-width: 5; filter: drop-shadow(0 0 8px rgba(246,215,122,.9)); }
+.bg2-must { fill: none; stroke: #ffcf4d; stroke-width: 4; animation: bg2-pulse 1.1s ease-in-out infinite; }
+.bg2-check { fill: rgba(220, 40, 40, .35); stroke: #ff5a4a; stroke-width: 4; animation: bg2-pulse 0.9s ease-in-out infinite; }
+@keyframes bg2-pulse { 50% { opacity: .35; } }
+.bg2-coord text { fill: #e8c979; font: 600 22px Cinzel, Georgia, serif; text-anchor: middle; }
+.bg2-xqline path, .bg2-xqline rect { stroke: #5a3a16; stroke-width: 2.5; fill: none; }
+.bg2-river { font: 700 44px "Noto Serif SC", "Songti SC", "SimSun", serif; fill: #6b4519; text-anchor: middle; letter-spacing: 8px; opacity: .85; }
+.bg2-xqchar { font: 700 38px "Noto Serif SC", "Songti SC", "KaiTi", "SimSun", serif; text-anchor: middle; dominant-baseline: central; }
+@media (max-width: 640px) { .bg2-wrap { padding: 88px 6px 92px; } }
+
+/* ── Battle Chess 2D (MB-14) ── */
+.bc2-wrap { position: absolute; inset: 0; padding: 96px 16px 112px; display: grid; place-items: center; }
+.bc2-svg { width: 100%; height: 100%; max-width: 1400px; filter: drop-shadow(0 18px 40px rgba(0,0,0,.6)); }
+.bc2-piece { transition: transform 420ms cubic-bezier(.3,.8,.3,1); }
+.bc2-check { animation: bc2-pulse 1s ease-in-out infinite alternate; }
+@keyframes bc2-pulse { from { opacity: .45 } to { opacity: 1 } }
+.bc2-shot { animation: bc2-fade 1.4s ease-out forwards; }
+.bc2-boom { transform-box: fill-box; transform-origin: center; animation: bc2-boom .6s ease-out; }
+@keyframes bc2-fade { 0%, 60% { opacity: 1 } 100% { opacity: 0 } }
+@keyframes bc2-boom { from { transform: scale(.2); opacity: 1 } to { transform: scale(1.2); opacity: .2 } }
+@media (max-width: 900px) { .bc2-wrap { padding: 84px 6px 96px; } }
+@media (max-width: 560px) { .bc2-wrap { padding: 76px 2px 150px; } }

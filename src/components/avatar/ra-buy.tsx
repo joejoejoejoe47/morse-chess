@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { buyGear, getAvatar, saveAvatar } from "@/lib/server/avatar";
 import { asset } from "@/lib/base";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,14 @@ export function RaBuy({
   active,
   onView,
   onLocked,
+  label,
+  activeClass = "bg-ivory text-ink",
+  ...rest
 }: {
+  /** Custom button content, e.g. the Legendary icon tile; gets whether RA is a free trial. */
+  label?: (trial: boolean) => ReactNode;
+  activeClass?: string;
+  [k: `data-${string}`]: string | undefined;
   className?: string;
   active?: boolean;
   onView: () => void;
@@ -91,7 +98,8 @@ export function RaBuy({
       <button
         type="button"
         disabled={busy}
-        className={cn(className, active && (owned || trial) && "bg-ivory text-ink")}
+        className={cn(className, active && (owned || trial) && activeClass)}
+        {...rest}
         title={!owned && trial ? "Free RA game: your 17th game, then every 30 games" : undefined}
         onClick={() => {
           if (owned || trial) {
@@ -102,7 +110,7 @@ export function RaBuy({
           setOpen(true);
         }}
       >
-        {!owned && trial ? "RA free" : "RA"}
+        {label ? label(!owned && trial) : !owned && trial ? "RA free" : "RA"}
       </button>
       <RaShop
         open={open}

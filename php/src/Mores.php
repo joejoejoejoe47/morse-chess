@@ -133,6 +133,14 @@ final class Mores
         return [Constants::BOT_USER_ID, Constants::BOT_V2_USER_ID];
     }
 
+    /** True when the last stored move was played by $side (a checkers jump chain keeps the turn). */
+    private static function lastMoverWas(array $game, string $side): bool
+    {
+        $to = (string) ($game['last_move_to'] ?? '');
+        $v = self::variantOf($game);
+        return $to !== '' && BoardGames::is($v) && BoardGames::colorAt($v, (string) $game['fen'], $to) === $side;
+    }
+
     private static function validSquare(string $sq): bool
     {
         return (bool) preg_match('/^[a-h][1-8]$/', $sq);
@@ -856,7 +864,10 @@ final class Mores
         $variant = self::variantOf($game);
         $expectedFen = (string) $game['fen'];
         $promo = in_array($promotion, ['q', 'r', 'b', 'n'], true) ? $promotion : null;
-        if (!self::validSquare($from) || !self::validSquare($to)) {
+        $okSq = BoardGames::is($variant)
+            ? BoardGames::validSquare($variant, $from) && BoardGames::validSquare($variant, $to)
+            : self::validSquare($from) && self::validSquare($to);
+        if (!$okSq) {
             return ['ok' => false, 'error' => 'That move is not legal.'];
         }
         if ($promo === null && Variants::needsPromotion($variant, $expectedFen, $from, $to)) {
@@ -984,8 +995,12 @@ final class Mores
         $variant = self::variantOf($game);
         if ($variant !== '') {
             // Variant MorseBot (Variants::botMove): waits out the capture duel / Atomic blast first.
-            $capture = str_contains((string) ($game['last_move_san'] ?? ''), 'x');
-            $waitMs = $capture ? ($variant === 'atomic' ? 2200 : 4200) : 450;
+            $capture = str_contains((string) ($game['last_move_san'] ?? ''), 'x') || str_contains((string) ($game['last_move_san'] ?? ''), '*');
+            $waitMs = $capture ? ($variant === 'atomic' ? 2200 : (BoardGames::is($variant) ? 1500 : 4200)) : 450;
+            // A checkers multi-jump continues at once (the same side moves again).
+            if (BoardGames::is($variant) && $capture && (string) ($game['last_move_san'] ?? '') !== '' && self::lastMoverWas($game, $botSide)) {
+                $waitMs = 700;
+            }
             if (Db::nowMs() - Db::toMs($game['turn_started_at']) < $waitMs) {
                 return;
             }
@@ -1688,7 +1703,10 @@ final class Mores
         if ($game['turn'] !== $side) {
             return ['ok' => false, 'error' => 'Wait for your turn.'];
         }
-        if (self::variantOf($game) !== '') {
+        if (BoardGames::is(self::variantOf($game))) {
+            $pc = BoardGames::colorAt(self::variantOf($game), (string) $game['fen'], $from);
+            $piece = $pc === null ? null : ['color' => $pc];
+        } elseif (self::variantOf($game) !== '') {
             $piece = null;
             if (self::validSquare($from)) {
                 [$pr, $pf] = Variants::pos($from);

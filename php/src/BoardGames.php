@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace Morse;
+
 /**
  * Checkers and Xiangqi (owner t363u/t364u). They ride on the variant game rows (games.variant =
  * 'checkers' / 'xiangqi'); the position lives in games.fen as a state string (not chess FEN).
@@ -9,10 +11,11 @@ declare(strict_types=1);
  */
 final class BoardGames
 {
-    public const IDS = ['checkers', 'xiangqi'];
+    public const IDS = ['checkers', 'xiangqi', 'battlechess'];
     public const START = [
         'checkers' => 'ck|1m1m1m1m/m1m1m1m1/1m1m1m1m/8/8/M1M1M1M1/1M1M1M1M/M1M1M1M1|w|-|0',
         'xiangqi' => 'xq|rheakaehr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RHEAKAEHR|w|0',
+        'battlechess' => 'bc|20/20/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3C16/20/20/16c3/3nncpppppppp6/3rbarnbkqber6/5ff13/20/20|w|-|0|1',
     ];
 
     public static function is(string $v): bool
@@ -22,12 +25,20 @@ final class BoardGames
 
     public static function validSquare(string $v, string $sq): bool
     {
+        if ($v === 'battlechess') {
+            return self::bcPos($sq) !== null;
+        }
         return $v === 'xiangqi' ? (bool) preg_match('/^[a-i][0-9]$/', $sq) : (bool) preg_match('/^[a-h][1-8]$/', $sq);
     }
 
     /** 'w' / 'b' / null: whose piece stands on $sq. */
     public static function colorAt(string $v, string $fen, string $sq): ?string
     {
+        if ($v === 'battlechess') {
+            $s = self::bcParse($fen);
+            $p = self::bcPos($sq);
+            return $s === null || $p === null ? null : self::bcColor(self::bcAt($s, $p[0], $p[1]));
+        }
         if ($v === 'checkers') {
             $s = self::ckParse($fen);
             if ($s === null || !self::validSquare($v, $sq)) {
@@ -45,8 +56,18 @@ final class BoardGames
     }
 
     /** @return array{fen:string,turn:string,san:string,status:array}|null */
-    public static function tryMove(string $v, string $fen, string $from, string $to): ?array
+    public static function tryMove(string $v, string $fen, string $from, string $to, ?string $promo = null): ?array
     {
+        if ($v === 'battlechess') {
+            $s = self::bcParse($fen);
+            $m = $s === null ? null : self::bcFind($s, $from, $to, $promo);
+            if ($m === null) {
+                return null;
+            }
+            $san = self::bcSan($s, $m);
+            $n = self::bcApply($s, $m);
+            return ['fen' => self::bcString($n), 'turn' => $n['turn'], 'san' => $san, 'status' => self::bcStatus($n)];
+        }
         if ($v === 'checkers') {
             $s = self::ckParse($fen);
             if ($s === null) {
@@ -76,6 +97,10 @@ final class BoardGames
     /** @return array{over:bool,winner?:?string,reason?:string} */
     public static function statusOfFen(string $v, string $fen): array
     {
+        if ($v === 'battlechess') {
+            $s = self::bcParse($fen);
+            return $s === null ? ['over' => true, 'winner' => null, 'reason' => 'bad'] : self::bcStatus($s);
+        }
         if ($v === 'checkers') {
             $s = self::ckParse($fen);
             return $s === null ? ['over' => true, 'winner' => null, 'reason' => 'bad'] : self::ckStatus($s);
@@ -88,6 +113,13 @@ final class BoardGames
     public static function legalList(string $v, string $fen): array
     {
         $out = [];
+        if ($v === 'battlechess') {
+            $s = self::bcParse($fen);
+            foreach ($s === null ? [] : self::bcLegal($s) as $m) {
+                $out[] = [$m['from'], $m['to']];
+            }
+            return array_values(array_unique($out, SORT_REGULAR));
+        }
         if ($v === 'checkers') {
             $s = self::ckParse($fen);
             foreach ($s === null ? [] : self::ckLegal($s) as $m) {
@@ -600,6 +632,622 @@ final class BoardGames
         return ['over' => false];
     }
 
+    // ───────────────────────── Battle Chess ─────────────────────────
+    // Line-by-line copy of src/lib/boardgames/battlechess.ts (see the notes there).
+
+    private const BC_X0 = -3;
+    private const BC_X1 = 16;
+    private const BC_Y0 = -2;
+    private const BC_Y1 = 11;
+    private const BC_FILES = 'xyzabcdefghijklmnopq';
+    private const BC_ORTH = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    private const BC_DIAG = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+    private const BC_KN = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
+    private const BC_EAG = [[3, 0], [-3, 0], [0, 3], [0, -3]];
+    private const BC_ARCH = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [2, -2], [-2, 2], [-2, -2]];
+    private const BC_VAL = ['K' => 0, 'Q' => 900, 'R' => 500, 'B' => 320, 'N' => 300, 'P' => 100, 'C' => 260, 'E' => 380, 'A' => 520, 'F' => 250];
+
+    public static function bcSq(int $x, int $y): string
+    {
+        return self::BC_FILES[$x + 3] . $y;
+    }
+
+    /** @return array{0:int,1:int}|null */
+    public static function bcPos(string $s): ?array
+    {
+        if ($s === '') {
+            return null;
+        }
+        $xi = strpos(self::BC_FILES, $s[0]);
+        $rest = substr($s, 1);
+        if ($xi === false || !preg_match('/^-?\d+$/', $rest)) {
+            return null;
+        }
+        $y = (int) $rest;
+        if ($y < self::BC_Y0 || $y > self::BC_Y1) {
+            return null;
+        }
+        return [$xi - 3, $y];
+    }
+
+    private static function bcIn(int $x, int $y): bool
+    {
+        return $x >= self::BC_X0 && $x <= self::BC_X1 && $y >= self::BC_Y0 && $y <= self::BC_Y1;
+    }
+
+    public static function bcTerrain(int $x, int $y): string
+    {
+        if ($x < 0 || $x > 13 || $y < 1 || $y > 8) {
+            return 'W';
+        }
+        if ($y === 3 && $x <= 2) {
+            return 'W';
+        }
+        if ($y === 6 && $x >= 11) {
+            return 'W';
+        }
+        if (($x <= 1 && $y >= 7) || ($x >= 12 && $y <= 2)) {
+            return 'M';
+        }
+        if (($x === 6 && $y === 5) || ($x === 7 && $y === 4)) {
+            return 'T';
+        }
+        return 'L';
+    }
+
+    private static function bcLand(int $x, int $y): bool
+    {
+        $t = self::bcTerrain($x, $y);
+        return $t === 'L' || $t === 'T';
+    }
+
+    private static function bcWater(int $x, int $y): bool
+    {
+        return self::bcIn($x, $y) && self::bcTerrain($x, $y) === 'W';
+    }
+
+    private static function bcAt(array $s, int $x, int $y): string
+    {
+        return self::bcIn($x, $y) ? $s['cells'][self::BC_Y1 - $y][$x - self::BC_X0] : '#';
+    }
+
+    private static function bcPut(array &$c, int $x, int $y, string $p): void
+    {
+        $c[self::BC_Y1 - $y][$x - self::BC_X0] = $p;
+    }
+
+    public static function bcColor(string $p): ?string
+    {
+        if ($p === '.' || $p === '#') {
+            return null;
+        }
+        return strtoupper($p) === $p ? 'w' : 'b';
+    }
+
+    private static function bcKind(string $p): string
+    {
+        return strtoupper($p);
+    }
+
+    public static function bcParse(string $str): ?array
+    {
+        $p = explode('|', $str);
+        if (count($p) !== 6 || $p[0] !== 'bc') {
+            return null;
+        }
+        $rows = explode('/', $p[1]);
+        if (count($rows) !== 14) {
+            return null;
+        }
+        $cells = [];
+        foreach ($rows as $r) {
+            $row = [];
+            preg_match_all('/(\d+)|(\D)/', $r, $mm, PREG_SET_ORDER);
+            foreach ($mm as $m) {
+                if ($m[1] !== '') {
+                    for ($i = (int) $m[1]; $i > 0; $i--) {
+                        $row[] = '.';
+                    }
+                } else {
+                    $row[] = $m[2];
+                }
+            }
+            if (count($row) !== 20) {
+                return null;
+            }
+            $cells[] = $row;
+        }
+        return ['cells' => $cells, 'turn' => $p[2] === 'b' ? 'b' : 'w', 'ep' => $p[3] === '-' ? null : $p[3], 'half' => (int) $p[4], 'full' => max(1, (int) $p[5])];
+    }
+
+    public static function bcString(array $s): string
+    {
+        return implode('|', ['bc', implode('/', array_map(static fn (array $r): string => (string) preg_replace_callback('/\.+/', static fn (array $m): string => (string) strlen($m[0]), implode('', $r)), $s['cells'])), $s['turn'], $s['ep'] ?? '-', (string) $s['half'], (string) $s['full']]);
+    }
+
+    /** @return array{0:int,1:int}|null */
+    private static function bcMate(array $s, int $x, int $y): ?array
+    {
+        $p = self::bcAt($s, $x, $y);
+        foreach (self::BC_ORTH as [$dx, $dy]) {
+            if (self::bcAt($s, $x + $dx, $y + $dy) === $p) {
+                return [$x + $dx, $y + $dy];
+            }
+        }
+        return null;
+    }
+
+    /** @param list<array{0:int,1:int}> $out */
+    private static function bcCannon(array $s, int $x, int $y, string $by, array &$out): void
+    {
+        foreach (self::BC_ORTH as [$dx, $dy]) {
+            if (!self::bcLand($x + $dx, $y + $dy) && self::bcTerrain($x + $dx, $y + $dy) !== 'M') {
+                continue;
+            }
+            for ($k = 1; $k <= 3; $k++) {
+                $tx = $x + $dx * $k;
+                $ty = $y + $dy * $k;
+                if (!self::bcLand($tx, $ty)) {
+                    break;
+                }
+                $p = self::bcAt($s, $tx, $ty);
+                if ($p === '.') {
+                    continue;
+                }
+                if (self::bcKind($p) === 'R') {
+                    break;
+                }
+                if (self::bcColor($p) !== $by) {
+                    $out[] = [$tx, $ty];
+                }
+                break;
+            }
+        }
+    }
+
+    public static function bcAttacked(array $s, int $x, int $y, string $by): bool
+    {
+        for ($yy = self::BC_Y0; $yy <= self::BC_Y1; $yy++) {
+            for ($xx = self::BC_X0; $xx <= self::BC_X1; $xx++) {
+                $p = self::bcAt($s, $xx, $yy);
+                if ($p === '.' || self::bcColor($p) !== $by) {
+                    continue;
+                }
+                $k = self::bcKind($p);
+                $dx = $x - $xx;
+                $dy = $y - $yy;
+                $ax = abs($dx);
+                $ay = abs($dy);
+                if ($k === 'P') {
+                    $fwd = $by === 'w' ? -1 : 1;
+                    if ($dy === $fwd && $ax === 1) {
+                        return true;
+                    }
+                } elseif ($k === 'N') {
+                    if (($ax === 1 && $ay === 2) || ($ax === 2 && $ay === 1)) {
+                        return true;
+                    }
+                } elseif ($k === 'E') {
+                    if (($ax === 1 && $ay === 2) || ($ax === 2 && $ay === 1) || ($ax === 3 && $dy === 0) || ($dx === 0 && $ay === 3)) {
+                        return true;
+                    }
+                } elseif ($k === 'K') {
+                    if (max($ax, $ay) === 1) {
+                        return true;
+                    }
+                } elseif ($k === 'C') {
+                    if (($ax === 2 || $dx === 0) && ($ay === 2 || $dy === 0) && ($dx !== 0 || $dy !== 0)) {
+                        $t = self::bcTerrain($xx + intdiv($dx, 2), $yy + intdiv($dy, 2));
+                        if ($t !== 'M' && $t !== 'T') {
+                            return true;
+                        }
+                    }
+                } elseif ($k === 'A') {
+                    if ($ax === $ay && $dx !== 0) {
+                        $sx = $dx <=> 0;
+                        $sy = $dy <=> 0;
+                        $ok = true;
+                        for ($i = 1; $i < $ax; $i++) {
+                            if (self::bcTerrain($xx + $sx * $i, $yy + $sy * $i) !== 'L') {
+                                $ok = false;
+                                break;
+                            }
+                        }
+                        if ($ok) {
+                            return true;
+                        }
+                    }
+                } elseif ($k === 'F') {
+                    $out = [];
+                    self::bcCannon($s, $xx, $yy, $by, $out);
+                    foreach ($out as [$a, $b]) {
+                        if ($a === $x && $b === $y) {
+                            return true;
+                        }
+                    }
+                } elseif ($k === 'Q' || $k === 'R' || $k === 'B') {
+                    $orth = $dx === 0 || $dy === 0;
+                    $diag = $ax === $ay;
+                    if (($dx === 0 && $dy === 0) || (!$orth && !$diag)) {
+                        continue;
+                    }
+                    if ($k === 'R' && !$orth) {
+                        continue;
+                    }
+                    if ($k === 'B' && !$diag) {
+                        continue;
+                    }
+                    if (!self::bcLand($x, $y)) {
+                        continue;
+                    }
+                    $sx = $dx <=> 0;
+                    $sy = $dy <=> 0;
+                    $cx = $xx + $sx;
+                    $cy = $yy + $sy;
+                    $ok = true;
+                    while ($cx !== $x || $cy !== $y) {
+                        if (self::bcTerrain($cx, $cy) !== 'L' || self::bcAt($s, $cx, $cy) !== '.') {
+                            $ok = false;
+                            break;
+                        }
+                        $cx += $sx;
+                        $cy += $sy;
+                    }
+                    if ($ok) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** @return array{0:int,1:int}|null */
+    private static function bcKing(array $s, string $c): ?array
+    {
+        $want = $c === 'w' ? 'K' : 'k';
+        for ($y = 1; $y <= 8; $y++) {
+            for ($x = 0; $x <= 13; $x++) {
+                if (self::bcAt($s, $x, $y) === $want) {
+                    return [$x, $y];
+                }
+            }
+        }
+        return null;
+    }
+
+    public static function bcInCheck(array $s, string $c): bool
+    {
+        $k = self::bcKing($s, $c);
+        return $k === null || self::bcAttacked($s, $k[0], $k[1], $c === 'w' ? 'b' : 'w');
+    }
+
+    private static function bcPseudo(array $s): array
+    {
+        $out = [];
+        $me = $s['turn'];
+        $add = static function (int $fx, int $fy, int $tx, int $ty, array $extra = []) use (&$out, $s): void {
+            $p = self::bcAt($s, $tx, $ty);
+            $out[] = array_merge(['from' => self::bcSq($fx, $fy), 'to' => self::bcSq($tx, $ty), 'capture' => $p !== '.' && $p !== '#'], $extra);
+        };
+        $landOk = static fn (int $x, int $y): bool => self::bcLand($x, $y) && self::bcColor(self::bcAt($s, $x, $y)) !== $me;
+        $kings = array_merge(self::BC_ORTH, self::BC_DIAG);
+        for ($y = self::BC_Y0; $y <= self::BC_Y1; $y++) {
+            for ($x = self::BC_X0; $x <= self::BC_X1; $x++) {
+                $p = self::bcAt($s, $x, $y);
+                if ($p === '.' || self::bcColor($p) !== $me) {
+                    continue;
+                }
+                $k = self::bcKind($p);
+                if ($k === 'P') {
+                    $fwd = $me === 'w' ? -1 : 1;
+                    $start = $me === 'w' ? 7 : 2;
+                    $last = $me === 'w' ? 1 : 8;
+                    $promo = static function (int $ty, array $base, int $tx) use ($add, $x, $y, $last): void {
+                        if ($ty === $last) {
+                            foreach (['q', 'r', 'b', 'n'] as $q) {
+                                $add($x, $y, $tx, $ty, array_merge($base, ['promo' => $q]));
+                            }
+                        } else {
+                            $add($x, $y, $tx, $ty, $base);
+                        }
+                    };
+                    if (self::bcLand($x, $y + $fwd) && self::bcAt($s, $x, $y + $fwd) === '.') {
+                        $promo($y + $fwd, [], $x);
+                        if ($y === $start && self::bcLand($x, $y + 2 * $fwd) && self::bcAt($s, $x, $y + 2 * $fwd) === '.') {
+                            $add($x, $y, $x, $y + 2 * $fwd, ['double' => true]);
+                        }
+                    }
+                    foreach ([-1, 1] as $dx) {
+                        $tx = $x + $dx;
+                        $ty = $y + $fwd;
+                        $q = self::bcAt($s, $tx, $ty);
+                        if (self::bcLand($tx, $ty) && $q !== '.' && self::bcColor($q) !== $me && self::bcKind($q) !== 'F') {
+                            $promo($ty, [], $tx);
+                        } elseif ($s['ep'] !== null && $s['ep'] === self::bcSq($tx, $ty)) {
+                            $add($x, $y, $tx, $ty, ['capture' => true, 'ep' => true]);
+                        }
+                    }
+                } elseif ($k === 'N' || $k === 'E') {
+                    $jumps = $k === 'N' ? self::BC_KN : array_merge(self::BC_KN, self::BC_EAG);
+                    foreach ($jumps as [$dx, $dy]) {
+                        if ($landOk($x + $dx, $y + $dy)) {
+                            $add($x, $y, $x + $dx, $y + $dy);
+                        }
+                    }
+                } elseif ($k === 'K') {
+                    foreach ($kings as [$dx, $dy]) {
+                        if ($landOk($x + $dx, $y + $dy)) {
+                            $add($x, $y, $x + $dx, $y + $dy);
+                        }
+                    }
+                } elseif ($k === 'C') {
+                    foreach ($kings as [$dx, $dy]) {
+                        if (self::bcLand($x + $dx, $y + $dy) && self::bcAt($s, $x + $dx, $y + $dy) === '.') {
+                            $add($x, $y, $x + $dx, $y + $dy);
+                        }
+                    }
+                    foreach (self::BC_ARCH as [$dx, $dy]) {
+                        $tx = $x + $dx;
+                        $ty = $y + $dy;
+                        if (!self::bcIn($tx, $ty)) {
+                            continue;
+                        }
+                        $mid = self::bcTerrain($x + intdiv($dx, 2), $y + intdiv($dy, 2));
+                        if ($mid === 'M' || $mid === 'T') {
+                            continue;
+                        }
+                        $q = self::bcAt($s, $tx, $ty);
+                        if ($q !== '.' && self::bcColor($q) !== $me) {
+                            $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($tx, $ty), 'capture' => true, 'shot' => true];
+                        }
+                    }
+                } elseif ($k === 'A') {
+                    foreach (self::BC_DIAG as [$dx, $dy]) {
+                        $tx = $x + $dx;
+                        $ty = $y + $dy;
+                        while (true) {
+                            $t = self::bcTerrain($tx, $ty);
+                            if ($t === 'W' || $t === 'M') {
+                                break;
+                            }
+                            $q = self::bcAt($s, $tx, $ty);
+                            if (self::bcColor($q) !== $me) {
+                                $add($x, $y, $tx, $ty);
+                            }
+                            if ($t === 'T') {
+                                break;
+                            }
+                            $tx += $dx;
+                            $ty += $dy;
+                        }
+                    }
+                } elseif ($k === 'Q' || $k === 'R' || $k === 'B') {
+                    $dirs = $k === 'R' ? self::BC_ORTH : ($k === 'B' ? self::BC_DIAG : $kings);
+                    foreach ($dirs as [$dx, $dy]) {
+                        $tx = $x + $dx;
+                        $ty = $y + $dy;
+                        while (true) {
+                            $t = self::bcTerrain($tx, $ty);
+                            if ($t === 'M') {
+                                break;
+                            }
+                            if ($t === 'W') {
+                                if ($k !== 'R') {
+                                    break;
+                                }
+                                $wx = $tx;
+                                $wy = $ty;
+                                while (self::bcWater($wx, $wy)) {
+                                    $q = self::bcAt($s, $wx, $wy);
+                                    if ($q !== '.') {
+                                        if (self::bcKind($q) === 'F' && self::bcColor($q) !== $me) {
+                                            $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($wx, $wy), 'capture' => true, 'shot' => true];
+                                        }
+                                        break;
+                                    }
+                                    $wx += $dx;
+                                    $wy += $dy;
+                                }
+                                break;
+                            }
+                            $q = self::bcAt($s, $tx, $ty);
+                            if ($q === '.') {
+                                $add($x, $y, $tx, $ty);
+                            } else {
+                                if (self::bcColor($q) !== $me) {
+                                    $add($x, $y, $tx, $ty);
+                                }
+                                break;
+                            }
+                            if ($t === 'T') {
+                                break;
+                            }
+                            $tx += $dx;
+                            $ty += $dy;
+                        }
+                    }
+                } elseif ($k === 'F') {
+                    $mate = self::bcMate($s, $x, $y);
+                    if ($mate === null) {
+                        continue;
+                    }
+                    $cellsOf = [[$x, $y], $mate];
+                    foreach (self::BC_ORTH as [$dx, $dy]) {
+                        for ($k2 = 1; $k2 < 30; $k2++) {
+                            $blocked = false;
+                            $hit = false;
+                            foreach ($cellsOf as [$cx, $cy]) {
+                                $nx = $cx + $dx * $k2;
+                                $ny = $cy + $dy * $k2;
+                                if (!self::bcWater($nx, $ny)) {
+                                    $blocked = true;
+                                    break;
+                                }
+                                $q = self::bcAt($s, $nx, $ny);
+                                if ($q !== '.' && $q !== $p) {
+                                    if (self::bcKind($q) === 'F' && self::bcColor($q) !== $me) {
+                                        $hit = true;
+                                    } else {
+                                        $blocked = true;
+                                    }
+                                }
+                            }
+                            if ($blocked) {
+                                break;
+                            }
+                            $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($x + $dx * $k2, $y + $dy * $k2), 'capture' => $hit, 'ship' => [self::bcSq($x, $y), self::bcSq($mate[0], $mate[1])]];
+                            if ($hit) {
+                                break;
+                            }
+                        }
+                    }
+                    $tg = [];
+                    self::bcCannon($s, $x, $y, $me, $tg);
+                    foreach ($tg as [$tx, $ty]) {
+                        $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($tx, $ty), 'capture' => true, 'shot' => true];
+                    }
+                }
+            }
+        }
+        return $out;
+    }
+
+    public static function bcApply(array $s, array $m): array
+    {
+        $c = $s['cells'];
+        [$fx, $fy] = self::bcPos($m['from']);
+        [$tx, $ty] = self::bcPos($m['to']);
+        $p = self::bcAt($s, $fx, $fy);
+        $target = self::bcAt($s, $tx, $ty);
+        $sink = static function (int $x, int $y) use (&$c, $s): void {
+            $q = self::bcAt($s, $x, $y);
+            $mate = self::bcMate($s, $x, $y);
+            self::bcPut($c, $x, $y, '.');
+            if ($mate !== null && self::bcAt($s, $mate[0], $mate[1]) === $q) {
+                self::bcPut($c, $mate[0], $mate[1], '.');
+            }
+        };
+        if (!empty($m['shot'])) {
+            if (self::bcKind($target) === 'F') {
+                $sink($tx, $ty);
+            } else {
+                self::bcPut($c, $tx, $ty, '.');
+            }
+        } elseif (!empty($m['ship'])) {
+            $cells = array_map(static fn (string $q): array => self::bcPos($q), $m['ship']);
+            $dx = $tx - $fx;
+            $dy = $ty - $fy;
+            foreach ($cells as [$x, $y]) {
+                $q = self::bcAt($s, $x + $dx, $y + $dy);
+                if ($q !== '.' && self::bcKind($q) === 'F' && self::bcColor($q) !== self::bcColor($p)) {
+                    $sink($x + $dx, $y + $dy);
+                }
+            }
+            foreach ($cells as [$x, $y]) {
+                self::bcPut($c, $x, $y, '.');
+            }
+            foreach ($cells as [$x, $y]) {
+                self::bcPut($c, $x + $dx, $y + $dy, $p);
+            }
+        } else {
+            self::bcPut($c, $fx, $fy, '.');
+            $np = $p;
+            if (!empty($m['promo'])) {
+                $np = self::bcColor($p) === 'w' ? strtoupper($m['promo']) : $m['promo'];
+            }
+            self::bcPut($c, $tx, $ty, $np);
+            if (!empty($m['ep'])) {
+                self::bcPut($c, $tx, $fy, '.');
+            }
+        }
+        $pawnOrCap = self::bcKind($p) === 'P' || !empty($m['capture']);
+        return [
+            'cells' => $c,
+            'turn' => $s['turn'] === 'w' ? 'b' : 'w',
+            'ep' => !empty($m['double']) ? self::bcSq($fx, intdiv($fy + $ty, 2)) : null,
+            'half' => $pawnOrCap ? 0 : $s['half'] + 1,
+            'full' => $s['full'] + ($s['turn'] === 'b' ? 1 : 0),
+        ];
+    }
+
+    public static function bcLegal(array $s): array
+    {
+        $out = [];
+        foreach (self::bcPseudo($s) as $m) {
+            if (!self::bcInCheck(self::bcApply($s, $m), $s['turn'])) {
+                $out[] = $m;
+            }
+        }
+        return $out;
+    }
+
+    public static function bcSan(array $s, array $m): string
+    {
+        [$fx, $fy] = self::bcPos($m['from']);
+        $p = self::bcKind(self::bcAt($s, $fx, $fy));
+        $n = self::bcApply($s, $m);
+        $chk = self::bcInCheck($n, $n['turn']) ? (count(self::bcLegal($n)) > 0 ? '+' : '#') : '';
+        $letter = $p === 'P' ? '' : $p;
+        return $letter . $m['from'] . (!empty($m['shot']) ? '*' : (!empty($m['capture']) ? 'x' : '-')) . $m['to'] . (!empty($m['promo']) ? '=' . strtoupper($m['promo']) : '') . $chk;
+    }
+
+    public static function bcStatus(array $s): array
+    {
+        if (count(self::bcLegal($s)) === 0) {
+            return self::bcInCheck($s, $s['turn'])
+                ? ['over' => true, 'winner' => $s['turn'] === 'w' ? 'b' : 'w', 'reason' => 'checkmate']
+                : ['over' => true, 'winner' => null, 'reason' => 'stalemate'];
+        }
+        if ($s['half'] >= 100) {
+            return ['over' => true, 'winner' => null, 'reason' => 'fifty-moves'];
+        }
+        if ($s['full'] > 200) {
+            return ['over' => true, 'winner' => null, 'reason' => 'move-limit'];
+        }
+        return ['over' => false];
+    }
+
+    /** The legal move from -> to (a promotion picks $promo, default queen). */
+    public static function bcFind(array $s, string $from, string $to, ?string $promo = null): ?array
+    {
+        $c = array_values(array_filter(self::bcLegal($s), static fn (array $m): bool => $m['from'] === $from && $m['to'] === $to));
+        if (!$c) {
+            return null;
+        }
+        $want = $promo ?? (!empty($c[0]['promo']) ? 'q' : null);
+        foreach ($c as $m) {
+            if (($m['promo'] ?? null) === $want) {
+                return $m;
+            }
+        }
+        return $c[0];
+    }
+
+    private static function bcEvaluate(array $s, string $side): int
+    {
+        $sc = 0.0;
+        for ($y = self::BC_Y0; $y <= self::BC_Y1; $y++) {
+            for ($x = self::BC_X0; $x <= self::BC_X1; $x++) {
+                $p = self::bcAt($s, $x, $y);
+                if ($p === '.') {
+                    continue;
+                }
+                $col = self::bcColor($p);
+                $k = self::bcKind($p);
+                $v = $k === 'F' ? self::BC_VAL['F'] / 2 : self::BC_VAL[$k];
+                if ($k === 'P') {
+                    $v += ($col === 'w' ? 7 - $y : $y - 2) * 8;
+                }
+                if ($k === 'N' || $k === 'B' || $k === 'E' || $k === 'A') {
+                    $v += 12 - abs(6.5 - $x) * 2 - abs(4.5 - $y) * 2;
+                }
+                $sc += $col === $side ? $v : -$v;
+            }
+        }
+        return (int) round($sc);
+    }
+
     // ───────────────────────── MorseBot ─────────────────────────
 
     private const XQ_VALUE = ['K' => 0, 'A' => 20, 'E' => 20, 'H' => 40, 'R' => 90, 'C' => 45, 'P' => 10];
@@ -608,6 +1256,9 @@ final class BoardGames
     private static function evaluate(string $v, array $s, string $side): int
     {
         $score = 0;
+        if ($v === 'battlechess') {
+            return self::bcEvaluate($s, $side);
+        }
         if ($v === 'checkers') {
             for ($r = 0; $r < 8; $r++) {
                 for ($f = 0; $f < 8; $f++) {
@@ -653,11 +1304,17 @@ final class BoardGames
 
     private static function legalOf(string $v, array $s): array
     {
+        if ($v === 'battlechess') {
+            return self::bcLegal($s);
+        }
         return $v === 'checkers' ? self::ckLegal($s) : self::xqLegal($s);
     }
 
     private static function playOf(string $v, array $s, array $m): array
     {
+        if ($v === 'battlechess') {
+            return self::bcApply($s, $m);
+        }
         return $v === 'checkers' ? self::ckPlay($s, $m)['state'] : self::xqPlay($s, $m)['state'];
     }
 
@@ -673,7 +1330,14 @@ final class BoardGames
         $moves = self::legalOf($v, $s);
         $mine = $s['turn'] === $side;
         if (!$moves) {
-            return $mine ? -100000 - $depth : 100000 + $depth; // no moves = that side loses (both games)
+            // Battle Chess: stalemate is a draw; otherwise no moves = that side loses
+            if ($v === 'battlechess' && !self::bcInCheck($s, $s['turn'])) {
+                return 0;
+            }
+            return $mine ? -100000 - $depth : 100000 + $depth;
+        }
+        if ($v === 'battlechess' && $s['half'] >= 100) {
+            return 0;
         }
         if ($depth <= 0) {
             return self::evaluate($v, $s, $side);
@@ -709,11 +1373,15 @@ final class BoardGames
     /** MorseBot's move (null when there is none). @return array{from:string,to:string}|null */
     public static function botMove(string $v, string $fen, int $budgetMs = 900): ?array
     {
-        $s = $v === 'checkers' ? self::ckParse($fen) : self::xqParse($fen);
+        $s = $v === 'battlechess' ? self::bcParse($fen) : ($v === 'checkers' ? self::ckParse($fen) : self::xqParse($fen));
         if ($s === null) {
             return null;
         }
         $moves = self::legalOf($v, $s);
+        if ($v === 'battlechess') {
+            // under-promotions only clutter the search; the server promotes to a queen
+            $moves = array_values(array_filter($moves, static fn (array $m): bool => ($m['promo'] ?? 'q') === 'q'));
+        }
         if (!$moves) {
             return null;
         }

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MessageSquareText, Play, Reply, Send, X } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { LEGENDARY } from "@/lib/legendary/theme";
 import { isChatImage } from "@/lib/chat-image";
 import { openGc } from "@/components/gc-mail";
 import { gcPops, gcRead, sendMail } from "@/lib/server/mail";
@@ -15,6 +17,9 @@ export function MailPopupHost() {
   const hideTimer = useRef<number | undefined>(undefined);
   const release = useRef<() => void>(() => undefined);
   const userId = user?.id ?? null;
+  // Legendary home shows letters as cards in the challenge stack instead (t365u).
+  const path = useRouterState({ select: (st) => st.location.pathname });
+  const onLegendaryHome = LEGENDARY && (path === "/" || path === "");
   // Respond: a quick reply box right in the slip (owner t196u).
   const [replying, setReplying] = useState(false);
   const [draft, setDraft] = useState("");
@@ -75,7 +80,7 @@ export function MailPopupHost() {
   }
 
   useEffect(() => {
-    if (isPending || !userId) return;
+    if (isPending || !userId || onLegendaryHome) return;
     let live = true;
     let showing = false;
     const queue: Slip[] = [];
@@ -137,7 +142,7 @@ export function MailPopupHost() {
       window.removeEventListener("focus", onVis);
       setShown(null);
     };
-  }, [userId, isPending]);
+  }, [userId, isPending, onLegendaryHome]);
 
   if (!shown) return null;
   const thumb = shown.kind === "image" && isChatImage(shown.thumb) ? shown.thumb : "";
