@@ -19,13 +19,16 @@ $chessBase = rtrim((string) (getenv('MORSE_CHESS_BASE') ?: '/chess'), '/');
 $here = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'))), '/');
 
 // The live folder is /chessLegendary/. IIS matches folders without caring about case, so
-// /chesslegendary/... lands here too: send it to the one canonical spelling (permanent).
+// /chesslegendary/... lands here too (and SCRIPT_NAME may still say /chessLegendary): look at the
+// URL the browser asked for and send any other spelling to the canonical one (permanent).
 $canonical = '/chessLegendary';
-if ($here !== $canonical && strcasecmp($here, $canonical) === 0) {
-    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+$uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+$asked = (string) parse_url($uri, PHP_URL_PATH);
+$len = strlen($canonical);
+if (strncasecmp($asked, $canonical, $len) === 0 && in_array(substr($asked, $len, 1), ['', '/'], true)
+    && strncmp($asked, $canonical, $len) !== 0) {
     $q = strpos($uri, '?');
-    $rest = substr((string) parse_url($uri, PHP_URL_PATH), strlen($here)) ?: '/';
-    header('Location: ' . $canonical . $rest . ($q === false ? '' : substr($uri, $q)), true, 301);
+    header('Location: ' . $canonical . (substr($asked, $len) ?: '/') . ($q === false ? '' : substr($uri, $q)), true, 301);
     header('Cache-Control: public, max-age=86400');
     exit;
 }
