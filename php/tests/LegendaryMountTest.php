@@ -48,6 +48,8 @@ mcheck(str_contains($missing, 'needs the Morse Chess build'), 'missing build is 
 
 // Lower-case /chesslegendary/ (IIS ignores case) is sent to the canonical spelling.
 $lower = serve($controller, '/chesslegendary/store', $tmp . '/chess', '/chesslegendary/index.php');
+$lowerIis = serve($controller, '/chesslegendary/store', $tmp . '/chess', '/chessLegendary/index.php');
+mcheck(str_contains($lowerIis, '[code=301]') && !str_contains($lowerIis, '<html'), 'lower-case URL 301s even when SCRIPT_NAME is canonical (IIS)');
 mcheck(str_contains($lower, '[code=301]') && !str_contains($lower, '<html'), 'lower-case folder 301s to /chessLegendary');
 mcheck(str_contains($html, '[code=200]') || !str_contains($html, '[code=301]'), 'canonical folder is not redirected');
 
