@@ -38,6 +38,8 @@ import { isOwnerPreview } from "@/lib/games/release";
 import { bgCheckSq, bgReason, bgStatus, bgTargets, bgTry, isBoardGame, type BoardGameId } from "@/lib/boardgames/adapter";
 import { BgBoard2D } from "@/components/games/bg-board-2d";
 import { BgBoard3D } from "@/components/games/bg-board-3d";
+import { BcBoard2D } from "@/components/games/bc-board-2d";
+import { BcBoard3D } from "@/components/games/bc-board-3d";
 import { playBoom, playResult, playYourTurn } from "@/lib/games/variant-fx";
 import { formatClock, formatEloDelta, isBotUserId } from "@/lib/mores-constants";
 import { decodeCast, setGuestCast } from "@/lib/lego-look";
@@ -1037,7 +1039,13 @@ export function GameView({ gameId }: { gameId: string }) {
               </div>
             </div>
           ) : null}
-          {bg ? (
+          {bg === "battlechess" ? (
+            view === "2d" ? (
+              <BcBoard2D fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
+            ) : (
+              <BcBoard3D style={view === "an" || view === "ra" ? "an" : lgOn ? "lg" : "3d"} fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
+            )
+          ) : bg ? (
             view === "2d" ? (
               <BgBoard2D game={bg} fen={game.fen} you={game.you} lastMove={game.lastMove} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
             ) : (
@@ -1079,7 +1087,7 @@ export function GameView({ gameId }: { gameId: string }) {
           <div key={`flash-${blast.id}`} className="morse-flash pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle,rgba(255,214,140,0.55),rgba(255,90,30,0.15)_55%,transparent_75%)]" />
         ) : null}
         {variant ? (
-          <div data-variant-banner className="pointer-events-none absolute left-1/2 top-2 z-10 flex -translate-x-1/2 flex-row items-center gap-2 whitespace-nowrap">
+          <div data-variant-banner className="pointer-events-none absolute left-1/2 top-2 z-10 max-sm:hidden flex -translate-x-1/2 flex-row items-center gap-2 whitespace-nowrap">
             <p className="rounded-full border border-gold-line/50 bg-ink/75 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-[#e0b85a] backdrop-blur-sm">
               {VARIANT_INFO[variant].name} · Unranked{preview ? " · Owner preview" : ""}
             </p>

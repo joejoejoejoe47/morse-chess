@@ -1689,3 +1689,9 @@ html.legendary .mcl-hp-err { margin-top: calc(var(--u) * 14); text-align: center
   .mgb-tile.is-wide.is-more .mgb-ico { width: 26px; height: 10px; margin: 7px 0; }
   .mgb-lab, .mgb-tile.is-wide .mgb-lab { font-size: 12px; letter-spacing: .03em; }
 }
+/* MB-15 phones: all tiles share the row so MORE never scrolls off */
+@media (max-width: 560px) {
+  .mgb-row { justify-content: space-between; gap: 4px; width: 100%; }
+  .mgb-tile, .mgb-tile.is-wide { flex: 1 1 0; min-width: 0; width: auto; max-width: 66px; }
+  .mgb-lab, .mgb-tile.is-wide .mgb-lab { font-size: 10px; letter-spacing: .02em; }
+}

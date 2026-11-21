@@ -4,21 +4,24 @@
  * state string, moves are from/to squares, a checkers jump chain is several moves by one side).
  */
 import { CHECKERS_START, ckColorOf, ckFind, ckLegalMoves, ckParse, ckPlay, ckPos, ckSq, ckStatus, ckString, type CkState } from "./checkers";
+import { BATTLE_START, bcFind, bcApply, bcInCheck, bcKingSq, bcLegalMoves, bcParse, bcSan, bcStatus, bcString } from "./battlechess";
 import { XIANGQI_START, xqColorOf, xqFind, xqGeneral, xqInCheck, xqLegalMoves, xqParse, xqPlay, xqPos, xqSq, xqStatus, xqString, type XqState } from "./xiangqi";
 
-export type BoardGameId = "checkers" | "xiangqi";
-export const isBoardGame = (v: unknown): v is BoardGameId => v === "checkers" || v === "xiangqi";
-export const BG_START: Record<BoardGameId, string> = { checkers: CHECKERS_START, xiangqi: XIANGQI_START };
+/** Board games drawn on a plain grid (BgBoard2D / BgBoard3D). Battle Chess has its own boards. */
+export type GridGameId = "checkers" | "xiangqi";
+export type BoardGameId = GridGameId | "battlechess";
+export const isBoardGame = (v: unknown): v is BoardGameId => v === "checkers" || v === "xiangqi" || v === "battlechess";
+export const BG_START: Record<BoardGameId, string> = { checkers: CHECKERS_START, xiangqi: XIANGQI_START, battlechess: BATTLE_START };
 
 /** Files x ranks of the playing grid (checkers squares; xiangqi points). */
-export const bgDims = (v: BoardGameId) => (v === "checkers" ? { files: 8, ranks: 8 } : { files: 9, ranks: 10 });
-export const bgSq = (v: BoardGameId, r: number, f: number) => (v === "checkers" ? ckSq(r, f) : xqSq(r, f));
-export const bgPos = (v: BoardGameId, sq: string): [number, number] => (v === "checkers" ? ckPos(sq) : xqPos(sq));
+export const bgDims = (v: GridGameId) => (v === "checkers" ? { files: 8, ranks: 8 } : { files: 9, ranks: 10 });
+export const bgSq = (v: GridGameId, r: number, f: number) => (v === "checkers" ? ckSq(r, f) : xqSq(r, f));
+export const bgPos = (v: GridGameId, sq: string): [number, number] => (v === "checkers" ? ckPos(sq) : xqPos(sq));
 
 /** One piece on the board, for drawing. kind: checkers "man"/"king"; xiangqi K A E H R C P. */
 export type BgPiece = { sq: string; r: number; f: number; c: "w" | "b"; kind: string; king: boolean };
 
-export function bgPieces(v: BoardGameId, fen: string): BgPiece[] {
+export function bgPieces(v: GridGameId, fen: string): BgPiece[] {
   const out: BgPiece[] = [];
   if (v === "checkers") {
     const s = ckParse(fen);
@@ -41,11 +44,16 @@ export function bgPieces(v: BoardGameId, fen: string): BgPiece[] {
 }
 
 export function bgTurn(v: BoardGameId, fen: string): "w" | "b" {
+  if (v === "battlechess") return bcParse(fen)?.turn ?? "w";
   const s = v === "checkers" ? ckParse(fen) : xqParse(fen);
   return s?.turn ?? "w";
 }
 
 export function bgTargets(v: BoardGameId, fen: string, from: string): string[] {
+  if (v === "battlechess") {
+    const s = bcParse(fen);
+    return s ? [...new Set(bcLegalMoves(s).filter((m) => m.from === from).map((m) => m.to))] : [];
+  }
   if (v === "checkers") {
     const s = ckParse(fen);
     return s ? ckLegalMoves(s).filter((m) => m.from === from).map((m) => m.to) : [];
@@ -63,9 +71,16 @@ export function bgMust(v: BoardGameId, fen: string): string[] {
   return legal.some((m) => m.jump) ? [...new Set(legal.map((m) => m.from))] : [];
 }
 
-export type BgResult = { fen: string; turn: "w" | "b"; san: string; captured: string | null; crowned: boolean };
+export type BgResult = { fen: string; turn: "w" | "b"; san: string; captured: string | null; crowned: boolean; shot?: boolean };
 
 export function bgTry(v: BoardGameId, fen: string, from: string, to: string): BgResult | null {
+  if (v === "battlechess") {
+    const s = bcParse(fen);
+    const m = s && bcFind(s, from, to, "q");
+    if (!s || !m) return null;
+    const n = bcApply(s, m);
+    return { fen: bcString(n), turn: n.turn, san: bcSan(s, m), captured: m.capture ? to : null, crowned: !!m.promo, shot: !!m.shot };
+  }
   if (v === "checkers") {
     const s = ckParse(fen);
     const m = s && ckFind(s, from, to);
@@ -81,6 +96,10 @@ export function bgTry(v: BoardGameId, fen: string, from: string, to: string): Bg
 }
 
 export function bgStatus(v: BoardGameId, fen: string): { over: false } | { over: true; winner: "w" | "b" | null; reason: string } {
+  if (v === "battlechess") {
+    const s = bcParse(fen);
+    return s ? bcStatus(s) : { over: false };
+  }
   if (v === "checkers") {
     const s = ckParse(fen);
     return s ? ckStatus(s) : { over: false };
@@ -96,12 +115,22 @@ export function bgReason(v: BoardGameId, reason: string, winnerIsYou: boolean | 
     checkmate: winnerIsYou ? "The enemy general is trapped. Checkmate!" : "Your general is trapped. Checkmate.",
     stalemate: winnerIsYou ? "Your opponent has no legal move." : "You have no legal move.",
     "sixty-moves": "60 moves with no capture. Draw.",
+    "fifty-moves": "50 moves with no capture or pawn move. Draw.",
+    "move-limit": "200 moves played. The battle ends in a draw.",
   };
+  if (v === "battlechess") {
+    map.checkmate = winnerIsYou ? "The enemy king is surrounded. Checkmate!" : "Your king has fallen. Checkmate.";
+    map.stalemate = "No legal move left. Stalemate: a draw.";
+  }
   return map[reason] ?? reason;
 }
 
 /** The xiangqi general's point when it is in check (for the red glow), else null. */
 export function bgCheckSq(v: BoardGameId, fen: string): string | null {
+  if (v === "battlechess") {
+    const s = bcParse(fen);
+    return s && bcInCheck(s, s.turn) ? bcKingSq(s, s.turn) : null;
+  }
   if (v !== "xiangqi") return null;
   const s: XqState | null = xqParse(fen);
   if (!s || !xqInCheck(s.board, s.turn)) return null;

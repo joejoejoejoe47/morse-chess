@@ -1189,7 +1189,7 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
 /** Which pull-up screen a rules variant's tile lives on (for Back). */
 function screenOf(v: RuleVariant): PullScreen {
   // Legendary moved Horde and Atomic to "Other games" (Chinese Chess and Checkers took their spots, t363u).
-  if (v === "checkers" || v === "xiangqi") return "main";
+  if (v === "checkers" || v === "xiangqi" || v === "battlechess") return "main";
   return !LEGENDARY && (v === "horde" || v === "atomic") ? "main" : "other";
 }
 

@@ -3,10 +3,10 @@
  * Same props shape as ChessBoard2D: fen / you / lastMove / myTurn / onMove / legalFor.
  */
 import { useMemo, useRef, useState, useEffect } from "react";
-import { bgDims, bgMust, bgPieces, bgPos, bgSq, XQ_CHAR, type BgPiece, type BoardGameId } from "@/lib/boardgames/adapter";
+import { bgDims, bgMust, bgPieces, bgPos, bgSq, XQ_CHAR, type BgPiece, type GridGameId } from "@/lib/boardgames/adapter";
 
 type Props = {
-  game: BoardGameId;
+  game: GridGameId;
   fen: string;
   you: "w" | "b";
   lastMove: { from: string; to: string } | null;
@@ -18,7 +18,7 @@ type Props = {
 };
 
 /** Stable ids so pieces glide from square to square instead of popping. */
-export function usePieceIds(game: BoardGameId, fen: string, lastMove: { from: string; to: string } | null) {
+export function usePieceIds(game: GridGameId, fen: string, lastMove: { from: string; to: string } | null) {
   const ref = useRef<{ fen: string; ids: Map<string, number>; next: number }>({ fen: "", ids: new Map(), next: 1 });
   return useMemo(() => {
     const cur = ref.current;

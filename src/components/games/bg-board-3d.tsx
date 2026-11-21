@@ -10,12 +10,12 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { bgDims, bgMust, bgSq, XQ_CHAR, type BoardGameId } from "@/lib/boardgames/adapter";
+import { bgDims, bgMust, bgSq, XQ_CHAR, type GridGameId } from "@/lib/boardgames/adapter";
 import { usePieceIds } from "./bg-board-2d";
 
 export type BgStyle = "3d" | "an" | "lg";
 type Props = {
-  game: BoardGameId;
+  game: GridGameId;
   style: BgStyle;
   fen: string;
   you: "w" | "b";
@@ -28,7 +28,7 @@ type Props = {
 };
 
 /** World position of a square / point. Checkers: square centres; xiangqi: grid points. */
-function worldOf(game: BoardGameId, r: number, f: number): [number, number] {
+function worldOf(game: GridGameId, r: number, f: number): [number, number] {
   if (game === "checkers") return [f - 3.5, r - 3.5];
   return [(f - 4) * 0.9, (r - 4.5) * 0.9];
 }
@@ -57,13 +57,13 @@ function discProfile(radius: number, h: number, ridge: boolean) {
 }
 
 const discGeo = new Map<string, THREE.LatheGeometry>();
-function disc(radius: number, h: number, ridge: boolean) {
+export function disc(radius: number, h: number, ridge: boolean) {
   const k = `${radius}-${h}-${ridge}`;
   if (!discGeo.has(k)) discGeo.set(k, new THREE.LatheGeometry(discProfile(radius, h, ridge), 48));
   return discGeo.get(k)!;
 }
 
-function woodTexture(base: string, dark: string, seed: number, w = 512, h = 512) {
+export function woodTexture(base: string, dark: string, seed: number, w = 512, h = 512) {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -170,7 +170,7 @@ function charTexture(ch: string, red: boolean, lego: boolean) {
   return t;
 }
 
-function Studs({ cols, rows, pitch, y, color, ox = 0, oz = 0 }: { cols: number; rows: number; pitch: number; y: number; color: string; ox?: number; oz?: number }) {
+export function Studs({ cols, rows, pitch, y, color, ox = 0, oz = 0 }: { cols: number; rows: number; pitch: number; y: number; color: string; ox?: number; oz?: number }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const geo = useMemo(() => new THREE.CylinderGeometry(pitch * 0.3, pitch * 0.3, pitch * 0.18, 16), [pitch]);
   useEffect(() => {
@@ -216,8 +216,8 @@ function CheckersBoardMesh({ lego }: { lego: boolean }) {
         <boxGeometry args={[9.1, 0.3, 9.1]} />
         {lego ? <meshStandardMaterial color="#7a7a7a" roughness={0.4} /> : <meshStandardMaterial map={frame!} roughness={0.35} metalness={0.1} />}
       </mesh>
-      <mesh position={[0, -0.005, 0]}>
-        <boxGeometry args={[8.12, 0.02, 8.12]} />
+      <mesh position={[0, -0.02, 0]}>
+        <boxGeometry args={[8.16, 0.02, 8.16]} />
         <meshStandardMaterial color="#c9a24f" metalness={0.8} roughness={0.25} />
       </mesh>
       {squares}
@@ -261,7 +261,7 @@ type Anim = { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number; ho
 function Piece({
   game, style, c, kind, king, pos, selected, must, check, faceYaw, onClick,
 }: {
-  game: BoardGameId; style: BgStyle; c: "w" | "b"; kind: string; king: boolean; pos: [number, number];
+  game: GridGameId; style: BgStyle; c: "w" | "b"; kind: string; king: boolean; pos: [number, number];
   selected: boolean; must: boolean; check: boolean; faceYaw: number; onClick: (e: ThreeEvent<MouseEvent>) => void;
 }) {
   const g = useRef<THREE.Group>(null);
@@ -355,9 +355,9 @@ function Piece({
   );
 }
 
-type Burst = { id: number; at: THREE.Vector3; color: string };
+export type Burst = { id: number; at: THREE.Vector3; color: string };
 
-function Shards({ burst, onDone }: { burst: Burst; onDone: () => void }) {
+export function Shards({ burst, onDone }: { burst: Burst; onDone: () => void }) {
   const ref = useRef<THREE.InstancedMesh>(null);
   const N = 26;
   const parts = useMemo(
@@ -420,7 +420,7 @@ function Flash({ at }: { at: THREE.Vector3 }) {
   );
 }
 
-function Shake({ bump }: { bump: number }) {
+export function Shake({ bump }: { bump: number }) {
   const { camera } = useThree();
   const t = useRef(1);
   const base = useRef<THREE.Vector3 | null>(null);
@@ -552,7 +552,8 @@ export function BgBoard3D(props: Props) {
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
-  const dist = (tall ? 12.5 : 11.2) * (narrow ? 1.45 : 1);
+  const aspect = typeof window !== "undefined" ? window.innerWidth / Math.max(1, window.innerHeight) : 1.6;
+  const dist = (tall ? 15 : 13.6) * (narrow ? Math.max(1.45, 0.95 / aspect) : 1);
   const cam: [number, number, number] = [0, dist * 0.82, dist * 0.62 * flip];
   return (
     <div className="absolute inset-0" data-bg-board3d={props.style} data-bg-game={props.game}>
@@ -560,7 +561,7 @@ export function BgBoard3D(props: Props) {
         <color attach="background" args={[props.style === "lg" ? "#1d1530" : "#0b0810"]} />
         <fog attach="fog" args={[props.style === "lg" ? "#1d1530" : "#0b0810", 24, 60]} />
         <Scene {...props} />
-        <OrbitControls target={[0, 0, flip * 0.6]} enablePan={false} minDistance={7} maxDistance={26} maxPolarAngle={Math.PI * 0.44} minPolarAngle={0.12} />
+        <OrbitControls target={[0, 0, flip * 0.9]} enablePan={false} minDistance={7} maxDistance={26} maxPolarAngle={Math.PI * 0.44} minPolarAngle={0.12} />
       </Canvas>
     </div>
   );

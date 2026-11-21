@@ -90,3 +90,16 @@
 .bg2-river { font: 700 44px "Noto Serif SC", "Songti SC", "SimSun", serif; fill: #6b4519; text-anchor: middle; letter-spacing: 8px; opacity: .85; }
 .bg2-xqchar { font: 700 38px "Noto Serif SC", "Songti SC", "KaiTi", "SimSun", serif; text-anchor: middle; dominant-baseline: central; }
 @media (max-width: 640px) { .bg2-wrap { padding: 88px 6px 92px; } }
+
+/* ── Battle Chess 2D (MB-14) ── */
+.bc2-wrap { position: absolute; inset: 0; padding: 96px 16px 112px; display: grid; place-items: center; }
+.bc2-svg { width: 100%; height: 100%; max-width: 1400px; filter: drop-shadow(0 18px 40px rgba(0,0,0,.6)); }
+.bc2-piece { transition: transform 420ms cubic-bezier(.3,.8,.3,1); }
+.bc2-check { animation: bc2-pulse 1s ease-in-out infinite alternate; }
+@keyframes bc2-pulse { from { opacity: .45 } to { opacity: 1 } }
+.bc2-shot { animation: bc2-fade 1.4s ease-out forwards; }
+.bc2-boom { transform-box: fill-box; transform-origin: center; animation: bc2-boom .6s ease-out; }
+@keyframes bc2-fade { 0%, 60% { opacity: 1 } 100% { opacity: 0 } }
+@keyframes bc2-boom { from { transform: scale(.2); opacity: 1 } to { transform: scale(1.2); opacity: .2 } }
+@media (max-width: 900px) { .bc2-wrap { padding: 84px 6px 96px; } }
+@media (max-width: 560px) { .bc2-wrap { padding: 76px 2px 150px; } }
