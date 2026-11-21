@@ -154,7 +154,7 @@ final class Mail
     public static function gcPops(string $userId, array $data): mixed
     {
         $rows = Db::all(
-            'SELECT id, from_id, from_name, body, media_kind, CASE WHEN media_kind = \'image\' THEN media ELSE \'\' END AS thumb FROM mail WHERE to_id = ? AND seen = 0 ORDER BY created_at ASC LIMIT 8',
+            'SELECT id, from_id, from_name, body, media_kind, created_at, CASE WHEN media_kind = \'image\' THEN media ELSE \'\' END AS thumb FROM mail WHERE to_id = ? AND seen = 0 ORDER BY created_at ASC LIMIT 8',
             [$userId]
         );
         $letters = [];
@@ -170,6 +170,7 @@ final class Mail
                 'text' => mb_substr((string) $row['body'], 0, 280),
                 'kind' => $kind,
                 'thumb' => $kind === 'image' ? (string) ($row['thumb'] ?? '') : '',
+                'at' => Db::toMs($row['created_at']),
             ];
         }
         return ['letters' => $letters];

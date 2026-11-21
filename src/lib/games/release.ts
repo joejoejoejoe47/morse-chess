@@ -26,7 +26,8 @@ export type GameId =
   | "cavalry"
   | "mini"
   | "checkers"
-  | "xiangqi";
+  | "xiangqi"
+  | "battlechess";
 
 export function isReleased(id: string): boolean {
   return RELEASED_GAMES.has(id);

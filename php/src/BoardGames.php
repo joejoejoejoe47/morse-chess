@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace Morse;
+
 /**
  * Checkers and Xiangqi (owner t363u/t364u). They ride on the variant game rows (games.variant =
  * 'checkers' / 'xiangqi'); the position lives in games.fen as a state string (not chess FEN).

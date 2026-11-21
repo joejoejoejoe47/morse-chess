@@ -12,7 +12,8 @@ namespace Morse;
 final class Variants
 {
     // mini = Gardner minichess on 5x5 (owner t220u), played in the a1-e5 corner of a normal 8x8 FEN.
-    public const IDS = ['horde', 'atomic', 'koth', 'breakthrough', 'heist', 'parade', 'cavalry', 'mini'];
+    // checkers + xiangqi (owner t377u) ride on the same game rows; their rules live in BoardGames.
+    public const IDS = ['horde', 'atomic', 'koth', 'breakthrough', 'heist', 'parade', 'cavalry', 'mini', 'checkers', 'xiangqi'];
 
     public const START_FEN = [
         'horde' => 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1',
@@ -23,6 +24,8 @@ final class Variants
         'parade' => 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
         'cavalry' => 'rnbqkbnr/nnnnnnnn/8/8/8/8/NNNNNNNN/RNBQKBNR w KQkq - 0 1',
         'mini' => '8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1',
+        'checkers' => BoardGames::START['checkers'],
+        'xiangqi' => BoardGames::START['xiangqi'],
     ];
 
     /** Squares per side of the board moves are generated on (5 while generating Minichess moves). */
@@ -59,7 +62,7 @@ final class Variants
 
     public static function name(string $v): string
     {
-        return ['horde' => 'Horde', 'atomic' => 'Atomic', 'koth' => 'King of the Hill', 'breakthrough' => 'Breakthrough', 'heist' => 'Queen Heist', 'parade' => 'Pawn Parade', 'cavalry' => 'Cavalry Charge', 'mini' => 'Minichess 5×5'][$v] ?? 'Chess';
+        return ['horde' => 'Horde', 'atomic' => 'Atomic', 'koth' => 'King of the Hill', 'breakthrough' => 'Breakthrough', 'heist' => 'Queen Heist', 'parade' => 'Pawn Parade', 'cavalry' => 'Cavalry Charge', 'mini' => 'Minichess 5×5', 'checkers' => 'Checkers', 'xiangqi' => 'Chinese Chess'][$v] ?? 'Chess';
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
@@ -631,6 +634,9 @@ final class Variants
 
     public static function statusOfFen(string $v, string $fen): array
     {
+        if (BoardGames::is($v)) {
+            return BoardGames::statusOfFen($v, $fen);
+        }
         return self::status($v, self::parseFen($fen));
     }
 
@@ -694,6 +700,10 @@ final class Variants
      */
     public static function tryMove(string $v, string $fen, string $from, string $to, ?string $promo): ?array
     {
+        if (BoardGames::is($v)) {
+            $r = BoardGames::tryMove($v, $fen, $from, $to);
+            return $r === null ? null : $r + ['exploded' => []];
+        }
         if (!self::validSq($from) || !self::validSq($to)) {
             return null;
         }
@@ -728,6 +738,9 @@ final class Variants
 
     public static function needsPromotion(string $v, string $fen, string $from, string $to): bool
     {
+        if (BoardGames::is($v)) {
+            return false;
+        }
         foreach (self::legalMoves($v, self::parseFen($fen)) as $m) {
             if ($m['from'] === $from && $m['to'] === $to && !empty($m['promo'])) {
                 return true;
@@ -739,6 +752,9 @@ final class Variants
     /** @return list<array{from:string,to:string,promo?:string}> legal moves as from/to/promo (for tests) */
     public static function legalList(string $v, string $fen): array
     {
+        if (BoardGames::is($v)) {
+            return array_map(static fn (array $m): array => ['from' => $m[0], 'to' => $m[1]], BoardGames::legalList($v, $fen));
+        }
         return array_map(static fn (array $m): array => array_filter(['from' => $m['from'], 'to' => $m['to'], 'promo' => $m['promo'] ?? null]), self::legalMoves($v, self::parseFen($fen)));
     }
 
@@ -855,6 +871,10 @@ final class Variants
     /** MorseBot for the variants. @return array{from:string,to:string,promotion:?string}|null */
     public static function botMove(string $v, string $fen, int $budgetMs = 900): ?array
     {
+        if (BoardGames::is($v)) {
+            $m = BoardGames::botMove($v, $fen, $budgetMs);
+            return $m === null ? null : $m + ['promotion' => null];
+        }
         $s = self::parseFen($fen);
         $moves = self::ordered($v, $s, self::legalMoves($v, $s));
         if (!$moves) {

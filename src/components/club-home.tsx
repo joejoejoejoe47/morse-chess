@@ -37,6 +37,8 @@ import { LegendaryLounge } from "@/components/legendary/lounge";
 import { DuelStack, type Duel } from "@/components/legendary/duels";
 import { LegendaryModePick } from "@/components/legendary/mode-pick";
 import { LegendaryPullUp, type LegendaryTile } from "@/components/legendary/pullup";
+import { gcPops, gcRead, type GcPop } from "@/lib/server/mail";
+import { openGc } from "@/components/gc-mail";
 
 const PieceSetup = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.PieceSetup })));
 const SetupLook = lazy(() => import("@/components/chess/piece-setup").then((m) => ({ default: m.SetupLook })));
@@ -84,6 +86,32 @@ export function ClubHome() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const seenInvite = useRef("");
   const now = useNow();
+  // Legendary: unread GC letters join the challenge stack over the Daily box (t365u).
+  const [letters, setLetters] = useState<GcPop[]>([]);
+  const gone = useRef(new Set<string>());
+  useEffect(() => {
+    if (!LEGENDARY) return;
+    let live = true;
+    const pull = async () => {
+      try {
+        const row = await gcPops();
+        if (live) setLetters((row.letters ?? []).filter((l) => !gone.current.has(l.id)).reverse());
+      } catch {
+        /* next pull */
+      }
+    };
+    void pull();
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") void pull(); }, 4000);
+    const onVis = () => void pull();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("morse-gc-mail", onVis);
+    return () => { live = false; window.clearInterval(t); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("morse-gc-mail", onVis); };
+  }, []);
+  const dropLetter = (id: string) => {
+    gone.current.add(id);
+    setLetters((ls) => ls.filter((l) => l.id !== id));
+    void gcRead({ data: { ids: [id] } }).catch(() => undefined);
+  };
   const live = (c: { deadline?: number }) => c.deadline == null || c.deadline > now;
 
   useEffect(() => {
@@ -888,9 +916,12 @@ export function ClubHome() {
       ...home.inbox.filter(live).map((c) => ({ ...c, dir: "in" as const })),
       ...home.outgoing.filter((c) => c.status === "pending" && live(c)).map((c) => ({ ...c, dir: "out" as const })),
     ].sort((a, b) => (a.dir === b.dir ? (a.deadline ?? Infinity) - (b.deadline ?? Infinity) : a.dir === "in" ? -1 : 1));
-    const duelSlot = duels.length ? (
+    const duelSlot = duels.length || letters.length ? (
       <DuelStack
         duels={duels}
+        mails={letters}
+        onOpenMail={(m) => { dropLetter(m.id); openGc(m.fromId ? { userId: m.fromId } : {}); }}
+        onDismissMail={(m) => dropLetter(m.id)}
         now={now}
         onAccept={async (c) => {
           if (c.setupFen) {
@@ -1158,6 +1189,7 @@ function SearchingPanel({ score, mode }: { score: number; mode: GameMode | null 
 /** Which pull-up screen a rules variant's tile lives on (for Back). */
 function screenOf(v: RuleVariant): PullScreen {
   // Legendary moved Horde and Atomic to "Other games" (Chinese Chess and Checkers took their spots, t363u).
+  if (v === "checkers" || v === "xiangqi") return "main";
   return !LEGENDARY && (v === "horde" || v === "atomic") ? "main" : "other";
 }
 
@@ -1238,13 +1270,14 @@ function PullUpScreen({
     const L = (a: string) => `/legendary/pullup/${a}.webp`;
     const lmain: LegendaryTile[] = [
       { ...main[0], art: L("1v1"), small: "Classic duel", owner: "King Alaric", medal: "crown", tagline: "One on one. Pure strategy.", tagIcon: "swords" },
-      { ...main[1], art: L("apocalypse"), small: "Clash of legends", owner: "Lord Vorren", medal: "bolt", tagline: "Chaos reigns. Only legends remain.", tagIcon: "bolt" },
-      { id: "xiangqi", art: L("xiangqi"), big: "Chinese Chess", small: "Generals & Cannons", state: gate("xiangqi"), go: () => onLocal("xiangqi"), owner: "General Han", medal: "general", tagline: "Cross the river. Trap the general.", tagIcon: "general" },
-      { id: "checkers", art: L("checkers"), big: "Checkers", small: "Jump & Crown", state: gate("checkers"), go: () => onLocal("checkers"), owner: "Baron Kingsley", medal: "checker", tagline: "Jump them all. Get crowned.", tagIcon: "checker" },
+      // Battle Chess replaces Apocalypse here (owner t375u); gameplay waits for the rules spec, so it is Coming soon.
+      { id: "battlechess", art: L("battlechess"), big: "Battle Chess", small: "Terrain & Troops", state: "soon", go: () => undefined, owner: "Lord Vorren", medal: "bolt", tagline: "Archers, eagles and ships. Conquer the land.", tagIcon: "swords" },
+      { id: "xiangqi", art: L("xiangqi"), big: "Chinese Chess", small: "Generals & Cannons", state: gate("xiangqi"), go: () => onRules("xiangqi", "main"), owner: "General Han", medal: "general", tagline: "Cross the river. Trap the general.", tagIcon: "general" },
+      { id: "checkers", art: L("checkers"), big: "Checkers", small: "Jump & Crown", state: gate("checkers"), go: () => onRules("checkers", "main"), owner: "Baron Kingsley", medal: "checker", tagline: "Jump them all. Get crowned.", tagIcon: "checker" },
       { ...main[4], art: L("football"), small: "Gridiron knights", owner: "Sir Brutus", medal: "helmet", tagline: "Smash. Tackle. Score.", tagIcon: "ball" },
       { ...main[5], art: L("other"), big: "Other Games", small: "Beyond the board", owner: "Lady Nordwatch", medal: "snow", tagline: "New rules. New worlds.", tagIcon: "compass" },
     ];
-    const lother: LegendaryTile[] = [rules("horde", "other"), rules("atomic", "other"), ...other].map((t) => ({ ...t, art: `/pullup/${t.art}.webp` }));
+    const lother: LegendaryTile[] = [main[1], rules("horde", "other"), rules("atomic", "other"), ...other].map((t) => ({ ...t, art: `/pullup/${t.art}.webp` }));
     return (
       <LegendaryPullUp
         screen={screen}

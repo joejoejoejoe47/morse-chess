@@ -35,6 +35,9 @@ import {
   type VariantId,
 } from "@/lib/variants/engine";
 import { isOwnerPreview } from "@/lib/games/release";
+import { bgCheckSq, bgReason, bgStatus, bgTargets, bgTry, isBoardGame, type BoardGameId } from "@/lib/boardgames/adapter";
+import { BgBoard2D } from "@/components/games/bg-board-2d";
+import { BgBoard3D } from "@/components/games/bg-board-3d";
 import { playBoom, playResult, playYourTurn } from "@/lib/games/variant-fx";
 import { formatClock, formatEloDelta, isBotUserId } from "@/lib/mores-constants";
 import { decodeCast, setGuestCast } from "@/lib/lego-look";
@@ -60,7 +63,8 @@ import { LEGENDARY } from "@/lib/legendary/theme";
 import { playSfx, setSfxMuted } from "@/lib/legendary/sfx";
 import { useSfxMuted } from "@/components/legendary/settings";
 import { LegendaryWin } from "@/components/legendary/win-screen";
-import { LgBarButton, LgLogo, LgMoveHistory, LgPlayerCard, usePhotos } from "@/components/legendary/game-chrome";
+import { BarIcon, BarTile, BarTileInner, GameBar } from "@/components/legendary/game-bar";
+import { LgLogo, LgMoveHistory, LgPlayerCard, usePhotos } from "@/components/legendary/game-chrome";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
@@ -256,8 +260,13 @@ function VariantResult({ game, variant }: { game: GameSnapshot; variant: Variant
   const draw = game.status === "draw";
   let reason = "";
   try {
-    const st = variantStatus(variant, parseFen(game.fen));
-    if (st.over) reason = st.reason;
+    if (isBoardGame(variant)) {
+      const st = bgStatus(variant, game.fen);
+      if (st.over) reason = bgReason(variant, st.reason, st.winner === null ? null : st.winner === game.you);
+    } else {
+      const st = variantStatus(variant, parseFen(game.fen));
+      if (st.over) reason = st.reason;
+    }
   } catch {
     /* fall through */
   }
@@ -275,7 +284,7 @@ function VariantResult({ game, variant }: { game: GameSnapshot; variant: Variant
         <p className="text-xs uppercase tracking-[0.2em] text-[#e0b85a]">{VARIANT_INFO[variant].name} · Unranked</p>
         <h2 className="mt-3 font-display text-5xl text-ivory">{draw ? "Draw" : won ? "Victory!" : "Defeat"}</h2>
         <p data-variant-reason className="mt-3 text-base text-ivory">{reason}</p>
-        <p className="mt-3 text-sm text-mist">Variant games are just for fun: no Elo, no coins.</p>
+        <p className="mt-3 text-sm text-mist">{isBoardGame(variant) ? "Just for fun: no Elo, no coins." : "Variant games are just for fun: no Elo, no coins."}</p>
         <div className="mt-6 flex flex-col gap-2">
           {vsBot ? (
             <Button
@@ -679,7 +688,15 @@ export function GameView({ gameId }: { gameId: string }) {
     if (!current || current.status !== "active") return;
     const v = isVariant(current.variant) ? current.variant : null;
     try {
-      const vr = v ? tryMove(v, current.fen, from, to, promotion) : null;
+      const br = v && isBoardGame(v) ? bgTry(v, current.fen, from, to) : null;
+      if (br) {
+        pendingMove.current = true;
+        plyRef.current = current.moves.length + 1;
+        setGame({ ...current, fen: br.fen, turn: br.turn, lastMove: { from, to, san: br.san }, moves: [...current.moves, { san: br.san, from, to }] });
+        chessClick(br.san);
+        lastSan.current = br.san;
+      }
+      const vr = v && !isBoardGame(v) ? tryMove(v, current.fen, from, to, promotion) : null;
       if (v && vr) {
         pendingMove.current = true;
         plyRef.current = current.moves.length + 1;
@@ -738,7 +755,9 @@ export function GameView({ gameId }: { gameId: string }) {
     if (!current || current.status !== "active") return;
     const v = isVariant(current.variant) ? current.variant : null;
     let needsPromo = false;
-    if (v) {
+    if (v && isBoardGame(v)) {
+      needsPromo = false;
+    } else if (v) {
       needsPromo = needsPromotion(v, current.fen, from, to);
     } else {
       const piece = new Chess(current.fen).get(from);
@@ -753,8 +772,12 @@ export function GameView({ gameId }: { gameId: string }) {
 
   const variant: VariantId | null = game && isVariant(game.variant) ? game.variant : null;
   const variantFen = game?.fen ?? "";
+  const bg: BoardGameId | null = variant && isBoardGame(variant) ? variant : null;
   const rules = useMemo(() => {
     if (!variant) return {};
+    if (isBoardGame(variant)) {
+      return { legalFor: (from: string) => bgTargets(variant, variantFen, from), checkSq: bgCheckSq(variant, variantFen) };
+    }
     try {
       const st = parseFen(variantFen);
       const k = inCheck(variant, st, st.turn) ? kingOf(st.board, st.turn) : null;
@@ -810,7 +833,7 @@ export function GameView({ gameId }: { gameId: string }) {
     myTurn,
     view,
     vsBot,
-    coachOk: coachAllowed(game),
+    coachOk: coachAllowed(game) && !isBoardGame(game.variant),
   });
   const selfId = game.you === "w" ? game.white.userId : game.black.userId;
   const cameraOn = Boolean(game.cameraOpen) && !vsBot;
@@ -1007,14 +1030,20 @@ export function GameView({ gameId }: { gameId: string }) {
 
       <div className="relative min-h-0 flex-1">
         <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", variant === "atomic" && shakeId > 0 && "morse-shake")}>
-          {lgOn && view !== "2d" ? (
+          {lgOn && view !== "2d" && !bg ? (
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <div className="pointer-events-auto">
                 <LegoVerseBar show />
               </div>
             </div>
           ) : null}
-          {view === "2d" ? (
+          {bg ? (
+            view === "2d" ? (
+              <BgBoard2D game={bg} fen={game.fen} you={game.you} lastMove={game.lastMove} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
+            ) : (
+              <BgBoard3D game={bg} style={view === "an" || view === "ra" ? "an" : lgOn ? "lg" : "3d"} fen={game.fen} you={game.you} lastMove={game.lastMove} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
+            )
+          ) : view === "2d" ? (
             <ChessBoard2D {...boardProps} />
           ) : (
             <ChessBoard3D
@@ -1036,7 +1065,7 @@ export function GameView({ gameId }: { gameId: string }) {
               />
           )}
         </div>
-        {skin.id === "classic" || skin.id === "parlor" ? (
+        {!bg && (skin.id === "classic" || skin.id === "parlor") ? (
           <a
             href={HEIRLOOM_CREDIT[skin.id === "classic" ? "cl" : "pa"].url}
             target="_blank"
@@ -1139,38 +1168,91 @@ export function GameView({ gameId }: { gameId: string }) {
                 />
               </div>
             </div>
-            <LgMoveHistory moves={game.moves} className={cn("absolute bottom-[4.25rem] right-3 z-10 hidden md:block", game.chatOpen && "md:hidden")} />
-            <div className="absolute inset-x-0 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-20 flex justify-center px-2" data-legendary-bar>
-              <div className="relative flex max-w-full flex-wrap items-center justify-center gap-1.5">
+            <LgMoveHistory moves={game.moves} className={cn("absolute bottom-[6.75rem] right-3 z-10 hidden md:block", game.chatOpen && "md:hidden")} />
+            <div className="absolute inset-x-0 bottom-[max(0.4rem,env(safe-area-inset-bottom))] z-20 flex justify-center px-2" data-legendary-bar>
+              <GameBar
+                more={
+                  lgMore ? (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setLgMore(false)} aria-hidden />
+                      <div className="mgb-more" data-lg-more-menu>
+                        <button type="button" className={cn("mgb-item", !sfxOff && "is-on")} onClick={() => setSfxMuted(!sfxOff)} data-lg-sfx={sfxOff ? "off" : "on"}>
+                          Sound effects <span className="mgb-pill">{sfxOff ? "Off" : "On"}</span>
+                        </button>
+                        {bg ? null : (
+                          <>
+                            <button type="button" className={cn("mgb-item", prefs.pieceTip && "is-on")} onClick={() => saveLookPrefs({ pieceTip: !prefs.pieceTip })}>
+                              Mark pieces <span className="mgb-pill">{prefs.pieceTip ? "On" : "Off"}</span>
+                            </button>
+                            <button type="button" className={cn("mgb-item", prefs.fightZoom && "is-on")} onClick={() => saveLookPrefs({ fightZoom: !prefs.fightZoom })}>
+                              Fight zoom <span className="mgb-pill">{prefs.fightZoom ? "On" : "Off"}</span>
+                            </button>
+                            <button type="button" className="mgb-item" onClick={() => { setLgMore(false); setTuning(true); }}>Board look</button>
+                          </>
+                        )}
+                        <div className="mgb-seg">
+                          <button type="button" className={cn("mgb-item", wash === "dark" && "is-on")} onClick={() => setWash("dark")}>Dark</button>
+                          <button type="button" className={cn("mgb-item", wash === "light" && "is-on")} onClick={() => setWash("light")}>Light</button>
+                          <button type="button" className={cn("mgb-item", wash === "color" && "is-on")} onClick={() => setWash("color")}>Color</button>
+                        </div>
+                        {vsBot ? null : (
+                          <button
+                            type="button"
+                            className={cn("mgb-item", game.cameraOpen && "is-on")}
+                            onClick={async () => {
+                              const snap = game.cameraOpen ? await closeGameCamera({ data: { gameId } }) : await openGameCamera({ data: { gameId } });
+                              if (snap) applySnap(snap, true);
+                            }}
+                          >
+                            {game.cameraOpen ? "Camera off" : "Real life camera"}
+                          </button>
+                        )}
+                        {game.status === "active" ? (
+                          <Link to="/" className="mgb-item">Back to the lounge</Link>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null
+                }
+              >
                 {game.status === "active" ? (
-                  <LgBarButton
-                    title="Resign"
+                  <BarTile
+                    wide
+                    icon={BarIcon.resign}
+                    label="RESIGN"
+                    title="Resign this game"
                     onClick={async () => {
                       playSfx("tap");
                       const snap = await resignGame({ data: { gameId } });
                       if (snap) applySnap(snap, true);
                     }}
                     data-lg-resign
-                  >
-                    <Flag className="size-3.5" /> Resign
-                  </LgBarButton>
+                  />
                 ) : (
-                  <Link to="/" className="mcl-bar-btn">
-                    <Undo2 className="size-3.5" /> Lounge
+                  <Link to="/" className="mgb-tile is-wide" data-lg-lounge>
+                    <BarTileInner icon={BarIcon.home} label="LOUNGE" />
                   </Link>
                 )}
-                <div className="mcl-bar-seg" data-lg-modes>
-                  {(["2d", "3d", "an"] as const).map((m) => (
-                    <button key={m} type="button" className={cn(view === m && "is-on")} onClick={() => { playSfx("tap"); setBoardView(m); }}>
-                      {m.toUpperCase()}
-                    </button>
-                  ))}
-                  <button type="button" className={cn(lgOn && "is-on")} onClick={() => { playSfx("tap"); setLegoScene("latest"); setBoardView("lg"); }}>
-                    LG
-                  </button>
-                  <RaBuy active={view === "ra"} onView={() => setBoardView("ra")} onLocked={() => setBoardView("3d")} className={cn(view === "ra" && "is-on")} />
-                </div>
-                <LgBarButton
+                {(["2d", "3d", "an"] as const).map((m) => (
+                  <BarTile key={m} icon={BarIcon[m]} label={m.toUpperCase()} active={view === m} title={`${m.toUpperCase()} board`} onClick={() => { playSfx("tap"); setBoardView(m); }} data-lg-mode={m} />
+                ))}
+                {ownsLego ? (
+                  <BarTile icon={BarIcon.lg} label="LG" active={lgOn} title="Brick hero figures" onClick={() => { playSfx("tap"); setLegoScene("latest"); setBoardView("lg"); }} data-lg-mode="lg" />
+                ) : null}
+                {bg ? null : (
+                  <RaBuy
+                    active={view === "ra"}
+                    onView={() => setBoardView("ra")}
+                    onLocked={() => setBoardView("3d")}
+                    className={cn("mgb-tile", view === "ra" && "is-on")}
+                    activeClass="is-on"
+                    label={(trial) => <BarTileInner icon={BarIcon.ra} label={trial ? "RA FREE" : "RA"} />}
+                    data-lg-mode="ra"
+                  />
+                )}
+                <BarTile
+                  icon={BarIcon.chat}
+                  label="CHAT"
                   title="Table chat"
                   active={Boolean(game.chatOpen)}
                   onClick={async () => {
@@ -1179,39 +1261,9 @@ export function GameView({ gameId }: { gameId: string }) {
                     if (snap) applySnap(snap, true);
                   }}
                   data-lg-chat
-                >
-                  Chat
-                </LgBarButton>
-                <LgBarButton title="More" active={lgMore} onClick={() => setLgMore((v) => !v)} data-lg-more>
-                  More
-                </LgBarButton>
-                <LgBarButton title={sfxOff ? "Sound effects off" : "Sound effects on"} onClick={() => setSfxMuted(!sfxOff)} className="!px-2.5" data-lg-sfx={sfxOff ? "off" : "on"}>
-                  {sfxOff ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-                </LgBarButton>
-                {lgMore ? (
-                  <div className="mcl-card absolute bottom-full right-0 mb-2 grid w-56 gap-1.5 rounded-lg p-2" data-lg-more-menu>
-                    <LgBarButton active={prefs.pieceTip} onClick={() => saveLookPrefs({ pieceTip: !prefs.pieceTip })}>Mark pieces</LgBarButton>
-                    <LgBarButton active={prefs.fightZoom} onClick={() => saveLookPrefs({ fightZoom: !prefs.fightZoom })}>Fight zoom</LgBarButton>
-                    <LgBarButton onClick={() => { setLgMore(false); setTuning(true); }}>Board look</LgBarButton>
-                    <div className="mcl-bar-seg w-full">
-                      <button type="button" className={cn("flex-1", wash === "dark" && "is-on")} onClick={() => setWash("dark")}>Dark</button>
-                      <button type="button" className={cn("flex-1", wash === "light" && "is-on")} onClick={() => setWash("light")}>Light</button>
-                      <button type="button" className={cn("flex-1", wash === "color" && "is-on")} onClick={() => setWash("color")}>Color</button>
-                    </div>
-                    {vsBot ? null : (
-                      <LgBarButton
-                        active={Boolean(game.cameraOpen)}
-                        onClick={async () => {
-                          const snap = game.cameraOpen ? await closeGameCamera({ data: { gameId } }) : await openGameCamera({ data: { gameId } });
-                          if (snap) applySnap(snap, true);
-                        }}
-                      >
-                        {game.cameraOpen ? "Camera off" : "Real life camera"}
-                      </LgBarButton>
-                    )}
-                  </div>
-                ) : null}
-              </div>
+                />
+                <BarTile wide className="is-more" icon={BarIcon.more} label="MORE" title="More options" active={lgMore} onClick={() => setLgMore((v) => !v)} data-lg-more />
+              </GameBar>
             </div>
           </>
         ) : null}

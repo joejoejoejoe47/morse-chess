@@ -6,8 +6,9 @@
  */
 // heist, parade and cavalry are Morse originals (owner t209u: "make up 2-3 of your own games").
 // mini = Gardner minichess on 5x5 (owner t220u). It plays in the a1-e5 corner of a normal 8x8 FEN.
-export type VariantId = "horde" | "atomic" | "koth" | "breakthrough" | "heist" | "parade" | "cavalry" | "mini";
-export const VARIANTS: VariantId[] = ["horde", "atomic", "koth", "breakthrough", "heist", "parade", "cavalry", "mini"];
+// checkers + xiangqi (owner t377u) use the same game rows and game screen; rules in src/lib/boardgames.
+export type VariantId = "horde" | "atomic" | "koth" | "breakthrough" | "heist" | "parade" | "cavalry" | "mini" | "checkers" | "xiangqi";
+export const VARIANTS: VariantId[] = ["horde", "atomic", "koth", "breakthrough", "heist", "parade", "cavalry", "mini", "checkers", "xiangqi"];
 
 /** Squares per side of the variant's board (8, or 5 for Minichess). */
 export const sizeOf = (v: VariantId): number => (v === "mini" ? 5 : 8);
@@ -44,6 +45,8 @@ export const START_FEN: Record<VariantId, string> = {
   parade: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
   cavalry: "rnbqkbnr/nnnnnnnn/8/8/8/8/NNNNNNNN/RNBQKBNR w KQkq - 0 1",
   mini: "8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1",
+  checkers: "ck|1m1m1m1m/m1m1m1m1/1m1m1m1m/8/8/M1M1M1M1/1M1M1M1M/M1M1M1M1|w|-|0",
+  xiangqi: "xq|rheakaehr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RHEAKAEHR|w|0",
 };
 
 export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rules: string[] }> = {
@@ -124,6 +127,26 @@ export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rule
       "Checkmate wins. Stalemate is a draw.",
     ],
   },
+  checkers: {
+    name: "Checkers",
+    short: "Jump & Crown",
+    rules: [
+      "Pieces move one square diagonally forward onto dark squares.",
+      "Jump over an enemy piece to capture it. If you can jump, you must, and keep jumping while you can.",
+      "Reach the far row and your piece is crowned King: it moves and jumps backwards too.",
+      "Take every enemy piece, or leave them with no move, to win.",
+    ],
+  },
+  xiangqi: {
+    name: "Chinese Chess",
+    short: "Generals & Cannons",
+    rules: [
+      "Pieces stand on the points. Red moves first. Trap the enemy General to win.",
+      "The General and Advisors stay in their palace. The Generals may never face each other on an open file.",
+      "Chariot moves like a rook. Horse moves like a knight but can be blocked. Elephant moves 2 diagonally and may not cross the river.",
+      "Cannon moves like a rook but captures by jumping exactly one piece. Soldiers move forward; after the river they may also move sideways.",
+    ],
+  }
 };
 
 // ── FEN ───────────────────────────────────────────────────────────────────
