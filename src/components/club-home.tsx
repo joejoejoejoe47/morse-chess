@@ -1280,8 +1280,7 @@ function PullUpScreen({
     const L = (a: string) => `/legendary/pullup/${a}.webp`;
     const lmain: LegendaryTile[] = [
       { ...main[0], art: L("1v1"), small: "Classic duel", owner: "King Alaric", medal: "crown", tagline: "One on one. Pure strategy.", tagIcon: "swords" },
-      // Battle Chess replaces Apocalypse here (owner t375u); gameplay waits for the rules spec, so it is Coming soon.
-      { id: "battlechess", art: L("battlechess"), big: "Battle Chess", small: "Terrain & Troops", state: "soon", go: () => undefined, owner: "Lord Vorren", medal: "bolt", tagline: "Archers, eagles and ships. Conquer the land.", tagIcon: "swords" },
+      { id: "battlechess", art: L("battlechess"), big: "Battle Chess", small: "Terrain & Troops", state: gate("battlechess"), go: () => onRules("battlechess", "main"), owner: "Lord Vorren", medal: "bolt", tagline: "Archers, eagles and ships. Conquer the land.", tagIcon: "swords" },
       { id: "xiangqi", art: L("xiangqi"), big: "Chinese Chess", small: "Generals & Cannons", state: gate("xiangqi"), go: () => onRules("xiangqi", "main"), owner: "General Han", medal: "general", tagline: "Cross the river. Trap the general.", tagIcon: "general" },
       { id: "checkers", art: L("checkers"), big: "Checkers", small: "Jump & Crown", state: gate("checkers"), go: () => onRules("checkers", "main"), owner: "Baron Kingsley", medal: "checker", tagline: "Jump them all. Get crowned.", tagIcon: "checker" },
       { ...main[4], art: L("football"), small: "Gridiron knights", owner: "Sir Brutus", medal: "helmet", tagline: "Smash. Tackle. Score.", tagIcon: "ball" },

@@ -49,7 +49,7 @@ final class Variants
      * Owner approval list (owner t209u): a variant stays "Coming soon" for everyone but MasterGus until
      * its id is added here (and to RELEASED_GAMES in src/lib/games/release.ts). Default: none approved.
      */
-    public const RELEASED = [];
+    public const RELEASED = ['battlechess'];
 
     public static function released(string $v): bool
     {
