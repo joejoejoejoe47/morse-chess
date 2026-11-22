@@ -47,7 +47,7 @@ export const START_FEN: Record<VariantId, string> = {
   mini: "8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1",
   checkers: "ck|1m1m1m1m/m1m1m1m1/1m1m1m1m/8/8/M1M1M1M1/1M1M1M1M/M1M1M1M1|w|-|0",
   xiangqi: "xq|rheakaehr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RHEAKAEHR|w|0",
-  battlechess: "bc|20/20/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3C16/20/20/16c3/3nncpppppppp6/3rbarnbkqber6/5ff13/20/20|w|-|0|1",
+  battlechess: "bc|20/20/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3CI15/13H6/6H13/15ic3/3nncpppppppp6/3rbarnbkqber6/5ff13/20/20|w|-|0|1|-",
 };
 
 export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rules: string[] }> = {
@@ -152,10 +152,9 @@ export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rule
     name: "Battle Chess",
     short: "Terrain & Troops",
     rules: [
-      "A 14x8 island in the sea, with water ditches, mountains and bushes. Normal chess pieces, plus new troops. Checkmate wins.",
-      "Archer: steps 1 square, and shoots an enemy 2 squares away in a straight line (not over a mountain or bush) without moving. Eagle: a knight that can also leap 3 squares straight.",
-      "Assassin: slides diagonally and slips past pieces, but not over water or mountains. Bushes stop every slider that enters them.",
-      "Frigate: sails the sea like a rook and rams enemy ships. Its cannons hit the first piece up to 3 squares inland. Rooks block cannon fire and can sink ships across the water.",
+      "A 14x8 island in the sea. Archers shoot, eagles leap, assassins slip through, frigates shell the coast. Checkmate wins.",
+      "Pirate: rides 4 squares and can board a ship. Wizard: steps 1, and steals an enemy troop 2 or 3 squares away. Open a chest and a new troop appears.",
+      "After a move the island can throw a tornado, shoving a troop (into the sea, it drowns), or a volcano, burning squares beside the mountains for three turns.",
     ],
   }
 };

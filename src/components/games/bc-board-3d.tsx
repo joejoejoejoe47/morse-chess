@@ -8,7 +8,7 @@ import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { BC_X0, BC_X1, BC_Y0, BC_Y1, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
+import { BC_X0, BC_X1, BC_Y0, BC_Y1, bcParse, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
 import { useBcPieces, type BcPiece } from "./bc-board-2d";
 import { disc, woodTexture, Shards, Shake, type BgStyle, type Burst } from "./bg-board-3d";
 
@@ -36,6 +36,10 @@ const ICON: Record<string, { fill: string[]; stroke: string[] }> = {
   C: { fill: [], stroke: ["M34 12 Q86 50 34 88", "M34 12 L34 88", "M14 50 L84 50", "M72 38 L86 50 L72 62", "M14 50 L6 42 M14 50 L6 58"] },
   E: { fill: ["M50 34 C42 22 24 18 6 24 C18 30 26 38 34 46 C24 48 20 56 22 64 L38 58 L44 82 L50 74 L56 82 L62 58 L78 64 C80 56 76 48 66 46 C74 38 82 30 94 24 C76 18 58 22 50 34 Z", "M58 30 A8 8 0 1 1 42 30 A8 8 0 1 1 58 30 Z"], stroke: [] },
   A: { fill: ["M50 6 C34 14 26 30 28 48 C30 62 40 70 50 70 C60 70 70 62 72 48 C74 30 66 14 50 6 Z", "M22 92 L78 92 L72 74 C64 70 36 70 28 74 Z", "M70 56 L90 30 L94 34 L74 60 Z"], stroke: [] },
+  I: { fill: ["M18 46 C20 20 80 20 82 46 L24 46 C26 30 74 30 76 46 Z", "M28 58 L28 88 L72 88 L72 58 Z", "M62 62 L92 28 L98 34 L68 68 Z"], stroke: ["M14 46 L86 46"] },
+  W: { fill: ["M50 4 L70 42 L30 42 Z", "M22 42 L78 42 L72 92 L28 92 Z"], stroke: [] },
+  U: { fill: [], stroke: ["M22 40 L22 78 C22 90 40 90 40 78 L40 40", "M60 40 L60 78 C60 90 78 90 78 78 L78 40"] },
+  H: { fill: ["M18 40 L82 40 L74 88 L26 88 Z", "M18 40 Q50 14 82 40"], stroke: [] },
 };
 
 const texCache = new Map<string, THREE.CanvasTexture>();
@@ -448,6 +452,21 @@ function Projectile({ m, onDone }: { m: Missile; onDone: () => void }) {
   );
 }
 
+function Tornado() {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((_, dt) => {
+    if (ref.current) ref.current.rotation.y += dt * 5;
+  });
+  return (
+    <group ref={ref} position={[0, 1.4, 0]}>
+      <mesh>
+        <coneGeometry args={[1.6, 3.4, 18, 1, true]} />
+        <meshBasicMaterial color="#d5e6ff" transparent opacity={0.38} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
 function Scene(props: Props) {
   const { style, fen, you, lastMove, lastSan, myTurn, disabled, onMove, legalFor, checkSq } = props;
   const lego = style === "lg";
@@ -505,6 +524,7 @@ function Scene(props: Props) {
     else setSel(null);
   }
   const faceYaw = you === "w" ? Math.PI : 0;
+  const decor = useMemo(() => bcParse(fen), [fen]);
 
   const hits: React.ReactNode[] = [];
   for (let y = BC_Y0; y <= BC_Y1; y++)
@@ -537,6 +557,19 @@ function Scene(props: Props) {
       <directionalLight position={[6, 14, 8]} intensity={lego ? 1.6 : 2.0} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-12} shadow-camera-right={12} shadow-camera-top={10} shadow-camera-bottom={-10} />
       <pointLight position={[-9, 6, -6]} intensity={22} color="#b58cff" distance={30} />
       <Island lego={lego} />
+      {decor
+        ? Object.entries(decor.lava).map(([sq, ttl]) => {
+            const p = bcPos(sq);
+            if (!p || ttl <= 0) return null;
+            return (
+              <mesh key={sq} position={[wx(p[0]), LAND_Y + 0.04, wz(p[1])]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.42, 20]} />
+                <meshBasicMaterial color="#ff4a12" transparent opacity={0.85} />
+              </mesh>
+            );
+          })
+        : null}
+      {decor?.storm.includes("T") ? <Tornado /> : null}
       {hits}
       {pieces.map((pc) =>
         pc.kind === "F" ? (
@@ -579,8 +612,16 @@ export function BcBoard3D(props: Props) {
   const aspect = typeof window !== "undefined" ? window.innerWidth / Math.max(1, window.innerHeight) : 1.6;
   const dist = 17.5 * (narrow ? Math.max(1.9, 1.25 / aspect) : 1);
   const cam: [number, number, number] = [0, dist * 0.8, dist * 0.6 * flip];
+  const storm = useMemo(() => bcParse(props.fen)?.storm ?? "", [props.fen]);
   return (
-    <div className="absolute inset-0" data-bg-board3d={props.style} data-bg-game="battlechess">
+    <div className="absolute inset-0" data-bg-board3d={props.style} data-bg-game="battlechess" data-bc-storm={storm || undefined}>
+      {storm ? (
+        <div className="pointer-events-none absolute left-1/2 top-16 z-20 -translate-x-1/2 rounded-full border border-[#ffb15a] bg-black/70 px-4 py-1 text-sm font-semibold tracking-[0.18em] text-[#ffb15a]">
+          {storm.includes("T") ? "TORNADO" : ""}
+          {storm === "TV" ? " · " : ""}
+          {storm.includes("V") ? "VOLCANO" : ""}
+        </div>
+      ) : null}
       <Canvas key={`${props.you}-${narrow}`} shadows dpr={[1, 1.75]} camera={{ position: cam, fov: 38, near: 0.1, far: 300 }} gl={{ antialias: true, preserveDrawingBuffer: true }}>
         <color attach="background" args={[props.style === "lg" ? "#1d1530" : "#0b0810"]} />
         <fog attach="fog" args={[props.style === "lg" ? "#1d1530" : "#0b0810", 34, 90]} />

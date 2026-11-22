@@ -1043,7 +1043,7 @@ export function GameView({ gameId }: { gameId: string }) {
             view === "2d" ? (
               <BcBoard2D fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
             ) : (
-              <BcBoard3D style={view === "an" || view === "ra" ? "an" : lgOn ? "lg" : "3d"} fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
+              <BcBoard3D style={view === "lg" && lgOn ? "lg" : "an"} fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
             )
           ) : bg ? (
             view === "2d" ? (

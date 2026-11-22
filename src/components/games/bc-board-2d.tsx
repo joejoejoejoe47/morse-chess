@@ -65,7 +65,7 @@ function view(you: "w" | "b") {
 }
 
 const GLYPH: Record<string, string> = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" };
-export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate" };
+export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate", I: "Pirate", W: "Wizard", U: "Boots", H: "Chest" };
 
 /** Flat silhouettes for the new pieces (100x100), drawn like the chess glyphs. */
 function SpecialIcon({ kind, fill, stroke }: { kind: string; fill: string; stroke: string }) {
@@ -105,6 +105,40 @@ function SpecialIcon({ kind, fill, stroke }: { kind: string; fill: string; strok
         <path d="M22 92 L78 92 L72 74 C64 70 36 70 28 74 Z" fill={fill} stroke={stroke} strokeWidth={5} />
         <path d="M70 56 L90 30 L94 34 L74 60 Z" fill={fill} stroke={stroke} strokeWidth={4} />
         <path d="M66 54 L78 66" stroke={stroke} strokeWidth={6} strokeLinecap="round" />
+      </g>
+    );
+  if (kind === "I")
+    return (
+      <g strokeLinejoin="round">
+        <path d="M18 46 C20 20 80 20 82 46 L76 46 C74 30 26 30 24 46 Z" fill={fill} stroke={stroke} strokeWidth={5} />
+        <path d="M14 46 L86 46 L78 58 L22 58 Z" fill={stroke} />
+        <path d="M28 58 L28 88 L72 88 L72 58" fill={fill} stroke={stroke} strokeWidth={5} />
+        <path d="M62 62 L92 28 L98 34 L68 68 Z" fill={fill} stroke={stroke} strokeWidth={4} />
+      </g>
+    );
+  if (kind === "W")
+    return (
+      <g strokeLinejoin="round">
+        <path d="M50 4 L70 42 L30 42 Z" fill={fill} stroke={stroke} strokeWidth={5} />
+        <path d="M22 42 L78 42 L72 92 L28 92 Z" fill={fill} stroke={stroke} strokeWidth={5} />
+        <path d="M40 62 L60 62 L58 78 L42 78 Z" fill={stroke} />
+        <circle cx={50} cy={28} r={4} fill={stroke} />
+      </g>
+    );
+  if (kind === "U")
+    return (
+      <g strokeLinejoin="round">
+        <path d="M22 40 L22 78 C22 90 40 90 40 78 L40 40" fill="none" stroke={fill} strokeWidth={12} />
+        <path d="M60 40 L60 78 C60 90 78 90 78 78 L78 40" fill="none" stroke={fill} strokeWidth={12} />
+        <path d="M16 40 L46 40 M54 40 L84 40" stroke={stroke} strokeWidth={6} strokeLinecap="round" />
+      </g>
+    );
+  if (kind === "H")
+    return (
+      <g strokeLinejoin="round">
+        <path d="M18 40 L82 40 L74 88 L26 88 Z" fill={fill} stroke={stroke} strokeWidth={5} />
+        <path d="M18 40 Q50 14 82 40" fill={stroke} />
+        <path d="M46 54 L54 54 L54 74 L46 74 Z" fill={stroke} />
       </g>
     );
   return null;
@@ -232,7 +266,14 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
   const shot = lastMove && lastSan && lastSan.includes("*") ? lastMove : null;
 
   return (
-    <div className="bc2-wrap" data-bc-board>
+    <div className="bc2-wrap" data-bc-board data-bc-storm={state?.storm || undefined}>
+      {state?.storm ? (
+        <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full border border-[#ffb15a] bg-black/70 px-4 py-1 text-sm font-semibold tracking-[0.18em] text-[#ffb15a]">
+          {state.storm.includes("T") ? "TORNADO" : ""}
+          {state.storm === "TV" ? " · " : ""}
+          {state.storm.includes("V") ? "VOLCANO" : ""}
+        </div>
+      ) : null}
       <svg className="bc2-svg font-display" viewBox={`-0.3 -0.3 ${BC_W + 0.6} ${BC_H + 0.6}`} preserveAspectRatio="xMidYMid meet">
         <defs>
           <pattern id="bc-w1" width={1} height={1} patternUnits="userSpaceOnUse">
@@ -263,6 +304,14 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
         <path d={rim.join(" ")} stroke="#f2d27a" strokeWidth={0.07} strokeLinecap="round" />
         {mountains}
         {bushes}
+        {state
+          ? Object.entries(state.lava).map(([sq, ttl]) => {
+              const p = bcPos(sq);
+              if (!p || ttl <= 0) return null;
+              const [c, r] = v(p[0], p[1]);
+              return <rect key={`lava${sq}`} x={c + 0.08} y={r + 0.08} width={0.84} height={0.84} rx={0.12} fill="#ff5a1f" opacity={0.72} data-lava={sq} />;
+            })
+          : null}
         {/* last move, check, selection */}
         {[...lastSq].map((sq) => {
           const p = bcPos(sq);
