@@ -33,6 +33,9 @@ const inGrid = (x: number, y: number) => x >= BC_X0 && x <= BC_X1 && y >= BC_Y0 
 
 /** Terrain: 'L' land, 'W' water, 'M' mountain, 'T' bush (bush is land). */
 export function bcTerrain(x: number, y: number): "L" | "W" | "M" | "T" {
+  // the two chest islands out in the sea (part 4)
+  if ((x === -2 || x === -1) && (y === 10 || y === 11)) return "L";
+  if ((x === 14 || x === 15) && (y === -1 || y === 0)) return "L";
   if (x < 0 || x > 13 || y < 1 || y > 8) return "W";
   if (y === 3 && x <= 2) return "W";
   if (y === 6 && x >= 11) return "W";
@@ -59,8 +62,10 @@ export const BATTLE_START = (() => {
   row(1, "rbarnbkqber...");
   put(c, 10, 9, "F"); put(c, 11, 9, "F"); // k9-l9
   put(c, 2, 0, "f"); put(c, 3, 0, "f"); // c0-d0
-  put(c, 3, 4, "H"); put(c, 10, 5, "H"); // chests
+  put(c, 3, 4, "H"); put(c, 10, 5, "H"); // chests on the main island
   put(c, 1, 6, "I"); put(c, 12, 3, "i"); // pirates, clear of the ditches
+  put(c, -1, 11, "W"); put(c, -2, 10, "H"); // white's sea island: mage and a gem
+  put(c, 14, -1, "w"); put(c, 15, 0, "H"); // black's sea island
   return bcString({ cells: c, turn: "w", ep: null, half: 0, full: 1, lava: {}, storm: "" });
 })();
 
@@ -453,7 +458,7 @@ function rage(c: string[][], lava: Record<string, number>, full: number): string
   for (const row of c) for (const ch of row) seed = bcNext(seed + ch.charCodeAt(0));
   let storm = "";
   seed = bcNext(seed);
-  if (seed % 100 < 45) {
+  if (seed % 100 < 18) {
     storm += "T";
     const pcs: [number, number][] = [];
     for (let y = 1; y <= 8; y++) for (let x = 0; x <= 13; x++) {
@@ -482,7 +487,7 @@ function rage(c: string[][], lava: Record<string, number>, full: number): string
     }
   }
   seed = bcNext(seed);
-  if (seed % 100 < 28) {
+  if (seed % 100 < 12) {
     storm += "V";
     seed = bcNext(seed);
     const mountains = [[[0, 7], [1, 7], [0, 8], [1, 8]], [[12, 1], [13, 1], [12, 2], [13, 2]]] as const;

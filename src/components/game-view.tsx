@@ -39,7 +39,6 @@ import { bgCheckSq, bgReason, bgStatus, bgTargets, bgTry, isBoardGame, type Boar
 import { BgBoard2D } from "@/components/games/bg-board-2d";
 import { BgBoard3D } from "@/components/games/bg-board-3d";
 import { BcBoard2D } from "@/components/games/bc-board-2d";
-import { BcBoard3D } from "@/components/games/bc-board-3d";
 import { playBoom, playResult, playYourTurn } from "@/lib/games/variant-fx";
 import { formatClock, formatEloDelta, isBotUserId } from "@/lib/mores-constants";
 import { decodeCast, setGuestCast } from "@/lib/lego-look";
@@ -1040,11 +1039,7 @@ export function GameView({ gameId }: { gameId: string }) {
             </div>
           ) : null}
           {bg === "battlechess" ? (
-            view === "2d" ? (
-              <BcBoard2D fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
-            ) : (
-              <BcBoard3D style={view === "lg" && lgOn ? "lg" : "an"} fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
-            )
+            <BcBoard2D fen={game.fen} you={game.you} lastMove={game.lastMove} lastSan={game.lastMove?.san ?? null} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />
           ) : bg ? (
             view === "2d" ? (
               <BgBoard2D game={bg} fen={game.fen} you={game.you} lastMove={game.lastMove} myTurn={myTurn} disabled={over} onMove={(f, t) => onMove(f as Square, t as Square)} legalFor={rules.legalFor} checkSq={rules.checkSq} />

@@ -15,7 +15,7 @@ final class BoardGames
     public const START = [
         'checkers' => 'ck|1m1m1m1m/m1m1m1m1/1m1m1m1m/8/8/M1M1M1M1/1M1M1M1M/M1M1M1M1|w|-|0',
         'xiangqi' => 'xq|rheakaehr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RHEAKAEHR|w|0',
-        'battlechess' => 'bc|20/20/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3CI15/13H6/6H13/15ic3/3nncpppppppp6/3rbarnbkqber6/5ff13/20/20|w|-|0|1|-',
+        'battlechess' => 'bc|2W17/1H18/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3CI15/13H6/6H13/15ic3/3nncpppppppp6/3rbarnbkqber6/5ff11H1/17w2/20|w|-|0|1|-',
     ];
 
     public static function is(string $v): bool
@@ -677,6 +677,12 @@ final class BoardGames
 
     public static function bcTerrain(int $x, int $y): string
     {
+        if (($x === -2 || $x === -1) && ($y === 10 || $y === 11)) {
+            return 'L';
+        }
+        if (($x === 14 || $x === 15) && ($y === -1 || $y === 0)) {
+            return 'L';
+        }
         if ($x < 0 || $x > 13 || $y < 1 || $y > 8) {
             return 'W';
         }
@@ -1355,7 +1361,7 @@ final class BoardGames
         }
         $storm = '';
         $seed = self::bcNext($seed);
-        if ($seed % 100 < 45) {
+            if ($seed % 100 < 18) {
             $storm .= 'T';
             $pcs = [];
             for ($y = 1; $y <= 8; $y++) {
@@ -1400,7 +1406,7 @@ final class BoardGames
             }
         }
         $seed = self::bcNext($seed);
-        if ($seed % 100 < 28) {
+        if ($seed % 100 < 12) {
             $storm .= 'V';
             $seed = self::bcNext($seed);
             $mountains = [[[0, 7], [1, 7], [0, 8], [1, 8]], [[12, 1], [13, 1], [12, 2], [13, 2]]];

@@ -47,7 +47,7 @@ export const START_FEN: Record<VariantId, string> = {
   mini: "8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1",
   checkers: "ck|1m1m1m1m/m1m1m1m1/1m1m1m1m/8/8/M1M1M1M1/1M1M1M1M/M1M1M1M1|w|-|0",
   xiangqi: "xq|rheakaehr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RHEAKAEHR|w|0",
-  battlechess: "bc|20/20/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3CI15/13H6/6H13/15ic3/3nncpppppppp6/3rbarnbkqber6/5ff13/20/20|w|-|0|1|-",
+  battlechess: "bc|2W17/1H18/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3CI15/13H6/6H13/15ic3/3nncpppppppp6/3rbarnbkqber6/5ff11H1/17w2/20|w|-|0|1|-",
 };
 
 export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rules: string[] }> = {
@@ -152,9 +152,9 @@ export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rule
     name: "Battle Chess",
     short: "Terrain & Troops",
     rules: [
-      "A 14x8 island in the sea. Archers shoot, eagles leap, assassins slip through, frigates shell the coast. Checkmate wins.",
-      "Pirate: rides 4 squares and can board a ship. Wizard: steps 1, and steals an enemy troop 2 or 3 squares away. Open a chest and a new troop appears.",
-      "After a move the island can throw a tornado, shoving a troop (into the sea, it drowns), or a volcano, burning squares beside the mountains for three turns.",
+      "The board from the video: a wooden island on a blue checker sea, with two little islands out in the water. Your own army sits at the bottom. Checkmate wins.",
+      "Archers shoot two squares. Eagles leap. Assassins slip through. Frigates sail and shell the coast. A pirate can board a ship.",
+      "A mage on the sea island can take over an enemy troop within three squares. Open a green gem and a new troop shows up. Now and then a tornado shoves a troop, or a volcano burns the squares beside a mountain.",
     ],
   }
 };

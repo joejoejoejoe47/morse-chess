@@ -92,8 +92,8 @@
 @media (max-width: 640px) { .bg2-wrap { padding: 88px 6px 92px; } }
 
 /* ── Battle Chess 2D (MB-14) ── */
-.bc2-wrap { position: absolute; inset: 0; padding: 96px 16px 112px; display: grid; place-items: center; }
-.bc2-svg { width: 100%; height: 100%; max-width: 1400px; filter: drop-shadow(0 18px 40px rgba(0,0,0,.6)); }
+.bc2-wrap { position: absolute; inset: 0; padding: 96px 16px 112px; display: grid; place-items: center; background: #386aba; }
+.bc2-svg { width: 100%; height: 100%; max-width: 1400px; }
 .bc2-piece { transition: transform 420ms cubic-bezier(.3,.8,.3,1); }
 .bc2-check { animation: bc2-pulse 1s ease-in-out infinite alternate; }
 @keyframes bc2-pulse { from { opacity: .45 } to { opacity: 1 } }

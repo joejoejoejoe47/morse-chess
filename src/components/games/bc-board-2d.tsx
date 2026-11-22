@@ -64,8 +64,107 @@ function view(you: "w" | "b") {
   return (x: number, y: number): [number, number] => (you === "w" ? [BC_X1 - x, y - BC_Y0] : [x - BC_X0, BC_Y1 - y]);
 }
 
-const GLYPH: Record<string, string> = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" };
 export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate", I: "Pirate", W: "Wizard", U: "Boots", H: "Chest" };
+
+/** Flat white-or-black icons, the same read as the video: a solid shape, a hard outline. */
+function PieceArt({ kind, fill, stroke }: { kind: string; fill: string; stroke: string }) {
+  const p = { fill, stroke, strokeWidth: 4, strokeLinejoin: "round" as const };
+  if (kind === "H")
+    return (
+      <g>
+        <path d="M50 8 L82 34 L68 88 L32 88 L18 34 Z" fill="#7dcea0" stroke="#145c32" strokeWidth={4} strokeLinejoin="round" />
+        <path d="M50 8 L50 88 M18 34 L82 34" stroke="#145c32" strokeWidth={3} fill="none" />
+        <path d="M36 22 L50 12 L64 22 L50 30 Z" fill="#d5ffe4" stroke="#145c32" strokeWidth={3} />
+      </g>
+    );
+  if (kind === "K")
+    return (
+      <g {...p}>
+        <path d="M46 6 H54 V16 H64 V24 H54 V34 H46 V24 H36 V16 H46 Z" />
+        <path d="M22 40 H78 L70 92 H30 Z" />
+      </g>
+    );
+  if (kind === "Q")
+    return (
+      <g {...p}>
+        <circle cx={20} cy={24} r={7} />
+        <circle cx={50} cy={12} r={7} />
+        <circle cx={80} cy={24} r={7} />
+        <path d="M20 30 L30 92 H70 L80 30 L50 18 Z" />
+      </g>
+    );
+  if (kind === "R")
+    return (
+      <g {...p}>
+        <path d="M18 18 H32 V28 H40 V18 H48 V28 H60 V18 H68 V28 H82 V40 H18 Z" />
+        <path d="M24 40 H76 L70 92 H30 Z" />
+      </g>
+    );
+  if (kind === "B")
+    return (
+      <g {...p}>
+        <circle cx={50} cy={16} r={8} />
+        <path d="M50 24 L70 48 L62 92 H38 L30 48 Z" />
+        <path d="M50 40 V70" stroke={stroke} strokeWidth={3} fill="none" />
+      </g>
+    );
+  if (kind === "N")
+    return (
+      <path d="M28 90 L18 78 L30 60 L22 40 C22 18 48 8 62 18 C70 24 66 36 74 42 L80 58 L62 50 L70 70 L58 90 Z" {...p} />
+    );
+  if (kind === "P")
+    return (
+      <g {...p}>
+        <circle cx={50} cy={24} r={14} />
+        <path d="M32 92 L40 46 H60 L68 92 Z" />
+      </g>
+    );
+  if (kind === "C")
+    return (
+      <g fill="none" stroke={fill} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M30 10 Q78 50 30 90" />
+        <path d="M30 10 V90" strokeWidth={4} />
+        <path d="M16 50 H78" />
+        <path d="M66 38 L80 50 L66 62" fill={fill} stroke={fill} />
+      </g>
+    );
+  if (kind === "E")
+    return <path d="M50 28 C40 14 22 12 6 20 C20 26 30 36 36 46 C22 50 16 62 22 70 L40 60 L46 88 L50 76 L54 88 L60 60 L78 70 C84 62 78 50 64 46 C70 36 80 26 94 20 C78 12 60 14 50 28 Z" {...p} />;
+  if (kind === "A")
+    return (
+      <g {...p}>
+        <path d="M50 6 C32 16 24 34 28 52 C32 66 42 72 50 72 C58 72 68 66 72 52 C76 34 68 16 50 6 Z" />
+        <path d="M24 92 H76 L68 70 H32 Z" />
+      </g>
+    );
+  if (kind === "I")
+    return (
+      <g {...p}>
+        <path d="M16 40 C22 16 78 16 84 40 H16 Z" />
+        <path d="M28 44 H72 L66 92 H34 Z" />
+        <path d="M62 58 L90 30 L96 38 L68 66 Z" />
+      </g>
+    );
+  if (kind === "W")
+    return (
+      <g {...p}>
+        <path d="M50 4 L74 46 H26 Z" />
+        <path d="M22 46 H78 L70 94 H30 Z" />
+      </g>
+    );
+  if (kind === "U")
+    return (
+      <g fill="none" stroke={fill} strokeWidth={10} strokeLinecap="round">
+        <path d="M22 34 V72 C22 88 42 88 42 72 V34" />
+        <path d="M58 34 V72 C58 88 78 88 78 72 V34" />
+      </g>
+    );
+  return (
+    <g {...p}>
+      <circle cx={50} cy={50} r={28} />
+    </g>
+  );
+}
 
 /** Flat silhouettes for the new pieces (100x100), drawn like the chess glyphs. */
 function SpecialIcon({ kind, fill, stroke }: { kind: string; fill: string; stroke: string }) {
@@ -145,21 +244,15 @@ function SpecialIcon({ kind, fill, stroke }: { kind: string; fill: string; strok
 }
 
 function Ship({ w, h, white }: { w: number; h: number; white: boolean }) {
-  // drawn for a 2x1 ship; rotated for a 1x2 one
-  const hull = white ? "#f6efe0" : "#1b1424";
-  const line = white ? "#2a1a0e" : "#e0b85a";
-  const sail = white ? "#ffffff" : "#2b2238";
+  const fill = white ? "#f7f7f7" : "#161616";
+  const ink = white ? "#161616" : "#f7f7f7";
   const g = (
-    <g>
-      <path d="M0.12 0.62 L1.88 0.62 L1.62 0.9 L0.36 0.9 Z" fill={hull} stroke={line} strokeWidth={0.05} strokeLinejoin="round" />
-      <path d="M0.3 0.74 L1.7 0.74" stroke={line} strokeWidth={0.025} />
-      {[0.62, 1.05, 1.42].map((mx, i) => (
-        <g key={i}>
-          <path d={`M${mx} 0.62 L${mx} ${0.1 + i * 0.04}`} stroke={line} strokeWidth={0.04} />
-          <path d={`M${mx - 0.17 + i * 0.02} ${0.16 + i * 0.04} Q${mx + 0.02} ${0.3} ${mx - 0.17 + i * 0.02} ${0.54} L${mx + 0.2} 0.52 Q${mx + 0.3} 0.34 ${mx + 0.2} ${0.16 + i * 0.04} Z`} fill={sail} stroke={line} strokeWidth={0.035} strokeLinejoin="round" />
-        </g>
-      ))}
-      <path d="M1.42 0.12 L1.66 0.17 L1.42 0.22 Z" fill="#c0392b" />
+    <g strokeLinejoin="round">
+      <path d="M0.12 0.58 L1.88 0.58 L1.58 0.9 L0.38 0.9 Z" fill={fill} stroke={ink} strokeWidth={0.07} />
+      <path d="M0.7 0.58 L0.7 0.08" stroke={ink} strokeWidth={0.05} />
+      <path d="M1.15 0.58 L1.15 0.16" stroke={ink} strokeWidth={0.05} />
+      <path d="M0.7 0.12 L1.15 0.32 L0.7 0.5 Z" fill={fill} stroke={ink} strokeWidth={0.05} />
+      <path d="M1.15 0.2 L1.55 0.36 L1.15 0.52 Z" fill={fill} stroke={ink} strokeWidth={0.05} />
     </g>
   );
   return w >= h ? g : <g transform="translate(1 0) rotate(90)">{g}</g>;
@@ -266,42 +359,29 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
   const shot = lastMove && lastSan && lastSan.includes("*") ? lastMove : null;
 
   return (
-    <div className="bc2-wrap" data-bc-board data-bc-storm={state?.storm || undefined}>
-      {state?.storm ? (
-        <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full border border-[#ffb15a] bg-black/70 px-4 py-1 text-sm font-semibold tracking-[0.18em] text-[#ffb15a]">
-          {state.storm.includes("T") ? "TORNADO" : ""}
-          {state.storm === "TV" ? " · " : ""}
-          {state.storm.includes("V") ? "VOLCANO" : ""}
-        </div>
-      ) : null}
-      <svg className="bc2-svg font-display" viewBox={`-0.3 -0.3 ${BC_W + 0.6} ${BC_H + 0.6}`} preserveAspectRatio="xMidYMid meet">
+    <div className="bc2-wrap" data-bc-board>
+      <svg className="bc2-svg" viewBox={`-0.3 -0.3 ${BC_W + 0.6} ${BC_H + 0.6}`} preserveAspectRatio="xMidYMid meet">
         <defs>
           <pattern id="bc-w1" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#2f5fb8" />
-            <path d="M0 0.3 Q0.25 0.24 0.5 0.3 T1 0.3 M0 0.72 Q0.25 0.66 0.5 0.72 T1 0.72" stroke="#5b86d6" strokeWidth={0.025} fill="none" opacity={0.6} />
+            <rect width={1} height={1} fill="#386aba" />
           </pattern>
           <pattern id="bc-w2" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#244c9a" />
-            <path d="M0 0.5 Q0.25 0.44 0.5 0.5 T1 0.5" stroke="#4a76c8" strokeWidth={0.025} fill="none" opacity={0.6} />
+            <rect width={1} height={1} fill="#0e43a7" />
           </pattern>
           <pattern id="bc-l" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#d8a96a" />
-            <path d="M0 0.2 Q0.5 0.26 1 0.18 M0 0.55 Q0.5 0.5 1 0.58 M0 0.84 Q0.5 0.9 1 0.82" stroke="#b9854a" strokeWidth={0.02} fill="none" />
+            <rect width={1} height={1} fill="#e6b36a" />
           </pattern>
           <pattern id="bc-d" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#8a5426" />
-            <path d="M0 0.3 Q0.5 0.36 1 0.28 M0 0.7 Q0.5 0.64 1 0.72" stroke="#6b3c18" strokeWidth={0.025} fill="none" />
+            <rect width={1} height={1} fill="#b6733f" />
           </pattern>
           <radialGradient id="bc-sea" cx="50%" cy="50%" r="70%">
             <stop offset="0" stopColor="#000" stopOpacity={0} />
             <stop offset="1" stopColor="#0b0618" stopOpacity={0.55} />
           </radialGradient>
         </defs>
-        <rect x={-0.3} y={-0.3} width={BC_W + 0.6} height={BC_H + 0.6} rx={0.4} fill="#120a20" stroke="#e0b85a" strokeWidth={0.12} />
-        <rect x={-0.1} y={-0.1} width={BC_W + 0.2} height={BC_H + 0.2} rx={0.2} fill="none" stroke="#e0b85a" strokeWidth={0.03} opacity={0.7} />
+        <rect x={-0.3} y={-0.3} width={BC_W + 0.6} height={BC_H + 0.6} fill="#386aba" />
         {cells}
-        <rect x={0} y={0} width={BC_W} height={BC_H} fill="url(#bc-sea)" pointerEvents="none" />
-        <path d={rim.join(" ")} stroke="#f2d27a" strokeWidth={0.07} strokeLinecap="round" />
+        <path d={rim.join(" ")} stroke="#1a120c" strokeWidth={0.045} strokeLinecap="square" />
         {mountains}
         {bushes}
         {state
@@ -340,8 +420,8 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
         {/* pieces */}
         {pieces.map((pc) => {
           const white = pc.c === "w";
-          const fill = white ? "#fbf3df" : "#17101f";
-          const stroke = white ? "#2a1a0e" : "#e0b85a";
+          const fill = white ? "#f7f7f7" : "#141414";
+          const stroke = white ? "#141414" : "#f7f7f7";
           if (pc.kind === "F") {
             const xs = [pc.x, pc.x + (pc.w ?? 1) - 1], ys = [pc.y, pc.y + (pc.h ?? 1) - 1];
             const corners = xs.flatMap((x) => ys.map((y) => v(x, y)));
@@ -354,19 +434,12 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
             );
           }
           const [c, r] = v(pc.x, pc.y);
-          const glyph = GLYPH[pc.kind];
           return (
             <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}${pc.kind}`} data-sq-piece={pc.sq}>
               <title>{`${white ? "White" : "Black"} ${BC_NAME[pc.kind]}`}</title>
-              {glyph ? (
-                <text x={0.5} y={0.84} textAnchor="middle" fontSize={0.86} fill={fill} stroke={stroke} strokeWidth={0.045} paintOrder="stroke" style={{ filter: "drop-shadow(0 0.04px 0.05px rgba(0,0,0,.5))" }}>
-                  {glyph}
-                </text>
-              ) : (
-                <g transform="translate(0.1 0.1) scale(0.008)">
-                  <SpecialIcon kind={pc.kind} fill={fill} stroke={stroke} />
-                </g>
-              )}
+              <g transform="translate(0.08 0.06) scale(0.0084)">
+                <PieceArt kind={pc.kind} fill={fill} stroke={stroke} />
+              </g>
             </g>
           );
         })}
