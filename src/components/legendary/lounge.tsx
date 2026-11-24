@@ -347,8 +347,9 @@ export function LegendaryLounge({
       {/* the gear menu */}
       <div
         className="absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        onMouseEnter={openMenu}
-        onMouseLeave={closeMenuSoon}
+        // hover opens it for a real mouse only: a phone tap also fires a fake mouseenter, which played the sound twice
+        onPointerEnter={(e) => e.pointerType === "mouse" && openMenu()}
+        onPointerLeave={(e) => e.pointerType === "mouse" && closeMenuSoon()}
         data-gear-menu={menu ? "open" : "closed"}
       >
         <nav className={cn("mcl-menu flex w-[min(78vw,236px)] flex-col gap-1.5", menu ? "is-open" : "")} aria-hidden={!menu}>

@@ -7,6 +7,8 @@ import { isLightSquare, squareToWorld } from "@/lib/chess/board-math";
 import { CAST_POOL, hydrateCast, useLegoLook } from "@/lib/lego-look";
 import { LEGO_CHARS, LegoStatic, pieceChar, type LegoCharId } from "@/components/chess/lego-board";
 import { readBoardFile } from "@/lib/chess/read-board-image";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { LegendaryGhost, LegendarySetup } from "@/components/legendary/setup-legendary";
 
 const FILES = "abcdefgh";
 const KINDS: PieceSymbol[] = ["k", "q", "r", "b", "n", "p"];
@@ -384,12 +386,16 @@ export function PieceSetup({
   }, [board]);
 
   useEffect(() => {
-    if (lg) return;
+    if (look === "lg" && lg) return;
     locateRef.current = (x, y) => {
+      // a square under the pointer (works on the CSS-tilted Legendary board too), else the flat board's rect
+      const hit = document.elementsFromPoint(x, y).find((el) => (el as HTMLElement).dataset?.setupSq) as HTMLElement | undefined;
+      if (hit) return hit.dataset.setupSq as Square;
+      if (LEGENDARY) return null;
       const rect = boardRef.current?.getBoundingClientRect();
       return rect ? fromRect(rect, x, y) : null;
     };
-  }, [lg]);
+  }, [lg, look]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -490,6 +496,30 @@ export function PieceSetup({
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (LEGENDARY && !(look === "lg" && lg)) {
+    return (
+      <>
+        <LegendarySetup
+          board={board}
+          hover={hover}
+          dragging={!!ghost}
+          fall={fall}
+          kings={kings}
+          ready={!!fen}
+          note={note}
+          reading={reading}
+          onPick={begin}
+          onBoardDown={onBoardDown}
+          onClear={() => setBoard({})}
+          onDone={() => fen && setStep("side")}
+          onBack={onBack}
+          onPicture={(file) => void usePicture(file)}
+        />
+        {ghost ? <LegendaryGhost c={ghost.color} t={ghost.type} x={ghost.x} y={ghost.y} /> : null}
+      </>
     );
   }
 

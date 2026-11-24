@@ -126,7 +126,7 @@ final class Ranks
     }
 
     /**
-     * One-time grandfathering: every pre-cutoff human who has finished a rated game and showed a Silver+
+     * One-time grandfathering: every pre-cutoff human who has won a rated game against a player and showed a Silver+
      * badge under the old Elo-only rules keeps that badge as a floor. (Accounts that never played sit on
      * the 1200 start score — they were never really "Silver" and start unranked.)
      * @param array<string,array{games:int,wins:int,last:string}> $stats
@@ -143,7 +143,7 @@ final class Ranks
         );
         foreach ($rows as $r) {
             $tier = self::legacyTier((int) $r['score']);
-            if ($tier !== 'bronze' && ($stats[(string) $r['user_id']]['games'] ?? 0) > 0) {
+            if ($tier !== 'bronze' && ($stats[(string) $r['user_id']]['wins'] ?? 0) > 0) {
                 Db::insertIgnore('player_rank_floors', ['user_id' => (string) $r['user_id'], 'tier' => $tier, 'reason' => 'grandfathered', 'created_at' => $now]);
             }
         }
@@ -187,7 +187,9 @@ final class Ranks
             $s = $stats[$id] ?? ['games' => 0, 'wins' => 0, 'last' => ''];
             $score = (int) $p['score'];
             $pinned = Catalog::isMasterUsername((string) $p['username']);
-            $floor = $floors[$id] ?? null;
+            // Only a real earned badge is grandfathered: with 0 ranked wins over players the old Silver came
+            // from the 1200 start score alone (old Silver = 1100), so that floor is ignored (rows are kept).
+            $floor = $s['wins'] > 0 ? ($floors[$id] ?? null) : null;
             $earned = self::earned($score, $s['wins']);
             $idx = self::tierIndex($earned);
             $decayIn = null;
