@@ -1869,7 +1869,7 @@ html.legendary .mcl-hp-err { margin-top: calc(var(--u) * 14); text-align: center
 .mcl-gate-fee { margin: 16px auto 12px; display: inline-flex; align-items: center; gap: 10px; padding: 10px 20px; border-radius: 999px;
   background: linear-gradient(180deg, rgba(242,201,76,.18), rgba(242,201,76,.05)); border: 1px solid rgba(242,201,76,.6); }
 .mcl-gate-fee-n { font-size: 34px; font-weight: 700; color: #ffe08a; line-height: 1; }
-.mcl-gate-fee-l { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #d9c79a; text-align: left; max-width: 90px; line-height: 1.25; }
+.mcl-gate-fee-l { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #d9c79a; text-align: left; white-space: nowrap; line-height: 1.35; }
 .mcl-gate-purse { margin: 4px auto 14px; width: min(320px, 100%); }
 .mcl-gate-purse-row { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #c9b6f2; }
 .mcl-gate-purse-n { display: inline-flex; align-items: center; gap: 6px; color: #ffe08a; }

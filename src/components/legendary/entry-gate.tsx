@@ -113,7 +113,7 @@ export function LegendaryEntryGate() {
         <div className="mcl-gate-fee">
           <Coin size={34} />
           <span className="mcl-gate-fee-n">{access.fee}</span>
-          <span className="mcl-gate-fee-l">Morse coins · one time</span>
+          <span className="mcl-gate-fee-l"><span className="block">Morse coins</span><span className="block">One time</span></span>
         </div>
         <div className="mcl-gate-purse" data-gate-coins={access.coins}>
           <div className="mcl-gate-purse-row">

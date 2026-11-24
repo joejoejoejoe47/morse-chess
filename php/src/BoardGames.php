@@ -928,11 +928,22 @@ final class BoardGames
                         $sx = $dx <=> 0;
                         $sy = $dy <=> 0;
                         $ok = true;
+                        $hop = false; // part 4: it may pass one piece only, a pawn of its own colour
                         for ($i = 1; $i < $ax; $i++) {
                             if (self::bcTerrain($xx + $sx * $i, $yy + $sy * $i) !== 'L') {
                                 $ok = false;
                                 break;
                             }
+                            $q = self::bcAt($s, $xx + $sx * $i, $yy + $sy * $i);
+                            if ($q === '.') {
+                                continue;
+                            }
+                            if (!$hop && $q === ($by === 'w' ? 'P' : 'p')) {
+                                $hop = true;
+                                continue;
+                            }
+                            $ok = false;
+                            break;
                         }
                         if ($ok) {
                             return true;
@@ -1089,6 +1100,7 @@ final class BoardGames
                     foreach (self::BC_DIAG as [$dx, $dy]) {
                         $tx = $x + $dx;
                         $ty = $y + $dy;
+                        $hop = false;
                         while (true) {
                             $t = self::bcTerrain($tx, $ty);
                             if ($t === 'W' || $t === 'M' || self::bcHot($s, $tx, $ty)) {
@@ -1099,8 +1111,15 @@ final class BoardGames
                                 $add($x, $y, $tx, $ty);
                                 break;
                             }
-                            if (self::bcColor($q) !== $me) {
+                            if ($q === '.') {
                                 $add($x, $y, $tx, $ty);
+                            } elseif (self::bcColor($q) !== $me) {
+                                $add($x, $y, $tx, $ty);
+                                break;
+                            } elseif (!$hop && self::bcKind($q) === 'P') {
+                                $hop = true; // jump one pawn of its own colour
+                            } else {
+                                break;
                             }
                             if ($t === 'T') {
                                 break;
@@ -1208,7 +1227,7 @@ final class BoardGames
                             for ($dy = -3; $dy <= 3; $dy++) {
                                 for ($dx = -3; $dx <= 3; $dx++) {
                                     $rad = max(abs($dx), abs($dy));
-                                    if ($rad < 2 || $rad > 3) {
+                                    if ($rad < 1 || $rad > 3) { // part 4: only within three squares
                                         continue;
                                     }
                                     $q = self::bcAt($s, $x + $dx, $y + $dy);
@@ -1416,18 +1435,16 @@ final class BoardGames
                     self::bcPut($c, $mx, $my, '.');
                 }
             }
+            // part 4: the volcano only reaches three squares from its centre
             $neighbors = [];
-            foreach ($mount as [$mx, $my]) {
-                foreach (array_merge(self::BC_ORTH, self::BC_DIAG) as [$dx, $dy]) {
-                    $nx = $mx + $dx;
-                    $ny = $my + $dy;
+            [$ox, $oy] = $mount[0];
+            for ($ny = $oy - 3; $ny <= $oy + 4; $ny++) {
+                for ($nx = $ox - 3; $nx <= $ox + 4; $nx++) {
                     if (!self::bcLand($nx, $ny)) {
                         continue;
                     }
-                    foreach ($neighbors as [$a, $b]) {
-                        if ($a === $nx && $b === $ny) {
-                            continue 2;
-                        }
+                    if (max(abs($nx * 2 - ($ox * 2 + 1)), abs($ny * 2 - ($oy * 2 + 1))) > 6) {
+                        continue;
                     }
                     $neighbors[] = [$nx, $ny];
                 }
