@@ -357,15 +357,18 @@ function Road({ nodes }: { nodes: MapNode[] }) {
   );
 }
 
-function Rig({ focus }: { focus: [number, number] | null }) {
+function Rig({ focus, narrow }: { focus: [number, number] | null; narrow: boolean }) {
   const controls = useRef<OrbitImpl>(null);
   const { camera } = useThree();
   const goal = useMemo(() => new THREE.Vector3(), []);
   useFrame((_, dt) => {
     const c = controls.current;
     if (!c) return;
-    if (focus) goal.set(focus[0] * 0.55, 0.4, focus[1] * 0.55 + 0.6);
-    else goal.set(0.4, 0.3, 1.2);
+    // Desktop keeps the whole island in view, left of the chapter card; phones follow the selection.
+    if (narrow) {
+      if (focus) goal.set(focus[0] * 0.55, 0.4, focus[1] * 0.55 + 0.6);
+      else goal.set(0.4, 0.3, 1.2);
+    } else goal.set(2.7 + (focus ? focus[0] * 0.15 : 0), 0.3, 1.4 + (focus ? focus[1] * 0.1 : 0));
     c.target.lerp(goal, Math.min(1, dt * 2.2));
     c.update();
   });
@@ -400,7 +403,7 @@ export function WorldMap({ nodes, selected, onSelect, narrow }: { nodes: MapNode
         <circleGeometry args={[90, 64]} />
         <meshStandardMaterial color="#160a26" roughness={1} transparent opacity={0.92} />
       </mesh>
-      <Rig focus={sel} />
+      <Rig focus={sel} narrow={narrow} />
     </Canvas>
   );
 }

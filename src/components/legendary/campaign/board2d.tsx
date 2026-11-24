@@ -70,7 +70,7 @@ export function Board2D({
                 stroke={p.c === "w" ? "#2a1606" : chapter.accent}
                 strokeWidth={1.6}
                 strokeLinejoin="round"
-                style={p.c === "w" && (levels[p.id] ?? 1) >= 7 ? { filter: `drop-shadow(0 0 4px ${tier!.ring})` } : undefined}
+                style={p.c === "w" ? ((levels[p.id] ?? 1) >= 7 ? { filter: `drop-shadow(0 0 4px ${tier!.ring})` } : undefined) : { filter: "drop-shadow(0 0 1.5px rgba(255, 236, 200, 0.9))" }}
               />
             </svg>
           ) : null}

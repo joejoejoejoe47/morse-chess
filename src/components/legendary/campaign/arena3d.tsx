@@ -131,8 +131,10 @@ function GearTiles({ squares, ply, every }: { squares: number[]; ply: number; ev
 function FogTiles({ fog }: { fog: Set<number> }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
-    ref.current?.children.forEach((m, i) => {
-      m.position.y = 0.45 + Math.sin(clock.elapsedTime * 0.8 + i) * 0.05;
+    const t = clock.elapsedTime;
+    ref.current?.children.forEach((g, i) => {
+      g.position.y = Math.sin(t * 0.7 + i * 0.9) * 0.05;
+      g.rotation.y = t * 0.05 + i;
     });
   });
   return (
@@ -140,10 +142,16 @@ function FogTiles({ fog }: { fog: Set<number> }) {
       {[...fog].map((q) => {
         const [x, , z] = world(q);
         return (
-          <mesh key={q} position={[x, 0.45, z]}>
-            <boxGeometry args={[1.02, 0.9, 1.02]} />
-            <meshStandardMaterial color="#a8d8c8" transparent opacity={0.78} roughness={1} depthWrite={false} />
-          </mesh>
+          <group key={q} position={[x, 0, z]}>
+            <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[1, 1]} />
+              <meshBasicMaterial color="#0e1a17" transparent opacity={0.8} depthWrite={false} />
+            </mesh>
+            <mesh position={[0, 0.52, 0]} scale={[1, 0.66, 1]}>
+              <sphereGeometry args={[0.7, 16, 12]} />
+              <meshStandardMaterial color="#8fb0a4" emissive="#2a4a40" emissiveIntensity={0.6} transparent opacity={0.94} roughness={1} depthWrite={false} />
+            </mesh>
+          </group>
         );
       })}
     </group>
