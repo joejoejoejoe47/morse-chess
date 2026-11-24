@@ -26,7 +26,10 @@ foreach (['campaignState', 'startCampaignRun', 'finishCampaignRun', 'setArmyPerk
 $now = Db::now();
 foreach (['u1' => 'Alpha', 'u2' => 'Beta'] as $id => $name) {
     Db::run("INSERT INTO profiles (user_id, username, username_lc, score, last_seen, created_at, equipped_board, coins, owned_boards, owned_gear) VALUES (?, ?, ?, 1200, ?, ?, 'lodge', 10, '', '')", [$id, $name, strtolower($name), $now, $now]);
+    Db::run("INSERT INTO legendary_unlocks (user_id, paid, reason, created_at) VALUES (?, 100, 'paid', ?)", [$id, $now]);
 }
+Db::run("INSERT INTO profiles (user_id, username, username_lc, score, last_seen, created_at, equipped_board, coins, owned_boards, owned_gear) VALUES ('u9', 'Gamma', 'gamma', 1200, ?, ?, 'lodge', 10, '', '')", [$now, $now]);
+check(str_contains((string) ccall('startCampaignRun', 'u9', ['chapter' => 1]), 'Unlock'), 'campaign needs the Legendary unlock');
 
 check(Campaign::levelFor(0) === 1 && Campaign::levelFor(39) === 1 && Campaign::levelFor(40) === 2 && Campaign::levelFor(5000) === 10, 'levels');
 check(Campaign::xpFor(['alive' => true, 'mate' => true, 'checks' => 2], 'win') === 20 + 8 + 40, 'xp formula');
@@ -95,5 +98,23 @@ $q = array_values(array_filter($s['army'], fn ($a) => $a['slot'] === 'q'))[0];
 check($q['mates'] === 1, 'army queen has a mate');
 $s = ccall('campaignState', 'u2');
 check($s['synced'] === [], 'sync is once');
+
+// phase B: chapters 2..5 open in order and grant their rewards
+$rw = [2 => ['crystal-palace', 'crowned-pawn'], 3 => ['obsidian-fortress', 'siege-aura'], 4 => ['ghostfire', 'spectral-trail'], 5 => ['legendary-core', 'golden-bot']];
+check(is_string(ccall('startCampaignRun', 'u1', ['chapter' => 3])), 'ch3 locked before ch2');
+foreach ($rw as $ch => [$board, $item]) {
+    $run = ccall('startCampaignRun', 'u1', ['chapter' => $ch]);
+    check(is_array($run) && $run['chapter'] === $ch, "ch$ch starts");
+    Db::run('UPDATE campaign_runs SET started_at = ? WHERE id = ?', [Db::ts(Db::nowMs() - 120000), $run['runId']]);
+    $r = ccall('finishCampaignRun', 'u1', ['runId' => $run['runId'], 'result' => 'win', 'plies' => 50, 'pieces' => $pieces]);
+    check($r['firstClear'] === true && in_array('board:' . $board, $r['rewards'], true), "ch$ch first clear + board");
+    $p = Db::one("SELECT owned_boards FROM profiles WHERE user_id = 'u1'");
+    check(str_contains($p['owned_boards'], $board), "ch$ch board owned");
+}
+$s = ccall('campaignState', 'u1');
+check($s['open'] === 5 && count($s['cleared']) === 5, 'all five cleared');
+foreach (['crowned-pawn', 'siege-aura', 'spectral-trail', 'golden-bot'] as $it) {
+    check(in_array($it, $s['rewards'], true), "reward $it listed");
+}
 
 finish();

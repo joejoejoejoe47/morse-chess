@@ -69,7 +69,9 @@ export type Event =
   | { t: "glass-shatter"; at: number }
   | { t: "glass-summon"; at: number }
   | { t: "perk"; perk: PerkId; piece: Piece }
-  | { t: "phase2" };
+  | { t: "phase2" }
+  | { t: "rim-push"; from: number; to: number; piece: Piece }
+  | { t: "rim-fall"; at: number; piece: Piece };
 
 export const VALUE: Record<Kind, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
@@ -216,7 +218,8 @@ function inspired(s: State, victimSq: number): boolean {
 }
 
 /** Landing rule for Morse-Zero phase 2: the outer rim is collapsing. */
-const landOk = (s: State, p: Piece, to: number) => s.phase !== 2 || p.k === "k" || !onRim(to);
+// (a pawn may still promote on the far edge)
+const landOk = (s: State, p: Piece, to: number) => s.phase !== 2 || p.k === "k" || !onRim(to) || (p.k === "p" && (rankOf(to) === 0 || rankOf(to) === 7));
 
 function pseudo(s: State, from: number, out: Move[], perksOn = true) {
   const p = s.board[from];
@@ -446,8 +449,30 @@ export function apply(s0: State, m: Move, live = true): { s: State; ev: Event[] 
     }
   }
   if (R.overlord && s.phase === 1 && material(s, "b") <= s.bossStart * R.overlord.at) {
-    s.phase = 2;
-    ev.push({ t: "phase2" });
+    // The rim collapses: every non-king piece on it is shoved one square toward the centre, or
+    // falls into the lava if that square is taken. Only kings may stand on the rim afterwards.
+    // Like the gears, the collapse waits a ply rather than leave the side that just moved in check.
+    const next = s.board.slice();
+    const pushes: Event[] = [];
+    for (let i = 0; i < 64; i++) {
+      const q = s.board[i];
+      if (!q || q.k === "k" || !onRim(i)) continue;
+      const f = fileOf(i), r = rankOf(i);
+      const to = (r + (r === 0 ? 1 : r === 7 ? -1 : 0)) * 8 + f + (f === 0 ? 1 : f === 7 ? -1 : 0);
+      next[i] = null;
+      if (!next[to] && !s.board[to] && !s.walls[to]) {
+        next[to] = q;
+        pushes.push({ t: "rim-push", from: i, to, piece: q });
+      } else pushes.push({ t: "rim-fall", at: i, piece: q });
+    }
+    const trial = { ...s, board: next, phase: 2 as const };
+    if (!inCheck(trial, mover)) {
+      s.board = next;
+      s.phase = 2;
+      s.ep = -1;
+      ev.push({ t: "phase2" }, ...pushes);
+      s.castle = { wk: false, wq: false, bk: false, bq: false };
+    }
   }
   if (live && inCheck(s, s.turn)) ev.push({ t: "check", by: mover });
   return { s, ev };
@@ -491,13 +516,23 @@ export function status(s: State): Status {
   if (kingSq(s, "b") < 0) return { over: true, winner: "w", reason: "The boss king fell" };
   if (!legalMoves(s).length) {
     if (inCheck(s)) return { over: true, winner: other(s.turn), reason: "Checkmate" };
-    return { over: true, winner: null, reason: "Stalemate" };
+    return suddenDeath(s, "Stalemate");
   }
-  if (s.quiet >= 100) return { over: true, winner: null, reason: "50 moves without a capture" };
+  // Morse-Zero's Blitz phase is sudden death: 25 quiet moves (not 50) end it.
+  if (s.quiet >= (s.phase === 2 ? 50 : 100)) return suddenDeath(s, s.phase === 2 ? "25 moves without a capture" : "50 moves without a capture");
   const left = s.board.filter(Boolean) as Piece[];
-  if (left.every((p) => p.k === "k" || p.glass)) return { over: true, winner: null, reason: "Only the kings are left" };
-  if (s.ply >= 400) return { over: true, winner: null, reason: "The battle went on too long" };
+  if (left.every((p) => p.k === "k" || p.glass)) return suddenDeath(s, "Only the kings are left");
+  if (s.ply >= 400) return suddenDeath(s, "The battle went on too long");
   return { over: false };
+}
+
+/** In phase 2 there are no draws: whoever has more material left wins. */
+function suddenDeath(s: State, reason: string): Status {
+  if (s.phase === 2) {
+    const w = material(s, "w"), b = material(s, "b");
+    if (w !== b) return { over: true, winner: w > b ? "w" : "b", reason: `${reason}: sudden death, ${w > b ? "you have" : "the Overlord has"} more material` };
+  }
+  return { over: true, winner: null, reason };
 }
 
 /** Short move text for the log ("Nf3", "Qxe7+", "Shield Wall c4", "Wall hit d5"). */

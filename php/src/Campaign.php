@@ -21,7 +21,7 @@ final class Campaign
     public const LEVELS = [0, 40, 100, 180, 290, 430, 600, 800, 1050, 1350];
     public const PERK_LEVEL = 3;
     /** Chapters that can be played right now (shipped in phases). */
-    public const OPEN = 1;
+    public const OPEN = 5;
     public const BATTER_COINS = 15;
     public const BATTER_MAX = 3;
     /** A boss win must take at least this long (client clock is not trusted). */
@@ -360,6 +360,10 @@ final class Campaign
     public static function startCampaignRun(string $userId, array $data): mixed
     {
         $chapter = (int) ($data['chapter'] ?? 0);
+        // The Legendary entry fee (LegendaryGate) also covers the campaign.
+        if (class_exists(LegendaryGate::class) && !(LegendaryGate::legendaryAccess($userId, [])['unlocked'] ?? false)) {
+            throw new RpcError('Unlock Morse Chess Legendary first.');
+        }
         self::ensureArmy($userId);
         if (!self::unlocked($userId, $chapter)) {
             throw new RpcError($chapter > self::OPEN ? 'That chapter opens soon.' : 'Clear the chapter before it first.');

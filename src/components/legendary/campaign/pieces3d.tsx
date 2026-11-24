@@ -179,7 +179,7 @@ export function PawnCrown() {
   );
 }
 
-export type ArmyLook = { level: number; veteran?: boolean; perk?: boolean };
+export type ArmyLook = { level: number; veteran?: boolean; perk?: boolean; crowned?: boolean; siege?: boolean };
 
 /** One army piece (player, White) finished by its level. */
 export function ArmyPiece({ kind, look, yaw = Math.PI }: { kind: Kind; look: ArmyLook; yaw?: number }) {
@@ -193,7 +193,8 @@ export function ArmyPiece({ kind, look, yaw = Math.PI }: { kind: Kind; look: Arm
       {show.scars ? <Scars kind={kind} /> : null}
       {show.banner ? <Banner kind={kind} /> : null}
       {show.aura ? <Aura color={tier.ring} size={RADIUS[kind] + 0.16} strength={look.level >= 9 ? 1.2 : 0.8} /> : null}
-      {look.veteran && kind === "p" ? <PawnCrown /> : null}
+      {(look.veteran || look.crowned) && kind === "p" ? <PawnCrown /> : null}
+      {look.siege && kind === "r" && !show.aura ? <Aura color="#ff5a2a" size={RADIUS[kind] + 0.16} strength={0.9} /> : null}
     </group>
   );
 }
@@ -205,4 +206,50 @@ export function BossPiece({ kind, ink, glass = false, yaw = 0 }: { kind: Kind; i
     : { color: ink, metal: 0.72, rough: 0.28, emissive: "#000000", glow: 0 };
   const obj = useFinishedModel(kind, "b", finish, yaw);
   return <primitive object={obj} />;
+}
+
+/** Golden Bot Companion (Chapter 5 reward): hovers beside your army and cheers. */
+export function GoldenBot({ position = [-5.2, 1.6, 3.2] as [number, number, number], excited = false }: { position?: [number, number, number]; excited?: boolean }) {
+  const g = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const o = g.current;
+    if (!o) return;
+    const t = clock.elapsedTime;
+    o.position.y = position[1] + Math.sin(t * (excited ? 6 : 1.6)) * (excited ? 0.18 : 0.1);
+    o.rotation.y = Math.sin(t * 0.7) * 0.5 + 0.5;
+  });
+  const gold = <meshStandardMaterial color="#ffcf4a" metalness={1} roughness={0.16} emissive="#8a5a00" emissiveIntensity={0.5} />;
+  return (
+    <group ref={g} position={position}>
+      <mesh castShadow>
+        <sphereGeometry args={[0.42, 32, 24]} />
+        {gold}
+      </mesh>
+      <mesh position={[0, 0, 0.3]} scale={[1, 0.62, 0.5]}>
+        <sphereGeometry args={[0.3, 24, 16]} />
+        <meshStandardMaterial color="#160c22" roughness={0.1} metalness={0.4} />
+      </mesh>
+      {[-0.11, 0.11].map((x) => (
+        <mesh key={x} position={[x, 0.02, 0.44]}>
+          <sphereGeometry args={[0.045, 12, 12]} />
+          <meshBasicMaterial color="#7af0ff" />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.55, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.22, 6]} />
+        {gold}
+      </mesh>
+      <mesh position={[0, 0.7, 0]}>
+        <sphereGeometry args={[0.06, 12, 12]} />
+        <meshBasicMaterial color="#ff5a7a" />
+      </mesh>
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} position={[sx * 0.48, -0.05, 0]} rotation={[0, 0, sx * 0.5]}>
+          <boxGeometry args={[0.1, 0.28, 0.1]} />
+          {gold}
+        </mesh>
+      ))}
+      <pointLight color="#ffd86b" intensity={4} distance={4} />
+    </group>
+  );
 }

@@ -10,8 +10,9 @@ import { boardById } from "@/lib/chess/board-skins";
 import { Shards, type Burst } from "@/components/games/bg-board-3d";
 import { fileOf, onRim, rankOf, type Move, type State } from "./engine";
 import type { Chapter } from "./data";
-import { ArmyPiece, BossPiece, preloadArmy } from "./pieces3d";
+import { ArmyPiece, BossPiece, GoldenBot, preloadArmy } from "./pieces3d";
 import { Citadel, Colosseum, Foundry, Gear, Marsh, Ramparts } from "./world-map";
+import { CoreFx, MarshFx, MirrorFx, SiegeFx } from "./arena-fx";
 
 preloadArmy();
 
@@ -28,6 +29,9 @@ type Props = {
   levels: Record<string, number>;
   veterans: Set<string>;
   bursts: Burst[];
+  /** Owned campaign cosmetics: crowned-pawn, siege-aura, spectral-trail, golden-bot. */
+  rewards: string[];
+  cheer?: boolean;
   onBurstDone: (id: number) => void;
   onTap: (sq: number) => void;
   narrow: boolean;
@@ -146,7 +150,41 @@ function FogTiles({ fog }: { fog: Set<number> }) {
   );
 }
 
-function Mover({ to, children, onClick }: { to: [number, number, number]; children: React.ReactNode; onClick: (e: { stopPropagation: () => void }) => void }) {
+const TRAIL = 10;
+/** Spectral Trail VFX (Chapter 4 reward): ghost-fire wisps follow a moving piece. */
+function Trail({ src }: { src: React.RefObject<THREE.Group | null> }) {
+  const g = useRef<THREE.Group>(null);
+  const pts = useMemo(() => Array.from({ length: TRAIL }, () => new THREE.Vector3(0, -9, 0)), []);
+  const tick = useRef(0);
+  useFrame(() => {
+    const o = src.current;
+    const out = g.current;
+    if (!o || !out) return;
+    tick.current++;
+    if (tick.current % 2 === 0) {
+      pts.pop();
+      pts.unshift(o.position.clone());
+    }
+    const moving = pts[0].distanceTo(pts[TRAIL - 1]) > 0.08;
+    out.children.forEach((m, i) => {
+      m.position.copy(pts[i]).setY(pts[i].y + 0.35);
+      m.visible = moving && i > 0;
+      m.scale.setScalar(0.16 * (1 - i / TRAIL));
+    });
+  });
+  return (
+    <group ref={g}>
+      {pts.map((_, i) => (
+        <mesh key={i} visible={false}>
+          <sphereGeometry args={[1, 10, 8]} />
+          <meshBasicMaterial color="#7affd8" transparent opacity={0.55 * (1 - i / TRAIL)} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function Mover({ to, children, onClick, trail = false }: { to: [number, number, number]; children: React.ReactNode; onClick: (e: { stopPropagation: () => void }) => void; trail?: boolean }) {
   const g = useRef<THREE.Group>(null);
   const first = useRef(true);
   useFrame((_, dt) => {
@@ -164,13 +202,16 @@ function Mover({ to, children, onClick }: { to: [number, number, number]; childr
     o.position.y = d > 0.05 ? Math.min(0.5, d * 0.25) : o.position.y * (1 - k);
   });
   return (
-    <group ref={g} onClick={onClick}>
-      {children}
-    </group>
+    <>
+      <group ref={g} onClick={onClick}>
+        {children}
+      </group>
+      {trail ? <Trail src={g} /> : null}
+    </>
   );
 }
 
-function Backdrop({ chapter }: { chapter: Chapter }) {
+function Backdrop({ chapter, phase }: { chapter: Chapter; phase: number }) {
   const Land = [Foundry, Citadel, Ramparts, Marsh, Colosseum][chapter.n - 1];
   return (
     <group>
@@ -190,6 +231,10 @@ function Backdrop({ chapter }: { chapter: Chapter }) {
           <Gear position={[-3.2, 6.6, -11]} r={1.3} teeth={12} speed={0.3} color="#a06a2a" />
         </>
       ) : null}
+      {chapter.n === 2 ? <MirrorFx /> : null}
+      {chapter.n === 3 ? <SiegeFx /> : null}
+      {chapter.n === 4 ? <MarshFx /> : null}
+      {chapter.n === 5 ? <CoreFx phase={phase} /> : null}
       <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[40, 48]} />
         <meshStandardMaterial color={chapter.sky} roughness={0.95} />
@@ -218,7 +263,7 @@ export function Arena3D(p: Props) {
       <directionalLight position={[5, 13, 7]} intensity={1.8} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={7} shadow-camera-bottom={-7} />
       <pointLight position={[-6, 5, -5]} intensity={22} color="#b58cff" distance={24} />
       <pointLight position={[6, 4, -6]} intensity={18} color={chapter.glow} distance={22} />
-      <Backdrop chapter={chapter} />
+      <Backdrop chapter={chapter} phase={s.phase} />
       <Board chapter={chapter} s={s} />
       {chapter.rules.gears ? <GearTiles squares={chapter.rules.gears} ply={s.ply} every={chapter.rules.gearEvery ?? 8} /> : null}
       <Walls s={s} />
@@ -263,9 +308,9 @@ export function Arena3D(p: Props) {
           if (pc.c === "b" && p.fog.has(i)) return null;
           const tap = (e: { stopPropagation: () => void }) => { e.stopPropagation(); p.onTap(i); };
           return (
-            <Mover key={pc.id} to={world(i)} onClick={tap}>
+            <Mover key={pc.id} to={world(i)} onClick={tap} trail={pc.c === "w" && p.rewards.includes("spectral-trail")}>
               {pc.c === "w" ? (
-                <ArmyPiece kind={pc.k} look={{ level: p.levels[pc.id] ?? 1, veteran: p.veterans.has(pc.id) }} yaw={Math.PI} />
+                <ArmyPiece kind={pc.k} look={{ level: p.levels[pc.id] ?? 1, veteran: p.veterans.has(pc.id), crowned: p.rewards.includes("crowned-pawn"), siege: p.rewards.includes("siege-aura") }} yaw={Math.PI} />
               ) : (
                 <BossPiece kind={pc.k} ink={chapter.bossInk} glass={!!pc.glass} />
               )}
@@ -274,6 +319,7 @@ export function Arena3D(p: Props) {
         })}
       </Suspense>
       {p.fog.size ? <FogTiles fog={p.fog} /> : null}
+      {p.rewards.includes("golden-bot") ? <GoldenBot excited={!!p.cheer} /> : null}
       {p.bursts.map((b) => (
         <Shards key={b.id} burst={b} onDone={() => p.onBurstDone(b.id)} />
       ))}
