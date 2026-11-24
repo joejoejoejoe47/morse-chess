@@ -1030,7 +1030,7 @@ export function GameView({ gameId }: { gameId: string }) {
       </header>
 
       <div className="relative min-h-0 flex-1">
-        <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", LEGENDARY && view === "2d" && bg !== "battlechess" && "sm:top-[150px] sm:bottom-[60px]", variant === "atomic" && shakeId > 0 && "morse-shake")}>
+        <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", LEGENDARY && view === "2d" && bg !== "battlechess" && "sm:top-[100px] sm:bottom-[60px]", variant === "atomic" && shakeId > 0 && "morse-shake")}>
           {lgOn && view !== "2d" && !bg ? (
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <div className="pointer-events-auto">
