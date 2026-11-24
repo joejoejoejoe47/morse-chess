@@ -2,8 +2,12 @@
  * Battle Chess 2D board (owner t375u, MB-14). Forceman's island: a wooden 14x8 board on blue water,
  * water ditches, 2x2 rock mountains, bushes and two-cell frigates, drawn in the Legendary style.
  * One SVG in cell units; same props shape as BgBoard2D so game-view treats it like any board.
+ * MB-19 (owner t381u, video 4pmjgON8Y68): wood-grain squares, a wood-grain blue sea that runs to the
+ * screen edge, the land casting a shadow on the water, the cburnett set plus matching new pieces,
+ * galleons, low-poly snowy mountains and leafy bushes (art in bc-art.tsx).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BC_STD, BcBush, BcMountain, BcShip, BcSpecial, bcPieceUrl, bcTex } from "@/components/games/bc-art";
 import { BC_H, BC_W, BC_X0, BC_X1, BC_Y0, BC_Y1, bcColor, bcParse, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
 
 type Props = {
@@ -66,198 +70,6 @@ function view(you: "w" | "b") {
 
 export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate", I: "Pirate", W: "Wizard", U: "Boots", H: "Chest" };
 
-/** Flat white-or-black icons, the same read as the video: a solid shape, a hard outline. */
-function PieceArt({ kind, fill, stroke }: { kind: string; fill: string; stroke: string }) {
-  const p = { fill, stroke, strokeWidth: 4, strokeLinejoin: "round" as const };
-  if (kind === "H")
-    return (
-      <g>
-        <path d="M50 8 L82 34 L68 88 L32 88 L18 34 Z" fill="#7dcea0" stroke="#145c32" strokeWidth={4} strokeLinejoin="round" />
-        <path d="M50 8 L50 88 M18 34 L82 34" stroke="#145c32" strokeWidth={3} fill="none" />
-        <path d="M36 22 L50 12 L64 22 L50 30 Z" fill="#d5ffe4" stroke="#145c32" strokeWidth={3} />
-      </g>
-    );
-  if (kind === "K")
-    return (
-      <g {...p}>
-        <path d="M46 6 H54 V16 H64 V24 H54 V34 H46 V24 H36 V16 H46 Z" />
-        <path d="M22 40 H78 L70 92 H30 Z" />
-      </g>
-    );
-  if (kind === "Q")
-    return (
-      <g {...p}>
-        <circle cx={20} cy={24} r={7} />
-        <circle cx={50} cy={12} r={7} />
-        <circle cx={80} cy={24} r={7} />
-        <path d="M20 30 L30 92 H70 L80 30 L50 18 Z" />
-      </g>
-    );
-  if (kind === "R")
-    return (
-      <g {...p}>
-        <path d="M18 18 H32 V28 H40 V18 H48 V28 H60 V18 H68 V28 H82 V40 H18 Z" />
-        <path d="M24 40 H76 L70 92 H30 Z" />
-      </g>
-    );
-  if (kind === "B")
-    return (
-      <g {...p}>
-        <circle cx={50} cy={16} r={8} />
-        <path d="M50 24 L70 48 L62 92 H38 L30 48 Z" />
-        <path d="M50 40 V70" stroke={stroke} strokeWidth={3} fill="none" />
-      </g>
-    );
-  if (kind === "N")
-    return (
-      <path d="M28 90 L18 78 L30 60 L22 40 C22 18 48 8 62 18 C70 24 66 36 74 42 L80 58 L62 50 L70 70 L58 90 Z" {...p} />
-    );
-  if (kind === "P")
-    return (
-      <g {...p}>
-        <circle cx={50} cy={24} r={14} />
-        <path d="M32 92 L40 46 H60 L68 92 Z" />
-      </g>
-    );
-  if (kind === "C")
-    return (
-      <g fill="none" stroke={fill} strokeWidth={8} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M30 10 Q78 50 30 90" />
-        <path d="M30 10 V90" strokeWidth={4} />
-        <path d="M16 50 H78" />
-        <path d="M66 38 L80 50 L66 62" fill={fill} stroke={fill} />
-      </g>
-    );
-  if (kind === "E")
-    return <path d="M50 28 C40 14 22 12 6 20 C20 26 30 36 36 46 C22 50 16 62 22 70 L40 60 L46 88 L50 76 L54 88 L60 60 L78 70 C84 62 78 50 64 46 C70 36 80 26 94 20 C78 12 60 14 50 28 Z" {...p} />;
-  if (kind === "A")
-    return (
-      <g {...p}>
-        <path d="M50 6 C32 16 24 34 28 52 C32 66 42 72 50 72 C58 72 68 66 72 52 C76 34 68 16 50 6 Z" />
-        <path d="M24 92 H76 L68 70 H32 Z" />
-      </g>
-    );
-  if (kind === "I")
-    return (
-      <g {...p}>
-        <path d="M16 40 C22 16 78 16 84 40 H16 Z" />
-        <path d="M28 44 H72 L66 92 H34 Z" />
-        <path d="M62 58 L90 30 L96 38 L68 66 Z" />
-      </g>
-    );
-  if (kind === "W")
-    return (
-      <g {...p}>
-        <path d="M50 4 L74 46 H26 Z" />
-        <path d="M22 46 H78 L70 94 H30 Z" />
-      </g>
-    );
-  if (kind === "U")
-    return (
-      <g fill="none" stroke={fill} strokeWidth={10} strokeLinecap="round">
-        <path d="M22 34 V72 C22 88 42 88 42 72 V34" />
-        <path d="M58 34 V72 C58 88 78 88 78 72 V34" />
-      </g>
-    );
-  return (
-    <g {...p}>
-      <circle cx={50} cy={50} r={28} />
-    </g>
-  );
-}
-
-/** Flat silhouettes for the new pieces (100x100), drawn like the chess glyphs. */
-function SpecialIcon({ kind, fill, stroke }: { kind: string; fill: string; stroke: string }) {
-  if (kind === "C")
-    return (
-      <g strokeLinecap="round" strokeLinejoin="round" fill="none">
-        {[stroke, fill].map((col, i) => (
-          <g key={i} stroke={col} strokeWidth={i ? 7 : 15}>
-            <path d="M34 12 Q86 50 34 88" />
-            <path d="M34 12 L34 88" strokeWidth={i ? 3 : 9} />
-            <path d="M14 50 L84 50" />
-            <path d="M72 38 L86 50 L72 62" />
-            <path d="M14 50 L6 42 M14 50 L6 58" strokeWidth={i ? 4 : 10} />
-          </g>
-        ))}
-      </g>
-    );
-  if (kind === "E")
-    return (
-      <g strokeLinejoin="round">
-        <path
-          d="M50 34 C42 22 24 18 6 24 C18 30 26 38 34 46 C24 48 20 56 22 64 L38 58 L44 82 L50 74 L56 82 L62 58 L78 64 C80 56 76 48 66 46 C74 38 82 30 94 24 C76 18 58 22 50 34 Z"
-          fill={fill}
-          stroke={stroke}
-          strokeWidth={5}
-        />
-        <circle cx={50} cy={30} r={8} fill={fill} stroke={stroke} strokeWidth={4} />
-        <path d="M50 28 L60 33 L50 36 Z" fill={stroke} />
-      </g>
-    );
-  if (kind === "A")
-    return (
-      <g strokeLinejoin="round">
-        <path d="M50 6 C34 14 26 30 28 48 C30 62 40 70 50 70 C60 70 70 62 72 48 C74 30 66 14 50 6 Z" fill={fill} stroke={stroke} strokeWidth={5} />
-        <path d="M38 40 C42 34 58 34 62 40 C60 54 40 54 38 40 Z" fill={stroke} />
-        <path d="M44 44 L48 44 M52 44 L56 44" stroke={fill} strokeWidth={3} strokeLinecap="round" />
-        <path d="M22 92 L78 92 L72 74 C64 70 36 70 28 74 Z" fill={fill} stroke={stroke} strokeWidth={5} />
-        <path d="M70 56 L90 30 L94 34 L74 60 Z" fill={fill} stroke={stroke} strokeWidth={4} />
-        <path d="M66 54 L78 66" stroke={stroke} strokeWidth={6} strokeLinecap="round" />
-      </g>
-    );
-  if (kind === "I")
-    return (
-      <g strokeLinejoin="round">
-        <path d="M18 46 C20 20 80 20 82 46 L76 46 C74 30 26 30 24 46 Z" fill={fill} stroke={stroke} strokeWidth={5} />
-        <path d="M14 46 L86 46 L78 58 L22 58 Z" fill={stroke} />
-        <path d="M28 58 L28 88 L72 88 L72 58" fill={fill} stroke={stroke} strokeWidth={5} />
-        <path d="M62 62 L92 28 L98 34 L68 68 Z" fill={fill} stroke={stroke} strokeWidth={4} />
-      </g>
-    );
-  if (kind === "W")
-    return (
-      <g strokeLinejoin="round">
-        <path d="M50 4 L70 42 L30 42 Z" fill={fill} stroke={stroke} strokeWidth={5} />
-        <path d="M22 42 L78 42 L72 92 L28 92 Z" fill={fill} stroke={stroke} strokeWidth={5} />
-        <path d="M40 62 L60 62 L58 78 L42 78 Z" fill={stroke} />
-        <circle cx={50} cy={28} r={4} fill={stroke} />
-      </g>
-    );
-  if (kind === "U")
-    return (
-      <g strokeLinejoin="round">
-        <path d="M22 40 L22 78 C22 90 40 90 40 78 L40 40" fill="none" stroke={fill} strokeWidth={12} />
-        <path d="M60 40 L60 78 C60 90 78 90 78 78 L78 40" fill="none" stroke={fill} strokeWidth={12} />
-        <path d="M16 40 L46 40 M54 40 L84 40" stroke={stroke} strokeWidth={6} strokeLinecap="round" />
-      </g>
-    );
-  if (kind === "H")
-    return (
-      <g strokeLinejoin="round">
-        <path d="M18 40 L82 40 L74 88 L26 88 Z" fill={fill} stroke={stroke} strokeWidth={5} />
-        <path d="M18 40 Q50 14 82 40" fill={stroke} />
-        <path d="M46 54 L54 54 L54 74 L46 74 Z" fill={stroke} />
-      </g>
-    );
-  return null;
-}
-
-function Ship({ w, h, white }: { w: number; h: number; white: boolean }) {
-  const fill = white ? "#f7f7f7" : "#161616";
-  const ink = white ? "#161616" : "#f7f7f7";
-  const g = (
-    <g strokeLinejoin="round">
-      <path d="M0.12 0.58 L1.88 0.58 L1.58 0.9 L0.38 0.9 Z" fill={fill} stroke={ink} strokeWidth={0.07} />
-      <path d="M0.7 0.58 L0.7 0.08" stroke={ink} strokeWidth={0.05} />
-      <path d="M1.15 0.58 L1.15 0.16" stroke={ink} strokeWidth={0.05} />
-      <path d="M0.7 0.12 L1.15 0.32 L0.7 0.5 Z" fill={fill} stroke={ink} strokeWidth={0.05} />
-      <path d="M1.15 0.2 L1.55 0.36 L1.15 0.52 Z" fill={fill} stroke={ink} strokeWidth={0.05} />
-    </g>
-  );
-  return w >= h ? g : <g transform="translate(1 0) rotate(90)">{g}</g>;
-}
-
 export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMove, legalFor, checkSq }: Props) {
   const [sel, setSel] = useState<string | null>(null);
   const pieces = useBcPieces(fen, lastMove);
@@ -289,18 +101,26 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
 
   // terrain layers
   const cells: React.ReactNode[] = [];
+  const shadows: React.ReactNode[] = [];
+  const landCells: React.ReactNode[] = [];
   for (let y = BC_Y0; y <= BC_Y1; y++)
     for (let x = BC_X0; x <= BC_X1; x++) {
       const [c, r] = v(x, y);
       const t = bcTerrain(x, y);
       const dark = (x + y) % 2 === 0;
-      cells.push(
-        t === "W" ? (
-          <rect key={`t${x},${y}`} x={c} y={r} width={1} height={1} fill={dark ? "url(#bc-w1)" : "url(#bc-w2)"} />
-        ) : (
-          <rect key={`t${x},${y}`} x={c} y={r} width={1} height={1} fill={dark ? "url(#bc-d)" : "url(#bc-l)"} />
-        ),
-      );
+      const n = (x * 7 + y * 13 + ((x * y) & 5)) & 3;
+      const tex = t === "W" ? (dark ? "sea-d" : "sea-l") : dark ? "land-d" : "land-l";
+      (t === "W" ? cells : landCells).push(<image key={`t${x},${y}`} href={bcTex(tex, n)} x={c - 0.004} y={r - 0.004} width={1.008} height={1.008} preserveAspectRatio="none" />);
+      if (t !== "W") shadows.push(<rect key={`s${x},${y}`} x={c + 0.06} y={r + 0.1} width={1} height={1} />);
+    }
+  // open sea beyond the grid so the water reaches the screen edge
+  const far: React.ReactNode[] = [];
+  for (let r = -12; r < BC_H + 12; r++)
+    for (let c = -16; c < BC_W + 16; c++) {
+      if (r >= 0 && r < BC_H && c >= 0 && c < BC_W) continue;
+      const dark = (c + r + (you === "w" ? BC_X1 + BC_Y0 : BC_X0 + BC_Y1)) % 2 === 0;
+      const n = (c * 7 + r * 13) & 3;
+      far.push(<image key={`f${c},${r}`} href={bcTex(dark ? "sea-d" : "sea-l", n)} x={c - 0.004} y={r - 0.004} width={1.008} height={1.008} preserveAspectRatio="none" />);
     }
   // island outline (gold rim on every land/water edge)
   const rim: string[] = [];
@@ -327,13 +147,8 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
     const pts = [v(mx, my), v(mx + 1, my), v(mx, my + 1), v(mx + 1, my + 1)];
     const c = Math.min(...pts.map((p) => p[0])), r = Math.min(...pts.map((p) => p[1]));
     return (
-      <g key={`m${mx}`} transform={`translate(${c} ${r})`} data-bc-mountain>
-        <path d="M0.1 1.86 L0.32 0.9 L0.7 0.42 L1.08 0.18 L1.5 0.5 L1.78 1.02 L1.92 1.86 Z" fill="#8d93a0" stroke="#3b3f4a" strokeWidth={0.05} strokeLinejoin="round" />
-        <path d="M0.7 0.42 L0.92 1.1 L0.32 0.9 Z" fill="#c9ced8" />
-        <path d="M1.08 0.18 L1.18 0.96 L1.5 0.5 Z" fill="#e8ebf1" />
-        <path d="M1.18 0.96 L1.78 1.02 L1.5 0.5 Z" fill="#a7adb9" />
-        <path d="M0.92 1.1 L1.18 0.96 L1.38 1.86 L0.5 1.86 Z" fill="#6f7480" />
-        <path d="M1.02 0.36 L1.14 0.28 L1.2 0.44 Z M0.64 0.62 L0.74 0.52 L0.78 0.7 Z" fill="#fff" opacity={0.9} />
+      <g key={`m${mx}`} transform={`translate(${c - 0.15} ${r - 0.2}) scale(0.023)`} data-bc-mountain>
+        <BcMountain />
       </g>
     );
   });
@@ -343,45 +158,54 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
   ].map(([bx, by]) => {
     const [c, r] = v(bx, by);
     return (
-      <g key={`b${bx}`} transform={`translate(${c} ${r})`} data-bc-bush>
-        <circle cx={0.5} cy={0.56} r={0.36} fill="#2f6b2a" />
-        <circle cx={0.32} cy={0.48} r={0.2} fill="#3f8a34" />
-        <circle cx={0.62} cy={0.38} r={0.22} fill="#4a9b3c" />
-        <circle cx={0.66} cy={0.64} r={0.2} fill="#3a7f31" />
-        <circle cx={0.42} cy={0.7} r={0.18} fill="#357a2e" />
-        <circle cx={0.56} cy={0.32} r={0.07} fill="#8fd17a" opacity={0.7} />
-        <circle cx={0.3} cy={0.42} r={0.05} fill="#8fd17a" opacity={0.7} />
+      <g key={`b${bx}`} transform={`translate(${c - 0.08} ${r - 0.1}) scale(0.0116)`} data-bc-bush>
+        <BcBush />
       </g>
     );
   });
+
+  // frame the islands and ships tightly (x -2..15, y -1..11); the open sea fills the rest of the screen
+  const corners = [v(-2, -1), v(15, 11)];
+  const c0 = Math.min(corners[0][0], corners[1][0]), r0 = Math.min(corners[0][1], corners[1][1]);
+  const c1 = Math.max(corners[0][0], corners[1][0]) + 1, r1 = Math.max(corners[0][1], corners[1][1]) + 1;
+  const frame = `${c0 - 0.25} ${r0 - 0.25} ${c1 - c0 + 0.5} ${r1 - r0 + 0.5}`;
 
   const lastSq = new Set(lastMove ? [lastMove.from, lastMove.to] : []);
   const shot = lastMove && lastSan && lastSan.includes("*") ? lastMove : null;
 
   return (
     <div className="bc2-wrap" data-bc-board>
-      <svg className="bc2-svg" viewBox={`-0.3 -0.3 ${BC_W + 0.6} ${BC_H + 0.6}`} preserveAspectRatio="xMidYMid meet">
+      <svg className="bc2-svg" style={{ overflow: "visible" }} viewBox={frame} preserveAspectRatio="xMidYMid meet">
         <defs>
-          <pattern id="bc-w1" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#386aba" />
-          </pattern>
-          <pattern id="bc-w2" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#0e43a7" />
-          </pattern>
-          <pattern id="bc-l" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#e6b36a" />
-          </pattern>
-          <pattern id="bc-d" width={1} height={1} patternUnits="userSpaceOnUse">
-            <rect width={1} height={1} fill="#b6733f" />
-          </pattern>
+          <filter id="bc-land-sh" x="-5%" y="-5%" width="110%" height="110%">
+            <feGaussianBlur stdDeviation={0.07} />
+          </filter>
+          <filter id="bc-pc-w" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx={0.02} dy={0.035} stdDeviation={0.025} floodColor="#000" floodOpacity={0.45} />
+          </filter>
+          <filter id="bc-pc-b" x="-20%" y="-20%" width="140%" height="140%">
+            <feMorphology in="SourceAlpha" operator="dilate" radius={0.018} result="d" />
+            <feFlood floodColor="#fff" floodOpacity={0.85} />
+            <feComposite in2="d" operator="in" result="halo" />
+            <feDropShadow in="SourceGraphic" dx={0.02} dy={0.035} stdDeviation={0.025} floodColor="#000" floodOpacity={0.45} result="sh" />
+            <feMerge>
+              <feMergeNode in="halo" />
+              <feMergeNode in="sh" />
+            </feMerge>
+          </filter>
           <radialGradient id="bc-sea" cx="50%" cy="50%" r="70%">
             <stop offset="0" stopColor="#000" stopOpacity={0} />
             <stop offset="1" stopColor="#0b0618" stopOpacity={0.55} />
           </radialGradient>
         </defs>
-        <rect x={-0.3} y={-0.3} width={BC_W + 0.6} height={BC_H + 0.6} fill="#386aba" />
+        <rect x={-0.3} y={-0.3} width={BC_W + 0.6} height={BC_H + 0.6} fill="#3a6cd6" />
+        {far}
         {cells}
-        <path d={rim.join(" ")} stroke="#1a120c" strokeWidth={0.045} strokeLinecap="square" />
+        <g fill="#06123a" opacity={0.55} filter="url(#bc-land-sh)" pointerEvents="none" data-bc-shadow>
+          {shadows}
+        </g>
+        {landCells}
+        <path d={rim.join(" ")} stroke="#2a1708" strokeOpacity={0.55} strokeWidth={0.03} strokeLinecap="square" />
         {mountains}
         {bushes}
         {state
@@ -420,8 +244,6 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
         {/* pieces */}
         {pieces.map((pc) => {
           const white = pc.c === "w";
-          const fill = white ? "#f7f7f7" : "#141414";
-          const stroke = white ? "#141414" : "#f7f7f7";
           if (pc.kind === "F") {
             const xs = [pc.x, pc.x + (pc.w ?? 1) - 1], ys = [pc.y, pc.y + (pc.h ?? 1) - 1];
             const corners = xs.flatMap((x) => ys.map((y) => v(x, y)));
@@ -429,7 +251,9 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
             const sw = Math.max(...corners.map((q) => q[0])) - c + 1, sh = Math.max(...corners.map((q) => q[1])) - r + 1;
             return (
               <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}F`} data-bc-ship={pc.c}>
-                <Ship w={sw} h={sh} white={white} />
+                <g transform={sw >= sh ? "translate(0 -0.36) scale(0.02222)" : "translate(-0.17 0) scale(0.02222)"} filter="url(#bc-pc-w)">
+                  <BcShip white={white} vertical={sw < sh} />
+                </g>
               </g>
             );
           }
@@ -437,9 +261,13 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
           return (
             <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}${pc.kind}`} data-sq-piece={pc.sq}>
               <title>{`${white ? "White" : "Black"} ${BC_NAME[pc.kind]}`}</title>
-              <g transform="translate(0.08 0.06) scale(0.0084)">
-                <PieceArt kind={pc.kind} fill={fill} stroke={stroke} />
-              </g>
+              {BC_STD.has(pc.kind) ? (
+                <image href={bcPieceUrl(pc.c, pc.kind)} x={0.03} y={0.03} width={0.94} height={0.94} filter={white ? "url(#bc-pc-w)" : "url(#bc-pc-b)"} />
+              ) : (
+                <g transform="translate(0.04 0.04) scale(0.02044)" filter={pc.kind === "H" ? "url(#bc-pc-w)" : white ? "url(#bc-pc-w)" : "url(#bc-pc-b)"}>
+                  <BcSpecial kind={pc.kind} white={white} />
+                </g>
+              )}
             </g>
           );
         })}

@@ -195,9 +195,15 @@ export function bcAttacked(s: BcState, x: number, y: number, by: BcColor): boole
         if (Math.abs(dx) === Math.abs(dy) && dx !== 0) {
           const sx = Math.sign(dx), sy = Math.sign(dy);
           let ok = true;
+          let hop = false; // part 4: it may pass one piece only, a pawn of its own colour
           for (let i = 1; i < Math.abs(dx); i++) {
             const t = bcTerrain(xx + sx * i, yy + sy * i);
             if (t !== "L") { ok = false; break; } // mountain / water / bush stop it
+            const q = at(s, xx + sx * i, yy + sy * i);
+            if (q === ".") continue;
+            if (!hop && q === (by === "w" ? "P" : "p")) { hop = true; continue; }
+            ok = false;
+            break;
           }
           if (ok) return true;
         }
@@ -288,13 +294,16 @@ function pseudo(s: BcState): BcMove[] {
         }
       } else if (k === "A") {
         for (const [dx, dy] of DIAG) {
-          let tx = x + dx, ty = y + dy;
+          let tx = x + dx, ty = y + dy, hop = false;
           while (true) {
             const t = bcTerrain(tx, ty);
             if (t === "W" || t === "M" || hot(s, tx, ty)) break;
             const q = at(s, tx, ty);
             if (q === "H") { add(x, y, tx, ty); break; }
-            if (bcColor(q) !== me) add(x, y, tx, ty);
+            if (q === ".") add(x, y, tx, ty);
+            else if (bcColor(q) !== me) { add(x, y, tx, ty); break; }
+            else if (!hop && kind(q) === "P") hop = true; // jump one pawn of its own colour
+            else break;
             if (t === "T") break;
             tx += dx; ty += dy;
           }
@@ -357,7 +366,7 @@ function pseudo(s: BcState): BcMove[] {
           if (k === "W") {
             for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
               const rad = Math.max(Math.abs(dx), Math.abs(dy));
-              if (rad < 2 || rad > 3) continue;
+              if (rad < 1 || rad > 3) continue; // part 4: only within three squares
               const q = at(s, x + dx, y + dy);
               if (bcColor(q) === null || bcColor(q) === me) continue;
               if (kind(q) === "K" || kind(q) === "F") continue;
@@ -493,10 +502,12 @@ function rage(c: string[][], lava: Record<string, number>, full: number): string
     const mountains = [[[0, 7], [1, 7], [0, 8], [1, 8]], [[12, 1], [13, 1], [12, 2], [13, 2]]] as const;
     const mount = mountains[seed % 2];
     for (const [mx, my] of mount) if (kind(cellOf(c, mx, my)) === "E") put(c, mx, my, ".");
+    // part 4: the volcano only reaches three squares from its centre
     const neighbors: [number, number][] = [];
-    for (const [mx, my] of mount) for (const [dx, dy] of [...ORTH, ...DIAG]) {
-      const nx = mx + dx, ny = my + dy;
-      if (!isLand(nx, ny) || neighbors.some(([a, b]) => a === nx && b === ny)) continue;
+    const [ox, oy] = mount[0];
+    for (let ny = oy - 3; ny <= oy + 4; ny++) for (let nx = ox - 3; nx <= ox + 4; nx++) {
+      if (!isLand(nx, ny)) continue;
+      if (Math.max(Math.abs(nx * 2 - (ox * 2 + 1)), Math.abs(ny * 2 - (oy * 2 + 1))) > 6) continue;
       neighbors.push([nx, ny]);
     }
     seed = bcNext(seed);

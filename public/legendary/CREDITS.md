@@ -18,3 +18,8 @@ existing Morse Chess artwork, with its own credits in the main app (e.g. `avatar
 - public/legendary/store/*.webp (board and gear card art, board-of-the-week banner), ui/logo-shield.webp and ui/mi-*.webp (gear menu icons): generated in-house for Morse Chess Legendary with Grok Bot image generation; free to use in this project.
 - sfx/menu-open.mp3: supplied by the site owner.
 - sfx/board-sound.mp3: supplied by the site owner (t361); replaced the old synthesized whoosh.mp3, which was deleted.
+
+## Battle Chess (public/legendary/bc/)
+- pieces/*.svg: "cburnett" chess set by Colin M.L. Burnett, GPLv2+ / CC BY-SA 3.0, files from lichess-org/lila (public/piece/cburnett).
+- land-*.webp, sea-*.webp: wood-grain textures generated for this project.
+- New Battle Chess pieces, galleons, mountains and bushes: drawn in code (src/components/games/bc-art.tsx).
