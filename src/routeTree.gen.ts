@@ -25,6 +25,7 @@ import { Route as StoreRouteImport } from './routes/store'
 import { Route as BoardsBoardIdRouteImport } from './routes/boards.$boardId'
 import { Route as CampaignIndexRouteImport } from './routes/campaign.index'
 import { Route as CampaignArmyRouteImport } from './routes/campaign.army'
+import { Route as CampaignRaidsRouteImport } from './routes/campaign.raids'
 import { Route as GamesGameRouteImport } from './routes/games.$game'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as HistoryGameIdRouteImport } from './routes/history.$gameId'
@@ -32,6 +33,7 @@ import { Route as PlayGameIdRouteImport } from './routes/play.$gameId'
 import { Route as VariantModeRouteImport } from './routes/variant.$mode'
 import { Route as WatchGameIdRouteImport } from './routes/watch.$gameId'
 import { Route as CampaignPlayChapterRouteImport } from './routes/campaign.play.$chapter'
+import { Route as CampaignRaidRaidIdRouteImport } from './routes/campaign.raid.$raidId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -113,6 +115,11 @@ const CampaignArmyRoute = CampaignArmyRouteImport.update({
   path: '/campaign/army',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CampaignRaidsRoute = CampaignRaidsRouteImport.update({
+  id: '/campaign/raids',
+  path: '/campaign/raids',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GamesGameRoute = GamesGameRouteImport.update({
   id: '/games/$game',
   path: '/games/$game',
@@ -148,6 +155,11 @@ const CampaignPlayChapterRoute = CampaignPlayChapterRouteImport.update({
   path: '/campaign/play/$chapter',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CampaignRaidRaidIdRoute = CampaignRaidRaidIdRouteImport.update({
+  id: '/campaign/raid/$raidId',
+  path: '/campaign/raid/$raidId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -165,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/campaign/army': typeof CampaignArmyRoute
+  '/campaign/raids': typeof CampaignRaidsRoute
   '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
@@ -173,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/campaign/': typeof CampaignIndexRoute
   '/history/': typeof HistoryIndexRoute
   '/campaign/play/$chapter': typeof CampaignPlayChapterRoute
+  '/campaign/raid/$raidId': typeof CampaignRaidRaidIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -190,6 +204,7 @@ export interface FileRoutesByTo {
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/campaign/army': typeof CampaignArmyRoute
+  '/campaign/raids': typeof CampaignRaidsRoute
   '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
@@ -198,6 +213,7 @@ export interface FileRoutesByTo {
   '/campaign': typeof CampaignIndexRoute
   '/history': typeof HistoryIndexRoute
   '/campaign/play/$chapter': typeof CampaignPlayChapterRoute
+  '/campaign/raid/$raidId': typeof CampaignRaidRaidIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -216,6 +232,7 @@ export interface FileRoutesById {
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/campaign/army': typeof CampaignArmyRoute
+  '/campaign/raids': typeof CampaignRaidsRoute
   '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
@@ -224,6 +241,7 @@ export interface FileRoutesById {
   '/campaign/': typeof CampaignIndexRoute
   '/history/': typeof HistoryIndexRoute
   '/campaign/play/$chapter': typeof CampaignPlayChapterRoute
+  '/campaign/raid/$raidId': typeof CampaignRaidRaidIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -243,6 +261,7 @@ export interface FileRouteTypes {
     | '/store'
     | '/boards/$boardId'
     | '/campaign/army'
+    | '/campaign/raids'
     | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
@@ -251,6 +270,7 @@ export interface FileRouteTypes {
     | '/campaign/'
     | '/history/'
     | '/campaign/play/$chapter'
+    | '/campaign/raid/$raidId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -268,6 +288,7 @@ export interface FileRouteTypes {
     | '/store'
     | '/boards/$boardId'
     | '/campaign/army'
+    | '/campaign/raids'
     | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
@@ -276,6 +297,7 @@ export interface FileRouteTypes {
     | '/campaign'
     | '/history'
     | '/campaign/play/$chapter'
+    | '/campaign/raid/$raidId'
   id:
     | '__root__'
     | '/'
@@ -293,6 +315,7 @@ export interface FileRouteTypes {
     | '/store'
     | '/boards/$boardId'
     | '/campaign/army'
+    | '/campaign/raids'
     | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
@@ -301,6 +324,7 @@ export interface FileRouteTypes {
     | '/campaign/'
     | '/history/'
     | '/campaign/play/$chapter'
+    | '/campaign/raid/$raidId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -318,6 +342,7 @@ export interface RootRouteChildren {
   SoundtrackRoute: typeof SoundtrackRoute
   StoreRoute: typeof StoreRoute
   CampaignArmyRoute: typeof CampaignArmyRoute
+  CampaignRaidsRoute: typeof CampaignRaidsRoute
   GamesGameRoute: typeof GamesGameRoute
   HistoryGameIdRoute: typeof HistoryGameIdRoute
   PlayGameIdRoute: typeof PlayGameIdRoute
@@ -326,6 +351,7 @@ export interface RootRouteChildren {
   CampaignIndexRoute: typeof CampaignIndexRoute
   HistoryIndexRoute: typeof HistoryIndexRoute
   CampaignPlayChapterRoute: typeof CampaignPlayChapterRoute
+  CampaignRaidRaidIdRoute: typeof CampaignRaidRaidIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -442,6 +468,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampaignArmyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/campaign/raids': {
+      id: '/campaign/raids'
+      path: '/campaign/raids'
+      fullPath: '/campaign/raids'
+      preLoaderRoute: typeof CampaignRaidsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/games/$game': {
       id: '/games/$game'
       path: '/games/$game'
@@ -491,6 +524,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampaignPlayChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/campaign/raid/$raidId': {
+      id: '/campaign/raid/$raidId'
+      path: '/campaign/raid/$raidId'
+      fullPath: '/campaign/raid/$raidId'
+      preLoaderRoute: typeof CampaignRaidRaidIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -520,6 +560,7 @@ const rootRouteChildren: RootRouteChildren = {
   SoundtrackRoute: SoundtrackRoute,
   StoreRoute: StoreRoute,
   CampaignArmyRoute: CampaignArmyRoute,
+  CampaignRaidsRoute: CampaignRaidsRoute,
   GamesGameRoute: GamesGameRoute,
   HistoryGameIdRoute: HistoryGameIdRoute,
   PlayGameIdRoute: PlayGameIdRoute,
@@ -528,6 +569,7 @@ const rootRouteChildren: RootRouteChildren = {
   CampaignIndexRoute: CampaignIndexRoute,
   HistoryIndexRoute: HistoryIndexRoute,
   CampaignPlayChapterRoute: CampaignPlayChapterRoute,
+  CampaignRaidRaidIdRoute: CampaignRaidRaidIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

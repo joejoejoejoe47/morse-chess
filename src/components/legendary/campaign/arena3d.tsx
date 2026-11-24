@@ -12,7 +12,7 @@ import { fileOf, onRim, rankOf, type Move, type State } from "./engine";
 import type { Chapter } from "./data";
 import { ArmyPiece, BossPiece, GoldenBot, preloadArmy } from "./pieces3d";
 import { Citadel, Colosseum, Foundry, Gear, Marsh, Ramparts } from "./world-map";
-import { CoreFx, MarshFx, MirrorFx, SiegeFx } from "./arena-fx";
+import { CoreFx, MarshFx, MirrorFx, RaidFx, SiegeFx } from "./arena-fx";
 
 preloadArmy();
 
@@ -220,7 +220,19 @@ function Mover({ to, children, onClick, trail = false }: { to: [number, number, 
 }
 
 function Backdrop({ chapter, phase }: { chapter: Chapter; phase: number }) {
-  const Land = [Foundry, Citadel, Ramparts, Marsh, Colosseum][chapter.n - 1];
+  const n = chapter.look ?? chapter.n;
+  const Land = [Foundry, Citadel, Ramparts, Marsh, Colosseum][n - 1];
+  if (!Land) {
+    return (
+      <group>
+        <RaidFx />
+        <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <circleGeometry args={[40, 48]} />
+          <meshStandardMaterial color={chapter.sky} roughness={0.95} />
+        </mesh>
+      </group>
+    );
+  }
   return (
     <group>
       <group position={[0, -0.3, -9.5]} scale={2.6}>
@@ -232,17 +244,17 @@ function Backdrop({ chapter, phase }: { chapter: Chapter; phase: number }) {
       <group position={[9, -0.3, -5]} scale={1.6} rotation={[0, -0.6, 0]}>
         <Land dim={false} />
       </group>
-      {chapter.n === 1 ? (
+      {n === 1 ? (
         <>
           <Gear position={[-6.5, 4, -9]} r={2.4} teeth={18} speed={0.15} />
           <Gear position={[6.8, 3.2, -8.6]} r={1.7} teeth={14} speed={-0.22} color="#d9a04a" />
           <Gear position={[-3.2, 6.6, -11]} r={1.3} teeth={12} speed={0.3} color="#a06a2a" />
         </>
       ) : null}
-      {chapter.n === 2 ? <MirrorFx /> : null}
-      {chapter.n === 3 ? <SiegeFx /> : null}
-      {chapter.n === 4 ? <MarshFx /> : null}
-      {chapter.n === 5 ? <CoreFx phase={phase} /> : null}
+      {n === 2 ? <MirrorFx /> : null}
+      {n === 3 ? <SiegeFx /> : null}
+      {n === 4 ? <MarshFx /> : null}
+      {n === 5 ? <CoreFx phase={phase} /> : null}
       <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[40, 48]} />
         <meshStandardMaterial color={chapter.sky} roughness={0.95} />

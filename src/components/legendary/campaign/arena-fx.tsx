@@ -1,8 +1,9 @@
 /** Per-chapter atmosphere for the boss arenas (chapters 2-5). Pure procedural meshes, no assets. */
-import { useMemo, useRef } from "react";
+import { Suspense, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Sparkles } from "@react-three/drei";
 import * as THREE from "three";
+import { BossPiece } from "./pieces3d";
 
 /** Ch2 Mirror Citadel: floating crystal shards and two tall mirror pillars. */
 export function MirrorFx() {
@@ -172,6 +173,44 @@ export function CoreFx({ phase }: { phase: number }) {
       </group>
       <pointLight position={[0, 7.5, -5]} color={hot ? "#ff4a2a" : "#ffd86b"} intensity={hot ? 30 : 16} distance={20} />
       <Sparkles count={hot ? 140 : 60} scale={[18, 9, 16]} position={[0, 4, -2]} size={hot ? 4 : 3} speed={hot ? 1.4 : 0.4} color={hot ? "#ff7a40" : "#ffd86b"} />
+    </group>
+  );
+}
+
+/** Raid: the Iron Colossus towers over a giant anvil arena, flanked by two queen statues and forge fire. */
+export function RaidFx() {
+  const eye = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(({ clock }) => {
+    if (eye.current) eye.current.color.setHSL(0.03, 1, 0.45 + Math.sin(clock.elapsedTime * 2) * 0.12);
+  });
+  return (
+    <group>
+      <Suspense fallback={null}>
+        <group position={[0, -0.6, -9.2]} scale={6.5}>
+          <BossPiece kind="k" ink="#2a1410" />
+        </group>
+        {[-1, 1].map((sx) => (
+          <group key={sx} position={[sx * 8.4, -0.6, -6.2]} scale={4.2} rotation={[0, -sx * 0.5, 0]}>
+            <BossPiece kind="q" ink="#3a1a12" />
+          </group>
+        ))}
+      </Suspense>
+      <mesh position={[0, 4.6, -8.2]}>
+        <sphereGeometry args={[0.55, 20, 16]} />
+        <meshBasicMaterial ref={eye} color="#ff4a1a" />
+      </mesh>
+      <pointLight position={[0, 4.6, -7.4]} color="#ff5a2a" intensity={60} distance={22} />
+      <pointLight position={[0, 9, -4]} color="#ffb07a" intensity={25} distance={18} />
+      {/* the anvil plinth under the giant board */}
+      <mesh position={[0, -0.9, 0]} receiveShadow>
+        <boxGeometry args={[12.5, 1.2, 12.5]} />
+        <meshStandardMaterial color="#1e1416" metalness={0.7} roughness={0.45} />
+      </mesh>
+      <mesh position={[0, -1.6, 0]}>
+        <boxGeometry args={[14.5, 0.4, 14.5]} />
+        <meshStandardMaterial color="#4a1a0a" emissive="#ff3a10" emissiveIntensity={0.5} roughness={0.8} />
+      </mesh>
+      <Sparkles count={120} scale={[24, 10, 22]} position={[0, 4, -3]} size={4} speed={1} color="#ff8a40" />
     </group>
   );
 }

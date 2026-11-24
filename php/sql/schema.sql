@@ -529,3 +529,49 @@ CREATE TABLE IF NOT EXISTS `legendary_unlocks` (
   `created_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Legendary Campaign co-op raids (owner t381u): two players tag-team White against a raid boss.
+-- moves = JSON list of {from,to,promo,by}; the client that moves also posts the boss reply. Additive.
+CREATE TABLE IF NOT EXISTS `campaign_raids` (
+  `id` VARCHAR(64) NOT NULL,
+  `code` VARCHAR(8) NOT NULL,
+  `host_id` VARCHAR(64) NOT NULL,
+  `guest_id` VARCHAR(64) NULL,
+  `status` VARCHAR(12) NOT NULL DEFAULT 'lobby',
+  `reason` VARCHAR(120) NOT NULL DEFAULT '',
+  `seed` INT NOT NULL DEFAULT 0,
+  `moves` MEDIUMTEXT NOT NULL,
+  `version` INT NOT NULL DEFAULT 0,
+  `turn_since` DATETIME(3) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  `started_at` DATETIME(3) NULL,
+  `finished_at` DATETIME(3) NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `campaign_raids_code` (`code`),
+  KEY `campaign_raids_host_idx` (`host_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `campaign_raid_rewards` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `raid_id` VARCHAR(64) NOT NULL,
+  `result` VARCHAR(8) NOT NULL DEFAULT '',
+  `xp` INT NOT NULL DEFAULT 0,
+  `coins` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`, `raid_id`),
+  KEY `campaign_raid_rewards_day` (`user_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Legendary Campaign arena builder (owner t381u): player-made boss arenas shared by code. Additive.
+-- layout = JSON {theme, walls[], gears[], gearEvery, fog, glass, extra[{sq,k}], level}.
+CREATE TABLE IF NOT EXISTS `campaign_arenas` (
+  `id` VARCHAR(64) NOT NULL,
+  `code` VARCHAR(8) NOT NULL,
+  `owner_id` VARCHAR(64) NOT NULL,
+  `name` VARCHAR(40) NOT NULL DEFAULT '',
+  `layout` TEXT NOT NULL,
+  `plays` INT NOT NULL DEFAULT 0,
+  `wins` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME(3) NOT NULL,
+  `updated_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `campaign_arenas_code` (`code`),
+  KEY `campaign_arenas_owner_idx` (`owner_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

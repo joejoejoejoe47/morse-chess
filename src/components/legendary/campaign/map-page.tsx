@@ -88,13 +88,13 @@ function MapInner() {
                 <small>Average level {armyPower} · perks & titles</small>
               </span>
             </Link>
-            <span className="mcc-panel mcc-sidebtn is-soon" title="Coming in the next update">
+            <Link to="/campaign/raids" className="mcc-panel mcc-sidebtn" onClick={() => playSfx("tap")} data-open-raids>
               <span className="ic">⚔</span>
               <span>
                 <b>Co-op Raids</b>
-                <small>Team up vs a raid boss · soon</small>
+                <small>Tag-team the Iron Colossus</small>
               </span>
-            </span>
+            </Link>
             <span className="mcc-panel mcc-sidebtn is-soon" title="Coming in a later update">
               <span className="ic">🏗</span>
               <span>

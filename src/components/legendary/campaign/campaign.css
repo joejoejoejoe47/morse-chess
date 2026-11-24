@@ -270,3 +270,35 @@
 .mcc-trophy.is-won { opacity: 1; box-shadow: inset 0 0 0 1px rgba(242, 199, 92, 0.75), 0 0 12px rgba(242, 182, 50, 0.18); }
 .mcc-trophy.is-won .ic { color: #2a1606; background: linear-gradient(180deg, #fff0b0, #f2c445); }
 @media (max-width: 560px) { .mcc-trophies { grid-template-columns: 1fr; } }
+/* ── co-op raids ── */
+.mcc-raid-card { position: absolute; z-index: 10; left: 50%; top: 50%; transform: translate(-50%, -46%); width: min(560px, calc(100vw - 24px)); padding: 24px 24px 20px; text-align: center; }
+.mcc-raid-card .chap { font-family: Cinzel, Georgia, serif; font-size: 13px; letter-spacing: 0.34em; color: #ff9a6a; text-transform: uppercase; }
+.mcc-raid-card .boss { margin-top: 4px; font-size: clamp(30px, 6vw, 44px); line-height: 1.05; }
+.mcc-raid-card .ep { margin-top: 4px; font-style: italic; color: #e8d9b8; }
+.mcc-raid-card .q { margin: 10px auto 0; max-width: 420px; color: #f1e8ff; font-style: italic; }
+.mcc-raid-rules { margin: 14px 0 0; padding: 12px 14px; list-style: none; display: grid; gap: 6px; text-align: left; font-size: 14px; color: #e6dcf0; border-radius: 8px; background: rgba(255, 106, 58, 0.08); border: 1px solid rgba(255, 140, 80, 0.35); }
+.mcc-raid-rules li { display: flex; align-items: center; gap: 8px; }
+.mcc-raid-rules b { color: #f6d272; }
+.mcc-raid-actions { margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; }
+.mcc-raid-join { display: flex; gap: 6px; }
+.mcc-raid-join input { width: 128px; padding: 10px 12px; border-radius: 8px; font-family: Cinzel, Georgia, serif; font-weight: 800; font-size: 18px; letter-spacing: 0.22em; text-align: center; color: #f6d272; background: rgba(10, 4, 20, 0.8); border: 1px solid #c99b3c; outline: none; }
+.mcc-raid-join input:focus { box-shadow: 0 0 0 2px rgba(242, 199, 92, 0.5); }
+.mcc-raid-code { margin: 14px auto 0; display: inline-block; padding: 10px 22px; border-radius: 12px; font-family: Cinzel, Georgia, serif; font-weight: 800; font-size: clamp(34px, 8vw, 52px); letter-spacing: 0.24em; color: #2a1606; background: linear-gradient(180deg, #fff0b0, #f2c445); box-shadow: 0 0 30px rgba(242, 182, 50, 0.45); }
+.mcc-raid-team { display: grid; gap: 4px; min-width: 0; }
+.mcc-raid-mate { display: flex; align-items: center; gap: 8px; padding: 3px 8px 3px 4px; border-radius: 999px; min-width: 0; opacity: 0.6; transition: opacity 0.2s, box-shadow 0.2s; }
+.mcc-raid-mate.is-turn { opacity: 1; box-shadow: 0 0 0 1px #f2c75c, 0 0 14px rgba(242, 182, 50, 0.4); }
+.mcc-raid-mate b { display: block; font-family: Cinzel, Georgia, serif; font-size: 13px; color: #f2d27a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcc-raid-mate small { display: block; font-size: 10.5px; color: #bfb0cc; }
+.mcc-raid-mate .bot { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; font-size: 12px; color: #7af0ff; }
+.mcc-raid-mate .bot.is-gold, .mcc-goldbot { background: radial-gradient(circle at 35% 30%, #fff0b0, #e0a52a 60%, #8a5a00); }
+.mcc-raid-mate .bot.is-violet, .mcc-goldbot.is-violet { background: radial-gradient(circle at 35% 30%, #e8c8ff, #8a4ae0 60%, #36106a); }
+.mcc-raid-mate.is-turn .bot { animation: mcc-bob 1s ease-in-out infinite; }
+@keyframes mcc-bob { 50% { transform: translateY(-2px) scale(1.08); } }
+.mcc-log .who { font-size: 11px; font-weight: 700; margin-right: 4px; }
+.mcc-log .who.is-gold { color: #f2c75c; }
+.mcc-log .who.is-violet { color: #c79aff; }
+.mcc-log .who.is-boss { color: #ff8a5a; }
+@media (max-width: 900px) {
+  .mcc-raid-card { top: auto; bottom: 12px; transform: translateX(-50%); padding: 16px; }
+  .mcc-raid-mate small { display: none; }
+}

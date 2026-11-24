@@ -125,6 +125,8 @@ export type Chapter = {
   bossInk: string;
   /** where its landmark stands on the world map (x, z) */
   at: [number, number];
+  /** Custom arenas: borrow this chapter's scenery. */
+  look?: number;
 };
 
 const S = (n: string) => sq(n);
