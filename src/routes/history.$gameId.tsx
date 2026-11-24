@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { LEGENDARY } from "@/lib/legendary/theme";
 import { Html } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -290,29 +291,29 @@ function Replay({ game }: { game: HistoryGame }) {
   );
 
   return (
-    <main className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-ink pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ivory">
+    <main className="mcl-replay flex h-dvh max-h-dvh flex-col overflow-hidden bg-ink pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-ivory">
       <header
         data-coin-bar
         className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-6"
       >
         <ClubBrand to="/" />
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="hidden text-mist md:inline">
+          <span className="mcl-rp-meta hidden text-mist md:inline">
             {game.white.username} vs {game.black.username} ·{" "}
             {game.minutes ? `${game.minutes} min` : "Breeze"} ·{" "}
             {new Date(game.createdAt).toLocaleDateString()} · {resultText} · {skin.name}
           </span>
           <Link
             to="/history"
-            className="min-h-10 rounded-none border border-line px-4 py-2 text-mist hover:border-gold-line hover:text-ivory"
+            className="mcl-hist-back min-h-10 rounded-none border border-line px-4 py-2 text-mist hover:border-gold-line hover:text-ivory"
           >
-            History
+            {LEGENDARY ? "‹ History" : "History"}
           </Link>
         </div>
       </header>
 
       <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="relative min-h-0 flex-1" data-replay-board>
+        <div className="mcl-rp-stage relative min-h-0 flex-1" data-replay-board>
           {flat ? (
             <div className="relative h-full">
               <ChessBoard2D
@@ -376,7 +377,7 @@ function Replay({ game }: { game: HistoryGame }) {
           ) : null}
         </div>
 
-        <aside className="hidden w-72 shrink-0 flex-col border-l border-line bg-panel/40 pt-14 lg:flex">
+        <aside className="mcl-rp-side hidden w-72 shrink-0 flex-col border-l border-line bg-panel/40 pt-14 lg:flex">
           <MoveList
             played={played}
             judged={judged}
@@ -389,14 +390,14 @@ function Replay({ game }: { game: HistoryGame }) {
         </aside>
       </div>
 
-      <footer className="border-t border-line bg-panel/60 px-3 py-2 sm:px-6">
+      <footer className="mcl-rp-foot border-t border-line bg-panel/60 px-3 py-2 sm:px-6">
         <input
           type="range"
           min={0}
           max={total}
           value={ply}
           aria-label="Scrub"
-          className="w-full accent-[#c9a45c]"
+          className="mcl-rp-scrub w-full accent-[#c9a45c]"
           onChange={(e) => {
             setPlaying(false);
             setPly(Number(e.target.value));
@@ -455,14 +456,14 @@ function Replay({ game }: { game: HistoryGame }) {
             {ply}/{total}
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="flex border border-line">
+            <div className="mcl-rp-seg flex border border-line">
               {SPEEDS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   className={
                     "min-h-9 rounded-none px-2.5 text-xs " +
-                    (speed === s ? "bg-walnut text-ivory" : "text-mist hover:text-ivory")
+                    (speed === s ? "is-on bg-walnut text-ivory" : "text-mist hover:text-ivory")
                   }
                   onClick={() => setSpeed(s)}
                 >
@@ -471,7 +472,7 @@ function Replay({ game }: { game: HistoryGame }) {
               ))}
             </div>
             {!flat ? (
-              <div className="flex border border-line" role="radiogroup" aria-label="Camera">
+              <div className="mcl-rp-seg flex border border-line" role="radiogroup" aria-label="Camera">
                 {(["white", "black", "top", "orbit", "free"] as const).map((c) => (
                   <button
                     key={c}
@@ -480,7 +481,7 @@ function Replay({ game }: { game: HistoryGame }) {
                     aria-checked={cam === c}
                     className={
                       "min-h-9 rounded-none px-2.5 text-xs capitalize " +
-                      (cam === c ? "bg-walnut text-ivory" : "text-mist hover:text-ivory")
+                      (cam === c ? "is-on bg-walnut text-ivory" : "text-mist hover:text-ivory")
                     }
                     onClick={() => setCam(c)}
                   >
@@ -529,7 +530,7 @@ function Ctl({
       aria-label={label}
       title={label}
       className={
-        "min-h-10 rounded-none border border-line bg-ink/60 text-sm text-ivory hover:border-gold-line " +
+        "mcl-rp-ctl min-h-10 rounded-none border border-line bg-ink/60 text-sm text-ivory hover:border-gold-line " +
         (wide ? "min-w-24 px-3" : "min-w-10 px-2")
       }
       onClick={onClick}
@@ -566,8 +567,8 @@ function MoveList({
         ref={on ? active : undefined}
         type="button"
         className={
-          "flex min-h-8 items-center justify-between gap-1 rounded-none px-2 text-left " +
-          (on ? "bg-walnut text-ivory" : "text-cream hover:bg-ink/50")
+          "mcl-rp-move flex min-h-8 items-center justify-between gap-1 rounded-none px-2 text-left " +
+          (on ? "is-on bg-walnut text-ivory" : "text-cream hover:bg-ink/50")
         }
         onClick={() => onPick(i + 1)}
       >
@@ -588,7 +589,7 @@ function MoveList({
   };
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2 text-sm">
-      <p className="px-2 pb-2 text-xs uppercase tracking-[0.2em] text-mist">Moves</p>
+      <p className="mcl-rp-movesh px-2 pb-2 text-xs uppercase tracking-[0.2em] text-mist">Moves</p>
       {rows.map((i) => (
         <div key={i} className="grid grid-cols-[2.2rem_1fr_1fr] items-center">
           <span className="px-1 text-xs text-mist">{i / 2 + 1}.</span>

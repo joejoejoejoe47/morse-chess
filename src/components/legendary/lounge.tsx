@@ -178,12 +178,13 @@ export function LegendaryLounge({
     closeTimer.current = window.setTimeout(() => setMenu(false), 260);
   }
 
-  const mi = (n: string) => <img src={ui(`mi-${n}.webp`)} alt="" className="mcl-mi" draggable={false} />;
+  const mi = (n: string) => <img src={ui(n.includes(".") ? `mi-${n}` : `mi-${n}.webp`)} alt="" className="mcl-mi" draggable={false} />;
   const items: { label: string; icon: ReactNode; act: () => void; key: string; purple?: boolean }[] = [
     { key: "online", label: "Play Online", icon: mi("globe"), act: onPlayOnline },
     { key: "bot", label: "Play MorseBot", icon: mi("robot"), act: onPlayBot, purple: true },
     { key: "campaign", label: "Campaign", icon: mi("swords"), act: () => void navigate({ to: "/campaign" }) },
     { key: "create", label: "Create Bot", icon: mi("gear"), act: () => void navigate({ to: "/bot-maker" }), purple: true },
+    { key: "history", label: "History", icon: mi("history.svg"), act: () => void navigate({ to: "/history" }), purple: true },
     { key: "boards", label: "Boards", icon: mi("boards"), act: () => void navigate({ to: "/boards" }) },
     { key: "store", label: "Store", icon: mi("cart"), act: () => void navigate({ to: "/store" }) },
     { key: "av", label: "AV King", icon: mi("swords"), act: () => void navigate({ to: "/avatar" }) },
@@ -238,6 +239,9 @@ export function LegendaryLounge({
             </span>
           </span>
           <div className="mcl-h-icons flex items-center">
+            <Link to="/history" className="mcl-h-icon max-sm:!hidden" aria-label="History" title="History" onClick={() => playSfx("tap")} data-history-link>
+              <SolidHourglass />
+            </Link>
             <Link to="/club" className="mcl-h-icon" aria-label="Friends and clubs" title="Chess Club" onClick={() => playSfx("tap")}>
               <SolidUsers />
             </Link>
@@ -347,8 +351,9 @@ export function LegendaryLounge({
       {/* the gear menu */}
       <div
         className="absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        onMouseEnter={openMenu}
-        onMouseLeave={closeMenuSoon}
+        // hover opens it for a real mouse only: a phone tap also fires a fake mouseenter, which played the sound twice
+        onPointerEnter={(e) => e.pointerType === "mouse" && openMenu()}
+        onPointerLeave={(e) => e.pointerType === "mouse" && closeMenuSoon()}
         data-gear-menu={menu ? "open" : "closed"}
       >
         <nav className={cn("mcl-menu flex w-[min(78vw,236px)] flex-col gap-1.5", menu ? "is-open" : "")} aria-hidden={!menu}>
@@ -497,6 +502,15 @@ function SolidUsers() {
       <path d="M0 26c0-7 5-11 11-11s11 4 11 11Z" />
       <circle cx="23" cy="9" r="5" />
       <path d="M21 15.5c1-.3 1.8-.5 2.6-.5 5 0 8.4 3.6 8.4 10H24c0-3.8-1.1-7-3-9.5Z" />
+    </svg>
+  );
+}
+
+function SolidHourglass() {
+  return (
+    <svg viewBox="0 0 28 32" className="mcl-solid" aria-hidden>
+      <path d="M3 1h22v4h-2c0 5-3 8-6.5 11C20 19 23 22 23 27h2v4H3v-4h2c0-5 3-8 6.5-11C8 13 5 10 5 5H3Z" />
+      <path d="M9 6h10c-.4 3-2.3 5-5 7-2.7-2-4.6-4-5-7Zm5 13c2.8 2 4.6 4.3 5 7H9c.4-2.7 2.2-5 5-7Z" fill="#1a1208" opacity=".55" />
     </svg>
   );
 }

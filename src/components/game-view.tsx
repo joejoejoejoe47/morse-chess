@@ -65,7 +65,7 @@ import { playSfx, setSfxMuted } from "@/lib/legendary/sfx";
 import { useSfxMuted } from "@/components/legendary/settings";
 import { LegendaryWin } from "@/components/legendary/win-screen";
 import { BarIcon, BarTile, BarTileInner, GameBar } from "@/components/legendary/game-bar";
-import { LgLogo, LgMoveHistory, LgPlayerCard, usePhotos } from "@/components/legendary/game-chrome";
+import { LgGameCrest, LgMoveHistory, LgPlayerCard, usePhotos } from "@/components/legendary/game-chrome";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
@@ -1030,7 +1030,7 @@ export function GameView({ gameId }: { gameId: string }) {
       </header>
 
       <div className="relative min-h-0 flex-1">
-        <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", variant === "atomic" && shakeId > 0 && "morse-shake")}>
+        <div key={variant === "atomic" ? `shake-${shakeId}` : "board"} className={cn("absolute inset-0", LEGENDARY && view === "2d" && bg !== "battlechess" && "sm:top-[96px] sm:bottom-[60px]", variant === "atomic" && shakeId > 0 && "morse-shake")}>
           {lgOn && view !== "2d" && !bg ? (
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <div className="pointer-events-auto">
@@ -1082,7 +1082,7 @@ export function GameView({ gameId }: { gameId: string }) {
           <div key={`flash-${blast.id}`} className="morse-flash pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle,rgba(255,214,140,0.55),rgba(255,90,30,0.15)_55%,transparent_75%)]" />
         ) : null}
         {variant ? (
-          <div data-variant-banner className="pointer-events-none absolute left-1/2 top-2 z-10 max-sm:hidden flex -translate-x-1/2 flex-row items-center gap-2 whitespace-nowrap">
+          <div data-variant-banner className={cn("pointer-events-none absolute left-1/2 top-2 z-10 max-sm:hidden flex -translate-x-1/2 flex-row items-center gap-2 whitespace-nowrap", LEGENDARY && "!hidden")}>
             <p className="rounded-full border border-gold-line/50 bg-ink/75 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-[#e0b85a] backdrop-blur-sm">
               {VARIANT_INFO[variant].name} · Unranked{preview ? " · Owner preview" : ""}
             </p>
@@ -1138,7 +1138,7 @@ export function GameView({ gameId }: { gameId: string }) {
         </div>
         {LEGENDARY ? (
           <>
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4 sm:pt-3" data-legendary-top>
+            <div className="mcl-gtop pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap items-start justify-between gap-2 px-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4 sm:pt-3" data-legendary-top>
               <div className="pointer-events-auto">
                 <LgPlayerCard
                   name={oppName}
@@ -1150,12 +1150,18 @@ export function GameView({ gameId }: { gameId: string }) {
                   hot={!myTurn && !over}
                 />
               </div>
-              <div className="hidden pt-1 sm:block">
-                <LgLogo small />
-                <p className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#9c8f74]">
-                  {variant ? `${VARIANT_INFO[variant].name} · ` : ""}
-                  {game.mode === "timed" ? `Timed ${Math.max(1, Math.round((game.clockMs ?? 300_000) / 60_000))} min` : "Breeze"} · {over ? "Board closed" : myTurn ? "Your move" : "Waiting"}
-                </p>
+              <div className="mcl-crest-slot">
+                <LgGameCrest
+                  mode={variant ? VARIANT_INFO[variant].name : "Chess"}
+                  clock={game.mode === "timed" ? `${Math.max(1, Math.round((game.clockMs ?? 300_000) / 60_000))} min` : "Breeze"}
+                  ranked={variant ? false : null}
+                  preview={preview}
+                  turn={{
+                    text: over ? "Board closed" : myTurn ? "Your move" : vsBot ? `${buddy ? buddy.name : "MorseBot"} is thinking…` : `${oppName}'s move`,
+                    mine: myTurn,
+                    over,
+                  }}
+                />
               </div>
               <div className="pointer-events-auto">
                 <LgPlayerCard

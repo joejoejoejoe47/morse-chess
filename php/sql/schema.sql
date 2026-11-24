@@ -520,3 +520,12 @@ CREATE TABLE IF NOT EXISTS `campaign_rewards` (
   `created_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`user_id`, `reward_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Legendary entry gate (owner t381u): one row per player who may enter /chessLegendary/. paid = the
+-- one-time fee charged (0 for grandfathered players). Primary key = unlock at most once. Additive only.
+CREATE TABLE IF NOT EXISTS `legendary_unlocks` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `paid` INT NOT NULL DEFAULT 0,
+  `reason` VARCHAR(32) NOT NULL DEFAULT '',
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -11,6 +11,7 @@ import { GcHost } from "@/components/gc-mail";
 import { Toaster } from "sonner";
 import { BotBuddyHost } from "@/components/bots/bot-buddy-host";
 import { LEGENDARY } from "@/lib/legendary/theme";
+import { LegendaryEntryGate } from "@/components/legendary/entry-gate";
 
 export const Route = createRootRoute({
   component: () => (
@@ -23,6 +24,7 @@ export const Route = createRootRoute({
           <MailPopupHost />
           <GcHost />
           <Outlet />
+          {LEGENDARY ? <LegendaryEntryGate /> : null}
           {/* Legendary keeps its lounge clean: no buddy bot, and coins live in the top bar. */}
           {LEGENDARY ? null : <BotBuddyHost />}
         </ThemeProvider>

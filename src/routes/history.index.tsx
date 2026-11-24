@@ -15,6 +15,9 @@ import {
   type HistoryPage,
 } from "@/lib/server/mores";
 import { BOT_USERNAME } from "@/lib/mores-constants";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { SeasonBackdrop, ui } from "@/components/legendary/bits";
+import { useSeason } from "@/components/legendary/lounge";
 
 export const Route = createFileRoute("/history/")({
   component: HistoryPageRoute,
@@ -87,29 +90,32 @@ function HistoryGrid() {
   }, [next, loading, load]);
 
   return (
-    <main className="min-h-dvh bg-ink pb-16 pt-[env(safe-area-inset-top)] text-ivory">
+    <main className={"relative min-h-dvh bg-ink pb-16 pt-[env(safe-area-inset-top)] text-ivory" + (LEGENDARY ? " mcl-hist" : "")} data-history-page>
+      {LEGENDARY ? <HistBackdrop /> : null}
       <header
         data-coin-bar
-        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8"
+        className="relative z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8"
       >
         <ClubBrand to="/" />
         <Link
           to="/"
-          className="min-h-10 rounded-none border border-line px-4 py-2 text-sm text-mist hover:border-gold-line hover:text-ivory"
+          className="mcl-hist-back min-h-10 rounded-none border border-line px-4 py-2 text-sm text-mist hover:border-gold-line hover:text-ivory"
         >
-          Lounge
+          {LEGENDARY ? "‹ Lounge" : "Lounge"}
         </Link>
       </header>
-      <section className="mx-auto max-w-6xl px-4 sm:px-8">
-        <h1 className="mt-2 font-display text-4xl tracking-[0.2em] text-ivory sm:text-5xl">
+      <section className="relative z-10 mx-auto max-w-6xl px-4 sm:px-8">
+        {LEGENDARY ? <span className="mcl-hist-kicker">The Hall of Games</span> : null}
+        <h1 className="mcl-hist-title mt-2 font-display text-4xl tracking-[0.2em] text-ivory sm:text-5xl">
           HISTORY
         </h1>
-        <p className="mt-2 max-w-xl text-sm text-mist">
+        {LEGENDARY ? <HistOrnament /> : null}
+        <p className="mcl-hist-sub mt-2 max-w-xl text-sm text-mist">
           Every game you finished, newest first. Open a chess game to watch the replay, or a football
           game to see the score.
         </p>
         <div
-          className="mt-6 flex flex-wrap gap-0 border border-line"
+          className="mcl-hist-tabs mt-6 flex flex-wrap gap-0 border border-line"
           role="tablist"
           aria-label="Clock"
         >
@@ -124,13 +130,13 @@ function HistoryGrid() {
                 aria-selected={on}
                 data-tab={String(t.id)}
                 className={
-                  "min-h-11 flex-1 rounded-none border-r border-line px-4 text-sm last:border-r-0 sm:flex-none sm:px-6 " +
-                  (on ? "bg-walnut text-ivory" : "bg-panel/40 text-mist hover:text-ivory")
+                  "mcl-hist-tab min-h-11 flex-1 rounded-none border-r border-line px-4 text-sm last:border-r-0 sm:flex-none sm:px-6 " +
+                  (on ? "is-on bg-walnut text-ivory" : "bg-panel/40 text-mist hover:text-ivory")
                 }
                 onClick={() => setFilter(t.id)}
               >
                 {t.label}
-                {n !== undefined ? <span className="ml-2 text-xs text-mist">{n}</span> : null}
+                {n !== undefined ? <span className="mcl-hist-n ml-2 text-xs text-mist">{n}</span> : null}
               </button>
             );
           })}
@@ -138,7 +144,7 @@ function HistoryGrid() {
 
         {error ? <p className="mt-6 text-sm text-danger">{error}</p> : null}
 
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="mcl-hist-grid mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {games.map((g) =>
             g.kind === "football" ? (
               <FootballTile key={g.id} game={g} />
@@ -150,7 +156,7 @@ function HistoryGrid() {
             ? Array.from({ length: games.length ? 4 : 8 }, (_, i) => (
                 <div
                   key={`s${i}`}
-                  className="aspect-square animate-pulse rounded-none border border-line bg-panel/50"
+                  className="mcl-hist-skel aspect-square animate-pulse rounded-none border border-line bg-panel/50"
                 />
               ))
             : null}
@@ -161,7 +167,7 @@ function HistoryGrid() {
           <div className="mt-6 flex justify-center">
             <button
               type="button"
-              className="min-h-11 rounded-none border border-gold-line/60 px-6 text-sm text-ivory hover:border-gold-line"
+              className="mcl-hist-more min-h-11 rounded-none border border-gold-line/60 px-6 text-sm text-ivory hover:border-gold-line"
               onClick={() => void load(next)}
             >
               Load more
@@ -178,8 +184,9 @@ function EmptyTab({ filter }: { filter: HistoryFilter }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   return (
-    <div className="mt-8 border border-line bg-panel/40 p-6">
-      <p className="text-ivory">
+    <div className="mcl-hist-empty mt-8 border border-line bg-panel/40 p-6">
+      {LEGENDARY ? <HistHourglass className="mcl-hist-emptyicon" /> : null}
+      <p className="mcl-hist-emptytitle text-ivory">
         {filter === "all" ? "No finished games yet." : `No ${filter}-minute games yet.`}
       </p>
       <p className="mt-1 text-sm text-mist">
@@ -191,7 +198,7 @@ function EmptyTab({ filter }: { filter: HistoryFilter }) {
         <button
           type="button"
           disabled={busy}
-          className="mt-4 min-h-11 rounded-none border border-gold-line/60 bg-walnut px-5 text-sm text-ivory hover:border-gold-line disabled:opacity-60"
+          className="mcl-hist-more mt-4 min-h-11 rounded-none border border-gold-line/60 bg-walnut px-5 text-sm text-ivory hover:border-gold-line disabled:opacity-60"
           onClick={async () => {
             setBusy(true);
             setErr(null);
@@ -214,7 +221,9 @@ function EmptyTab({ filter }: { filter: HistoryFilter }) {
   );
 }
 
-const RESULT_LABEL = { win: "Won", loss: "Lost", draw: "Draw" } as const;
+const RESULT_LABEL = LEGENDARY
+  ? ({ win: "Victory", loss: "Defeat", draw: "Draw" } as const)
+  : ({ win: "Won", loss: "Lost", draw: "Draw" } as const);
 const RESULT_TONE = { win: "bg-[#2f6b3a]", loss: "bg-[#7a2b2b]", draw: "bg-[#4b4b52]" } as const;
 
 function FootballTile({ game }: { game: HistoryGame }) {
@@ -229,7 +238,7 @@ function FootballTile({ game }: { game: HistoryGame }) {
       params={{ gameId: game.id }}
       data-history-tile
       data-football
-      className="group relative block aspect-square overflow-hidden rounded-none border border-line bg-[#0c3b22] hover:border-gold-line"
+      className="mcl-hist-tile group relative block aspect-square overflow-hidden rounded-none border border-line bg-[#0c3b22] hover:border-gold-line"
     >
       <div
         className="absolute inset-0 opacity-80"
@@ -238,10 +247,10 @@ function FootballTile({ game }: { game: HistoryGame }) {
             "repeating-linear-gradient(to bottom, transparent 0 10%, rgba(255,255,255,0.14) 10% 11.5%)",
         }}
       />
-      <span className={`absolute left-0 top-0 z-10 px-2 py-1 text-xs font-medium text-ivory ${RESULT_TONE[game.result]}`}>
+      <span className={`mcl-hist-res is-${game.result} absolute left-0 top-0 z-10 px-2 py-1 text-xs font-medium text-ivory ${RESULT_TONE[game.result]}`}>
         {RESULT_LABEL[game.result]}
       </span>
-      <span className="absolute right-0 top-0 z-10 bg-ink/75 px-2 py-1 text-xs text-cream">Football</span>
+      <span className="mcl-hist-chip absolute right-0 top-0 z-10 bg-ink/75 px-2 py-1 text-xs text-cream">Football</span>
       <span className="absolute inset-0 z-10 grid place-items-center px-3 text-center">
         <span>
           <span className="block font-display text-4xl tracking-wide text-ivory">
@@ -251,9 +260,9 @@ function FootballTile({ game }: { game: HistoryGame }) {
           <span className="block truncate text-xs text-cream/70">{away}</span>
         </span>
       </span>
-      <span className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-ink/95 via-ink/70 to-transparent px-3 pb-2 pt-8">
-        <span className="block truncate text-sm text-ivory">vs {game.opponent.username}</span>
-        <span className="block text-xs text-mist">
+      <span className="mcl-hist-plate absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-ink/95 via-ink/70 to-transparent px-3 pb-2 pt-8">
+        <span className="mcl-hist-vs block truncate text-sm text-ivory">vs {game.opponent.username}</span>
+        <span className="mcl-hist-meta block text-xs text-mist">
           {date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
           {game.moves.length ? ` · ${game.moves.length} scores` : ""}
         </span>
@@ -320,7 +329,7 @@ function GameTile({ game }: { game: HistoryGame }) {
       to="/history/$gameId"
       params={{ gameId: game.id }}
       data-history-tile
-      className="group relative block aspect-square overflow-hidden rounded-none border border-line bg-panel/60 hover:border-gold-line"
+      className="mcl-hist-tile group relative block aspect-square overflow-hidden rounded-none border border-line bg-panel/60 hover:border-gold-line"
     >
       {src ? (
         <img
@@ -331,21 +340,55 @@ function GameTile({ game }: { game: HistoryGame }) {
       ) : (
         <div className="absolute inset-0 animate-pulse bg-panel/50" />
       )}
+      {LEGENDARY ? <span className="mcl-hist-sheen" aria-hidden /> : null}
       <span
-        className={`absolute left-0 top-0 px-2 py-1 text-xs font-medium text-ivory ${RESULT_TONE[game.result]}`}
+        className={`mcl-hist-res is-${game.result} absolute left-0 top-0 px-2 py-1 text-xs font-medium text-ivory ${RESULT_TONE[game.result]}`}
       >
         {RESULT_LABEL[game.result]}
       </span>
-      <span className="absolute right-0 top-0 bg-ink/75 px-2 py-1 text-xs text-cream">
+      <span className="mcl-hist-chip absolute right-0 top-0 bg-ink/75 px-2 py-1 text-xs text-cream">
         {game.minutes ? `${game.minutes} min` : "Breeze"}
       </span>
-      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/95 via-ink/70 to-transparent px-3 pb-2 pt-8">
-        <span className="block truncate text-sm text-ivory">vs {game.opponent.username}</span>
-        <span className="block text-xs text-mist">
+      <span className="mcl-hist-plate absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/95 via-ink/70 to-transparent px-3 pb-2 pt-8">
+        <span className="mcl-hist-vs block truncate text-sm text-ivory">vs {game.opponent.username}</span>
+        <span className="mcl-hist-meta block text-xs text-mist">
           {date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{" "}
           · {Math.ceil(game.moves.length / 2)} moves
         </span>
       </span>
     </Link>
+  );
+}
+
+// ── Legendary dressing ─────────────────────────────────────────────────────
+
+function HistBackdrop() {
+  const season = useSeason();
+  return <SeasonBackdrop season={season} dim />;
+}
+
+function HistOrnament() {
+  return (
+    <svg viewBox="0 0 320 18" className="mcl-hist-orn" aria-hidden>
+      <defs>
+        <linearGradient id="mclHistOrn" x1="0" x2="320" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#f2cd6a" stopOpacity="0" />
+          <stop offset=".25" stopColor="#f2cd6a" />
+          <stop offset=".5" stopColor="#fff2c2" />
+          <stop offset=".75" stopColor="#f2cd6a" />
+          <stop offset="1" stopColor="#f2cd6a" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="M0 9h132M188 9h132" stroke="url(#mclHistOrn)" strokeWidth="1.6" />
+      <path d="M160 1l8 8-8 8-8-8Z" fill="#b370ff" stroke="#f2cd6a" strokeWidth="1.4" />
+      <circle cx="140" cy="9" r="2.4" fill="#f2cd6a" />
+      <circle cx="180" cy="9" r="2.4" fill="#f2cd6a" />
+    </svg>
+  );
+}
+
+function HistHourglass({ className }: { className?: string }) {
+  return (
+    <img src={ui("mi-history.svg")} alt="" className={className} draggable={false} />
   );
 }

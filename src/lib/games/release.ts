@@ -10,7 +10,7 @@ import { isMasterUsername } from "@/lib/chess/board-skins";
  * php/src/Variants.php (the server refuses unreleased variants), then build + deploy.
  * Football has no server variant lock (it is not in Variants::IDS), so this list alone opens it.
  */
-export const RELEASED_GAMES: ReadonlySet<string> = new Set<string>(["football", "battlechess"]); // football t227u; battle chess opened on Legendary
+export const RELEASED_GAMES: ReadonlySet<string> = new Set<string>(["football", "checkers", "xiangqi"]); // football t227u; Checkers + Chinese Chess open to all (t381u); Battle Chess stays owner preview
 
 export type GameId =
   | "horde"

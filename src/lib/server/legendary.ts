@@ -68,3 +68,8 @@ export type MyRank = {
 };
 export const myRank = rpc<MyRank>("myRank");
 export const rankTable = rpc<MyRank[]>("rankTable");
+
+// Legendary entry gate (php/src/LegendaryGate.php, owner t381u).
+export type GateAccess = { unlocked: boolean; fee: number; coins: number; need: number };
+export const legendaryAccess = rpc<GateAccess>("legendaryAccess");
+export const unlockLegendary = rpc<{ ok: true; unlocked: true; charged: number; coins: number }>("unlockLegendary");

@@ -126,6 +126,8 @@ export function LegendaryStore() {
   const [market, setMarket] = useState<Listing[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  /** MB-13: the item open in the viewer (owner t374u "click on these and view them"). */
+  const [viewKey, setViewKey] = useState<string | null>(null);
   const legacy = useMemo(() => FINISHES.filter((f) => f.price > 0), []);
   const kingThumbs = useKingThumbs(legacy, true, (username || "M").slice(0, 1).toUpperCase());
 
@@ -404,7 +406,7 @@ export function LegendaryStore() {
           ) : (
             <div className="mcl-s-grid" data-store-grid>
               {shown.map((it) => (
-                <StoreCard key={it.key} item={it} busy={busy === it.key} score={score} coins={coins} onBuy={() => void buy(it)} />
+                <StoreCard key={it.key} item={it} busy={busy === it.key} score={score} coins={coins} onBuy={() => void buy(it)} onView={() => { playSfx("tap"); setViewKey(it.key); }} />
               ))}
             </div>
           )}
@@ -473,15 +475,133 @@ export function LegendaryStore() {
           </section>
         ) : null}
       </div>
+      {viewKey ? (
+        <ItemViewer
+          items={shown.some((i) => i.key === viewKey) ? shown : items}
+          itemKey={viewKey}
+          busy={busy}
+          score={score}
+          coins={coins}
+          onBuy={(it) => void buy(it)}
+          onNav={setViewKey}
+          onClose={() => setViewKey(null)}
+        />
+      ) : null}
     </main>
   );
 }
 
-function StoreCard({ item, busy, score, coins, onBuy }: { item: Item; busy: boolean; score: number; coins: number | null; onBuy: () => void }) {
+/** MB-13 store item viewer: big preview in a gold frame; Buy / Owned / Use; Esc, X or outside closes; arrows browse. */
+function ItemViewer({ items, itemKey, busy, score, coins, onBuy, onNav, onClose }: { items: Item[]; itemKey: string; busy: string | null; score: number; coins: number | null; onBuy: (it: Item) => void; onNav: (key: string) => void; onClose: () => void }) {
+  const idx = Math.max(0, items.findIndex((i) => i.key === itemKey));
+  const item = items[idx];
+  const go = (d: number) => {
+    if (items.length < 2) return;
+    playSfx("tap");
+    onNav(items[(idx + d + items.length) % items.length].key);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight") go(1);
+      else if (e.key === "ArrowLeft") go(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  });
+  if (!item) return null;
+  const r = RARITY[item.rarity];
+  const short = coins != null && item.price > coins;
+  const useTo = item.cat === "boards" ? "/boards" : "/avatar";
+  return (
+    <div className="mcl-v-scrim" onClick={onClose} data-store-viewer={item.key} role="dialog" aria-modal="true" aria-label={item.name}>
+      <div className="mcl-v-card" style={{ "--rc": r.color, "--rg": r.glow } as CSSProperties} onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="mcl-v-x" aria-label="Close" onClick={onClose} data-viewer-close>
+          ×
+        </button>
+        <div className={cn("mcl-v-stage", item.cat === "boards" && "is-board")}>
+          <div className="mcl-v-art">{item.thumb}</div>
+          {items.length > 1 ? (
+            <>
+              <button type="button" className="mcl-v-nav is-prev" aria-label="Previous item" onClick={() => go(-1)} data-viewer-prev>
+                ‹
+              </button>
+              <button type="button" className="mcl-v-nav is-next" aria-label="Next item" onClick={() => go(1)} data-viewer-next>
+                ›
+              </button>
+            </>
+          ) : null}
+        </div>
+        <div className="mcl-v-info">
+          <span className="mcl-v-tag">{r.name}</span>
+          <h2 className="mcl-v-name">{item.name}</h2>
+          <p className="mcl-v-blurb">{item.blurb}</p>
+          <p className="mcl-v-price">
+            {item.lockElo ? (
+              <>
+                <img src={ui("gem.webp")} alt="" className="mcl-s-pricecoin" draggable={false} /> {item.lockElo.toLocaleString()} Elo
+              </>
+            ) : (
+              <>
+                <Coin className="mcl-s-pricecoin" /> {item.price.toLocaleString()} coins
+              </>
+            )}
+          </p>
+          <div className="mcl-v-actions">
+            {item.owned ? (
+              <>
+                <span className="mcl-s-buy is-owned">Owned</span>
+                <Link to={useTo} className="mcl-s-buy mcl-v-use" onClick={() => playSfx("tap")} data-viewer-use>
+                  Use
+                </Link>
+              </>
+            ) : item.lockElo ? (
+              <span className="mcl-s-buy is-locked">
+                <Lock className="mcl-s-lock" /> {Math.max(0, item.lockElo - score)} Elo to go
+              </span>
+            ) : (
+              <button type="button" className={cn("mcl-s-buy", short && "is-short")} onClick={() => onBuy(item)} disabled={busy === item.key} title={short ? "Not enough coins yet" : undefined} data-viewer-buy>
+                {busy === item.key ? "…" : short ? `Need ${(item.price - (coins ?? 0)).toLocaleString()} more` : "Buy"}
+              </button>
+            )}
+          </div>
+          <p className="mcl-v-count">
+            {idx + 1} / {items.length}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StoreCard({ item, busy, score, coins, onBuy, onView }: { item: Item; busy: boolean; score: number; coins: number | null; onBuy: () => void; onView: () => void }) {
   const r = RARITY[item.rarity];
   const short = coins != null && item.price > coins;
   return (
-    <article className="mcl-s-card" style={{ "--rc": r.color, "--rg": r.glow } as CSSProperties} data-store-item={item.key} data-rarity={item.rarity}>
+    <article
+      className="mcl-s-card is-viewable"
+      style={{ "--rc": r.color, "--rg": r.glow } as CSSProperties}
+      data-store-item={item.key}
+      data-rarity={item.rarity}
+      role="button"
+      tabIndex={0}
+      aria-label={`View ${item.name}`}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button, a")) return;
+        onView();
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault();
+          onView();
+        }
+      }}
+    >
       <span className="mcl-s-tag">{r.name}</span>
       <div className="mcl-s-thumb">{item.thumb}</div>
       <h3 className="mcl-s-name">{item.name}</h3>
