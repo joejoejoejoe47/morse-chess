@@ -892,7 +892,7 @@ function AvatarStudio() {
 
           {tab === "frames" ? (
             <div className="grid grid-cols-2 gap-2">
-              {FRAMES.map((item) => (
+              {FRAMES.filter((item) => !item.reward || owned.includes(item.id)).map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1268,6 +1268,7 @@ function frameChip(id: string) {
   if (id === "check")
     return "border-2 border-transparent bg-[linear-gradient(#14120f,#14120f),repeating-conic-gradient(#f4efe4_0_25%,#1c1914_0_50%)] bg-origin-border [background-clip:padding-box,border-box]";
   if (id === "coin") return "border border-[#e6c56a]";
+  if (id === "gear") return "border-2 border-dashed border-[#c08a3a] shadow-[0_0_12px_rgba(192,138,58,0.5)]";
   return "border border-line";
 }
 

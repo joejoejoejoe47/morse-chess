@@ -468,3 +468,55 @@ CREATE TABLE IF NOT EXISTS `player_rank_floors` (
   `created_at` DATETIME(3) NOT NULL,
   PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Legendary Campaign (owner t381u): persistent army (one row per starting piece), chapter
+-- progress, one row per boss run, and campaign-only rewards. Additive tables only.
+CREATE TABLE IF NOT EXISTS `campaign_army` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `slot` VARCHAR(4) NOT NULL,
+  `xp` INT NOT NULL DEFAULT 0,
+  `games` INT NOT NULL DEFAULT 0,
+  `survived` INT NOT NULL DEFAULT 0,
+  `captures` INT NOT NULL DEFAULT 0,
+  `big_captures` INT NOT NULL DEFAULT 0,
+  `checks` INT NOT NULL DEFAULT 0,
+  `mates` INT NOT NULL DEFAULT 0,
+  `promos` INT NOT NULL DEFAULT 0,
+  `perk_on` TINYINT(1) NOT NULL DEFAULT 1,
+  `updated_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`, `slot`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `campaign_meta` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `synced_until` DATETIME(3) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `campaign_progress` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `chapter` INT NOT NULL,
+  `wins` INT NOT NULL DEFAULT 0,
+  `tries` INT NOT NULL DEFAULT 0,
+  `best_plies` INT NOT NULL DEFAULT 0,
+  `cleared_at` DATETIME(3) NULL,
+  PRIMARY KEY (`user_id`, `chapter`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `campaign_runs` (
+  `id` VARCHAR(64) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `chapter` INT NOT NULL,
+  `kind` VARCHAR(16) NOT NULL DEFAULT 'boss',
+  `started_at` DATETIME(3) NOT NULL,
+  `finished_at` DATETIME(3) NULL,
+  `result` VARCHAR(8) NOT NULL DEFAULT '',
+  `plies` INT NOT NULL DEFAULT 0,
+  `xp` INT NOT NULL DEFAULT 0,
+  `coins` INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `campaign_runs_user_idx` (`user_id`, `started_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `campaign_rewards` (
+  `user_id` VARCHAR(64) NOT NULL,
+  `reward_id` VARCHAR(32) NOT NULL,
+  `created_at` DATETIME(3) NOT NULL,
+  PRIMARY KEY (`user_id`, `reward_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

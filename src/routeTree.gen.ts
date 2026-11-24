@@ -23,12 +23,15 @@ import { Route as SandboxRouteImport } from './routes/sandbox'
 import { Route as SoundtrackRouteImport } from './routes/soundtrack'
 import { Route as StoreRouteImport } from './routes/store'
 import { Route as BoardsBoardIdRouteImport } from './routes/boards.$boardId'
+import { Route as CampaignIndexRouteImport } from './routes/campaign.index'
+import { Route as CampaignArmyRouteImport } from './routes/campaign.army'
 import { Route as GamesGameRouteImport } from './routes/games.$game'
 import { Route as HistoryIndexRouteImport } from './routes/history.index'
 import { Route as HistoryGameIdRouteImport } from './routes/history.$gameId'
 import { Route as PlayGameIdRouteImport } from './routes/play.$gameId'
 import { Route as VariantModeRouteImport } from './routes/variant.$mode'
 import { Route as WatchGameIdRouteImport } from './routes/watch.$gameId'
+import { Route as CampaignPlayChapterRouteImport } from './routes/campaign.play.$chapter'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -100,6 +103,16 @@ const BoardsBoardIdRoute = BoardsBoardIdRouteImport.update({
   path: '/$boardId',
   getParentRoute: () => BoardsRoute,
 } as any)
+const CampaignIndexRoute = CampaignIndexRouteImport.update({
+  id: '/campaign/',
+  path: '/campaign/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignArmyRoute = CampaignArmyRouteImport.update({
+  id: '/campaign/army',
+  path: '/campaign/army',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GamesGameRoute = GamesGameRouteImport.update({
   id: '/games/$game',
   path: '/games/$game',
@@ -130,6 +143,11 @@ const WatchGameIdRoute = WatchGameIdRouteImport.update({
   path: '/watch/$gameId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CampaignPlayChapterRoute = CampaignPlayChapterRouteImport.update({
+  id: '/campaign/play/$chapter',
+  path: '/campaign/play/$chapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -146,12 +164,15 @@ export interface FileRoutesByFullPath {
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
+  '/campaign/army': typeof CampaignArmyRoute
   '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
   '/watch/$gameId': typeof WatchGameIdRoute
+  '/campaign/': typeof CampaignIndexRoute
   '/history/': typeof HistoryIndexRoute
+  '/campaign/play/$chapter': typeof CampaignPlayChapterRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -168,12 +189,15 @@ export interface FileRoutesByTo {
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
+  '/campaign/army': typeof CampaignArmyRoute
   '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
   '/watch/$gameId': typeof WatchGameIdRoute
+  '/campaign': typeof CampaignIndexRoute
   '/history': typeof HistoryIndexRoute
+  '/campaign/play/$chapter': typeof CampaignPlayChapterRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -191,12 +215,15 @@ export interface FileRoutesById {
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
+  '/campaign/army': typeof CampaignArmyRoute
   '/games/$game': typeof GamesGameRoute
   '/history/$gameId': typeof HistoryGameIdRoute
   '/play/$gameId': typeof PlayGameIdRoute
   '/variant/$mode': typeof VariantModeRoute
   '/watch/$gameId': typeof WatchGameIdRoute
+  '/campaign/': typeof CampaignIndexRoute
   '/history/': typeof HistoryIndexRoute
+  '/campaign/play/$chapter': typeof CampaignPlayChapterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -215,12 +242,15 @@ export interface FileRouteTypes {
     | '/soundtrack'
     | '/store'
     | '/boards/$boardId'
+    | '/campaign/army'
     | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
     | '/watch/$gameId'
+    | '/campaign/'
     | '/history/'
+    | '/campaign/play/$chapter'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -237,12 +267,15 @@ export interface FileRouteTypes {
     | '/soundtrack'
     | '/store'
     | '/boards/$boardId'
+    | '/campaign/army'
     | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
     | '/watch/$gameId'
+    | '/campaign'
     | '/history'
+    | '/campaign/play/$chapter'
   id:
     | '__root__'
     | '/'
@@ -259,12 +292,15 @@ export interface FileRouteTypes {
     | '/soundtrack'
     | '/store'
     | '/boards/$boardId'
+    | '/campaign/army'
     | '/games/$game'
     | '/history/$gameId'
     | '/play/$gameId'
     | '/variant/$mode'
     | '/watch/$gameId'
+    | '/campaign/'
     | '/history/'
+    | '/campaign/play/$chapter'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -281,12 +317,15 @@ export interface RootRouteChildren {
   SandboxRoute: typeof SandboxRoute
   SoundtrackRoute: typeof SoundtrackRoute
   StoreRoute: typeof StoreRoute
+  CampaignArmyRoute: typeof CampaignArmyRoute
   GamesGameRoute: typeof GamesGameRoute
   HistoryGameIdRoute: typeof HistoryGameIdRoute
   PlayGameIdRoute: typeof PlayGameIdRoute
   VariantModeRoute: typeof VariantModeRoute
   WatchGameIdRoute: typeof WatchGameIdRoute
+  CampaignIndexRoute: typeof CampaignIndexRoute
   HistoryIndexRoute: typeof HistoryIndexRoute
+  CampaignPlayChapterRoute: typeof CampaignPlayChapterRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -389,6 +428,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BoardsBoardIdRouteImport
       parentRoute: typeof BoardsRoute
     }
+    '/campaign/': {
+      id: '/campaign/'
+      path: '/campaign'
+      fullPath: '/campaign/'
+      preLoaderRoute: typeof CampaignIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaign/army': {
+      id: '/campaign/army'
+      path: '/campaign/army'
+      fullPath: '/campaign/army'
+      preLoaderRoute: typeof CampaignArmyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/games/$game': {
       id: '/games/$game'
       path: '/games/$game'
@@ -431,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WatchGameIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/campaign/play/$chapter': {
+      id: '/campaign/play/$chapter'
+      path: '/campaign/play/$chapter'
+      fullPath: '/campaign/play/$chapter'
+      preLoaderRoute: typeof CampaignPlayChapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -459,12 +519,15 @@ const rootRouteChildren: RootRouteChildren = {
   SandboxRoute: SandboxRoute,
   SoundtrackRoute: SoundtrackRoute,
   StoreRoute: StoreRoute,
+  CampaignArmyRoute: CampaignArmyRoute,
   GamesGameRoute: GamesGameRoute,
   HistoryGameIdRoute: HistoryGameIdRoute,
   PlayGameIdRoute: PlayGameIdRoute,
   VariantModeRoute: VariantModeRoute,
   WatchGameIdRoute: WatchGameIdRoute,
+  CampaignIndexRoute: CampaignIndexRoute,
   HistoryIndexRoute: HistoryIndexRoute,
+  CampaignPlayChapterRoute: CampaignPlayChapterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
