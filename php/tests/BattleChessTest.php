@@ -16,6 +16,6 @@ $m = Variants::botMove('battlechess', $fen, 400);
 check($m !== null && BoardGames::tryMove('battlechess', $fen, $m['from'], $m['to'], null) !== null, 'MorseBot plays a legal first move');
 // The same pawn push must storm the same way the browser does.
 $played = BoardGames::tryMove('battlechess', $fen, 'e7', 'e5', null);
-check($played !== null && $played['fen'] === 'bc|28/23I4/3S24/28/2H14FF9/10REBKQBNRABR7/9P2PPPPPPCNN7/7C20/11P5H10/10H17/20c7/7nncpppppppp10/7rbarnbkqber10/9ff14H2/28/24s3/4i23/28|b|e6|0|1|T:', 'the pawn push matches the board');
+check($played !== null && $played['fen'] === 'bc|28/23I4/3S24/28/2H14FF9/10REBKQBNRABR7/10P1PPPPPPCNN7/7C20/11P16/28/20c7/7nncpppppppp10/7rbarnbqkber10/9ff14H2/28/24s3/4i23/28|b|e6|0|1|-', 'the pawn push matches the board');
 
 finish();

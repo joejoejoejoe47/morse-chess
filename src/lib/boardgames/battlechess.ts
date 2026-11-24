@@ -15,7 +15,19 @@
  * orientation); frigates and rooks capture ships remotely (shots), the shooter stays put.
  */
 export type BcColor = "w" | "b";
-export type BcState = { cells: string[][]; turn: BcColor; ep: string | null; half: number; full: number; lava: Record<string, number>; storm: string; cargo: Record<string, string> }; // cells[yi][xi]; cargo: boat square -> the piece riding it
+export type BcState = {
+  cells: string[][]; // cells[yi][xi]
+  turn: BcColor;
+  ep: string | null;
+  half: number;
+  full: number;
+  lava: Record<string, number>; // squares lava hit lately (3 → 1, for the eruption effect)
+  storm: string; // this ply's event ("T" tornado, "V" volcano) + a pending warning ("t2", "v1": strikes in N plies)
+  cargo: Record<string, string>; // ship square (boat, or the frigate cell boarded) -> the piece riding it
+  made: string[]; // ocean squares that lava turned into land (v3 §8.1)
+  inv: Record<string, number>; // invisible assassins: square -> own moves left (Part 4)
+  invUsed: string; // colours whose assassin already went invisible once ("w", "b", "wb")
+};
 export type BcMove = { from: string; to: string; capture: boolean; shot?: boolean; promo?: string; ep?: boolean; double?: boolean; ship?: [string, string]; board?: boolean; charm?: boolean; chest?: boolean; embark?: boolean; disembark?: boolean };
 
 // t387u: the sea now reaches the video's offshore islands (x -6..19, y -3..12) with a ring of open water.
@@ -33,10 +45,11 @@ export function bcPos(s: string): [number, number] | null {
 }
 const inGrid = (x: number, y: number) => x >= BC_X0 && x <= BC_X1 && y >= BC_Y0 && y <= BC_Y1;
 
-/** Terrain: 'L' land, 'W' water, 'M' mountain, 'T' bush (bush is land). */
+/** Terrain: 'L' land, 'W' water, 'M' mountain, 'T' bush (bush is land). Static map; lava-made land is in BcState.made. */
 export function bcTerrain(x: number, y: number): "L" | "W" | "M" | "T" {
-  // the video's offshore islands (t386u/t387u): a 3x3 chest island with a one-square grassy hill
-  // (a mountain: nothing may stand on it or shoot through it) and a 3x1 plank strip, per side.
+  // video v9KUWr3NChU 0:13 (measured on the frame; the v3 notes said 2x2 but the frame shows 3x3): two 3x3
+  // treasure islands (chest in the middle, grassy one-square mountain in a corner) and two 3x1 docks,
+  // 180° partners: (x, y) -> (13 - x, 9 - y).
   if (bcHill(x, y)) return "M";
   if (x >= -6 && x <= -4 && y >= 8 && y <= 10) return "L";
   if (x >= 17 && x <= 19 && y >= -1 && y <= 1) return "L";
@@ -49,10 +62,37 @@ export function bcTerrain(x: number, y: number): "L" | "W" | "M" | "T" {
   if ((x === 6 && y === 5) || (x === 7 && y === 4)) return "T";
   return "L";
 }
-/** The grassy one-square hills on the chest islands. */
+/** The grassy one-square mountains on the treasure islands. */
 export const bcHill = (x: number, y: number) => (x === -4 && y === 8) || (x === 17 && y === 1);
-const isLand = (x: number, y: number) => { const t = bcTerrain(x, y); return t === "L" || t === "T"; };
-const isWater = (x: number, y: number) => inGrid(x, y) && bcTerrain(x, y) === "W";
+/** The two treasure chests' squares and whose island each is on (v3 §7.4: one Mage per side, from its own island). */
+export const BC_CHESTS: { x: number; y: number; owner: BcColor }[] = [
+  { x: -5, y: 9, owner: "w" },
+  { x: 18, y: 0, owner: "b" },
+];
+/** The volcanoes: the two snowy 2x2 mountains (lower-left cells). */
+export const BC_VOLCANOES: [number, number][] = [
+  [0, 7],
+  [12, 1],
+];
+/** v3 §8.1: the pink splash zone (squares lava may hit) around both snowy mountains. */
+export function bcSplash(): [number, number][] {
+  const out: [number, number][] = [];
+  for (const [ox, oy] of BC_VOLCANOES)
+    for (let ny = oy - 3; ny <= oy + 4; ny++) for (let nx = ox - 3; nx <= ox + 4; nx++) {
+      if (!inGrid(nx, ny) || bcTerrain(nx, ny) === "M") continue;
+      if (Math.max(Math.abs(nx * 2 - (ox * 2 + 1)), Math.abs(ny * 2 - (oy * 2 + 1))) > 6) continue;
+      out.push([nx, ny]);
+    }
+  return out;
+}
+/** Lava-made land for the state being worked on (set by every entry point from s.made). */
+let MADE = new Set<string>();
+const use = (s: BcState) => { MADE = new Set(s.made); };
+const terr = (x: number, y: number) => { const t = bcTerrain(x, y); return t === "W" && MADE.has(bcSq(x, y)) ? "L" : t; };
+const isLand = (x: number, y: number) => { const t = terr(x, y); return t === "L" || t === "T"; };
+const isWater = (x: number, y: number) => inGrid(x, y) && terr(x, y) === "W";
+/** Is (x,y) land in state s (the map plus lava-made land)? For the boards. */
+export const bcIsLand = (s: BcState, x: number, y: number) => { const t = bcTerrain(x, y); return t === "L" || t === "T" || (t === "W" && s.made.includes(bcSq(x, y))); };
 
 const at = (s: BcState, x: number, y: number) => (inGrid(x, y) ? s.cells[BC_Y1 - y][x - BC_X0] : "#");
 const put = (c: string[][], x: number, y: number, p: string) => { c[BC_Y1 - y][x - BC_X0] = p; };
@@ -67,14 +107,13 @@ export const BATTLE_START = (() => {
   row(6, "C.............");
   row(3, ".............c");
   row(2, "nncpppppppp...");
-  row(1, "rbarnbkqber...");
+  row(1, "rbarnbqkber..."); // v3 §3.1: royalty is 180° symmetric (Black Q g1, K h1)
   put(c, 10, 9, "F"); put(c, 11, 9, "F"); // k9-l9
   put(c, 2, 0, "f"); put(c, 3, 0, "f"); // c0-d0
-  put(c, 3, 4, "H"); put(c, 10, 5, "H"); // chests on the main island
-  put(c, -5, 9, "H"); put(c, 18, 0, "H"); // chests in the middle of the sea islands
+  for (const ch of BC_CHESTS) put(c, ch.x, ch.y, "H"); // the treasure chests (a Mage inside)
   put(c, -4, 11, "S"); put(c, 17, -2, "s"); // transport boats beside the chest islands
   put(c, 16, 12, "I"); put(c, -3, -3, "i"); // pirate ships beside the plank strips
-  return bcString({ cells: c, turn: "w", ep: null, half: 0, full: 1, lava: {}, storm: "", cargo: {} });
+  return bcString({ cells: c, turn: "w", ep: null, half: 0, full: 1, lava: {}, storm: "", cargo: {}, made: [], inv: {}, invUsed: "" });
 })();
 
 export function bcParse(str: string): BcState | null {
@@ -99,7 +138,7 @@ export function bcParse(str: string): BcState | null {
   }
   if (cells.length !== BC_H || cells.some((r) => r.length !== BC_W)) return null;
   const extra = readExtra(p[6]);
-  return { cells, turn: p[2] === "b" ? "b" : "w", ep: p[3] === "-" ? null : p[3], half: Number(p[4]) || 0, full: Number(p[5]) || 1, lava: extra.lava, storm: extra.storm, cargo: extra.cargo };
+  return { cells, turn: p[2] === "b" ? "b" : "w", ep: p[3] === "-" ? null : p[3], half: Number(p[4]) || 0, full: Number(p[5]) || 1, ...extra };
 }
 export function bcString(s: BcState): string {
   // Empty runs are written as numbers (like FEN) so a position fits games.fen VARCHAR(255).
@@ -112,41 +151,66 @@ function bcNext(n: number) {
   const x = ((n % 2147483647) * 48271) % 2147483647;
   return x === 0 ? 1 : x;
 }
-function readExtra(raw: string | undefined): { lava: Record<string, number>; storm: string; cargo: Record<string, string> } {
+type BcExtra = Pick<BcState, "lava" | "storm" | "cargo" | "made" | "inv" | "invUsed">;
+/** Extra field: "storm:lava;cargo;made;inv" — storm "TVt2v1", lava "sq.3,...", cargo "sq=R,...", made "sq,...", inv "sq.2,...,!wb". */
+function readExtra(raw: string | undefined): BcExtra {
   const lava: Record<string, number> = {};
   const cargo: Record<string, string> = {};
-  if (!raw || raw === "-") return { lava, storm: "", cargo };
-  const semi = raw.indexOf(";");
-  if (semi >= 0) {
-    for (const part of raw.slice(semi + 1).split(",")) {
-      const [sq, pc] = part.split("=");
-      if (sq && pc && /^[QRBNPCEAIWUqrbnpceaiwu]$/.test(pc)) cargo[sq] = pc;
-    }
-    raw = raw.slice(0, semi);
+  const inv: Record<string, number> = {};
+  const made: string[] = [];
+  let invUsed = "";
+  if (!raw || raw === "-") return { lava, storm: "", cargo, made, inv, invUsed };
+  const parts = raw.split(";");
+  for (const part of (parts[1] ?? "").split(",")) {
+    const [sq, pc] = part.split("=");
+    if (sq && pc && bcPos(sq) && /^[QRBNPCEAIWUqrbnpceaiwu]$/.test(pc)) cargo[sq] = pc;
   }
-  const colon = raw.indexOf(":");
+  for (const sq of (parts[2] ?? "").split(",")) if (sq && bcPos(sq) && !made.includes(sq)) made.push(sq);
+  made.sort();
+  for (const part of (parts[3] ?? "").split(",")) {
+    if (part.startsWith("!")) { invUsed = (part.includes("w") ? "w" : "") + (part.includes("b") ? "b" : ""); continue; }
+    const [sq, n] = part.split(".");
+    if (sq && bcPos(sq) && Number(n) > 0) inv[sq] = Number(n);
+  }
+  let head = parts[0];
+  const colon = head.indexOf(":");
   let storm = "";
-  let body = raw;
   if (colon >= 0) {
-    storm = raw.slice(0, colon).replace(/[^TV]/g, "");
-    body = raw.slice(colon + 1);
+    const st = head.slice(0, colon);
+    storm = (st.includes("T") ? "T" : "") + (st.includes("V") ? "V" : "");
+    const t = /t([1-9])/.exec(st), v = /v([1-9])/.exec(st);
+    if (t) storm += "t" + t[1];
+    if (v) storm += "v" + v[1];
+    head = head.slice(colon + 1);
   }
-  if (body && body !== "-") {
-    for (const part of body.split(",")) {
+  if (head && head !== "-") {
+    for (const part of head.split(",")) {
       const [sq, n] = part.split(".");
       const ttl = Number(n);
       if (sq && ttl > 0) lava[sq] = ttl;
     }
   }
-  return { lava, storm, cargo };
+  return { lava, storm, cargo, made, inv, invUsed };
 }
 function writeExtra(s: BcState): string {
   const lava = Object.keys(s.lava).filter((k) => s.lava[k] > 0).sort().map((k) => `${k}.${s.lava[k]}`).join(",");
   const cargo = Object.keys(s.cargo ?? {}).sort().map((k) => `${k}=${s.cargo[k]}`).join(",");
-  if (!s.storm && !lava && !cargo) return "-";
-  return `${s.storm}:${lava}${cargo ? ";" + cargo : ""}`;
+  const made = [...(s.made ?? [])].sort().join(",");
+  const invL = Object.keys(s.inv ?? {}).sort().map((k) => `${k}.${s.inv[k]}`);
+  if (s.invUsed) invL.push("!" + s.invUsed);
+  const inv = invL.join(",");
+  if (!s.storm && !lava && !cargo && !made && !inv) return "-";
+  const tail = [cargo, made, inv];
+  while (tail.length && !tail[tail.length - 1]) tail.pop();
+  return [`${s.storm}:${lava}`, ...tail].join(";");
 }
-const hot = (s: BcState, x: number, y: number) => (s.lava[bcSq(x, y)] ?? 0) > 0;
+/** A pending event warning: "v" volcano or "t" tornado, with plies left (4 → 1); 0 when none. Shown as ceil(plies/2) turns. */
+export const bcWarn = (storm: string, k: "v" | "t") => Number(new RegExp(k + "([1-9])").exec(storm)?.[1] ?? 0);
+/** The banner's "N TURNS LEFT" for a warning. */
+export const bcWarnTurns = (storm: string, k: "v" | "t") => Math.ceil(bcWarn(storm, k) / 2);
+
+// v3 §6: a lava tile is ordinary land as soon as it lands (nothing waits for it to cool)
+const hot = (_s: BcState, _x: number, _y: number) => false;
 
 /** The other cell of the frigate standing on (x,y). */
 function shipMate(s: BcState, x: number, y: number): [number, number] | null {
@@ -164,7 +228,7 @@ const ARCH = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [2, -2], [-2, 2], [-2, -
 /** Squares a frigate cell fires on: 3 squares inland in each direction that meets land first. */
 function cannonTargets(s: BcState, x: number, y: number, by: BcColor, out: [number, number][]) {
   for (const [dx, dy] of ORTH) {
-    if (!isLand(x + dx, y + dy) && bcTerrain(x + dx, y + dy) !== "M") continue;
+    if (!isLand(x + dx, y + dy) && terr(x + dx, y + dy) !== "M") continue;
     for (let k = 1; k <= 3; k++) {
       const tx = x + dx * k, ty = y + dy * k;
       if (!isLand(tx, ty)) break; // water or mountain stops the ball
@@ -179,6 +243,7 @@ function cannonTargets(s: BcState, x: number, y: number, by: BcColor, out: [numb
 
 /** Is (x,y) attacked by side `by` (used for check)? */
 export function bcAttacked(s: BcState, x: number, y: number, by: BcColor): boolean {
+  use(s);
   for (let yy = BC_Y0; yy <= BC_Y1; yy++)
     for (let xx = BC_X0; xx <= BC_X1; xx++) {
       const p = at(s, xx, yy);
@@ -193,35 +258,21 @@ export function bcAttacked(s: BcState, x: number, y: number, by: BcColor): boole
       } else if (k === "E") {
         if ((Math.abs(dx) === 1 && Math.abs(dy) === 2) || (Math.abs(dx) === 2 && Math.abs(dy) === 1)) return true;
         if ((Math.abs(dx) === 3 && dy === 0) || (dx === 0 && Math.abs(dy) === 3)) return true;
-      } else if (k === "K" || k === "W") {
+      } else if (k === "K") {
         if (Math.max(Math.abs(dx), Math.abs(dy)) === 1 && isLand(x, y)) return true;
       } else if (k === "C") {
         if ((Math.abs(dx) === 2 || dx === 0) && (Math.abs(dy) === 2 || dy === 0) && (dx !== 0 || dy !== 0)) {
           const mx = xx + dx / 2, my = yy + dy / 2;
-          const t = bcTerrain(mx, my);
+          const t = terr(mx, my);
           if (t !== "M" && t !== "T") return true;
         }
-      } else if (k === "I") {
-        const reach = Math.max(Math.abs(dx), Math.abs(dy));
-        if (reach < 1 || reach > 4) continue;
-        const orth = dx === 0 || dy === 0;
-        const diag = Math.abs(dx) === Math.abs(dy);
-        if (!orth && !diag) continue;
-        if (!isLand(x, y) && !(kind(at(s, x, y)) === "F")) continue;
-        const sx = Math.sign(dx), sy = Math.sign(dy);
-        let ok = true;
-        for (let i = 1; i < reach; i++) {
-          const t = bcTerrain(xx + sx * i, yy + sy * i);
-          if (t !== "L" || at(s, xx + sx * i, yy + sy * i) !== ".") { ok = false; break; }
-        }
-        if (ok) return true;
       } else if (k === "A") {
         if (Math.abs(dx) === Math.abs(dy) && dx !== 0) {
           const sx = Math.sign(dx), sy = Math.sign(dy);
           let ok = true;
           let hop = false; // part 4: it may pass one piece only, a pawn of its own colour
           for (let i = 1; i < Math.abs(dx); i++) {
-            const t = bcTerrain(xx + sx * i, yy + sy * i);
+            const t = terr(xx + sx * i, yy + sy * i);
             if (t !== "L") { ok = false; break; } // mountain / water / bush stop it
             const q = at(s, xx + sx * i, yy + sy * i);
             if (q === ".") continue;
@@ -245,7 +296,7 @@ export function bcAttacked(s: BcState, x: number, y: number, by: BcColor): boole
         const sx = Math.sign(dx), sy = Math.sign(dy);
         let cx = xx + sx, cy = yy + sy, ok = true;
         while (cx !== x || cy !== y) {
-          if (bcTerrain(cx, cy) !== "L" || at(s, cx, cy) !== ".") { ok = false; break; }
+          if (terr(cx, cy) !== "L" || at(s, cx, cy) !== ".") { ok = false; break; }
           cx += sx; cy += sy;
         }
         if (ok) return true;
@@ -256,7 +307,7 @@ export function bcAttacked(s: BcState, x: number, y: number, by: BcColor): boole
 
 function kingOf(s: BcState, c: BcColor): [number, number] | null {
   const want = c === "w" ? "K" : "k";
-  for (let y = 1; y <= 8; y++) for (let x = 0; x <= 13; x++) if (at(s, x, y) === want) return [x, y];
+  for (let y = BC_Y0; y <= BC_Y1; y++) for (let x = BC_X0; x <= BC_X1; x++) if (at(s, x, y) === want) return [x, y];
   return null;
 }
 export function bcInCheck(s: BcState, c: BcColor): boolean {
@@ -269,6 +320,7 @@ export function bcKingSq(s: BcState, c: BcColor): string | null {
 }
 
 function pseudo(s: BcState): BcMove[] {
+  use(s);
   const out: BcMove[] = [];
   const me = s.turn;
   const add = (fx: number, fy: number, tx: number, ty: number, extra: Partial<BcMove> = {}) => {
@@ -311,7 +363,7 @@ function pseudo(s: BcState): BcMove[] {
         for (const [dx, dy] of ARCH) {
           const tx = x + dx, ty = y + dy;
           if (!inGrid(tx, ty)) continue;
-          const mid = bcTerrain(x + dx / 2, y + dy / 2);
+          const mid = terr(x + dx / 2, y + dy / 2);
           if (mid === "M" || mid === "T") continue;
           const q = at(s, tx, ty);
           if (q !== "." && bcColor(q) !== me) out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: true, shot: true });
@@ -320,7 +372,7 @@ function pseudo(s: BcState): BcMove[] {
         for (const [dx, dy] of DIAG) {
           let tx = x + dx, ty = y + dy, hop = false;
           while (true) {
-            const t = bcTerrain(tx, ty);
+            const t = terr(tx, ty);
             if (t === "W" || t === "M" || hot(s, tx, ty)) break;
             const q = at(s, tx, ty);
             if (q === "H") { add(x, y, tx, ty); break; }
@@ -337,7 +389,7 @@ function pseudo(s: BcState): BcMove[] {
         for (const [dx, dy] of dirs) {
           let tx = x + dx, ty = y + dy;
           while (true) {
-            const t = bcTerrain(tx, ty);
+            const t = terr(tx, ty);
             if (t === "M" || hot(s, tx, ty)) break;
             if (t === "W") {
               // rook vs frigate: the ray runs on over open water and sinks the first enemy ship (rook stays)
@@ -362,8 +414,7 @@ function pseudo(s: BcState): BcMove[] {
         }
       } else if (k === "I" || k === "U" || k === "W") {
         if (k === "I" && !isLand(x, y)) {
-          // a pirate ship: steps ashore, or sails like a rook over open water and boards what it meets
-          for (const [dx, dy] of [...ORTH, ...DIAG]) if (landOk(x + dx, y + dy)) add(x, y, x + dx, y + dy);
+          // v3 §5.3: a pirate ship sails like a rook over open water and takes the enemy ship it meets
           for (const [dx, dy] of ORTH) {
             let tx = x + dx, ty = y + dy;
             while (isWater(tx, ty)) {
@@ -380,19 +431,20 @@ function pseudo(s: BcState): BcMove[] {
             }
           }
         } else {
-          const reach = k === "U" ? 5 : k === "W" ? 1 : 4;
+          const reach = k === "U" ? 5 : k === "W" ? 2 : 4;
           for (const [dx, dy] of [...ORTH, ...DIAG]) {
             for (let step = 1; step <= reach; step++) {
               const tx = x + dx * step, ty = y + dy * step;
               if (!inGrid(tx, ty)) break;
-              const t = bcTerrain(tx, ty);
+              const t = terr(tx, ty);
               if (t === "M" || hot(s, tx, ty)) break;
               const q = at(s, tx, ty);
               if (t === "W") {
                 if (k === "I" && kind(q) === "F" && bcColor(q) !== me) out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: true, board: true });
                 break;
               }
-              if (k === "U") {
+              if (k === "U" || k === "W") {
+                // the mage walks onto empty squares only; it charms instead of capturing (v3 §7.4)
                 if (q !== ".") break;
                 add(x, y, tx, ty);
                 if (t === "T") break;
@@ -409,7 +461,7 @@ function pseudo(s: BcState): BcMove[] {
               if (rad < 1 || rad > 3) continue; // part 4: only within three squares
               const q = at(s, x + dx, y + dy);
               if (bcColor(q) === null || bcColor(q) === me) continue;
-              if (kind(q) === "K" || kind(q) === "F" || kind(q) === "S") continue;
+              if (kind(q) === "K" || SHIPS.includes(kind(q))) continue;
               out.push({ from: bcSq(x, y), to: bcSq(x + dx, y + dy), capture: false, charm: true });
             }
           }
@@ -428,9 +480,9 @@ function pseudo(s: BcState): BcMove[] {
         if (rider) {
           for (const [dx, dy] of [...ORTH, ...DIAG]) {
             const tx = x + dx, ty = y + dy;
-            if (!landOk(tx, ty)) continue;
             const q = at(s, tx, ty);
-            out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: q !== "." && q !== "H", chest: q === "H", disembark: true });
+            if (!isLand(tx, ty) || (q !== "." && q !== "H")) continue; // v3 §5.4: dropped onto an empty land square
+            out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: false, chest: q === "H", disembark: true });
           }
         }
       } else if (k === "F") {
@@ -455,27 +507,51 @@ function pseudo(s: BcState): BcMove[] {
             if (hit) break;
           }
         }
+        // v3 §5.1: a frigate carries one piece too; it steps off from the cell it rode on
+        const rider = s.cargo[bcSq(x, y)];
+        if (rider) {
+          for (const [dx, dy] of [...ORTH, ...DIAG]) {
+            const tx = x + dx, ty = y + dy;
+            const q = at(s, tx, ty);
+            if (isLand(tx, ty) && (q === "." || q === "H")) out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: false, chest: q === "H", disembark: true });
+          }
+        }
         // fire from this cell: 3 squares inland
         const tg: [number, number][] = [];
         cannonTargets(s, x, y, me, tg);
         for (const [tx, ty] of tg) out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: true, shot: true });
       }
     }
-  // boarding: a land piece (not the king) beside its own empty boat may climb aboard
+  // boarding: a land piece (not the king) beside its own empty boat or frigate may climb aboard
   for (let y = BC_Y0; y <= BC_Y1; y++)
     for (let x = BC_X0; x <= BC_X1; x++) {
-      if (at(s, x, y) !== (me === "w" ? "S" : "s") || s.cargo[bcSq(x, y)]) continue;
+      const ship = at(s, x, y);
+      if (ship !== (me === "w" ? "S" : "s") && ship !== (me === "w" ? "F" : "f")) continue;
+      if (s.cargo[bcSq(x, y)]) continue;
+      if (ship.toUpperCase() === "F") {
+        const mate = shipMate(s, x, y);
+        if (mate && s.cargo[bcSq(mate[0], mate[1])]) continue;
+      }
       for (const [dx, dy] of [...ORTH, ...DIAG]) {
         const q = at(s, x + dx, y + dy);
         if (bcColor(q) !== me || !isLand(x + dx, y + dy) || !RIDERS.includes(kind(q))) continue;
         out.push({ from: bcSq(x + dx, y + dy), to: bcSq(x, y), capture: false, embark: true });
       }
     }
-  return out;
+  // v3 §7.4: each side opens only the chest on its own island; Part 4: an invisible assassin can't be hit
+  return out.filter((m) => {
+    if (m.chest) {
+      const [tx, ty] = bcPos(m.to)!;
+      if (BC_CHESTS.find((c) => c.x === tx && c.y === ty)?.owner !== me) return false;
+    }
+    if ((m.capture || m.charm) && s.inv[m.to] && kind(at(s, ...bcPos(m.to)!)) === "A" && bcColor(at(s, ...bcPos(m.to)!)) !== me) return false;
+    return true;
+  });
 }
 const SHIPS = ["F", "S", "I"];
-const RIDERS = ["Q", "R", "B", "N", "P", "C", "E", "A", "W", "U", "I"];
+const RIDERS = ["Q", "R", "B", "N", "P", "C", "E", "A", "W", "U"];
 export function bcApply(s: BcState, m: BcMove): BcState {
+  use(s);
   const c = s.cells.map((r) => r.slice());
   const [fx, fy] = bcPos(m.from)!;
   const [tx, ty] = bcPos(m.to)!;
@@ -495,7 +571,7 @@ export function bcApply(s: BcState, m: BcMove): BcState {
     const rider = cargo[m.from];
     delete cargo[m.from];
     put(c, tx, ty, rider);
-    if (target === "H") spawnTroop(c, bcColor(rider)!, bcNext(s.full * 100 + fx * 17 + fy));
+    if (target === "H") spawnMage(c, bcColor(rider)!, tx, ty);
   } else if (m.charm) {
     put(c, tx, ty, target === target.toUpperCase() ? target.toLowerCase() : target.toUpperCase());
   } else if (m.board) {
@@ -514,13 +590,20 @@ export function bcApply(s: BcState, m: BcMove): BcState {
     }
     for (const [x, y] of cells) put(c, x, y, ".");
     for (const [x, y] of cells) put(c, x + dx, y + dy, p);
+    // the frigate's passenger sails with it
+    const moved: Record<string, string> = {};
+    for (const [x, y] of cells) {
+      const r = cargo[bcSq(x, y)];
+      if (r) { moved[bcSq(x + dx, y + dy)] = r; delete cargo[bcSq(x, y)]; }
+    }
+    Object.assign(cargo, moved);
   } else {
     put(c, fx, fy, ".");
     let np = p;
     if (m.promo) np = bcColor(p) === "w" ? m.promo.toUpperCase() : m.promo;
     put(c, tx, ty, np);
     if (m.ep) put(c, tx, fy, ".");
-    if (target === "H" && bcColor(p)) spawnTroop(c, bcColor(p)!, bcNext(s.full * 100 + fx * 17 + fy));
+    if (target === "H" && bcColor(p)) spawnMage(c, bcColor(p)!, tx, ty);
     if (kind(p) === "S" && cargo[m.from]) {
       cargo[m.to] = cargo[m.from];
       delete cargo[m.from];
@@ -529,12 +612,31 @@ export function bcApply(s: BcState, m: BcMove): BcState {
   // a boat that is gone (sunk, rammed, boarded) takes its rider down with it
   for (const sq of Object.keys(cargo)) {
     const at2 = bcPos(sq);
-    if (!at2 || kind(cellOf(c, at2[0], at2[1])) !== "S") delete cargo[sq];
+    const k2 = at2 ? kind(cellOf(c, at2[0], at2[1])) : "";
+    if (k2 !== "S" && k2 !== "F") delete cargo[sq];
+  }
+  // Part 4 assassin: after its capture it stays invisible for its owner's next two moves (once a game)
+  const me = s.turn;
+  const inv: Record<string, number> = {};
+  let invUsed = s.invUsed;
+  for (const [sq, n] of Object.entries(s.inv)) {
+    const key = sq === m.from && !m.shot && !m.charm && !m.embark ? m.to : sq;
+    const left = bcColor(at(s, ...bcPos(sq)!)) === me ? n - 1 : n;
+    if (left > 0) inv[key] = left;
+  }
+  if (kind(p) === "A" && m.capture && !m.shot && !invUsed.includes(me)) {
+    inv[m.to] = 2;
+    invUsed = me === "w" ? "w" + invUsed : invUsed + "b";
   }
   const lava: Record<string, number> = {};
   for (const [sq, n] of Object.entries(s.lava)) if (n > 1) lava[sq] = n - 1;
-  const storm = rage(c, lava, s.full);
-  const pawnOrCap = kind(p) === "P" || !!m.capture || !!m.chest || storm !== "";
+  const made = new Set(s.made);
+  const storm = rage(c, lava, made, s.full, s.storm);
+  for (const sq of Object.keys(inv)) {
+    const q = bcPos(sq);
+    if (!q || kind(cellOf(c, q[0], q[1])) !== "A") delete inv[sq];
+  }
+  const pawnOrCap = kind(p) === "P" || !!m.capture || !!m.chest || /[TV]/.test(storm);
   return {
     cells: c,
     turn: s.turn === "w" ? "b" : "w",
@@ -544,6 +646,9 @@ export function bcApply(s: BcState, m: BcMove): BcState {
     lava,
     storm,
     cargo,
+    made: [...made].sort(),
+    inv,
+    invUsed,
   };
 }
 
@@ -551,14 +656,22 @@ function cellOf(c: string[][], x: number, y: number) {
   return inGrid(x, y) ? c[BC_Y1 - y][x - BC_X0] : "#";
 }
 
-/** Tornado (T) shoves a troop. Volcano (V) burns land beside a mountain. Same rolls in PHP. */
-function rage(c: string[][], lava: Record<string, number>, full: number): string {
+/**
+ * Events (v3 §8, Part 4): announced first, then they strike. A roll starts a warning ("t2" tornado,
+ * "v2" volcanoes, counted in plies); when it runs out the event hits ("T" / "V") on that ply.
+ * Tornado shoves a troop. Volcanoes: both snowy mountains erupt; lava lands within three squares
+ * of each centre, removing what stands there, and lava on water becomes land. Same rolls in PHP.
+ */
+const MADE_CAP = 16; // keeps the position inside games.fen
+function rage(c: string[][], lava: Record<string, number>, made: Set<string>, full: number, prev: string): string {
   let seed = (full * 997 + 13) % 2147483647 || 1;
   for (const row of c) for (const ch of row) seed = bcNext(seed + ch.charCodeAt(0));
-  let storm = "";
+  let act = "", warn = "";
+  const tw = bcWarn(prev, "t"), vw = bcWarn(prev, "v");
   seed = bcNext(seed);
-  if (seed % 100 < 18) {
-    storm += "T";
+  if (tw > 1) warn += "t" + (tw - 1);
+  else if (tw === 1) {
+    act += "T";
     const pcs: [number, number][] = [];
     for (let y = 1; y <= 8; y++) for (let x = 0; x <= 13; x++) {
       const q = cellOf(c, x, y);
@@ -575,7 +688,7 @@ function rage(c: string[][], lava: Record<string, number>, full: number): string
       for (let i = 0, dist = 1 + (seed % 3); i < dist; i++) {
         const nx = cx + dx, ny = cy + dy;
         if (!inGrid(nx, ny)) break;
-        const t = bcTerrain(nx, ny);
+        const t = terr(nx, ny);
         if (t === "W") { put(c, cx, cy, "."); break; }
         if (t === "M" || cellOf(c, nx, ny) !== ".") break;
         put(c, cx, cy, ".");
@@ -584,49 +697,50 @@ function rage(c: string[][], lava: Record<string, number>, full: number): string
         if (t === "T") break;
       }
     }
-  }
+  } // v3: the final video has no tornado, so none is rolled (an old save's pending one still resolves)
   seed = bcNext(seed);
-  if (seed % 100 < 12) {
-    storm += "V";
-    seed = bcNext(seed);
-    const mountains = [[[0, 7], [1, 7], [0, 8], [1, 8]], [[12, 1], [13, 1], [12, 2], [13, 2]]] as const;
-    const mount = mountains[seed % 2];
-    for (const [mx, my] of mount) if (kind(cellOf(c, mx, my)) === "E") put(c, mx, my, ".");
-    // part 4: the volcano only reaches three squares from its centre
-    const neighbors: [number, number][] = [];
-    const [ox, oy] = mount[0];
-    for (let ny = oy - 3; ny <= oy + 4; ny++) for (let nx = ox - 3; nx <= ox + 4; nx++) {
-      if (!isLand(nx, ny)) continue;
-      if (Math.max(Math.abs(nx * 2 - (ox * 2 + 1)), Math.abs(ny * 2 - (oy * 2 + 1))) > 6) continue;
-      neighbors.push([nx, ny]);
-    }
-    seed = bcNext(seed);
-    const hits = neighbors.length ? 1 + (seed % Math.min(3, neighbors.length)) : 0;
-    for (let i = 0; i < hits; i++) {
+  if (vw > 1) warn += "v" + (vw - 1);
+  else if (vw === 1) {
+    act += "V";
+    for (const [ox, oy] of BC_VOLCANOES) {
+      for (let my = oy; my <= oy + 1; my++) for (let mx = ox; mx <= ox + 1; mx++) if (kind(cellOf(c, mx, my)) === "E") put(c, mx, my, ".");
+      const spots: [number, number][] = [];
+      for (let ny = oy - 3; ny <= oy + 4; ny++) for (let nx = ox - 3; nx <= ox + 4; nx++) {
+        if (!inGrid(nx, ny)) continue;
+        if (Math.max(Math.abs(nx * 2 - (ox * 2 + 1)), Math.abs(ny * 2 - (oy * 2 + 1))) > 6) continue;
+        const t = terr(nx, ny);
+        const q = cellOf(c, nx, ny);
+        if (t === "M" || t === "T" || q === "H" || kind(q) === "K") continue;
+        if (t === "W" && q !== ".") continue; // ships ride it out
+        spots.push([nx, ny]);
+      }
       seed = bcNext(seed);
-      const idx = seed % neighbors.length;
-      const [nx, ny] = neighbors.splice(idx, 1)[0];
-      put(c, nx, ny, ".");
-      lava[bcSq(nx, ny)] = 3;
+      const hits = Math.min(spots.length, 2 + (seed % 3));
+      for (let i = 0; i < hits; i++) {
+        seed = bcNext(seed);
+        const [nx, ny] = spots.splice(seed % spots.length, 1)[0];
+        const sq = bcSq(nx, ny);
+        if (terr(nx, ny) === "W") {
+          if (made.size >= MADE_CAP) continue;
+          made.add(sq);
+          MADE.add(sq);
+        } else put(c, nx, ny, ".");
+        lava[sq] = 3;
+      }
     }
-  }
-  return storm;
+  } else if (seed % 100 < 8 && tw === 0 && !warn) warn += "v4";
+  return act + warn;
 }
 
-function spawnTroop(c: string[][], me: BcColor, seed: number) {
-  const pool = ["Q", "R", "N", "C", "E", "A", "I", "W", "U"];
-  const spots: [number, number][] = [];
-  for (let y = 1; y <= 8; y++) for (let x = 0; x <= 13; x++) {
-    if (!isLand(x, y) || cellOf(c, x, y) !== ".") continue;
-    if (me === "w" ? y < 5 : y > 4) continue;
-    spots.push([x, y]);
+/** v3 §7.4: the chest becomes a Mage of the opener's colour, beside it on the island. */
+function spawnMage(c: string[][], me: BcColor, cx: number, cy: number) {
+  for (const [dx, dy] of [...ORTH, ...DIAG]) {
+    const x = cx + dx, y = cy + dy;
+    if (isLand(x, y) && cellOf(c, x, y) === ".") {
+      put(c, x, y, me === "w" ? "W" : "w");
+      return;
+    }
   }
-  if (!spots.length) return;
-  seed = bcNext(seed);
-  const [x, y] = spots[seed % spots.length];
-  seed = bcNext(seed);
-  const troop = pool[seed % pool.length];
-  put(c, x, y, me === "w" ? troop : troop.toLowerCase());
 }
 
 export function bcLegalMoves(s: BcState): BcMove[] {
@@ -674,7 +788,7 @@ export function bcEvaluate(s: BcState, side: BcColor): number {
       let v = k === "F" ? VAL.F / 2 : VAL[k];
       if (k === "P") v += (col === "w" ? 7 - y : y - 2) * 8;
       if (k === "N" || k === "B" || k === "E" || k === "A") v += 12 - Math.abs(6.5 - x) * 2 - Math.abs(4.5 - y) * 2;
-      const rider = k === "S" ? s.cargo[bcSq(x, y)] : undefined;
+      const rider = k === "S" || k === "F" ? s.cargo[bcSq(x, y)] : undefined;
       if (rider) v += VAL[kind(rider)] ?? 0;
       sc += col === side ? v : -v;
     }

@@ -120,3 +120,34 @@
 @keyframes bc2-lava-land { from { opacity: 0; transform: scale(.6) } to { opacity: 1; transform: scale(1) } }
 .bc2-lava-hit { transform-box: fill-box; transform-origin: center; animation: bc2-lava-hit .6s ease-out both; opacity: 0; }
 @keyframes bc2-lava-hit { 0% { opacity: 1; transform: scale(.3) } 100% { opacity: 0; transform: scale(1.6) } }
+
+/* ── Battle Chess v3 (video v9KUWr3NChU): event warning, splash zone, drop square, end burst ── */
+.bc2-splash { opacity: .5; animation: bc2-splash 1.6s ease-in-out infinite; }
+@keyframes bc2-splash { 0%, 100% { opacity: .42 } 50% { opacity: .6 } }
+.bc2-drop { animation: bc2-drop 1s ease-in-out infinite; }
+@keyframes bc2-drop { 0%, 100% { fill-opacity: .45 } 50% { fill-opacity: .7 } }
+.bc2-burst { transform-box: fill-box; transform-origin: center; animation: bc2-burst 1.4s ease-out infinite; }
+@keyframes bc2-burst { 0% { transform: scale(.3); opacity: 1 } 100% { transform: scale(3.2); opacity: 0 } }
+.bc2-burst-core { animation: bc2-burst-core 1.4s ease-in-out infinite; }
+@keyframes bc2-burst-core { 0%, 100% { opacity: .6 } 50% { opacity: 1 } }
+.bc2-event { position: absolute; inset: 0; pointer-events: none; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 104px; }
+.bc2-warn-card { position: absolute; left: 50%; top: 50%; width: 132px; padding: 12px 10px 10px; transform: translate(-50%, -50%); border-radius: 12px; border: 3px solid #e8c36a; background: linear-gradient(180deg, rgba(60, 30, 12, .82), rgba(30, 14, 6, .86)); box-shadow: 0 0 0 2px #6b4513, 0 0 30px rgba(255, 170, 60, .45), inset 0 0 22px rgba(255, 190, 90, .25); text-align: center; animation: bc2-card 2.8s ease-in-out forwards; overflow: hidden; }
+.bc2-warn-card.is-red { border-color: #ff8a6a; box-shadow: 0 0 0 2px #7a1d10, 0 0 34px rgba(255, 70, 50, .55), inset 0 0 22px rgba(255, 90, 60, .25); }
+.bc2-warn-stripes { height: 12px; margin: -12px -10px 8px; background: repeating-linear-gradient(135deg, #e8c36a 0 8px, #6b2a12 8px 16px); opacity: .9; }
+.bc2-warn-icon { width: 72px; height: 66px; filter: drop-shadow(0 0 10px rgba(255, 90, 60, .6)); }
+.bc2-warn-word { margin-top: 4px; font-family: Cinzel, Georgia, serif; font-weight: 900; font-size: 18px; letter-spacing: .12em; color: #ffb48a; text-shadow: 0 0 8px rgba(255, 80, 40, .8); }
+@keyframes bc2-card { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6) } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06) } 20% { transform: translate(-50%, -50%) scale(1) } 80% { opacity: 1 } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.95) } }
+.bc2-banner { padding: 6px 22px 8px; border-radius: 10px; background: linear-gradient(180deg, rgba(20, 6, 24, .25), rgba(20, 6, 24, .6)); text-align: center; animation: bc2-banner-in .35s ease-out; }
+.bc2-banner-1, .bc2-banner-2 { font-family: "Barlow Semi Condensed", "Arial Black", Impact, sans-serif; font-weight: 900; font-size: 30px; line-height: 1.05; letter-spacing: .03em; color: #fff; -webkit-text-stroke: 1.5px #120714; paint-order: stroke fill; text-shadow: 0 3px 0 #120714, 0 0 16px rgba(255, 45, 122, .7); }
+.bc2-banner-2.is-red { color: #ff3b3b; }
+@keyframes bc2-banner-in { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+@media (max-width: 560px) { .bc2-banner-1, .bc2-banner-2 { font-size: 21px; } .bc2-warn-card { width: 104px; } .bc2-warn-icon { width: 54px; height: 50px; } .bc2-warn-word { font-size: 14px; } .bc2-event { padding-bottom: 110px; } }
+.bc-end { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: radial-gradient(ellipse at center, rgba(40, 120, 255, .18), rgba(6, 4, 14, .55) 70%); }
+.bc-end-card { display: flex; flex-direction: column; align-items: center; gap: 12px; animation: bc2-banner-in .5s ease-out; }
+.bc-end-emblem { padding: 10px 34px 12px; border-radius: 14px; border: 3px solid #f2cd6a; background: linear-gradient(180deg, #2d6fe0, #12348f 60%, #0b1f5c); box-shadow: 0 0 0 3px #6e430b, 0 0 40px rgba(80, 170, 255, .7), inset 0 2px 0 rgba(255, 255, 255, .35); font-family: Cinzel, Georgia, serif; font-weight: 900; font-size: 46px; letter-spacing: .08em; color: #ffe9a6; text-shadow: 0 2px 0 #6e430b, 0 0 18px rgba(255, 220, 120, .8); }
+.bc-end-emblem.is-loss { background: linear-gradient(180deg, #6a2a7a, #3a1048 60%, #22082c); box-shadow: 0 0 0 3px #4a2a0b, 0 0 30px rgba(170, 80, 255, .5); }
+.bc-end-emblem.is-draw { background: linear-gradient(180deg, #4b4f66, #262a3c); }
+.bc-end-reason { color: #efe6ff; font-size: 14px; text-shadow: 0 1px 3px #000; }
+.bc-end-continue { min-width: 200px; font-size: 18px !important; letter-spacing: .12em; }
+.bc-end-row { display: flex; gap: 10px; }
+@media (max-width: 560px) { .bc-end-emblem { font-size: 34px; padding: 8px 22px 10px; } }
