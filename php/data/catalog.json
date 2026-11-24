@@ -171,6 +171,41 @@
         "cost": 0,
         "coinCost": 12,
         "sealed": false
+      },
+      {
+        "id": "steampunk-brass",
+        "name": "Steampunk Brass",
+        "cost": 0,
+        "coinCost": 1,
+        "sealed": true
+      },
+      {
+        "id": "crystal-palace",
+        "name": "Crystal Palace",
+        "cost": 0,
+        "coinCost": 1,
+        "sealed": true
+      },
+      {
+        "id": "obsidian-fortress",
+        "name": "Obsidian Fortress",
+        "cost": 0,
+        "coinCost": 1,
+        "sealed": true
+      },
+      {
+        "id": "ghostfire",
+        "name": "Ghostfire",
+        "cost": 0,
+        "coinCost": 1,
+        "sealed": true
+      },
+      {
+        "id": "legendary-core",
+        "name": "Legendary Core",
+        "cost": 0,
+        "coinCost": 1,
+        "sealed": true
       }
     ],
     "giftBoards": [
@@ -314,6 +349,10 @@
         {
           "id": "coin",
           "price": 5
+        },
+        {
+          "id": "gear",
+          "price": 999
         }
       ],
       "attacks": [

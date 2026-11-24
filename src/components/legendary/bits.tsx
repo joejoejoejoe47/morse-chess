@@ -50,6 +50,7 @@ const FRAME_RING: Record<string, string> = {
   night: "ring-[3px] ring-[#7eb6ff] shadow-[0_0_14px_rgba(80,140,255,0.6)]",
   check: "ring-[3px] ring-[#f4efe4] outline outline-2 outline-offset-2 outline-[#1c1914]",
   coin: "ring-[3px] ring-[#e6c56a] shadow-[0_0_16px_rgba(230,197,106,0.55)]",
+  gear: "ring-[3px] ring-[#c08a3a] outline outline-[3px] outline-dashed outline-offset-2 outline-[#e0a040] shadow-[0_0_16px_rgba(192,138,58,0.6)]",
 };
 
 export function frameIdOf(look?: string | null): string {

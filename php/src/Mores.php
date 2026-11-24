@@ -2016,6 +2016,9 @@ final class Mores
             if ($price <= 0) {
                 return ['ok' => false, 'error' => 'That board is not sold for coins.'];
             }
+            if (in_array($board['id'], Campaign::REWARD_BOARDS, true)) {
+                return ['ok' => false, 'error' => 'Win that board in the Legendary Campaign.'];
+            }
             $owned = self::ownedList($me['owned_boards']);
             $purse = $me['coins'];
             if (in_array($board['id'], $owned, true)) {

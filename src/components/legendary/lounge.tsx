@@ -182,6 +182,7 @@ export function LegendaryLounge({
   const items: { label: string; icon: ReactNode; act: () => void; key: string; purple?: boolean }[] = [
     { key: "online", label: "Play Online", icon: mi("globe"), act: onPlayOnline },
     { key: "bot", label: "Play MorseBot", icon: mi("robot"), act: onPlayBot, purple: true },
+    { key: "campaign", label: "Campaign", icon: mi("swords"), act: () => void navigate({ to: "/campaign" }) },
     { key: "create", label: "Create Bot", icon: mi("gear"), act: () => void navigate({ to: "/bot-maker" }), purple: true },
     { key: "boards", label: "Boards", icon: mi("boards"), act: () => void navigate({ to: "/boards" }) },
     { key: "store", label: "Store", icon: mi("cart"), act: () => void navigate({ to: "/store" }) },

@@ -323,6 +323,10 @@ export function BoardLook({
                 <Button variant="solid" onClick={() => (ownSet && !equipped ? setWarn(true) : setTuning(true))}>
                   {equipped ? "Use · adjust" : "Use this board"}
                 </Button>
+              ) : board.reward ? (
+                <Button variant="outline" disabled>
+                  {board.reward} reward
+                </Button>
               ) : (board.coinCost ?? 0) > 0 ? (
                 <Button variant="solid" disabled={busy || !coinsReady} onClick={() => void purchase()}>
                   {busy

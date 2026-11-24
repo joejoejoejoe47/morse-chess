@@ -37,6 +37,8 @@ export type GearItem = {
   price: number;
   portrait: string;
   blurb: string;
+  /** Campaign reward: never sold, only shown once owned. */
+  reward?: string;
 };
 
 export type CharacterItem = GearItem & {
@@ -248,6 +250,8 @@ export const FRAMES: GearItem[] = [
   { id: "night", name: "Night", price: 4, portrait: "", blurb: "Blue fire on the letters." },
   { id: "check", name: "Check", price: 2, portrait: "", blurb: "A boarder of squares." },
   { id: "coin", name: "Morse", price: 5, portrait: "", blurb: "Coins in the corners." },
+  // Legendary Campaign reward (Chapter 1), never sold: Campaign.php grants it into owned_gear.
+  { id: "gear", name: "Gearworks", price: 999, portrait: "", blurb: "Brass cogs, won from the Clockwork Warden.", reward: "Campaign · Chapter 1" },
 ];
 
 export type AttackItem = GearItem & {

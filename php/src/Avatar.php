@@ -225,6 +225,9 @@ final class Avatar
             if (in_array($id, $owned, true) || $price === 0) {
                 return $current;
             }
+            if (in_array($id, Campaign::REWARD_GEAR, true)) {
+                throw new RpcError('Win it in the Legendary Campaign.');
+            }
             if ($current['coins'] < $price) {
                 throw new RpcError("That costs {$price} Morse coins.");
             }
