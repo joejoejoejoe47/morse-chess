@@ -299,7 +299,14 @@ final class Campaign
         if ($chapter < 1 || $chapter > self::OPEN) {
             return false;
         }
-        return $chapter === 1 || in_array($chapter - 1, self::cleared($userId), true);
+        return $chapter === 1 || self::isOwner($userId) || in_array($chapter - 1, self::cleared($userId), true);
+    }
+
+    /** The owner (MasterGus) can open every chapter to check it (owner t394u); everyone else unlocks them in order. */
+    private static function isOwner(string $userId): bool
+    {
+        $name = (string) (Db::value('SELECT username FROM profiles WHERE user_id = ? LIMIT 1', [$userId]) ?? '');
+        return $name !== '' && Catalog::isMasterUsername($name);
     }
 
     /** @param array<string,mixed> $data */
@@ -325,6 +332,7 @@ final class Campaign
             'rewards' => array_values(array_map('strval', $rewards)),
             'synced' => $gained,
             'coins' => $coins,
+            'allOpen' => self::isOwner($userId),
         ];
     }
 

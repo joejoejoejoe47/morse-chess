@@ -246,6 +246,8 @@ export type CampaignState = {
   rewards: string[];
   synced: Record<string, number>;
   coins: number;
+  /** The owner (MasterGus) can open every chapter to check them (owner t394u). */
+  allOpen?: boolean;
 };
 export type PieceStats = { alive: boolean; checks: number; cap: number; capUp: number; mate: boolean; promo: boolean };
 export type FinishResult = {

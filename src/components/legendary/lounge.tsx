@@ -4,6 +4,7 @@
  * Play MorseBot, Create Bot, Boards, Store, AV, Settings) sits behind a small gear at the bottom
  * centre and slides up on hover (tap on touch screens).
  */
+import { CampaignLauncher } from "@/components/legendary/campaign/launcher";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, Eye, Settings, X } from "lucide-react";
@@ -348,6 +349,8 @@ export function LegendaryLounge({
           <span className="mcl-h-odot" />
         </div>
       ) : null}
+      {/* the Campaign door (owner t394u) */}
+      {!menu ? <CampaignLauncher /> : null}
       {/* the gear menu */}
       <div
         className="absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center pb-[max(0.75rem,env(safe-area-inset-bottom))]"

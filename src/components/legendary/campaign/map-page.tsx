@@ -23,7 +23,7 @@ export function useNarrow() {
 export function nodesFor(state: CampaignState): MapNode[] {
   return CHAPTERS.map((c) => {
     const cleared = state.cleared.includes(c.n);
-    const unlocked = c.n === 1 || state.cleared.includes(c.n - 1);
+    const unlocked = c.n === 1 || !!state.allOpen || state.cleared.includes(c.n - 1);
     return { chapter: c, state: cleared ? "cleared" : c.n > state.open ? "soon" : unlocked ? "open" : "locked" };
   });
 }
@@ -46,7 +46,7 @@ function MapInner() {
 
   useEffect(() => {
     if (!state || selected != null) return;
-    const next = nodes.find((n) => n.state === "open") ?? nodes[0];
+    const next = nodes.find((n) => n.state === "open") ?? [...nodes].reverse().find((n) => n.state === "cleared") ?? nodes[0];
     setSelected(next.chapter.n);
   }, [state, nodes, selected]);
 

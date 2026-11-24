@@ -117,4 +117,12 @@ foreach (['crowned-pawn', 'siege-aura', 'spectral-trail', 'golden-bot'] as $it) 
     check(in_array($it, $s['rewards'], true), "reward $it listed");
 }
 
+// owner t394u: the owner (MasterGus, local test row only) can open every chapter; others cannot skip ahead
+Db::run("INSERT INTO profiles (user_id, username, username_lc, score, last_seen, created_at, equipped_board, coins, owned_boards, owned_gear) VALUES ('u8', ?, ?, 1200, ?, ?, 'lodge', 10, '', '')", [(string) \Morse\Util::catalog()['boards']['masterUsername'], strtolower((string) \Morse\Util::catalog()['boards']['masterUsername']), $now, $now]);
+$os = ccall('campaignState', 'u8');
+check($os['allOpen'] === true, 'owner state says all chapters open');
+$or = ccall('startCampaignRun', 'u8', ['chapter' => 5]);
+check(is_array($or) && $or['chapter'] === 5, 'owner can start chapter 5 directly');
+check(ccall('campaignState', 'u1')['allOpen'] === false, 'players still unlock in order');
+
 finish();

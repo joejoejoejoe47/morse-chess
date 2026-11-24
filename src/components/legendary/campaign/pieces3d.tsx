@@ -209,7 +209,7 @@ export function BossPiece({ kind, ink, glass = false, yaw = 0 }: { kind: Kind; i
 }
 
 /** Golden Bot Companion (Chapter 5 reward): hovers beside your army and cheers. */
-export function GoldenBot({ position = [-5.2, 1.6, 3.2] as [number, number, number], excited = false }: { position?: [number, number, number]; excited?: boolean }) {
+export function GoldenBot({ position = [-4.9, 1.5, 2.4] as [number, number, number], excited = false }: { position?: [number, number, number]; excited?: boolean }) {
   const g = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     const o = g.current;
@@ -218,7 +218,7 @@ export function GoldenBot({ position = [-5.2, 1.6, 3.2] as [number, number, numb
     o.position.y = position[1] + Math.sin(t * (excited ? 6 : 1.6)) * (excited ? 0.18 : 0.1);
     o.rotation.y = Math.sin(t * 0.7) * 0.5 + 0.5;
   });
-  const gold = <meshStandardMaterial color="#ffcf4a" metalness={1} roughness={0.16} emissive="#8a5a00" emissiveIntensity={0.5} />;
+  const gold = <meshStandardMaterial color="#ffd34a" metalness={0.75} roughness={0.22} emissive="#c08a10" emissiveIntensity={0.85} />;
   return (
     <group ref={g} position={position}>
       <mesh castShadow>
