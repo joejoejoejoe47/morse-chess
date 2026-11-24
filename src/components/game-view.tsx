@@ -275,6 +275,47 @@ function VariantResult({ game, variant }: { game: GameSnapshot; variant: Variant
   const opp = game.you === "w" ? game.black : game.white;
   const vsBot = isBotUserId(opp.userId);
   if (closed) return null;
+  if (LEGENDARY && variant === "battlechess") {
+    // v3 §9 (video 3:11): a VICTORY emblem over the board's blue burst, and CONTINUE to look at the board
+    return (
+      <div data-variant-result data-bc-end className="bc-end">
+        <div className="bc-end-card">
+          <div className={`bc-end-emblem ${won ? "" : draw ? "is-draw" : "is-loss"}`}>{draw ? "DRAW" : won ? "VICTORY" : "DEFEAT"}</div>
+          <p className="bc-end-reason">{reason}</p>
+          <button type="button" className="mcl-btn mcl-btn-gold bc-end-continue" onClick={() => setClosed(true)}>
+            CONTINUE
+          </button>
+          <div className="bc-end-row">
+            {vsBot ? (
+              <button
+                type="button"
+                className="mcl-btn mcl-btn-ghost"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setErr(null);
+                  try {
+                    const res = await startBotGame({ data: { mode: game.mode, variant, color: game.you === "w" ? "black" : "white" } });
+                    if (res?.gameId) await navigate({ to: "/play/$gameId", params: { gameId: res.gameId } });
+                  } catch (e) {
+                    setErr(e instanceof Error ? e.message : "Could not start a rematch.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Rematch
+              </button>
+            ) : null}
+            <Link to="/" className="mcl-btn mcl-btn-ghost">
+              Lounge
+            </Link>
+          </div>
+          {err ? <p className="mt-2 text-sm text-danger">{err}</p> : null}
+        </div>
+      </div>
+    );
+  }
   return (
     <div data-variant-result className="absolute inset-0 z-20 grid place-items-center bg-ink/75 px-5">
       {won ? <Confetti /> : null}

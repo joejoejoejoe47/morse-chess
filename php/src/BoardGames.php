@@ -15,7 +15,7 @@ final class BoardGames
     public const START = [
         'checkers' => 'ck|1m1m1m1m/m1m1m1m1/1m1m1m1m/8/8/M1M1M1M1/1M1M1M1M/M1M1M1M1|w|-|0',
         'xiangqi' => 'xq|rheakaehr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RHEAKAEHR|w|0',
-        'battlechess' => 'bc|28/23I4/3S24/28/2H14FF9/10REBKQBNRABR7/10PPPPPPPPCNN7/7C20/17H10/10H17/20c7/7nncpppppppp10/7rbarnbkqber10/9ff14H2/28/24s3/4i23/28|w|-|0|1|-',
+        'battlechess' => 'bc|28/23I4/3S24/28/2H14FF9/10REBKQBNRABR7/10PPPPPPPPCNN7/7C20/28/28/20c7/7nncpppppppp10/7rbarnbqkber10/9ff14H2/28/24s3/4i23/28|w|-|0|1|-',
     ];
 
     public static function is(string $v): bool
@@ -633,7 +633,7 @@ final class BoardGames
     }
 
     // ───────────────────────── Battle Chess ─────────────────────────
-    // Line-by-line copy of src/lib/boardgames/battlechess.ts (see the notes there).
+    // Line-by-line copy of src/lib/boardgames/battlechess.ts (v3 spec, video v9KUWr3NChU; see the notes there).
 
     private const BC_X0 = -7;
     private const BC_X1 = 20;
@@ -643,13 +643,25 @@ final class BoardGames
     private const BC_H = 18;
     private const BC_FILES = 'WXYZxyzabcdefghijklmnopqrstu';
     private const BC_SHIPS = ['F', 'S', 'I'];
-    private const BC_RIDERS = ['Q', 'R', 'B', 'N', 'P', 'C', 'E', 'A', 'W', 'U', 'I'];
+    private const BC_RIDERS = ['Q', 'R', 'B', 'N', 'P', 'C', 'E', 'A', 'W', 'U'];
     private const BC_ORTH = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     private const BC_DIAG = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
     private const BC_KN = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
     private const BC_EAG = [[3, 0], [-3, 0], [0, 3], [0, -3]];
     private const BC_ARCH = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [2, -2], [-2, 2], [-2, -2]];
     private const BC_VAL = ['K' => 0, 'Q' => 900, 'R' => 500, 'B' => 320, 'N' => 300, 'P' => 100, 'C' => 260, 'E' => 380, 'A' => 520, 'F' => 250, 'I' => 360, 'W' => 640, 'U' => 180, 'H' => 0, 'S' => 120];
+    /** v3 §7.4: the treasure chests and whose island each is on. */
+    public const BC_CHESTS = [[-5, 9, 'w'], [18, 0, 'b']];
+    /** The volcanoes: the snowy 2x2 mountains (lower-left cells). */
+    public const BC_VOLCANOES = [[0, 7], [12, 1]];
+    private const BC_MADE_CAP = 16;
+    /** Lava-made land for the state being worked on (set by every entry point from $s['made']). */
+    private static array $bcMade = [];
+
+    private static function bcUse(array $s): void
+    {
+        self::$bcMade = array_fill_keys($s['made'] ?? [], true);
+    }
 
     public static function bcSq(int $x, int $y): string
     {
@@ -719,15 +731,21 @@ final class BoardGames
         return ($x === -4 && $y === 8) || ($x === 17 && $y === 1);
     }
 
-    private static function bcLand(int $x, int $y): bool
+    private static function bcTerr(int $x, int $y): string
     {
         $t = self::bcTerrain($x, $y);
+        return $t === 'W' && self::bcIn($x, $y) && isset(self::$bcMade[self::bcSq($x, $y)]) ? 'L' : $t;
+    }
+
+    private static function bcLand(int $x, int $y): bool
+    {
+        $t = self::bcTerr($x, $y);
         return $t === 'L' || $t === 'T';
     }
 
     private static function bcWater(int $x, int $y): bool
     {
-        return self::bcIn($x, $y) && self::bcTerrain($x, $y) === 'W';
+        return self::bcIn($x, $y) && self::bcTerr($x, $y) === 'W';
     }
 
     private static function bcAt(array $s, int $x, int $y): string
@@ -778,7 +796,7 @@ final class BoardGames
             }
             $cells[] = $row;
         }
-        $old = count($cells) === 14;
+        $old = count($rows) === 14;
         foreach ($cells as $r) {
             if (count($r) !== 20) {
                 $old = false;
@@ -800,7 +818,7 @@ final class BoardGames
             }
         }
         $extra = self::bcReadExtra($p[6] ?? null);
-        return ['cells' => $cells, 'turn' => $p[2] === 'b' ? 'b' : 'w', 'ep' => $p[3] === '-' ? null : $p[3], 'half' => (int) $p[4], 'full' => max(1, (int) $p[5]), 'lava' => $extra['lava'], 'storm' => $extra['storm'], 'cargo' => $extra['cargo']];
+        return array_merge(['cells' => $cells, 'turn' => $p[2] === 'b' ? 'b' : 'w', 'ep' => $p[3] === '-' ? null : $p[3], 'half' => (int) $p[4], 'full' => max(1, (int) $p[5])], $extra);
     }
 
     public static function bcString(array $s): string
@@ -815,35 +833,60 @@ final class BoardGames
         return $x === 0 ? 1 : $x;
     }
 
-    /** @return array{lava:array<string,int>,storm:string} */
+    /** Extra field: "storm:lava;cargo;made;inv" (see battlechess.ts readExtra). */
     private static function bcReadExtra(?string $raw): array
     {
         $lava = [];
         $cargo = [];
+        $inv = [];
+        $made = [];
+        $invUsed = '';
         if ($raw === null || $raw === '' || $raw === '-') {
-            return ['lava' => $lava, 'storm' => '', 'cargo' => $cargo];
+            return ['lava' => $lava, 'storm' => '', 'cargo' => $cargo, 'made' => $made, 'inv' => $inv, 'invUsed' => $invUsed];
         }
-        $semi = strpos($raw, ';');
-        if ($semi !== false) {
-            foreach (explode(',', substr($raw, $semi + 1)) as $part) {
-                $bits = explode('=', $part);
-                $sq = $bits[0] ?? '';
-                $pc = $bits[1] ?? '';
-                if ($sq !== '' && preg_match('/^[QRBNPCEAIWUqrbnpceaiwu]$/', $pc)) {
-                    $cargo[$sq] = $pc;
-                }
+        $parts = explode(';', $raw);
+        foreach (explode(',', $parts[1] ?? '') as $part) {
+            $bits = explode('=', $part);
+            $sq = $bits[0] ?? '';
+            $pc = $bits[1] ?? '';
+            if ($sq !== '' && $pc !== '' && self::bcPos($sq) !== null && preg_match('/^[QRBNPCEAIWUqrbnpceaiwu]$/', $pc)) {
+                $cargo[$sq] = $pc;
             }
-            $raw = substr($raw, 0, $semi);
         }
+        foreach (explode(',', $parts[2] ?? '') as $sq) {
+            if ($sq !== '' && self::bcPos($sq) !== null && !in_array($sq, $made, true)) {
+                $made[] = $sq;
+            }
+        }
+        sort($made, SORT_STRING);
+        foreach (explode(',', $parts[3] ?? '') as $part) {
+            if (str_starts_with($part, '!')) {
+                $invUsed = (str_contains($part, 'w') ? 'w' : '') . (str_contains($part, 'b') ? 'b' : '');
+                continue;
+            }
+            $bits = explode('.', $part);
+            $sq = $bits[0] ?? '';
+            $n = (int) ($bits[1] ?? 0);
+            if ($sq !== '' && self::bcPos($sq) !== null && $n > 0) {
+                $inv[$sq] = $n;
+            }
+        }
+        $head = $parts[0];
         $storm = '';
-        $body = $raw;
-        $colon = strpos($raw, ':');
+        $colon = strpos($head, ':');
         if ($colon !== false) {
-            $storm = (string) preg_replace('/[^TV]/', '', substr($raw, 0, $colon));
-            $body = substr($raw, $colon + 1);
+            $st = substr($head, 0, $colon);
+            $storm = (str_contains($st, 'T') ? 'T' : '') . (str_contains($st, 'V') ? 'V' : '');
+            if (preg_match('/t([1-9])/', $st, $mt)) {
+                $storm .= 't' . $mt[1];
+            }
+            if (preg_match('/v([1-9])/', $st, $mv)) {
+                $storm .= 'v' . $mv[1];
+            }
+            $head = substr($head, $colon + 1);
         }
-        if ($body !== '' && $body !== '-') {
-            foreach (explode(',', $body) as $part) {
+        if ($head !== '' && $head !== '-') {
+            foreach (explode(',', $head) as $part) {
                 $bits = explode('.', $part);
                 $ttl = (int) ($bits[1] ?? 0);
                 if (($bits[0] ?? '') !== '' && $ttl > 0) {
@@ -851,21 +894,20 @@ final class BoardGames
                 }
             }
         }
-        return ['lava' => $lava, 'storm' => $storm, 'cargo' => $cargo];
+        return ['lava' => $lava, 'storm' => $storm, 'cargo' => $cargo, 'made' => $made, 'inv' => $inv, 'invUsed' => $invUsed];
     }
 
     private static function bcWriteExtra(array $s): string
     {
-        $lava = $s['lava'] ?? [];
+        $lv = $s['lava'] ?? [];
+        ksort($lv, SORT_STRING);
         $bits = [];
-        ksort($lava);
-        foreach ($lava as $sq => $n) {
+        foreach ($lv as $sq => $n) {
             if ((int) $n > 0) {
                 $bits[] = $sq . '.' . (int) $n;
             }
         }
-        $body = implode(',', $bits);
-        $storm = (string) ($s['storm'] ?? '');
+        $lava = implode(',', $bits);
         $cg = $s['cargo'] ?? [];
         ksort($cg, SORT_STRING);
         $cbits = [];
@@ -873,15 +915,40 @@ final class BoardGames
             $cbits[] = $sq . '=' . $pc;
         }
         $cargo = implode(',', $cbits);
-        if ($storm === '' && $body === '' && $cargo === '') {
+        $md = $s['made'] ?? [];
+        sort($md, SORT_STRING);
+        $made = implode(',', $md);
+        $iv = $s['inv'] ?? [];
+        ksort($iv, SORT_STRING);
+        $ibits = [];
+        foreach ($iv as $sq => $n) {
+            $ibits[] = $sq . '.' . $n;
+        }
+        if (($s['invUsed'] ?? '') !== '') {
+            $ibits[] = '!' . $s['invUsed'];
+        }
+        $inv = implode(',', $ibits);
+        $storm = (string) ($s['storm'] ?? '');
+        if ($storm === '' && $lava === '' && $cargo === '' && $made === '' && $inv === '') {
             return '-';
         }
-        return $storm . ':' . $body . ($cargo !== '' ? ';' . $cargo : '');
+        $tail = [$cargo, $made, $inv];
+        while ($tail && end($tail) === '') {
+            array_pop($tail);
+        }
+        return implode(';', array_merge([$storm . ':' . $lava], $tail));
     }
 
+    /** A pending warning ("v" volcano / "t" tornado): plies left, 0 when none. */
+    public static function bcWarn(string $storm, string $k): int
+    {
+        return preg_match('/' . $k . '([1-9])/', $storm, $m) ? (int) $m[1] : 0;
+    }
+
+    /** v3 §6: lava is ordinary land as soon as it lands. */
     private static function bcHot(array $s, int $x, int $y): bool
     {
-        return (int) (($s['lava'][self::bcSq($x, $y)] ?? 0)) > 0;
+        return false;
     }
 
     /** @return array{0:int,1:int}|null */
@@ -900,7 +967,7 @@ final class BoardGames
     private static function bcCannon(array $s, int $x, int $y, string $by, array &$out): void
     {
         foreach (self::BC_ORTH as [$dx, $dy]) {
-            if (!self::bcLand($x + $dx, $y + $dy) && self::bcTerrain($x + $dx, $y + $dy) !== 'M') {
+            if (!self::bcLand($x + $dx, $y + $dy) && self::bcTerr($x + $dx, $y + $dy) !== 'M') {
                 continue;
             }
             for ($k = 1; $k <= 3; $k++) {
@@ -926,6 +993,7 @@ final class BoardGames
 
     public static function bcAttacked(array $s, int $x, int $y, string $by): bool
     {
+        self::bcUse($s);
         for ($yy = self::BC_Y0; $yy <= self::BC_Y1; $yy++) {
             for ($xx = self::BC_X0; $xx <= self::BC_X1; $xx++) {
                 $p = self::bcAt($s, $xx, $yy);
@@ -947,34 +1015,19 @@ final class BoardGames
                         return true;
                     }
                 } elseif ($k === 'E') {
-                    if (($ax === 1 && $ay === 2) || ($ax === 2 && $ay === 1) || ($ax === 3 && $dy === 0) || ($dx === 0 && $ay === 3)) {
+                    if (($ax === 1 && $ay === 2) || ($ax === 2 && $ay === 1)) {
                         return true;
                     }
-                } elseif ($k === 'K' || $k === 'W') {
+                    if (($ax === 3 && $dy === 0) || ($dx === 0 && $ay === 3)) {
+                        return true;
+                    }
+                } elseif ($k === 'K') {
                     if (max($ax, $ay) === 1 && self::bcLand($x, $y)) {
                         return true;
                     }
-                } elseif ($k === 'I') {
-                    $reach = max($ax, $ay);
-                    $orth = $dx === 0 || $dy === 0;
-                    $diag = $ax === $ay;
-                    if ($reach >= 1 && $reach <= 4 && ($orth || $diag) && (self::bcLand($x, $y) || self::bcKind(self::bcAt($s, $x, $y)) === 'F')) {
-                        $sx = $dx <=> 0;
-                        $sy = $dy <=> 0;
-                        $ok = true;
-                        for ($i = 1; $i < $reach; $i++) {
-                            if (self::bcTerrain($xx + $sx * $i, $yy + $sy * $i) !== 'L' || self::bcAt($s, $xx + $sx * $i, $yy + $sy * $i) !== '.') {
-                                $ok = false;
-                                break;
-                            }
-                        }
-                        if ($ok) {
-                            return true;
-                        }
-                    }
                 } elseif ($k === 'C') {
                     if (($ax === 2 || $dx === 0) && ($ay === 2 || $dy === 0) && ($dx !== 0 || $dy !== 0)) {
-                        $t = self::bcTerrain($xx + intdiv($dx, 2), $yy + intdiv($dy, 2));
+                        $t = self::bcTerr($xx + intdiv($dx, 2), $yy + intdiv($dy, 2));
                         if ($t !== 'M' && $t !== 'T') {
                             return true;
                         }
@@ -984,9 +1037,10 @@ final class BoardGames
                         $sx = $dx <=> 0;
                         $sy = $dy <=> 0;
                         $ok = true;
-                        $hop = false; // part 4: it may pass one piece only, a pawn of its own colour
+                        $hop = false;
                         for ($i = 1; $i < $ax; $i++) {
-                            if (self::bcTerrain($xx + $sx * $i, $yy + $sy * $i) !== 'L') {
+                            $t = self::bcTerr($xx + $sx * $i, $yy + $sy * $i);
+                            if ($t !== 'L') {
                                 $ok = false;
                                 break;
                             }
@@ -1034,7 +1088,7 @@ final class BoardGames
                     $cy = $yy + $sy;
                     $ok = true;
                     while ($cx !== $x || $cy !== $y) {
-                        if (self::bcTerrain($cx, $cy) !== 'L' || self::bcAt($s, $cx, $cy) !== '.') {
+                        if (self::bcTerr($cx, $cy) !== 'L' || self::bcAt($s, $cx, $cy) !== '.') {
                             $ok = false;
                             break;
                         }
@@ -1054,8 +1108,8 @@ final class BoardGames
     private static function bcKing(array $s, string $c): ?array
     {
         $want = $c === 'w' ? 'K' : 'k';
-        for ($y = 1; $y <= 8; $y++) {
-            for ($x = 0; $x <= 13; $x++) {
+        for ($y = self::BC_Y0; $y <= self::BC_Y1; $y++) {
+            for ($x = self::BC_X0; $x <= self::BC_X1; $x++) {
                 if (self::bcAt($s, $x, $y) === $want) {
                     return [$x, $y];
                 }
@@ -1072,6 +1126,7 @@ final class BoardGames
 
     private static function bcPseudo(array $s): array
     {
+        self::bcUse($s);
         $out = [];
         $me = $s['turn'];
         $add = static function (int $fx, int $fy, int $tx, int $ty, array $extra = []) use (&$out, $s): void {
@@ -1079,7 +1134,7 @@ final class BoardGames
             $chest = $p === 'H';
             $out[] = array_merge(['from' => self::bcSq($fx, $fy), 'to' => self::bcSq($tx, $ty), 'capture' => $p !== '.' && $p !== '#' && !$chest, 'chest' => $chest], $extra);
         };
-        $landOk = static fn (int $x, int $y): bool => self::bcLand($x, $y) && !self::bcHot($s, $x, $y) && self::bcColor(self::bcAt($s, $x, $y)) !== $me;
+        $landOk = static fn (int $x, int $y): bool => self::bcLand($x, $y) && self::bcColor(self::bcAt($s, $x, $y)) !== $me;
         $kings = array_merge(self::BC_ORTH, self::BC_DIAG);
         for ($y = self::BC_Y0; $y <= self::BC_Y1; $y++) {
             for ($x = self::BC_X0; $x <= self::BC_X1; $x++) {
@@ -1102,9 +1157,9 @@ final class BoardGames
                         }
                     };
                     $ahead = self::bcAt($s, $x, $y + $fwd);
-                    if (self::bcLand($x, $y + $fwd) && !self::bcHot($s, $x, $y + $fwd) && ($ahead === '.' || $ahead === 'H')) {
+                    if (self::bcLand($x, $y + $fwd) && ($ahead === '.' || $ahead === 'H')) {
                         $promo($y + $fwd, [], $x);
-                        if ($y === $start && self::bcLand($x, $y + 2 * $fwd) && !self::bcHot($s, $x, $y + 2 * $fwd) && self::bcAt($s, $x, $y + 2 * $fwd) === '.') {
+                        if ($y === $start && self::bcLand($x, $y + 2 * $fwd) && self::bcAt($s, $x, $y + 2 * $fwd) === '.') {
                             $add($x, $y, $x, $y + 2 * $fwd, ['double' => true]);
                         }
                     }
@@ -1112,7 +1167,7 @@ final class BoardGames
                         $tx = $x + $dx;
                         $ty = $y + $fwd;
                         $q = self::bcAt($s, $tx, $ty);
-                        if (self::bcLand($tx, $ty) && !self::bcHot($s, $tx, $ty) && $q !== '.' && $q !== 'H' && self::bcColor($q) !== $me && self::bcKind($q) !== 'F') {
+                        if (self::bcLand($tx, $ty) && $q !== '.' && $q !== 'H' && self::bcColor($q) !== $me && self::bcKind($q) !== 'F') {
                             $promo($ty, [], $tx);
                         } elseif ($s['ep'] !== null && $s['ep'] === self::bcSq($tx, $ty)) {
                             $add($x, $y, $tx, $ty, ['capture' => true, 'ep' => true]);
@@ -1133,7 +1188,8 @@ final class BoardGames
                     }
                 } elseif ($k === 'C') {
                     foreach ($kings as [$dx, $dy]) {
-                        if (self::bcLand($x + $dx, $y + $dy) && !self::bcHot($s, $x + $dx, $y + $dy) && (self::bcAt($s, $x + $dx, $y + $dy) === '.' || self::bcAt($s, $x + $dx, $y + $dy) === 'H')) {
+                        $q = self::bcAt($s, $x + $dx, $y + $dy);
+                        if (self::bcLand($x + $dx, $y + $dy) && ($q === '.' || $q === 'H')) {
                             $add($x, $y, $x + $dx, $y + $dy);
                         }
                     }
@@ -1143,7 +1199,7 @@ final class BoardGames
                         if (!self::bcIn($tx, $ty)) {
                             continue;
                         }
-                        $mid = self::bcTerrain($x + intdiv($dx, 2), $y + intdiv($dy, 2));
+                        $mid = self::bcTerr($x + intdiv($dx, 2), $y + intdiv($dy, 2));
                         if ($mid === 'M' || $mid === 'T') {
                             continue;
                         }
@@ -1158,8 +1214,8 @@ final class BoardGames
                         $ty = $y + $dy;
                         $hop = false;
                         while (true) {
-                            $t = self::bcTerrain($tx, $ty);
-                            if ($t === 'W' || $t === 'M' || self::bcHot($s, $tx, $ty)) {
+                            $t = self::bcTerr($tx, $ty);
+                            if ($t === 'W' || $t === 'M') {
                                 break;
                             }
                             $q = self::bcAt($s, $tx, $ty);
@@ -1173,7 +1229,7 @@ final class BoardGames
                                 $add($x, $y, $tx, $ty);
                                 break;
                             } elseif (!$hop && self::bcKind($q) === 'P') {
-                                $hop = true; // jump one pawn of its own colour
+                                $hop = true;
                             } else {
                                 break;
                             }
@@ -1190,8 +1246,8 @@ final class BoardGames
                         $tx = $x + $dx;
                         $ty = $y + $dy;
                         while (true) {
-                            $t = self::bcTerrain($tx, $ty);
-                            if ($t === 'M' || self::bcHot($s, $tx, $ty)) {
+                            $t = self::bcTerr($tx, $ty);
+                            if ($t === 'M') {
                                 break;
                             }
                             if ($t === 'W') {
@@ -1231,11 +1287,6 @@ final class BoardGames
                     }
                 } elseif ($k === 'I' || $k === 'U' || $k === 'W') {
                     if ($k === 'I' && !self::bcLand($x, $y)) {
-                        foreach ($kings as [$dx, $dy]) {
-                            if ($landOk($x + $dx, $y + $dy)) {
-                                $add($x, $y, $x + $dx, $y + $dy);
-                            }
-                        }
                         foreach (self::BC_ORTH as [$dx, $dy]) {
                             $tx = $x + $dx;
                             $ty = $y + $dy;
@@ -1257,7 +1308,7 @@ final class BoardGames
                             }
                         }
                     } else {
-                        $reach = $k === 'U' ? 5 : ($k === 'W' ? 1 : 4);
+                        $reach = $k === 'U' ? 5 : ($k === 'W' ? 2 : 4);
                         foreach ($kings as [$dx, $dy]) {
                             for ($step = 1; $step <= $reach; $step++) {
                                 $tx = $x + $dx * $step;
@@ -1265,8 +1316,8 @@ final class BoardGames
                                 if (!self::bcIn($tx, $ty)) {
                                     break;
                                 }
-                                $t = self::bcTerrain($tx, $ty);
-                                if ($t === 'M' || self::bcHot($s, $tx, $ty)) {
+                                $t = self::bcTerr($tx, $ty);
+                                if ($t === 'M') {
                                     break;
                                 }
                                 $q = self::bcAt($s, $tx, $ty);
@@ -1276,7 +1327,7 @@ final class BoardGames
                                     }
                                     break;
                                 }
-                                if ($k === 'U') {
+                                if ($k === 'U' || $k === 'W') {
                                     if ($q !== '.') {
                                         break;
                                     }
@@ -1303,11 +1354,14 @@ final class BoardGames
                             for ($dy = -3; $dy <= 3; $dy++) {
                                 for ($dx = -3; $dx <= 3; $dx++) {
                                     $rad = max(abs($dx), abs($dy));
-                                    if ($rad < 1 || $rad > 3) { // part 4: only within three squares
+                                    if ($rad < 1 || $rad > 3) {
                                         continue;
                                     }
                                     $q = self::bcAt($s, $x + $dx, $y + $dy);
-                                    if (self::bcColor($q) === null || self::bcColor($q) === $me || self::bcKind($q) === 'K' || self::bcKind($q) === 'F' || self::bcKind($q) === 'S') {
+                                    if (self::bcColor($q) === null || self::bcColor($q) === $me) {
+                                        continue;
+                                    }
+                                    if (self::bcKind($q) === 'K' || in_array(self::bcKind($q), self::BC_SHIPS, true)) {
                                         continue;
                                     }
                                     $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($x + $dx, $y + $dy), 'capture' => false, 'charm' => true];
@@ -1325,16 +1379,15 @@ final class BoardGames
                             $ty += $dy;
                         }
                     }
-                    $rider = $s['cargo'][self::bcSq($x, $y)] ?? null;
-                    if ($rider !== null) {
+                    if (isset($s['cargo'][self::bcSq($x, $y)])) {
                         foreach ($kings as [$dx, $dy]) {
                             $tx = $x + $dx;
                             $ty = $y + $dy;
-                            if (!$landOk($tx, $ty)) {
+                            $q = self::bcAt($s, $tx, $ty);
+                            if (!self::bcLand($tx, $ty) || ($q !== '.' && $q !== 'H')) {
                                 continue;
                             }
-                            $q = self::bcAt($s, $tx, $ty);
-                            $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($tx, $ty), 'capture' => $q !== '.' && $q !== 'H', 'chest' => $q === 'H', 'disembark' => true];
+                            $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($tx, $ty), 'capture' => false, 'chest' => $q === 'H', 'disembark' => true];
                         }
                     }
                 } elseif ($k === 'F') {
@@ -1372,6 +1425,16 @@ final class BoardGames
                             }
                         }
                     }
+                    if (isset($s['cargo'][self::bcSq($x, $y)])) {
+                        foreach ($kings as [$dx, $dy]) {
+                            $tx = $x + $dx;
+                            $ty = $y + $dy;
+                            $q = self::bcAt($s, $tx, $ty);
+                            if (self::bcLand($tx, $ty) && ($q === '.' || $q === 'H')) {
+                                $out[] = ['from' => self::bcSq($x, $y), 'to' => self::bcSq($tx, $ty), 'capture' => false, 'chest' => $q === 'H', 'disembark' => true];
+                            }
+                        }
+                    }
                     $tg = [];
                     self::bcCannon($s, $x, $y, $me, $tg);
                     foreach ($tg as [$tx, $ty]) {
@@ -1380,11 +1443,21 @@ final class BoardGames
                 }
             }
         }
-        $boat = $me === 'w' ? 'S' : 's';
+        // boarding: a land piece (not the king) beside its own empty boat or frigate may climb aboard
         for ($y = self::BC_Y0; $y <= self::BC_Y1; $y++) {
             for ($x = self::BC_X0; $x <= self::BC_X1; $x++) {
-                if (self::bcAt($s, $x, $y) !== $boat || isset($s['cargo'][self::bcSq($x, $y)])) {
+                $ship = self::bcAt($s, $x, $y);
+                if ($ship !== ($me === 'w' ? 'S' : 's') && $ship !== ($me === 'w' ? 'F' : 'f')) {
                     continue;
+                }
+                if (isset($s['cargo'][self::bcSq($x, $y)])) {
+                    continue;
+                }
+                if (strtoupper($ship) === 'F') {
+                    $mate = self::bcMate($s, $x, $y);
+                    if ($mate !== null && isset($s['cargo'][self::bcSq($mate[0], $mate[1])])) {
+                        continue;
+                    }
                 }
                 foreach ($kings as [$dx, $dy]) {
                     $q = self::bcAt($s, $x + $dx, $y + $dy);
@@ -1395,15 +1468,37 @@ final class BoardGames
                 }
             }
         }
-        return $out;
+        // v3 §7.4: each side opens only its own chest; Part 4: an invisible assassin can't be hit
+        $res = [];
+        foreach ($out as $m) {
+            if (!empty($m['chest'])) {
+                [$tx, $ty] = self::bcPos($m['to']);
+                $own = null;
+                foreach (self::BC_CHESTS as [$cx, $cy, $co]) {
+                    if ($cx === $tx && $cy === $ty) {
+                        $own = $co;
+                    }
+                }
+                if ($own !== $me) {
+                    continue;
+                }
+            }
+            if ((!empty($m['capture']) || !empty($m['charm'])) && !empty($s['inv'][$m['to']])) {
+                [$tx, $ty] = self::bcPos($m['to']);
+                $q = self::bcAt($s, $tx, $ty);
+                if (self::bcKind($q) === 'A' && self::bcColor($q) !== $me) {
+                    continue;
+                }
+            }
+            $res[] = $m;
+        }
+        return $res;
     }
 
     public static function bcApply(array $s, array $m): array
     {
-        $c = [];
-        foreach ($s['cells'] as $row) {
-            $c[] = $row;
-        }
+        self::bcUse($s);
+        $c = $s['cells'];
         [$fx, $fy] = self::bcPos($m['from']);
         [$tx, $ty] = self::bcPos($m['to']);
         $p = self::bcAt($s, $fx, $fy);
@@ -1416,16 +1511,16 @@ final class BoardGames
                 self::bcPut($c, $mate[0], $mate[1], '.');
             }
         };
-        $cargo = $s['cargo'] ?? [];
+        $cargo = $s['cargo'];
         if (!empty($m['embark'])) {
             self::bcPut($c, $fx, $fy, '.');
             $cargo[$m['to']] = $p;
         } elseif (!empty($m['disembark'])) {
-            $rider = (string) ($cargo[$m['from']] ?? '');
+            $rider = $cargo[$m['from']];
             unset($cargo[$m['from']]);
             self::bcPut($c, $tx, $ty, $rider);
-            if ($target === 'H' && self::bcColor($rider) !== null) {
-                self::bcSpawn($c, self::bcColor($rider), self::bcNext($s['full'] * 100 + $fx * 17 + $fy));
+            if ($target === 'H') {
+                self::bcSpawnMage($c, (string) self::bcColor($rider), $tx, $ty);
             }
         } elseif (!empty($m['charm'])) {
             self::bcPut($c, $tx, $ty, $target === strtoupper($target) ? strtolower($target) : strtoupper($target));
@@ -1455,6 +1550,17 @@ final class BoardGames
             foreach ($cells as [$x, $y]) {
                 self::bcPut($c, $x + $dx, $y + $dy, $p);
             }
+            $moved = [];
+            foreach ($cells as [$x, $y]) {
+                $sq = self::bcSq($x, $y);
+                if (isset($cargo[$sq])) {
+                    $moved[self::bcSq($x + $dx, $y + $dy)] = $cargo[$sq];
+                    unset($cargo[$sq]);
+                }
+            }
+            foreach ($moved as $sq => $r) {
+                $cargo[$sq] = $r;
+            }
         } else {
             self::bcPut($c, $fx, $fy, '.');
             $np = $p;
@@ -1466,7 +1572,7 @@ final class BoardGames
                 self::bcPut($c, $tx, $fy, '.');
             }
             if ($target === 'H' && self::bcColor($p) !== null) {
-                self::bcSpawn($c, self::bcColor($p), self::bcNext($s['full'] * 100 + $fx * 17 + $fy));
+                self::bcSpawnMage($c, (string) self::bcColor($p), $tx, $ty);
             }
             if (self::bcKind($p) === 'S' && isset($cargo[$m['from']])) {
                 $cargo[$m['to']] = $cargo[$m['from']];
@@ -1475,18 +1581,45 @@ final class BoardGames
         }
         foreach (array_keys($cargo) as $sq) {
             $at2 = self::bcPos((string) $sq);
-            if ($at2 === null || self::bcKind(self::bcCell($c, $at2[0], $at2[1])) !== 'S') {
+            $k2 = $at2 !== null ? self::bcKind(self::bcCell($c, $at2[0], $at2[1])) : '';
+            if ($k2 !== 'S' && $k2 !== 'F') {
                 unset($cargo[$sq]);
             }
         }
-        $lava = [];
-        foreach (($s['lava'] ?? []) as $sq => $n) {
-            if ((int) $n > 1) {
-                $lava[$sq] = (int) $n - 1;
+        // Part 4 assassin: invisible for its owner's next two moves after a capture (once a game)
+        $me = $s['turn'];
+        $inv = [];
+        $invUsed = (string) $s['invUsed'];
+        foreach ($s['inv'] as $sq => $n) {
+            $sq = (string) $sq;
+            $key = $sq === $m['from'] && empty($m['shot']) && empty($m['charm']) && empty($m['embark']) ? $m['to'] : $sq;
+            $ip = self::bcPos($sq);
+            $left = self::bcColor(self::bcAt($s, $ip[0], $ip[1])) === $me ? $n - 1 : $n;
+            if ($left > 0) {
+                $inv[$key] = $left;
             }
         }
-        $storm = self::bcRage($c, $lava, (int) $s['full']);
-        $pawnOrCap = self::bcKind($p) === 'P' || !empty($m['capture']) || !empty($m['chest']) || $storm !== '';
+        if (self::bcKind($p) === 'A' && !empty($m['capture']) && empty($m['shot']) && !str_contains($invUsed, $me)) {
+            $inv[$m['to']] = 2;
+            $invUsed = $me === 'w' ? 'w' . $invUsed : $invUsed . 'b';
+        }
+        $lava = [];
+        foreach ($s['lava'] as $sq => $n) {
+            if ($n > 1) {
+                $lava[(string) $sq] = $n - 1;
+            }
+        }
+        $made = array_fill_keys($s['made'], true);
+        $storm = self::bcRage($c, $lava, $made, $s['full'], (string) $s['storm']);
+        foreach (array_keys($inv) as $sq) {
+            $q = self::bcPos((string) $sq);
+            if ($q === null || self::bcKind(self::bcCell($c, $q[0], $q[1])) !== 'A') {
+                unset($inv[$sq]);
+            }
+        }
+        $pawnOrCap = self::bcKind($p) === 'P' || !empty($m['capture']) || !empty($m['chest']) || preg_match('/[TV]/', $storm) === 1;
+        $madeList = array_map('strval', array_keys($made));
+        sort($madeList, SORT_STRING);
         return [
             'cells' => $c,
             'turn' => $s['turn'] === 'w' ? 'b' : 'w',
@@ -1496,6 +1629,9 @@ final class BoardGames
             'lava' => $lava,
             'storm' => $storm,
             'cargo' => $cargo,
+            'made' => $madeList,
+            'inv' => $inv,
+            'invUsed' => $invUsed,
         ];
     }
 
@@ -1504,8 +1640,8 @@ final class BoardGames
         return self::bcIn($x, $y) ? $c[self::BC_Y1 - $y][$x - self::BC_X0] : '#';
     }
 
-    /** Tornado and volcano. Keep the rolls identical to rage() in battlechess.ts. */
-    private static function bcRage(array &$c, array &$lava, int $full): string
+    /** Events (v3 §8): warn first ("t4"/"v4" plies), then strike ("T"/"V"). Same rolls as battlechess.ts rage. */
+    private static function bcRage(array &$c, array &$lava, array &$made, int $full, string $prev): string
     {
         $seed = ($full * 997 + 13) % 2147483647 ?: 1;
         foreach ($c as $row) {
@@ -1513,10 +1649,16 @@ final class BoardGames
                 $seed = self::bcNext($seed + ord($ch));
             }
         }
-        $storm = '';
+        $act = '';
+        $warn = '';
+        $tw = self::bcWarn($prev, 't');
+        $vw = self::bcWarn($prev, 'v');
+        $all8 = array_merge(self::BC_ORTH, self::BC_DIAG);
         $seed = self::bcNext($seed);
-            if ($seed % 100 < 18) {
-            $storm .= 'T';
+        if ($tw > 1) {
+            $warn .= 't' . ($tw - 1);
+        } elseif ($tw === 1) {
+            $act .= 'T';
             $pcs = [];
             for ($y = 1; $y <= 8; $y++) {
                 for ($x = 0; $x <= 13; $x++) {
@@ -1531,8 +1673,7 @@ final class BoardGames
                 $seed = self::bcNext($seed);
                 [$cx, $cy] = $pcs[$seed % count($pcs)];
                 $seed = self::bcNext($seed);
-                $dirs = array_merge(self::BC_ORTH, self::BC_DIAG);
-                [$dx, $dy] = $dirs[$seed % 8];
+                [$dx, $dy] = $all8[$seed % 8];
                 $seed = self::bcNext($seed);
                 $who = self::bcCell($c, $cx, $cy);
                 for ($i = 0, $dist = 1 + ($seed % 3); $i < $dist; $i++) {
@@ -1541,7 +1682,7 @@ final class BoardGames
                     if (!self::bcIn($nx, $ny)) {
                         break;
                     }
-                    $t = self::bcTerrain($nx, $ny);
+                    $t = self::bcTerr($nx, $ny);
                     if ($t === 'W') {
                         self::bcPut($c, $cx, $cy, '.');
                         break;
@@ -1560,67 +1701,75 @@ final class BoardGames
             }
         }
         $seed = self::bcNext($seed);
-        if ($seed % 100 < 12) {
-            $storm .= 'V';
-            $seed = self::bcNext($seed);
-            $mountains = [[[0, 7], [1, 7], [0, 8], [1, 8]], [[12, 1], [13, 1], [12, 2], [13, 2]]];
-            $mount = $mountains[$seed % 2];
-            foreach ($mount as [$mx, $my]) {
-                if (self::bcKind(self::bcCell($c, $mx, $my)) === 'E') {
-                    self::bcPut($c, $mx, $my, '.');
-                }
-            }
-            // part 4: the volcano only reaches three squares from its centre
-            $neighbors = [];
-            [$ox, $oy] = $mount[0];
-            for ($ny = $oy - 3; $ny <= $oy + 4; $ny++) {
-                for ($nx = $ox - 3; $nx <= $ox + 4; $nx++) {
-                    if (!self::bcLand($nx, $ny)) {
-                        continue;
+        if ($vw > 1) {
+            $warn .= 'v' . ($vw - 1);
+        } elseif ($vw === 1) {
+            $act .= 'V';
+            foreach (self::BC_VOLCANOES as [$ox, $oy]) {
+                for ($my = $oy; $my <= $oy + 1; $my++) {
+                    for ($mx = $ox; $mx <= $ox + 1; $mx++) {
+                        if (self::bcKind(self::bcCell($c, $mx, $my)) === 'E') {
+                            self::bcPut($c, $mx, $my, '.');
+                        }
                     }
-                    if (max(abs($nx * 2 - ($ox * 2 + 1)), abs($ny * 2 - ($oy * 2 + 1))) > 6) {
-                        continue;
-                    }
-                    $neighbors[] = [$nx, $ny];
                 }
-            }
-            $seed = self::bcNext($seed);
-            $hits = $neighbors ? 1 + ($seed % min(3, count($neighbors))) : 0;
-            for ($i = 0; $i < $hits; $i++) {
+                $spots = [];
+                for ($ny = $oy - 3; $ny <= $oy + 4; $ny++) {
+                    for ($nx = $ox - 3; $nx <= $ox + 4; $nx++) {
+                        if (!self::bcIn($nx, $ny)) {
+                            continue;
+                        }
+                        if (max(abs($nx * 2 - ($ox * 2 + 1)), abs($ny * 2 - ($oy * 2 + 1))) > 6) {
+                            continue;
+                        }
+                        $t = self::bcTerr($nx, $ny);
+                        $q = self::bcCell($c, $nx, $ny);
+                        if ($t === 'M' || $t === 'T' || $q === 'H' || self::bcKind($q) === 'K') {
+                            continue;
+                        }
+                        if ($t === 'W' && $q !== '.') {
+                            continue;
+                        }
+                        $spots[] = [$nx, $ny];
+                    }
+                }
                 $seed = self::bcNext($seed);
-                $idx = $seed % count($neighbors);
-                [$nx, $ny] = $neighbors[$idx];
-                array_splice($neighbors, $idx, 1);
-                self::bcPut($c, $nx, $ny, '.');
-                $lava[self::bcSq($nx, $ny)] = 3;
+                $hits = min(count($spots), 2 + ($seed % 3));
+                for ($i = 0; $i < $hits; $i++) {
+                    $seed = self::bcNext($seed);
+                    $idx = $seed % count($spots);
+                    [$nx, $ny] = $spots[$idx];
+                    array_splice($spots, $idx, 1);
+                    $sq = self::bcSq($nx, $ny);
+                    if (self::bcTerr($nx, $ny) === 'W') {
+                        if (count($made) >= self::BC_MADE_CAP) {
+                            continue;
+                        }
+                        $made[$sq] = true;
+                        self::$bcMade[$sq] = true;
+                    } else {
+                        self::bcPut($c, $nx, $ny, '.');
+                    }
+                    $lava[$sq] = 3;
+                }
             }
+        } elseif ($seed % 100 < 8 && $tw === 0 && $warn === '') {
+            $warn .= 'v4';
         }
-        return $storm;
+        return $act . $warn;
     }
 
-    private static function bcSpawn(array &$c, string $me, int $seed): void
+    /** v3 §7.4: the chest becomes a Mage of the opener's colour, beside it on the island. */
+    private static function bcSpawnMage(array &$c, string $me, int $cx, int $cy): void
     {
-        $pool = ['Q', 'R', 'N', 'C', 'E', 'A', 'I', 'W', 'U'];
-        $spots = [];
-        for ($y = 1; $y <= 8; $y++) {
-            for ($x = 0; $x <= 13; $x++) {
-                if (!self::bcLand($x, $y) || self::bcCell($c, $x, $y) !== '.') {
-                    continue;
-                }
-                if ($me === 'w' ? $y < 5 : $y > 4) {
-                    continue;
-                }
-                $spots[] = [$x, $y];
+        foreach (array_merge(self::BC_ORTH, self::BC_DIAG) as [$dx, $dy]) {
+            $x = $cx + $dx;
+            $y = $cy + $dy;
+            if (self::bcLand($x, $y) && self::bcCell($c, $x, $y) === '.') {
+                self::bcPut($c, $x, $y, $me === 'w' ? 'W' : 'w');
+                return;
             }
         }
-        if (!$spots) {
-            return;
-        }
-        $seed = self::bcNext($seed);
-        [$x, $y] = $spots[$seed % count($spots)];
-        $seed = self::bcNext($seed);
-        $troop = $pool[$seed % count($pool)];
-        self::bcPut($c, $x, $y, $me === 'w' ? $troop : strtolower($troop));
     }
 
     public static function bcLegal(array $s): array
@@ -1700,7 +1849,7 @@ final class BoardGames
                 if ($k === 'N' || $k === 'B' || $k === 'E' || $k === 'A') {
                     $v += 12 - abs(6.5 - $x) * 2 - abs(4.5 - $y) * 2;
                 }
-                $rider = $k === 'S' ? ($s['cargo'][self::bcSq($x, $y)] ?? null) : null;
+                $rider = $k === 'S' || $k === 'F' ? ($s['cargo'][self::bcSq($x, $y)] ?? null) : null;
                 if ($rider !== null) {
                     $v += self::BC_VAL[self::bcKind($rider)] ?? 0;
                 }

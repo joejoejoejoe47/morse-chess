@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BC_STD, BcBush, BcHill, BcMountain, BcPlumes, BcShip, BcSpecial, bcLavaTex, bcPieceUrl, bcTex } from "@/components/games/bc-art";
-import { BC_H, BC_W, BC_X0, BC_X1, BC_Y0, BC_Y1, bcColor, bcHill, bcParse, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
+import { BC_H, BC_W, BC_X0, BC_X1, BC_Y0, BC_Y1, bcColor, bcHill, bcKingSq, bcParse, bcPos, bcSplash, bcSq, bcStatus, bcTerrain, bcWarnTurns } from "@/lib/boardgames/battlechess";
 
 type Props = {
   fen: string;
@@ -22,7 +22,7 @@ type Props = {
   checkSq?: string | null;
 };
 
-export type BcPiece = { id: string; p: string; c: "w" | "b"; kind: string; x: number; y: number; sq: string; w?: number; h?: number; rider?: string };
+export type BcPiece = { id: string; p: string; c: "w" | "b"; kind: string; x: number; y: number; sq: string; w?: number; h?: number; rider?: string; inv?: boolean };
 
 /** Pieces with stable ids (a move keeps its id so it glides; a frigate is one piece over two cells). */
 export function useBcPieces(fen: string, lastMove: { from: string; to: string } | null) {
@@ -42,11 +42,12 @@ export function useBcPieces(fen: string, lastMove: { from: string; to: string } 
           ships[p].ys.push(y);
           continue;
         }
-        out.push({ id: "", p, c: bcColor(p)!, kind: p.toUpperCase(), x, y, sq: bcSq(x, y), rider: s.cargo[bcSq(x, y)] });
+        out.push({ id: "", p, c: bcColor(p)!, kind: p.toUpperCase(), x, y, sq: bcSq(x, y), rider: s.cargo[bcSq(x, y)], inv: !!s.inv[bcSq(x, y)] });
       }
     for (const [p, v] of Object.entries(ships)) {
       const x = Math.min(...v.xs), y = Math.min(...v.ys);
-      out.push({ id: `ship-${p}`, p, c: bcColor(p)!, kind: "F", x, y, sq: bcSq(x, y), w: Math.max(...v.xs) - x + 1, h: Math.max(...v.ys) - y + 1 });
+      const rider = v.xs.map((fx, i) => s.cargo[bcSq(fx, v.ys[i])]).find(Boolean);
+      out.push({ id: `ship-${p}`, p, c: bcColor(p)!, kind: "F", x, y, sq: bcSq(x, y), w: Math.max(...v.xs) - x + 1, h: Math.max(...v.ys) - y + 1, rider });
     }
     const cur = ref.current;
     const prev = cur.ids;
@@ -68,13 +69,18 @@ function view(you: "w" | "b") {
   return (x: number, y: number): [number, number] => (you === "w" ? [BC_X1 - x, y - BC_Y0] : [x - BC_X0, BC_Y1 - y]);
 }
 
-export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate", I: "Pirate", W: "Wizard", U: "Boots", H: "Chest", S: "Boat" };
+export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate", I: "Pirate", W: "Mage", U: "Boots", H: "Chest", S: "Boat" };
 
 export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMove, legalFor, checkSq }: Props) {
   const [sel, setSel] = useState<string | null>(null);
   const pieces = useBcPieces(fen, lastMove);
   const v = useMemo(() => view(you), [you]);
   const targets = useMemo(() => (sel && legalFor ? legalFor(sel) : []), [sel, legalFor]);
+  const cargoName = useMemo(() => {
+    const st = sel ? bcParse(fen) : null;
+    const rider = st && sel ? st.cargo[sel] : undefined;
+    return rider ? `THE ${(BC_NAME[rider.toUpperCase()] ?? "").toUpperCase()}` : null;
+  }, [sel, fen]);
   useEffect(() => setSel(null), [fen]);
   const state = useMemo(() => bcParse(fen), [fen]);
   const ownAt = (sq: string) => {
@@ -96,10 +102,23 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
       setSel(null);
       return;
     }
-    setSel(ownAt(sq) && sq !== sel ? sq : null);
+    // a frigate is selected on the cell its passenger rides, so the drop squares show
+    let pick = sq;
+    const p = bcPos(sq);
+    if (p && state && !state.cargo[sq] && state.cells[BC_Y1 - p[1]][p[0] - BC_X0].toUpperCase() === "F") {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const o = bcSq(p[0] + dx, p[1] + dy);
+        if (state.cargo[o]) pick = o;
+      }
+    }
+    setSel(ownAt(sq) && sq !== sel && pick !== sel ? pick : null);
   }
 
   // terrain layers
+  const made = new Set(state?.made ?? []);
+  const vw = state ? bcWarnTurns(state.storm, "v") : 0;
+  const tw = state ? bcWarnTurns(state.storm, "t") : 0;
+  const status = state ? bcStatus(state) : null;
   const cells: React.ReactNode[] = [];
   const shadows: React.ReactNode[] = [];
   const landCells: React.ReactNode[] = [];
@@ -110,8 +129,14 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
       const dark = (x + y) % 2 === 0;
       const n = (x * 7 + y * 13 + ((x * y) & 5)) & 3;
       const tex = t === "W" ? (dark ? "sea-d" : "sea-l") : dark ? "land-d" : "land-l";
-      (t === "W" ? cells : landCells).push(<image key={`t${x},${y}`} href={bcTex(tex, n)} x={c - 0.004} y={r - 0.004} width={1.008} height={1.008} preserveAspectRatio="none" />);
+      cells.push(t === "W" ? <image key={`t${x},${y}`} href={bcTex(tex, n)} x={c - 0.004} y={r - 0.004} width={1.008} height={1.008} preserveAspectRatio="none" /> : null);
+      if (t !== "W") landCells.push(<image key={`t${x},${y}`} href={bcTex(tex, n)} x={c - 0.004} y={r - 0.004} width={1.008} height={1.008} preserveAspectRatio="none" />);
       if (t !== "W") shadows.push(<rect key={`s${x},${y}`} x={c + 0.06} y={r + 0.1} width={1} height={1} />);
+      // v3 §8.1: lava that hit the sea cooled into orange land
+      if (t === "W" && made.has(bcSq(x, y))) {
+        landCells.push(<image key={`mk${x},${y}`} href={bcLavaTex((x * 5 + y * 3) & 3)} x={c} y={r} width={1} height={1} preserveAspectRatio="none" data-bc-made={bcSq(x, y)} />);
+        shadows.push(<rect key={`ms${x},${y}`} x={c + 0.06} y={r + 0.1} width={1} height={1} />);
+      }
     }
   // open sea beyond the grid so the water reaches the screen edge
   const far: React.ReactNode[] = [];
@@ -261,6 +286,15 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
             })
           : null}
         {plumes}
+        {/* v3 §8.1: the pink splash zone while the volcanoes count down */}
+        {vw > 0 ? (
+          <g className="bc2-splash" pointerEvents="none" data-bc-splash={vw}>
+            {bcSplash().map(([x, y]) => {
+              const [c, r] = v(x, y);
+              return <rect key={`sp${x},${y}`} x={c} y={r} width={1} height={1} fill="#ff1f55" />;
+            })}
+          </g>
+        ) : null}
         {/* last move, check, selection */}
         {[...lastSq].map((sq) => {
           const p = bcPos(sq);
@@ -295,8 +329,17 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
             const c = Math.min(...corners.map((q) => q[0])), r = Math.min(...corners.map((q) => q[1]));
             const sw = Math.max(...corners.map((q) => q[0])) - c + 1, sh = Math.max(...corners.map((q) => q[1])) - r + 1;
             return (
-              <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}F`} data-bc-ship={pc.c}>
-                <g transform={sw >= sh ? "translate(0.05 -0.5) scale(0.019)" : "translate(-0.3 0.62) scale(0.016)"}>
+              <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}F`} data-bc-ship={pc.c} data-bc-rider={pc.rider}>
+                {pc.rider ? (
+                  BC_STD.has(pc.rider.toUpperCase()) ? (
+                    <image href={bcPieceUrl(bcColor(pc.rider)!, pc.rider.toUpperCase())} x={sw >= sh ? 1.0 : -0.1} y={sw >= sh ? -0.42 : 0.6} width={0.9} height={0.9} filter={bcColor(pc.rider) === "w" ? "url(#bc-pc-w)" : "url(#bc-pc-b)"} />
+                  ) : (
+                    <g transform={sw >= sh ? "translate(1.02 -0.38) scale(0.018)" : "translate(-0.08 0.64) scale(0.018)"}>
+                      <BcSpecial kind={pc.rider.toUpperCase()} white={bcColor(pc.rider) === "w"} />
+                    </g>
+                  )
+                ) : null}
+                <g transform={sw >= sh ? "translate(0.12 -0.28) scale(0.0175)" : "translate(-0.3 0.62) scale(0.016)"}>
                   <BcShip white={white} />
                 </g>
               </g>
@@ -322,9 +365,10 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
               </g>
             );
           }
+          if (pc.inv && pc.c !== you) return null; // Part 4: the enemy's invisible assassin is hidden
           const [c, r] = v(pc.x, pc.y);
           return (
-            <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}${pc.kind}`} data-sq-piece={pc.sq}>
+            <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)`, opacity: pc.inv ? 0.45 : undefined }} data-piece={`${pc.c}${pc.kind}`} data-sq-piece={pc.sq} data-bc-inv={pc.inv ? "1" : undefined}>
               <title>{`${white ? "White" : "Black"} ${BC_NAME[pc.kind]}`}</title>
               {BC_STD.has(pc.kind) ? (
                 <image href={bcPieceUrl(pc.c, pc.kind)} x={0.03} y={0.03} width={0.94} height={0.94} filter={white ? "url(#bc-pc-w)" : "url(#bc-pc-b)"} />
@@ -354,6 +398,20 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
         {targets.map((sq) => {
           const p = bcPos(sq)!;
           const [c, r] = v(p[0], p[1]);
+          if (cargoName && !enemyAt(sq) && bcTerrain(p[0], p[1]) !== "W") {
+            // v3 §5.4: the drop square, yellow, with the cargo's name ("THE ROOK")
+            return (
+              <g key={`tg${sq}`} pointerEvents="none" data-target={sq} data-bc-drop={cargoName}>
+                <rect x={c + 0.03} y={r + 0.03} width={0.94} height={0.94} rx={0.08} fill="#ffd84a" fillOpacity={0.55} stroke="#ffe98f" strokeWidth={0.05} className="bc2-drop" />
+                <text x={c + 0.5} y={r + 0.44} textAnchor="middle" fontSize={0.15} fontWeight={900} fill="#2a1600" style={{ fontFamily: "Cinzel, Georgia, serif" }}>
+                  THE
+                </text>
+                <text x={c + 0.5} y={r + 0.66} textAnchor="middle" fontSize={cargoName.length > 9 ? 0.13 : 0.17} fontWeight={900} fill="#2a1600" style={{ fontFamily: "Cinzel, Georgia, serif" }}>
+                  {cargoName.slice(4)}
+                </text>
+              </g>
+            );
+          }
           return enemyAt(sq) ? (
             <g key={`tg${sq}`} pointerEvents="none" data-target={sq}>
               <circle cx={c + 0.5} cy={r + 0.5} r={0.4} fill="none" stroke="#ff5a4a" strokeWidth={0.07} />
@@ -372,7 +430,60 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
             return <rect key={`h${sq}`} x={c} y={r} width={1} height={1} fill="transparent" data-sq={sq} onClick={() => tap(sq)} style={{ cursor: myTurn && !disabled ? "pointer" : "default" }} />;
           }),
         )}
+        {/* v3 §9: blue burst over the beaten king */}
+        {status?.over && status.winner && state
+          ? (() => {
+              const k = bcKingSq(state, status.winner === "w" ? "b" : "w");
+              const p = k ? bcPos(k) : null;
+              if (!p) return null;
+              const [c, r] = v(p[0], p[1]);
+              return (
+                <g pointerEvents="none" data-bc-burst>
+                  {[0, 1, 2].map((i) => (
+                    <circle key={i} cx={c + 0.5} cy={r + 0.5} r={0.6} fill="none" stroke="#5fd0ff" strokeWidth={0.12} className="bc2-burst" style={{ animationDelay: `${i * 0.35}s` }} />
+                  ))}
+                  <circle cx={c + 0.5} cy={r + 0.5} r={1.2} fill="url(#bc-burst)" className="bc2-burst-core" />
+                  <radialGradient id="bc-burst">
+                    <stop offset="0" stopColor="#d8f6ff" stopOpacity={0.95} />
+                    <stop offset="0.5" stopColor="#3fb6ff" stopOpacity={0.55} />
+                    <stop offset="1" stopColor="#1a5cff" stopOpacity={0} />
+                  </radialGradient>
+                </g>
+              );
+            })()
+          : null}
       </svg>
+      {vw > 0 || tw > 0 || (state && /[TV]/.test(state.storm)) ? <BcEventBanner key={state?.storm} storm={state!.storm} vw={vw} tw={tw} /> : null}
+    </div>
+  );
+}
+
+/** v3 §8.1: the event warning — a gold WARNING card that comes and goes, and a block-caps banner with the turns left. */
+function BcEventBanner({ storm, vw, tw }: { storm: string; vw: number; tw: number }) {
+  const erupt = storm.includes("V");
+  const twister = storm.includes("T");
+  const title = erupt ? "VOLCANOES ERUPT!" : twister ? "TORNADO!" : vw > 0 ? "VOLCANOES ERUPTING" : "TORNADO INCOMING";
+  const left = vw > 0 ? vw : tw;
+  const sub = erupt || twister ? "" : `${left} TURN${left === 1 ? "" : "S"} LEFT`;
+  return (
+    <div className="bc2-event" data-bc-event={storm}>
+      <div className={`bc2-warn-card ${left === 1 || erupt ? "is-red" : ""}`}>
+        <div className="bc2-warn-stripes" />
+        <svg viewBox="0 0 100 90" className="bc2-warn-icon" aria-hidden>
+          {left === 2 && !erupt ? (
+            <path d="M50 8 L94 82 H6 Z" fill="#7a4a22" stroke="#f6d27a" strokeWidth="4" strokeLinejoin="round" />
+          ) : (
+            <path d="M50 8 L94 82 H6 Z" fill="#e0312b" stroke="#ffd9a0" strokeWidth="4" strokeLinejoin="round" />
+          )}
+          <rect x="45" y="30" width="10" height="30" rx="4" fill="#fff" />
+          <circle cx="50" cy="70" r="6" fill="#fff" />
+        </svg>
+        <div className="bc2-warn-word">WARNING</div>
+      </div>
+      <div className="bc2-banner">
+        <div className="bc2-banner-1">{title}</div>
+        {sub ? <div className={`bc2-banner-2 ${left === 1 ? "is-red" : ""}`}>{sub}</div> : null}
+      </div>
     </div>
   );
 }

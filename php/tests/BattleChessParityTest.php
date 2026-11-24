@@ -51,8 +51,8 @@ check($old !== null && BoardGames::bcString($old) === $fx['oldStr'], 'an old 20x
 
 // Boats: board, sail with the rider, step ashore; a sunk boat takes its rider.
 $s = BoardGames::bcParse(\Morse\Variants::START_FEN['battlechess']);
-check(BoardGames::bcTerrain(-4, 8) === 'M' && BoardGames::bcHill(17, 1), 'grassy hills stand on the chest islands');
-check(BoardGames::bcTerrain(-5, 9) === 'L' && BoardGames::bcTerrain(17, 11) === 'L' && BoardGames::bcTerrain(-4, -2) === 'L', 'the 3x3 chest islands and 3x1 plank strips are land');
+check(BoardGames::bcTerrain(-4, 8) === 'M' && BoardGames::bcHill(17, 1), 'grassy mountains stand on the treasure islands');
+check(BoardGames::bcTerrain(-5, 9) === 'L' && BoardGames::bcTerrain(17, 11) === 'L' && BoardGames::bcTerrain(-4, -2) === 'L' && BoardGames::bcTerrain(-7, 9) === 'W', 'the 3x3 treasure islands and 3x1 docks are land');
 $cells = $s['cells'];
 $put = static function (array &$c, int $x, int $y, string $p): void {
     $c[13 - $y][$x + 7] = $p;
