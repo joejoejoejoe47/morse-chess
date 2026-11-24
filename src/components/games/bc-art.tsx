@@ -93,81 +93,203 @@ export function BcSpecial({ kind, white }: { kind: string; white: boolean }) {
   return <circle cx={22.5} cy={22.5} r={12} {...o} />;
 }
 
-/** A galleon over two cells, drawn in a 90x60 box (it rises above its cells like the video's ships). */
-export function BcShip({ white, vertical }: { white: boolean; vertical: boolean }) {
+/**
+ * The video's flat icon ship (t384u ref) in a 100x80 box: a hull, one square sail on a thin mast with
+ * a small pennant and two stays, all wrapped in a thick outline. Black with a white outline for one
+ * side, white with a black outline for the other. `pirate` paints a skull on the sail (t387u).
+ */
+export function BcShip({ white, pirate }: { white: boolean; pirate?: boolean; vertical?: boolean }) {
   const fill = white ? "#fff" : "#000";
   const ink = white ? "#000" : "#fff";
-  const halo = white ? "#000" : "#fff";
-  const hull = "M4 40 L18 40 L20 44 L76 44 L88 36 C84 48 76 55 62 56 L24 56 C14 55 7 49 4 40 Z";
-  const stern = "M4 40 L5 30 L20 30 L21 40 Z";
-  const s1 = "M22 14 C30 17 40 17 46 14 C48 22 48 30 46 38 C40 40 30 40 22 38 C24 30 24 22 22 14 Z";
-  const s2 = "M50 6 C58 9 66 9 72 6 C74 16 74 26 72 36 C66 38 58 38 50 36 C52 26 52 16 50 6 Z";
-  const jib = "M75 12 L89 34 L75 36 Z";
-  const g = (
-    <g strokeLinejoin="round" strokeLinecap="round">
-      <g stroke={halo} strokeWidth={5} fill={halo}>
+  const hull = "M3 52 L28 52 L31 60 L80 60 L97 45 C93 64 85 75 70 76 L22 76 C11 74 5 64 3 52 Z";
+  const sail = "M28 13 C42 17 58 16 70 10 C74 22 75 36 72 49 C60 52 44 52 31 50 C34 38 33 25 28 13 Z";
+  return (
+    <g strokeLinejoin="round" strokeLinecap="round" data-bc-ship-art={pirate ? "pirate" : "ship"}>
+      {/* outline */}
+      <g stroke={ink} strokeWidth={8} fill={ink}>
         <path d={hull} />
-        <path d={stern} />
-        <path d={s1} />
-        <path d={s2} />
-        <path d={jib} />
+        <path d={sail} />
       </g>
-      <path d="M34 42 V8 M61 42 V2 M75 40 V10" stroke={ink} strokeWidth={1.6} />
-      <path d={s1} fill={fill} stroke={ink} strokeWidth={1.5} />
-      <path d={s2} fill={fill} stroke={ink} strokeWidth={1.5} />
-      <path d={jib} fill={fill} stroke={ink} strokeWidth={1.5} />
-      <path d="M25 26 C31 28 39 28 44 26 M53 21 C59 23 66 23 70 21" fill="none" stroke={ink} strokeWidth={1} />
-      <path d={hull} fill={fill} stroke={ink} strokeWidth={1.5} />
-      <path d={stern} fill={fill} stroke={ink} strokeWidth={1.5} />
-      <path d="M10 49 H78" stroke={ink} strokeWidth={1.3} />
-      {[24, 33, 42, 51, 60, 69].map((x) => (
-        <rect key={x} x={x} y={45.6} width={3.4} height={2.2} fill={ink} />
-      ))}
-      <path d="M61 2 L70 4.5 L61 7 Z" fill={ink} />
+      <path d="M51 58 V5 M51 6 L96 45 M51 6 L8 52" stroke={ink} strokeWidth={6.5} fill="none" />
+      <path d="M51 4 L62 1.5 L59 6 L62 9 L51 8 Z" fill={ink} stroke={ink} strokeWidth={4} />
+      {/* body */}
+      <path d="M51 58 V5" stroke={fill} strokeWidth={2.4} />
+      <path d="M51 6 L96 45 M51 6 L8 52" stroke={fill} strokeWidth={1.8} fill="none" />
+      <path d="M51 4 L62 1.5 L59 6 L62 9 L51 8 Z" fill={fill} />
+      <path d={sail} fill={fill} />
+      <path d={hull} fill={fill} />
+      {pirate ? (
+        <g fill={ink}>
+          <circle cx={51} cy={27} r={9} />
+          <rect x={45.5} y={31} width={11} height={7} rx={2} />
+          <circle cx={47.5} cy={26.5} r={2.6} fill={fill} />
+          <circle cx={54.5} cy={26.5} r={2.6} fill={fill} />
+          <path d="M40 40 L62 46 M62 40 L40 46" stroke={ink} strokeWidth={3} />
+          {[38, 48, 58, 68].map((x) => (
+            <circle key={x} cx={x} cy={67} r={2.2} />
+          ))}
+        </g>
+      ) : null}
     </g>
   );
-  return vertical ? <g transform="translate(60 0) rotate(90)">{g}</g> : g;
+}
+
+/** One square of the video's lava: an orange/red/yellow pixel mosaic covering the whole cell. */
+export const bcLavaTex = (n: number) => asset(`/legendary/bc/lava-${n & 3}.webp`);
+
+/** The grassy one-square hill (t386u ref) in a 100x100 box: a faceted grey rim round a flat green top. */
+export function BcHill() {
+  const rim = "M18 8 L52 2 L80 10 L96 34 L92 66 L98 84 L72 98 L40 94 L10 98 L2 70 L8 40 Z";
+  const top = "M26 18 L50 12 L74 20 L84 40 L78 62 L60 70 L64 84 L44 80 L26 86 L22 64 L14 46 Z";
+  return (
+    <g strokeLinejoin="round" data-bc-hill>
+      <path d={rim} fill="#2a1a0c" opacity={0.35} transform="translate(2 3)" />
+      <path d={rim} fill="#b4b0aa" />
+      <path d="M18 8 L52 2 L50 12 L26 18 Z" fill="#cbc8c2" />
+      <path d="M80 10 L96 34 L84 40 L74 20 Z" fill="#a19d97" />
+      <path d="M96 34 L92 66 L78 62 L84 40 Z" fill="#8f8b85" />
+      <path d="M92 66 L98 84 L72 98 L64 84 L78 62 Z" fill="#9a968f" />
+      <path d="M40 94 L10 98 L26 86 L44 80 Z" fill="#a8a49e" />
+      <path d="M2 70 L8 40 L14 46 L22 64 L26 86 L10 98 Z" fill="#bdb9b3" />
+      <path d="M52 2 L80 10 L74 20 L50 12 Z" fill="#d6d3cd" />
+      <path d={top} fill="#b8d67e" />
+      <path d="M26 18 L50 12 L46 22 L32 26 Z M74 20 L84 40 L76 38 Z M60 70 L64 84 L56 78 Z" fill="#c8e290" />
+      <path d="M22 64 L26 86 L32 74 Z M78 62 L60 70 L70 62 Z M14 46 L22 64 L20 50 Z" fill="#9cbf63" />
+      <path d="M30 40 L36 36 L34 46 Z M60 32 L66 30 L64 40 Z" fill="#a9c972" opacity={0.8} />
+      <path d="M40 4 L46 3 L44 9 Z" fill="#9bc066" />
+    </g>
+  );
+}
+
+/** Two tall smoke plumes flecked with glowing embers that sit on an erupting volcano (t389u ref). */
+export function BcPlumes() {
+  const plume = (x: number, h: number, seed: number) => {
+    let s = seed;
+    const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+    const puffs: [number, number, number][] = [];
+    for (let y = 0; y < h; y += 6) puffs.push([x + (rnd() - 0.5) * 10, -y, 14 - (y / h) * 3 + rnd() * 3]);
+    const embers: [number, number, number][] = Array.from({ length: 26 }, () => [x + (rnd() - 0.5) * 20, -rnd() * h * 0.75, 1 + rnd() * 1.8]);
+    return (
+      <g key={seed} className="bc2-plume" style={{ animationDelay: `${-seed * 0.37}s` }}>
+        {puffs.map(([px, py, r], i) => (
+          <circle key={`o${i}`} cx={px} cy={py} r={r + 1.5} fill="#1c120c" />
+        ))}
+        {puffs.map(([px, py, r], i) => (
+          <circle key={`f${i}`} cx={px - 1.5} cy={py - 1} r={r} fill={i % 2 ? "#3b2a20" : "#33241b"} />
+        ))}
+        {puffs.map(([px, py, r], i) => (i % 2 ? <circle key={`h${i}`} cx={px - 4} cy={py - 3} r={r * 0.4} fill="#57443a" opacity={0.7} /> : null))}
+        {embers.map(([ex, ey, r], i) => (
+          <rect key={`e${i}`} x={ex} y={ey} width={r * 1.6} height={r} fill={i % 3 ? "#ff7a1a" : "#ffc23a"} className="bc2-ember" style={{ animationDelay: `${(i * 0.13) % 1.2}s` }} />
+        ))}
+      </g>
+    );
+  };
+  return (
+    <g data-bc-plumes>
+      {plume(32, 62, 3)}
+      {plume(66, 70, 8)}
+    </g>
+  );
 }
 
 /** Low-poly grey rock with snow, about 2x2 cells, drawn in a 100x100 box (it overhangs a little). */
+const MTN_OUTLINE = "M6 30 L18 12 L40 6 L52 12 L70 4 L88 14 L96 34 L93 60 L98 80 L84 94 L60 90 L40 96 L16 92 L4 74 L8 52 Z";
+
+/** A jagged white snow cap: an irregular star of spikes around (cx, cy). */
+function snowStar(cx: number, cy: number, r: number, seed: number): { lit: string; shade: string } {
+  const n = 9;
+  const pts: [number, number][] = [];
+  let s = seed;
+  const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  for (let i = 0; i < n * 2; i++) {
+    const a = (i / (n * 2)) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 === 0 ? r * (0.75 + rnd() * 0.5) : r * (0.3 + rnd() * 0.12);
+    pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.92]);
+  }
+  const d = (ps: [number, number][]) => "M" + ps.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(" L") + " Z";
+  // shaded lower-right half: the centre plus the spikes from 3 o'clock round to 8 o'clock
+  const half = pts.slice(n / 2 | 0, (n / 2 | 0) + n + 1);
+  return { lit: d(pts), shade: d([[cx, cy], ...half]) };
+}
+
+/**
+ * A mountain (100x100) in the video's flat style (t383u ref): a soft-edged gray rock blob that
+ * covers its 2x2 cells, angular faceted shading and crisp white jagged snow peaks.
+ */
 export function BcMountain() {
+  const big = snowStar(64, 36, 19, 7);
+  const small = snowStar(28, 50, 13, 3);
   return (
     <g strokeLinejoin="round">
-      <path d="M2 92 L8 60 L22 34 L40 18 L52 22 L66 8 L82 30 L94 56 L98 92 Z" fill="#000" opacity={0.28} transform="translate(3 4)" />
-      <path d="M2 92 L8 60 L22 34 L40 18 L52 22 L66 8 L82 30 L94 56 L98 92 Z" fill="#9aa0aa" stroke="#4a4f58" strokeWidth={1.4} />
-      <path d="M22 34 L40 18 L46 46 Z" fill="#c4c9d1" />
-      <path d="M40 18 L52 22 L46 46 Z" fill="#e9ecf0" />
-      <path d="M52 22 L66 8 L62 40 Z" fill="#f6f7f9" />
-      <path d="M66 8 L82 30 L62 40 Z" fill="#b9bec7" />
-      <path d="M82 30 L94 56 L70 58 L62 40 Z" fill="#8c929c" />
-      <path d="M8 60 L22 34 L46 46 L30 70 Z" fill="#a9aeb8" />
-      <path d="M46 46 L62 40 L70 58 L54 76 L30 70 Z" fill="#7d838d" />
-      <path d="M2 92 L8 60 L30 70 L24 92 Z" fill="#8f959f" />
-      <path d="M24 92 L30 70 L54 76 L60 92 Z" fill="#6c727c" />
-      <path d="M60 92 L54 76 L70 58 L94 56 L98 92 Z" fill="#7a808a" />
-      <path d="M58 14 L66 8 L70 18 L63 24 Z M36 24 L40 18 L44 28 Z M76 26 L82 30 L78 36 Z" fill="#fff" />
-      <path d="M2 92 L8 60 L22 34 L40 18 L52 22 L66 8 L82 30 L94 56 L98 92 Z" fill="none" stroke="#4a4f58" strokeWidth={1.4} />
+      <defs>
+        <filter id="bc-mtn-soft" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2.6" />
+        </filter>
+        <clipPath id="bc-mtn-clip">
+          <path d={MTN_OUTLINE} />
+        </clipPath>
+      </defs>
+      <path d={MTN_OUTLINE} fill="#2a1a0c" opacity={0.45} transform="translate(2 3)" filter="url(#bc-mtn-soft)" />
+      <path d={MTN_OUTLINE} fill="#a19e99" filter="url(#bc-mtn-soft)" opacity={0.9} />
+      <g clipPath="url(#bc-mtn-clip)">
+        <path d={MTN_OUTLINE} fill="#b9b6b1" transform="translate(50 50) scale(0.96) translate(-50 -50)" />
+        <path d="M6 30 L40 6 L36 30 L20 40 Z" fill="#c9c6c1" />
+        <path d="M40 6 L70 4 L58 24 L44 22 Z" fill="#d0cdc8" />
+        <path d="M70 4 L96 34 L80 30 L72 18 Z" fill="#c4c1bc" />
+        <path d="M44 22 L58 24 L52 46 L36 30 Z" fill="#aaa7a2" />
+        <path d="M80 30 L96 34 L93 60 L78 52 Z" fill="#9e9b96" />
+        <path d="M52 46 L78 52 L70 70 L50 62 Z" fill="#a5a29d" />
+        <path d="M8 52 L20 40 L36 56 L18 72 L4 74 Z" fill="#b0ada8" />
+        <path d="M36 56 L50 62 L44 80 L22 84 L18 72 Z" fill="#93908b" />
+        <path d="M70 70 L93 60 L98 80 L84 94 L66 86 Z" fill="#989590" />
+        <path d="M44 80 L66 86 L60 90 L40 96 L30 90 Z" fill="#9b9893" />
+        <path d="M58 24 L72 18 L80 30 L78 52 L52 46 Z" fill="#bab7b2" />
+        <path d="M30 60 L36 56 L40 70 Z M60 66 L66 64 L64 78 Z M82 40 L86 46 L80 50 Z M22 30 L28 26 L26 36 Z" fill="#6f6b66" opacity={0.7} />
+        <path d="M14 20 L30 12 L22 24 Z M48 10 L60 8 L52 16 Z M86 22 L92 30 L84 28 Z" fill="#cfccc6" opacity={0.75} />
+      </g>
+      {[big, small].map((st, i) => (
+        <g key={i}>
+          <path d={st.lit} fill="#000" opacity={0.18} transform="translate(1.4 2)" />
+          <path d={st.lit} fill="#fbfcfd" />
+          <path d={st.shade} fill="#d4d8de" />
+        </g>
+      ))}
     </g>
   );
 }
 
-/** A round leafy bush (100x100), scalloped like the video's tree tops. */
+/**
+ * The video's bush (t384u ref) in a 100x100 box: a big round puffy cluster of layered leaf blobs,
+ * darker scalloped undersides, lighter tops and pale leaf flecks, filling its square.
+ */
+function scallop(cx: number, cy: number, r: number, n: number, k: number) {
+  const out: [number, number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + k;
+    out.push([cx + Math.cos(a) * r * 0.78, cy + Math.sin(a) * r * 0.78, r * 0.32]);
+  }
+  out.push([cx, cy, r * 0.8]);
+  return out;
+}
 export function BcBush() {
-  const blobs: [number, number, number][] = [[50, 34, 20], [30, 44, 18], [70, 44, 18], [38, 62, 19], [62, 62, 19], [50, 50, 22]];
+  const puffs: [number, number, number][] = [[50, 30, 21], [27, 42, 19], [73, 44, 19], [32, 66, 20], [66, 68, 20], [50, 52, 22], [50, 78, 16]];
+  const draw = (r0: number, dx: number, dy: number, scale: number, fill: (i: number) => string, key: string) =>
+    puffs.flatMap(([x, y, r], i) =>
+      scallop(x + dx, y + dy, r * scale + r0, 11, i * 0.7).map(([px, py, pr], j) => <circle key={`${key}${i}-${j}`} cx={px} cy={py} r={pr} fill={fill(i)} />),
+    );
   return (
-    <g>
-      <ellipse cx={54} cy={80} rx={34} ry={10} fill="#000" opacity={0.25} />
-      {blobs.map(([x, y, r], i) => (
-        <circle key={`o${i}`} cx={x} cy={y} r={r + 2.5} fill="#1d4a1a" />
-      ))}
-      {blobs.map(([x, y, r], i) => (
-        <circle key={`f${i}`} cx={x} cy={y} r={r} fill={i % 2 ? "#3c8a35" : "#46993d"} />
-      ))}
-      {blobs.map(([x, y, r], i) => (
-        <circle key={`h${i}`} cx={x - r * 0.3} cy={y - r * 0.3} r={r * 0.45} fill="#6cbf55" opacity={0.55} />
-      ))}
-      {[[36, 40], [58, 30], [66, 56], [44, 66], [52, 48]].map(([x, y], i) => (
-        <circle key={`d${i}`} cx={x} cy={y} r={2.2} fill="#a6e08c" opacity={0.8} />
+    <g data-bc-bush-art>
+      <ellipse cx={53} cy={86} rx={40} ry={9} fill="#000" opacity={0.22} />
+      {draw(3, 0, 1.5, 1, () => "#1f4d1d", "o")}
+      {draw(0, 0, 0, 1, (i) => (i % 2 ? "#2f6e2a" : "#33772d"), "m")}
+      {draw(0, -3, -3.5, 0.72, (i) => (i % 2 ? "#4c9441" : "#529b46"), "l")}
+      {draw(0, -5, -6, 0.42, (i) => (i % 3 ? "#6aaa58" : "#74b261"), "t")}
+      {puffs.map(([x, y], i) => (
+        <g key={`f${i}`} fill="#9ccc84" opacity={0.45}>
+          <circle cx={x - 8} cy={y - 9} r={1.8} />
+          <circle cx={x - 3} cy={y - 11} r={1.4} />
+          <circle cx={x - 10} cy={y - 4} r={1.2} />
+        </g>
       ))}
     </g>
   );

@@ -9,33 +9,39 @@
  * Square names: one file letter + the rank number. Files left of a are x,y,z (x=-3, y=-2, z=-1);
  * files after n are o,p,q. Ranks may be 0, -1, -2, 9, 10, 11 in the ocean.
  * State string: "bc|<14 rows, y=11 first, 20 chars each, joined by '/'>|turn|ep|half|full".
- * Pieces: K Q R B N P, C archer, E eagle, A assassin, F frigate (uses 2 cells). Upper case = White.
+ * Pieces: K Q R B N P, C archer, E eagle, A assassin, F frigate (uses 2 cells), S transport boat
+ * (one rider, kept in the cargo part of the extra field: "storm:lava;sq=P,..."), I pirate (a ship at sea). Upper case = White.
  * Marked assumptions from the spec: no castling; no frigate rotation (the ship keeps its starting
  * orientation); frigates and rooks capture ships remotely (shots), the shooter stays put.
  */
 export type BcColor = "w" | "b";
-export type BcState = { cells: string[][]; turn: BcColor; ep: string | null; half: number; full: number; lava: Record<string, number>; storm: string }; // cells[yi][xi]
-export type BcMove = { from: string; to: string; capture: boolean; shot?: boolean; promo?: string; ep?: boolean; double?: boolean; ship?: [string, string]; board?: boolean; charm?: boolean; chest?: boolean };
+export type BcState = { cells: string[][]; turn: BcColor; ep: string | null; half: number; full: number; lava: Record<string, number>; storm: string; cargo: Record<string, string> }; // cells[yi][xi]; cargo: boat square -> the piece riding it
+export type BcMove = { from: string; to: string; capture: boolean; shot?: boolean; promo?: string; ep?: boolean; double?: boolean; ship?: [string, string]; board?: boolean; charm?: boolean; chest?: boolean; embark?: boolean; disembark?: boolean };
 
-export const BC_X0 = -3, BC_X1 = 16, BC_Y0 = -2, BC_Y1 = 11;
-export const BC_W = BC_X1 - BC_X0 + 1; // 20
-export const BC_H = BC_Y1 - BC_Y0 + 1; // 14
-const FILES = "xyzabcdefghijklmnopq"; // index = x + 3
+// t387u: the sea now reaches the video's offshore islands (x -6..19, y -3..12) with a ring of open water.
+export const BC_X0 = -7, BC_X1 = 20, BC_Y0 = -4, BC_Y1 = 13;
+export const BC_W = BC_X1 - BC_X0 + 1; // 28
+export const BC_H = BC_Y1 - BC_Y0 + 1; // 18
+const FILES = "WXYZxyzabcdefghijklmnopqrstu"; // index = x + 7 (x,y,z stay -3..-1 so old square names still read)
 
-export const bcSq = (x: number, y: number) => FILES[x + 3] + y;
+export const bcSq = (x: number, y: number) => FILES[x + 7] + y;
 export function bcPos(s: string): [number, number] | null {
   const xi = FILES.indexOf(s[0]);
   const y = Number(s.slice(1));
   if (xi < 0 || !/^-?\d+$/.test(s.slice(1)) || y < BC_Y0 || y > BC_Y1) return null;
-  return [xi - 3, y];
+  return [xi - 7, y];
 }
 const inGrid = (x: number, y: number) => x >= BC_X0 && x <= BC_X1 && y >= BC_Y0 && y <= BC_Y1;
 
 /** Terrain: 'L' land, 'W' water, 'M' mountain, 'T' bush (bush is land). */
 export function bcTerrain(x: number, y: number): "L" | "W" | "M" | "T" {
-  // the two chest islands out in the sea (part 4)
-  if ((x === -2 || x === -1) && (y === 10 || y === 11)) return "L";
-  if ((x === 14 || x === 15) && (y === -1 || y === 0)) return "L";
+  // the video's offshore islands (t386u/t387u): a 3x3 chest island with a one-square grassy hill
+  // (a mountain: nothing may stand on it or shoot through it) and a 3x1 plank strip, per side.
+  if (bcHill(x, y)) return "M";
+  if (x >= -6 && x <= -4 && y >= 8 && y <= 10) return "L";
+  if (x >= 17 && x <= 19 && y >= -1 && y <= 1) return "L";
+  if (y === 11 && x >= 16 && x <= 18) return "L";
+  if (y === -2 && x >= -5 && x <= -3) return "L";
   if (x < 0 || x > 13 || y < 1 || y > 8) return "W";
   if (y === 3 && x <= 2) return "W";
   if (y === 6 && x >= 11) return "W";
@@ -43,6 +49,8 @@ export function bcTerrain(x: number, y: number): "L" | "W" | "M" | "T" {
   if ((x === 6 && y === 5) || (x === 7 && y === 4)) return "T";
   return "L";
 }
+/** The grassy one-square hills on the chest islands. */
+export const bcHill = (x: number, y: number) => (x === -4 && y === 8) || (x === 17 && y === 1);
 const isLand = (x: number, y: number) => { const t = bcTerrain(x, y); return t === "L" || t === "T"; };
 const isWater = (x: number, y: number) => inGrid(x, y) && bcTerrain(x, y) === "W";
 
@@ -63,29 +71,35 @@ export const BATTLE_START = (() => {
   put(c, 10, 9, "F"); put(c, 11, 9, "F"); // k9-l9
   put(c, 2, 0, "f"); put(c, 3, 0, "f"); // c0-d0
   put(c, 3, 4, "H"); put(c, 10, 5, "H"); // chests on the main island
-  put(c, 1, 6, "I"); put(c, 12, 3, "i"); // pirates, clear of the ditches
-  put(c, -1, 11, "W"); put(c, -2, 10, "H"); // white's sea island: mage and a gem
-  put(c, 14, -1, "w"); put(c, 15, 0, "H"); // black's sea island
-  return bcString({ cells: c, turn: "w", ep: null, half: 0, full: 1, lava: {}, storm: "" });
+  put(c, -5, 9, "H"); put(c, 18, 0, "H"); // chests in the middle of the sea islands
+  put(c, -4, 11, "S"); put(c, 17, -2, "s"); // transport boats beside the chest islands
+  put(c, 16, 12, "I"); put(c, -3, -3, "i"); // pirate ships beside the plank strips
+  return bcString({ cells: c, turn: "w", ep: null, half: 0, full: 1, lava: {}, storm: "", cargo: {} });
 })();
 
 export function bcParse(str: string): BcState | null {
   const p = str.split("|");
   if ((p.length !== 6 && p.length !== 7) || p[0] !== "bc") return null;
   const rows = p[1].split("/");
-  if (rows.length !== BC_H) return null;
-  const cells: string[][] = [];
+  if (rows.length !== BC_H && rows.length !== 14) return null;
+  let cells: string[][] = [];
   for (const r of rows) {
     const out: string[] = [];
     for (const m of r.matchAll(/(\d+)|(\D)/g)) {
       if (m[1]) for (let i = Number(m[1]); i > 0; i--) out.push(".");
       else out.push(m[2]);
     }
-    if (out.length !== BC_W) return null;
     cells.push(out);
   }
+  if (rows.length === 14 && cells.every((r) => r.length === 20)) {
+    // a game saved on the old 20x14 sea (before the islands): pad it into the new grid
+    const blank = () => Array.from({ length: BC_W }, () => ".");
+    const dots = (n: number) => Array.from({ length: n }, () => ".");
+    cells = [blank(), blank(), ...cells.map((r) => [...dots(4), ...r, ...dots(4)]), blank(), blank()];
+  }
+  if (cells.length !== BC_H || cells.some((r) => r.length !== BC_W)) return null;
   const extra = readExtra(p[6]);
-  return { cells, turn: p[2] === "b" ? "b" : "w", ep: p[3] === "-" ? null : p[3], half: Number(p[4]) || 0, full: Number(p[5]) || 1, lava: extra.lava, storm: extra.storm };
+  return { cells, turn: p[2] === "b" ? "b" : "w", ep: p[3] === "-" ? null : p[3], half: Number(p[4]) || 0, full: Number(p[5]) || 1, lava: extra.lava, storm: extra.storm, cargo: extra.cargo };
 }
 export function bcString(s: BcState): string {
   // Empty runs are written as numbers (like FEN) so a position fits games.fen VARCHAR(255).
@@ -98,9 +112,18 @@ function bcNext(n: number) {
   const x = ((n % 2147483647) * 48271) % 2147483647;
   return x === 0 ? 1 : x;
 }
-function readExtra(raw: string | undefined): { lava: Record<string, number>; storm: string } {
+function readExtra(raw: string | undefined): { lava: Record<string, number>; storm: string; cargo: Record<string, string> } {
   const lava: Record<string, number> = {};
-  if (!raw || raw === "-") return { lava, storm: "" };
+  const cargo: Record<string, string> = {};
+  if (!raw || raw === "-") return { lava, storm: "", cargo };
+  const semi = raw.indexOf(";");
+  if (semi >= 0) {
+    for (const part of raw.slice(semi + 1).split(",")) {
+      const [sq, pc] = part.split("=");
+      if (sq && pc && /^[QRBNPCEAIWUqrbnpceaiwu]$/.test(pc)) cargo[sq] = pc;
+    }
+    raw = raw.slice(0, semi);
+  }
   const colon = raw.indexOf(":");
   let storm = "";
   let body = raw;
@@ -115,12 +138,13 @@ function readExtra(raw: string | undefined): { lava: Record<string, number>; sto
       if (sq && ttl > 0) lava[sq] = ttl;
     }
   }
-  return { lava, storm };
+  return { lava, storm, cargo };
 }
 function writeExtra(s: BcState): string {
   const lava = Object.keys(s.lava).filter((k) => s.lava[k] > 0).sort().map((k) => `${k}.${s.lava[k]}`).join(",");
-  if (!s.storm && !lava) return "-";
-  return `${s.storm}:${lava}`;
+  const cargo = Object.keys(s.cargo ?? {}).sort().map((k) => `${k}=${s.cargo[k]}`).join(",");
+  if (!s.storm && !lava && !cargo) return "-";
+  return `${s.storm}:${lava}${cargo ? ";" + cargo : ""}`;
 }
 const hot = (s: BcState, x: number, y: number) => (s.lava[bcSq(x, y)] ?? 0) > 0;
 
@@ -322,7 +346,7 @@ function pseudo(s: BcState): BcMove[] {
               while (isWater(wx, wy)) {
                 const q = at(s, wx, wy);
                 if (q !== ".") {
-                  if (kind(q) === "F" && bcColor(q) !== me) out.push({ from: bcSq(x, y), to: bcSq(wx, wy), capture: true, shot: true });
+                  if (SHIPS.includes(kind(q)) && bcColor(q) !== me) out.push({ from: bcSq(x, y), to: bcSq(wx, wy), capture: true, shot: true });
                   break;
                 }
                 wx += dx; wy += dy;
@@ -338,7 +362,23 @@ function pseudo(s: BcState): BcMove[] {
         }
       } else if (k === "I" || k === "U" || k === "W") {
         if (k === "I" && !isLand(x, y)) {
+          // a pirate ship: steps ashore, or sails like a rook over open water and boards what it meets
           for (const [dx, dy] of [...ORTH, ...DIAG]) if (landOk(x + dx, y + dy)) add(x, y, x + dx, y + dy);
+          for (const [dx, dy] of ORTH) {
+            let tx = x + dx, ty = y + dy;
+            while (isWater(tx, ty)) {
+              const q = at(s, tx, ty);
+              if (q !== ".") {
+                if (bcColor(q) !== me && bcColor(q) !== null) {
+                  if (kind(q) === "F") out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: true, board: true });
+                  else add(x, y, tx, ty);
+                }
+                break;
+              }
+              add(x, y, tx, ty);
+              tx += dx; ty += dy;
+            }
+          }
         } else {
           const reach = k === "U" ? 5 : k === "W" ? 1 : 4;
           for (const [dx, dy] of [...ORTH, ...DIAG]) {
@@ -369,9 +409,28 @@ function pseudo(s: BcState): BcMove[] {
               if (rad < 1 || rad > 3) continue; // part 4: only within three squares
               const q = at(s, x + dx, y + dy);
               if (bcColor(q) === null || bcColor(q) === me) continue;
-              if (kind(q) === "K" || kind(q) === "F") continue;
+              if (kind(q) === "K" || kind(q) === "F" || kind(q) === "S") continue;
               out.push({ from: bcSq(x, y), to: bcSq(x + dx, y + dy), capture: false, charm: true });
             }
+          }
+        }
+      } else if (k === "S") {
+        // a transport boat: sails like a rook over open water (it never captures) …
+        for (const [dx, dy] of ORTH) {
+          let tx = x + dx, ty = y + dy;
+          while (isWater(tx, ty) && at(s, tx, ty) === ".") {
+            add(x, y, tx, ty);
+            tx += dx; ty += dy;
+          }
+        }
+        // … and the piece riding it may step ashore onto any neighbouring land square
+        const rider = s.cargo[bcSq(x, y)];
+        if (rider) {
+          for (const [dx, dy] of [...ORTH, ...DIAG]) {
+            const tx = x + dx, ty = y + dy;
+            if (!landOk(tx, ty)) continue;
+            const q = at(s, tx, ty);
+            out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: q !== "." && q !== "H", chest: q === "H", disembark: true });
           }
         }
       } else if (k === "F") {
@@ -387,7 +446,7 @@ function pseudo(s: BcState): BcMove[] {
               if (!isWater(nx, ny)) { blocked = true; break; }
               const q = at(s, nx, ny);
               if (q !== "." && q !== p) {
-                if (kind(q) === "F" && bcColor(q) !== me) hit = true;
+                if (SHIPS.includes(kind(q)) && bcColor(q) !== null && bcColor(q) !== me) hit = true;
                 else blocked = true;
               }
             }
@@ -402,8 +461,20 @@ function pseudo(s: BcState): BcMove[] {
         for (const [tx, ty] of tg) out.push({ from: bcSq(x, y), to: bcSq(tx, ty), capture: true, shot: true });
       }
     }
+  // boarding: a land piece (not the king) beside its own empty boat may climb aboard
+  for (let y = BC_Y0; y <= BC_Y1; y++)
+    for (let x = BC_X0; x <= BC_X1; x++) {
+      if (at(s, x, y) !== (me === "w" ? "S" : "s") || s.cargo[bcSq(x, y)]) continue;
+      for (const [dx, dy] of [...ORTH, ...DIAG]) {
+        const q = at(s, x + dx, y + dy);
+        if (bcColor(q) !== me || !isLand(x + dx, y + dy) || !RIDERS.includes(kind(q))) continue;
+        out.push({ from: bcSq(x + dx, y + dy), to: bcSq(x, y), capture: false, embark: true });
+      }
+    }
   return out;
 }
+const SHIPS = ["F", "S", "I"];
+const RIDERS = ["Q", "R", "B", "N", "P", "C", "E", "A", "W", "U", "I"];
 export function bcApply(s: BcState, m: BcMove): BcState {
   const c = s.cells.map((r) => r.slice());
   const [fx, fy] = bcPos(m.from)!;
@@ -416,7 +487,16 @@ export function bcApply(s: BcState, m: BcMove): BcState {
     put(c, x, y, ".");
     if (mate && at(s, mate[0], mate[1]) === q) put(c, mate[0], mate[1], ".");
   };
-  if (m.charm) {
+  const cargo: Record<string, string> = { ...s.cargo };
+  if (m.embark) {
+    put(c, fx, fy, ".");
+    cargo[m.to] = p;
+  } else if (m.disembark) {
+    const rider = cargo[m.from];
+    delete cargo[m.from];
+    put(c, tx, ty, rider);
+    if (target === "H") spawnTroop(c, bcColor(rider)!, bcNext(s.full * 100 + fx * 17 + fy));
+  } else if (m.charm) {
     put(c, tx, ty, target === target.toUpperCase() ? target.toLowerCase() : target.toUpperCase());
   } else if (m.board) {
     sink(tx, ty);
@@ -441,6 +521,15 @@ export function bcApply(s: BcState, m: BcMove): BcState {
     put(c, tx, ty, np);
     if (m.ep) put(c, tx, fy, ".");
     if (target === "H" && bcColor(p)) spawnTroop(c, bcColor(p)!, bcNext(s.full * 100 + fx * 17 + fy));
+    if (kind(p) === "S" && cargo[m.from]) {
+      cargo[m.to] = cargo[m.from];
+      delete cargo[m.from];
+    }
+  }
+  // a boat that is gone (sunk, rammed, boarded) takes its rider down with it
+  for (const sq of Object.keys(cargo)) {
+    const at2 = bcPos(sq);
+    if (!at2 || kind(cellOf(c, at2[0], at2[1])) !== "S") delete cargo[sq];
   }
   const lava: Record<string, number> = {};
   for (const [sq, n] of Object.entries(s.lava)) if (n > 1) lava[sq] = n - 1;
@@ -454,6 +543,7 @@ export function bcApply(s: BcState, m: BcMove): BcState {
     full: s.full + (s.turn === "b" ? 1 : 0),
     lava,
     storm,
+    cargo,
   };
 }
 
@@ -571,7 +661,7 @@ export function bcFind(s: BcState, from: string, to: string, promo?: string | nu
   return c.find((m) => (m.promo ?? null) === (promo ?? (c[0].promo ? "q" : null))) ?? c[0];
 }
 
-const VAL: Record<string, number> = { K: 0, Q: 900, R: 500, B: 320, N: 300, P: 100, C: 260, E: 380, A: 520, F: 250, I: 360, W: 640, U: 180, H: 0 };
+const VAL: Record<string, number> = { K: 0, Q: 900, R: 500, B: 320, N: 300, P: 100, C: 260, E: 380, A: 520, F: 250, I: 360, W: 640, U: 180, H: 0, S: 120 };
 export function bcEvaluate(s: BcState, side: BcColor): number {
   let sc = 0;
   for (let y = BC_Y0; y <= BC_Y1; y++)
@@ -584,6 +674,8 @@ export function bcEvaluate(s: BcState, side: BcColor): number {
       let v = k === "F" ? VAL.F / 2 : VAL[k];
       if (k === "P") v += (col === "w" ? 7 - y : y - 2) * 8;
       if (k === "N" || k === "B" || k === "E" || k === "A") v += 12 - Math.abs(6.5 - x) * 2 - Math.abs(4.5 - y) * 2;
+      const rider = k === "S" ? s.cargo[bcSq(x, y)] : undefined;
+      if (rider) v += VAL[kind(rider)] ?? 0;
       sc += col === side ? v : -v;
     }
   return Math.round(sc);

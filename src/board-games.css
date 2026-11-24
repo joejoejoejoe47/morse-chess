@@ -92,8 +92,8 @@
 @media (max-width: 640px) { .bg2-wrap { padding: 88px 6px 92px; } }
 
 /* ── Battle Chess 2D (MB-14) ── */
-.bc2-wrap { position: absolute; inset: 0; padding: 92px 12px 90px; display: grid; place-items: center; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); background: #3a6cd6; overflow: hidden; }
-.bc2-svg { width: 100%; height: 100%; min-height: 0; max-width: 1600px; }
+.bc2-wrap { position: absolute; inset: 0; padding: 150px 12px 90px; display: grid; place-items: center; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); background: #3a6cd6; overflow: hidden; }
+.bc2-svg { width: 100%; height: 100%; min-height: 0; }
 .bc2-piece { transition: transform 420ms cubic-bezier(.3,.8,.3,1); }
 .bc2-check { animation: bc2-pulse 1s ease-in-out infinite alternate; }
 @keyframes bc2-pulse { from { opacity: .45 } to { opacity: 1 } }
@@ -101,5 +101,22 @@
 .bc2-boom { transform-box: fill-box; transform-origin: center; animation: bc2-boom .6s ease-out; }
 @keyframes bc2-fade { 0%, 60% { opacity: 1 } 100% { opacity: 0 } }
 @keyframes bc2-boom { from { transform: scale(.2); opacity: 1 } to { transform: scale(1.2); opacity: .2 } }
-@media (max-width: 900px) { .bc2-wrap { padding: 84px 6px 96px; } }
-@media (max-width: 560px) { .bc2-wrap { padding: 76px 2px 150px; } }
+@media (max-width: 900px) { .bc2-wrap { padding: 140px 6px 96px; } }
+@media (max-width: 560px) { .bc2-wrap { padding: 200px 2px 96px; } }
+/* MB-BC art pass (t389u): volcano smoke, flying lava squares, impact rings */
+.bc2-plume { animation: bc2-plume 2.4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: bottom center; }
+@keyframes bc2-plume { from { transform: scaleY(.96) translateX(-.5px) } to { transform: scaleY(1.04) translateX(.8px) } }
+.bc2-ember { animation: bc2-ember 1.2s ease-in-out infinite alternate; }
+@keyframes bc2-ember { from { opacity: .35 } to { opacity: 1 } }
+.bc2-lava-fly { offset-rotate: 0deg; animation: bc2-lava-fly .55s cubic-bezier(.35,0,.65,1) both; }
+@keyframes bc2-lava-fly {
+  0% { translate: 0 0; scale: .4; opacity: 0 }
+  10% { opacity: 1 }
+  50% { translate: calc(var(--dx) * .5) calc(var(--dy) * .5 - 2.2px); scale: 1.3 }
+  95% { opacity: 1 }
+  100% { translate: var(--dx) var(--dy); scale: 1; opacity: 0 }
+}
+.bc2-lava-land { animation: bc2-lava-land .3s ease-out both; transform-box: fill-box; transform-origin: center; }
+@keyframes bc2-lava-land { from { opacity: 0; transform: scale(.6) } to { opacity: 1; transform: scale(1) } }
+.bc2-lava-hit { transform-box: fill-box; transform-origin: center; animation: bc2-lava-hit .6s ease-out both; opacity: 0; }
+@keyframes bc2-lava-hit { 0% { opacity: 1; transform: scale(.3) } 100% { opacity: 0; transform: scale(1.6) } }

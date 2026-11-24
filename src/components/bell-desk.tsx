@@ -22,6 +22,8 @@ import {
 import { listClubUsers, type ClubUserRow } from "@/lib/server/mores";
 import { loadMasterAudio, subscribeMasterAudio } from "@/lib/master-audio";
 import { setChannelSound } from "@/lib/sound-switch";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { asset } from "@/lib/base";
 
 // re-export type locally if missing
 type Watch = BellSettings["watches"][number];
@@ -99,6 +101,212 @@ export function BellDesk() {
   if (isPending || !user) return <SplashSkeleton />;
 
   const named = settings.watches.some((w) => w.username.trim());
+
+  const browseModal = browseFor ? (
+        <div className="fixed inset-0 z-50 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
+          <div className="flex max-h-[80dvh] w-full max-w-md flex-col rounded-xl border border-line bg-panel">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+              <div>
+                <h2 className="font-display text-2xl text-ivory">Browse users</h2>
+                <p className="text-sm text-mist">On the boards or away from the table.</p>
+              </div>
+              <button
+                type="button"
+                className="grid size-9 place-items-center rounded-md text-mist hover:bg-panel-2 hover:text-ivory"
+                onClick={() => setBrowseFor(null)}
+                aria-label="Close"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="border-b border-line px-5 py-3">
+              <Input
+                value={userQuery}
+                onChange={(e) => setUserQuery(e.target.value)}
+                placeholder="Search a user"
+                aria-label="Search a user"
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+              {users === null ? (
+                <p className="px-2 py-6 text-sm text-mist">Loading the club roll…</p>
+              ) : users.filter((p) => p.username.toLowerCase().includes(userQuery.trim().toLowerCase())).length === 0 ? (
+                <p className="px-2 py-6 text-sm text-mist">
+                  {users.length === 0 ? "No other seats claimed yet." : "No user by that name."}
+                </p>
+              ) : (
+                users
+                  .filter((p) => p.username.toLowerCase().includes(userQuery.trim().toLowerCase()))
+                  .map((p) => (
+                  <button
+                    key={p.username}
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left hover:bg-panel-2"
+                    onClick={() => {
+                      commit({
+                        ...settings,
+                        watches: settings.watches.map((x) =>
+                          x.id === browseFor ? { ...x, username: p.username } : x,
+                        ),
+                      });
+                      setBrowseFor(null);
+                    }}
+                  >
+                    <span className="text-sm text-ivory">{p.username}</span>
+                    <span className="text-xs text-mist">
+                      {p.online ? "online" : "off"} · {p.score}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null;
+
+  const watchList = (
+    <div className="space-y-3">
+      {settings.watches.map((w, i) => (
+        <WatchRow
+          key={w.id}
+          row={w}
+          index={i}
+          busy={busySong === w.id}
+          fileRef={(el) => {
+            rowFiles.current[w.id] = el;
+          }}
+          onChange={(username) =>
+            commit({ ...settings, watches: settings.watches.map((x) => (x.id === w.id ? { ...x, username } : x)) })
+          }
+          onBrowse={() => void openBrowse(w.id)}
+          onSong={(e) => void onRowSong(w.id, e)}
+          onPickSong={() => rowFiles.current[w.id]?.click()}
+          onClearSong={() =>
+            commit({ ...settings, watches: settings.watches.map((x) => (x.id === w.id ? { ...x, songId: null } : x)) })
+          }
+          onRemove={
+            settings.watches.length > 1
+              ? () => commit({ ...settings, watches: settings.watches.filter((x) => x.id !== w.id) })
+              : undefined
+          }
+        />
+      ))}
+    </div>
+  );
+
+  if (LEGENDARY) {
+    return (
+      <main className="mcl-bell" style={{ backgroundImage: `url(${asset("/legendary/screens/velvet-bg.webp")})` }} data-lg-bell>
+        <header className="mcl-bell-top">
+          <ClubBrand to="/" />
+          <ClubHeaderActions />
+        </header>
+        <div className="mcl-bell-grid">
+          <section className="mcl-bell-hero">
+            <p className="mcl-bell-kicker">The bell</p>
+            <h1 className="mcl-bell-title">When someone asks you to sit.</h1>
+            <p className="mcl-bell-lede">
+              New accounts start muted. Turn the bell on, and it rings from any page the moment a named challenge — or a
+              random pull-up — lands. No names listed means everyone. Names listed means only those chairs.
+            </p>
+            <Link to="/" className="mcl-bell-back">← Back to the lounge</Link>
+          </section>
+
+          <section className="mcl-bell-panels">
+            <div className="mcl-bell-card mcl-bell-sound">
+              <div className="mcl-bell-head">
+                <div>
+                  <h2>Sound</h2>
+                  <p>
+                    {bellOn
+                      ? "The bell is live across the club. Muting it here keeps the songs playing."
+                      : settings.unmuted
+                        ? "The speaker button at the top is muted, so the bell is quiet until you turn it on."
+                        : "Muted until you unmute it. The songs keep their own mute."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="mcl-gold-pill"
+                  aria-pressed={bellOn}
+                  data-bell-mute={bellOn ? "on" : "off"}
+                  onClick={() => {
+                    if (!accountId) return;
+                    setChannelSound(accountId, "bell", !bellOn);
+                  }}
+                >
+                  {bellOn ? <Bell className="size-4" /> : <BellOff className="size-4" />}
+                  {bellOn ? "Mute the bell" : "Unmute the bell"}
+                </button>
+              </div>
+              <div className="mcl-bell-inset">
+                <p className="mcl-bell-label">House song</p>
+                <p className="mcl-bell-note">
+                  {settings.defaultSongName
+                    ? `Uploaded: ${settings.defaultSongName}`
+                    : "No song uploaded — a brass house bell rings instead."}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <input ref={defaultFile} type="file" accept="audio/*" className="hidden" onChange={onDefaultSong} />
+                  <button
+                    type="button"
+                    className="mcl-dark-pill"
+                    disabled={busySong === "default"}
+                    onClick={() => defaultFile.current?.click()}
+                  >
+                    <Upload className="size-3.5" />
+                    {busySong === "default" ? "Saving…" : "Upload a song"}
+                  </button>
+                  <button type="button" className="mcl-dark-pill" onClick={() => void playBellPreview(accountId)}>
+                    <Music2 className="size-3.5" />
+                    Test
+                  </button>
+                  {settings.defaultSongId ? (
+                    <button
+                      type="button"
+                      className="mcl-dark-pill"
+                      onClick={async () => {
+                        await deleteSongBlob(accountId, settings.defaultSongId!).catch(() => undefined);
+                        commit({ ...settings, defaultSongId: null, defaultSongName: null });
+                      }}
+                    >
+                      Clear song
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <Link to="/soundtrack" className="mcl-bell-card mcl-bell-track">
+              <div>
+                <h2>Soundtrack</h2>
+                <p>Open the soundtrack page. Build a list, unmute it, and hear it in the game even when the other sound is on.</p>
+              </div>
+              <span className="mcl-gold-pill">
+                <Music2 className="size-4" />
+                Soundtrack
+              </span>
+            </Link>
+
+            <div className="mcl-bell-card mcl-bell-who">
+              <h2>Who rings</h2>
+              <p>
+                {named
+                  ? "Only these usernames trip the bell. Each user may keep the user's own song."
+                  : "Leave the names empty and every challenge rings."}
+              </p>
+              <div className="mcl-bell-watch mt-3">{watchList}</div>
+              <button type="button" className="mcl-dark-pill mt-3" onClick={() => commit(addWatchRow(settings))}>
+                <Plus className="size-3.5" />
+                Add user
+              </button>
+            </div>
+          </section>
+        </div>
+        {browseModal}
+      </main>
+    );
+  }
 
   return (
     <main className="relative mx-auto min-h-dvh w-full max-w-3xl px-4 py-3 sm:px-8 sm:py-4">
@@ -273,67 +481,7 @@ export function BellDesk() {
         </Link>
       </p>
 
-      {browseFor ? (
-        <div className="fixed inset-0 z-50 grid place-items-end bg-ink/70 p-4 sm:place-items-center">
-          <div className="flex max-h-[80dvh] w-full max-w-md flex-col rounded-xl border border-line bg-panel">
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-              <div>
-                <h2 className="font-display text-2xl text-ivory">Browse users</h2>
-                <p className="text-sm text-mist">On the boards or away from the table.</p>
-              </div>
-              <button
-                type="button"
-                className="grid size-9 place-items-center rounded-md text-mist hover:bg-panel-2 hover:text-ivory"
-                onClick={() => setBrowseFor(null)}
-                aria-label="Close"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="border-b border-line px-5 py-3">
-              <Input
-                value={userQuery}
-                onChange={(e) => setUserQuery(e.target.value)}
-                placeholder="Search a user"
-                aria-label="Search a user"
-              />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-              {users === null ? (
-                <p className="px-2 py-6 text-sm text-mist">Loading the club roll…</p>
-              ) : users.filter((p) => p.username.toLowerCase().includes(userQuery.trim().toLowerCase())).length === 0 ? (
-                <p className="px-2 py-6 text-sm text-mist">
-                  {users.length === 0 ? "No other seats claimed yet." : "No user by that name."}
-                </p>
-              ) : (
-                users
-                  .filter((p) => p.username.toLowerCase().includes(userQuery.trim().toLowerCase()))
-                  .map((p) => (
-                  <button
-                    key={p.username}
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left hover:bg-panel-2"
-                    onClick={() => {
-                      commit({
-                        ...settings,
-                        watches: settings.watches.map((x) =>
-                          x.id === browseFor ? { ...x, username: p.username } : x,
-                        ),
-                      });
-                      setBrowseFor(null);
-                    }}
-                  >
-                    <span className="text-sm text-ivory">{p.username}</span>
-                    <span className="text-xs text-mist">
-                      {p.online ? "online" : "off"} · {p.score}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {browseModal}
     </main>
   );
 }

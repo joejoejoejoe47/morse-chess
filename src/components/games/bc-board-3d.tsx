@@ -8,9 +8,10 @@ import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { BC_X0, BC_X1, BC_Y0, BC_Y1, bcParse, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
+import { BC_H, BC_W, BC_X0, BC_X1, BC_Y0, BC_Y1, bcColor, bcHill, bcParse, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
+import { bcLavaTex, bcTex } from "./bc-art";
 import { useBcPieces, type BcPiece } from "./bc-board-2d";
-import { disc, woodTexture, Shards, Shake, type BgStyle, type Burst } from "./bg-board-3d";
+import { disc, Shards, Shake, type BgStyle, type Burst } from "./bg-board-3d";
 
 type Props = {
   style: BgStyle;
@@ -94,31 +95,59 @@ function faceTexture(kind: string, white: boolean, lego: boolean) {
   return t;
 }
 
+const imgTex = new Map<string, THREE.Texture>();
+/** A cached texture from one of the 2D board's images (the ref-cropped wood/sea/lava squares). */
+function loadTex(url: string, pixel = false) {
+  if (!imgTex.has(url)) {
+    const t = new THREE.TextureLoader().load(url);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    if (pixel) t.magFilter = THREE.NearestFilter;
+    imgTex.set(url, t);
+  }
+  return imgTex.get(url)!;
+}
+
+const SEA_PAD = 14; // open sea beyond the grid, so the water runs to the horizon
+const mod2 = (n: number) => ((n % 2) + 2) % 2;
+/** t390u: one flat plane, the video's two-blue checker with the painted grain, aligned to the grid. */
 function seaTexture(lego: boolean) {
-  const W = 20 * 64, H = 14 * 64;
+  const PX = 32, CW = BC_W + SEA_PAD * 2, CH = BC_H + SEA_PAD * 2;
   const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
+  c.width = CW * PX;
+  c.height = CH * PX;
   const g = c.getContext("2d")!;
-  for (let yi = 0; yi < 14; yi++)
-    for (let xi = 0; xi < 20; xi++) {
-      g.fillStyle = (xi + yi) % 2 === 0 ? (lego ? "#3c8de0" : "#2f5fb8") : lego ? "#2f7bcc" : "#244c9a";
-      g.fillRect(xi * 64, yi * 64, 64, 64);
-      if (!lego) {
-        g.strokeStyle = "rgba(140,180,255,.35)";
-        g.lineWidth = 2;
-        for (const off of [20, 44]) {
-          g.beginPath();
-          g.moveTo(xi * 64, yi * 64 + off);
-          g.quadraticCurveTo(xi * 64 + 16, yi * 64 + off - 5, xi * 64 + 32, yi * 64 + off);
-          g.quadraticCurveTo(xi * 64 + 48, yi * 64 + off + 5, xi * 64 + 64, yi * 64 + off);
-          g.stroke();
-        }
-      }
-    }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
+  const cell = (gx: number, gy: number) => {
+    const x = gx - SEA_PAD + BC_X0, y = BC_Y1 - (gy - SEA_PAD);
+    return { dark: mod2(x + y) === 0, n: (x * 7 + y * 13 + ((x * y) & 5)) & 3 };
+  };
+  for (let gy = 0; gy < CH; gy++)
+    for (let gx = 0; gx < CW; gx++) {
+      g.fillStyle = cell(gx, gy).dark ? (lego ? "#2f7bcc" : "#1b4ba2") : lego ? "#3c8de0" : "#416eba";
+      g.fillRect(gx * PX, gy * PX, PX, PX);
+    }
+  if (!lego) {
+    const imgs: Record<string, HTMLImageElement> = {};
+    let left = 8;
+    for (const k of ["sea-d", "sea-l"] as const)
+      for (let n = 0; n < 4; n++) {
+        const im = new Image();
+        im.onload = () => {
+          if (--left > 0) return;
+          for (let gy = 0; gy < CH; gy++)
+            for (let gx = 0; gx < CW; gx++) {
+              const q = cell(gx, gy);
+              g.drawImage(imgs[`${q.dark ? "sea-d" : "sea-l"}${q.n}`], gx * PX, gy * PX, PX, PX);
+            }
+          t.needsUpdate = true;
+        };
+        im.src = bcTex(k, n);
+        imgs[`${k}${n}`] = im;
+      }
+  }
   return t;
 }
 
@@ -255,9 +284,10 @@ function Frigate({ pc, style, pos, alongZ, selected, onClick }: { pc: BcPiece; s
     gr.position.y = pos.y + Math.sin(tt * 1.6) * 0.025 + (selected ? 0.1 : 0);
     gr.rotation.x = Math.sin(tt * 1.2) * 0.03;
   });
-  const hull = lego ? (white ? "#f2efe6" : "#2a2730") : white ? "#e8dcc2" : "#2a1f33";
-  const trim = lego ? (white ? "#c9312c" : "#f2c94c") : "#e0b85a";
-  const sail = lego ? (white ? "#ffffff" : "#3b3546") : white ? "#fffaf0" : "#3a2f48";
+  // t384u: the video's icon ship — black for one side, white for the other, with contrasting trim
+  const hull = lego ? (white ? "#f2efe6" : "#2a2730") : white ? "#f4f4f4" : "#141414";
+  const trim = lego ? (white ? "#c9312c" : "#f2c94c") : white ? "#141414" : "#f4f4f4";
+  const sail = lego ? (white ? "#ffffff" : "#3b3546") : white ? "#f4f4f4" : "#141414";
   return (
     <group ref={g} onClick={onClick}>
       <group rotation={[0, alongZ ? Math.PI / 2 : 0, 0]}>
@@ -268,13 +298,13 @@ function Frigate({ pc, style, pos, alongZ, selected, onClick }: { pc: BcPiece; s
           <boxGeometry args={[1.8, 0.03, 0.52]} />
           <meshStandardMaterial color={trim} metalness={lego ? 0 : 0.7} roughness={0.3} />
         </mesh>
-        {[-0.5, 0.05, 0.55].map((mx, i) => (
+        {(lego ? [-0.5, 0.05, 0.55] : [0.05]).map((mx, i) => (
           <group key={i} position={[mx, 0.17, 0]}>
             <mesh position={[0, 0.42, 0]} castShadow>
               <cylinderGeometry args={[0.02, 0.025, 0.84, 8]} />
               <meshStandardMaterial color={lego ? "#5a3a1a" : "#4a2e14"} />
             </mesh>
-            <mesh geometry={sailGeo} position={[0, 0.48 - i * 0.03, 0.03]} rotation={[0, Math.PI / 2, 0]} castShadow>
+            <mesh geometry={sailGeo} scale={lego ? 1 : [1.9, 1.6, 1]} position={[0, lego ? 0.48 - i * 0.03 : 0.5, 0.03]} rotation={[0, Math.PI / 2, 0]} castShadow>
               <meshStandardMaterial color={sail} side={THREE.DoubleSide} roughness={0.8} />
             </mesh>
           </group>
@@ -295,23 +325,24 @@ function Frigate({ pc, style, pos, alongZ, selected, onClick }: { pc: BcPiece; s
 }
 
 function Island({ lego }: { lego: boolean }) {
-  const light = useMemo(() => (lego ? null : woodTexture("#dcae6e", "#9a6a34", 5)), [lego]);
-  const dark = useMemo(() => (lego ? null : woodTexture("#8a5426", "#3e1f08", 9)), [lego]);
   const sea = useMemo(() => seaTexture(lego), [lego]);
   const cells: React.ReactNode[] = [];
   const studs: [number, number][] = [];
-  for (let y = 1; y <= 8; y++)
-    for (let x = 0; x <= 13; x++) {
+  const hills: React.ReactNode[] = [];
+  for (let y = BC_Y0; y <= BC_Y1; y++)
+    for (let x = BC_X0; x <= BC_X1; x++) {
       const t = bcTerrain(x, y);
       if (t === "W") continue;
-      const isDark = (x + y) % 2 === 0;
+      const isDark = mod2(x + y) === 0;
+      const n = (x * 7 + y * 13 + ((x * y) & 5)) & 3;
       cells.push(
         <mesh key={`${x},${y}`} position={[wx(x), LAND_Y - 0.2, wz(y)]} castShadow receiveShadow>
           <boxGeometry args={[1, 0.4, 1]} />
-          {lego ? <meshStandardMaterial color={isDark ? "#4e9a3a" : "#7cc35c"} roughness={0.3} /> : <meshStandardMaterial map={isDark ? dark! : light!} roughness={0.42} />}
+          {lego ? <meshStandardMaterial color={isDark ? "#4e9a3a" : "#7cc35c"} roughness={0.3} /> : <meshStandardMaterial map={loadTex(bcTex(isDark ? "land-d" : "land-l", n))} roughness={0.55} />}
         </mesh>,
       );
       if (lego && t === "L") studs.push([wx(x), wz(y)]);
+      if (bcHill(x, y)) hills.push(<Hill key={`h${x},${y}`} x={x} y={y} />);
     }
   const studRef = useRef<THREE.InstancedMesh>(null);
   useEffect(() => {
@@ -325,12 +356,8 @@ function Island({ lego }: { lego: boolean }) {
   return (
     <group>
       <mesh position={[wx((BC_X0 + BC_X1) / 2), SEA_Y, wz((BC_Y0 + BC_Y1) / 2)]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[20, 14]} />
-        {lego ? <meshStandardMaterial map={sea} roughness={0.15} transparent opacity={0.92} /> : <meshPhysicalMaterial map={sea} roughness={0.18} metalness={0.05} clearcoat={1} clearcoatRoughness={0.15} />}
-      </mesh>
-      <mesh position={[wx((BC_X0 + BC_X1) / 2), SEA_Y - 0.15, wz((BC_Y0 + BC_Y1) / 2)]} castShadow receiveShadow>
-        <boxGeometry args={[20.6, 0.28, 14.6]} />
-        <meshStandardMaterial color={lego ? "#6d6d6d" : "#e0b85a"} metalness={lego ? 0 : 0.75} roughness={0.3} />
+        <planeGeometry args={[BC_W + SEA_PAD * 2, BC_H + SEA_PAD * 2]} />
+        <meshStandardMaterial map={sea} roughness={0.55} metalness={0} />
       </mesh>
       {cells}
       {lego ? (
@@ -341,53 +368,99 @@ function Island({ lego }: { lego: boolean }) {
       ) : null}
       <Mountain x={0} y={7} lego={lego} />
       <Mountain x={12} y={1} lego={lego} />
+      {hills}
       <Bush x={6} y={5} lego={lego} />
       <Bush x={7} y={4} lego={lego} />
     </group>
   );
 }
 
-function Mountain({ x, y, lego }: { x: number; y: number; lego: boolean }) {
-  const cx = (wx(x) + wx(x + 1)) / 2, cz = (wz(y) + wz(y + 1)) / 2;
-  const rock = useMemo(() => {
-    const geo = new THREE.DodecahedronGeometry(0.95, 1);
+/** t386u: the grassy one-square hill, a faceted grey rim with a flat light-green top. */
+function Hill({ x, y }: { x: number; y: number }) {
+  const rim = useMemo(() => {
+    const geo = new THREE.CylinderGeometry(0.44, 0.54, 0.34, 9, 1);
     const p = geo.attributes.position;
-    let s = x * 7 + y;
+    let s = x * 11 + y * 3 + 5;
     const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+    const jit = new Map<string, number>();
     for (let i = 0; i < p.count; i++) {
-      const v = new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i));
-      v.multiplyScalar(0.85 + rnd() * 0.3);
-      p.setXYZ(i, v.x, Math.max(0, v.y) * 1.2, v.z);
+      const key = `${p.getX(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
+      if (!jit.has(key)) jit.set(key, 0.88 + rnd() * 0.22);
+      const k = jit.get(key)!;
+      p.setX(i, p.getX(i) * k);
+      p.setZ(i, p.getZ(i) * k);
     }
     geo.computeVertexNormals();
     return geo;
   }, [x, y]);
-  if (lego)
-    return (
-      <group position={[cx, LAND_Y, cz]}>
-        {[[1.9, 0.4, 1.9, 0.2], [1.4, 0.4, 1.4, 0.6], [0.9, 0.4, 0.9, 1.0], [0.45, 0.4, 0.45, 1.4]].map(([w, hh, d, yy], i) => (
-          <mesh key={i} position={[0, yy, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w, hh, d]} />
-            <meshStandardMaterial color={i === 3 ? "#f4f4f4" : i % 2 ? "#8f9399" : "#a3a8ae"} roughness={0.3} />
-          </mesh>
-        ))}
-      </group>
-    );
   return (
-    <group position={[cx, LAND_Y, cz]}>
-      <mesh geometry={rock} castShadow receiveShadow>
-        <meshStandardMaterial color="#9aa0ab" roughness={0.85} flatShading />
+    <group position={[wx(x), LAND_Y + 0.17, wz(y)]}>
+      <mesh geometry={rim} castShadow receiveShadow>
+        <meshStandardMaterial color="#b0aca6" roughness={0.9} flatShading />
       </mesh>
-      <mesh position={[0.15, 0.95, -0.1]} scale={[0.35, 0.22, 0.35]}>
-        <coneGeometry args={[1, 1, 7]} />
-        <meshStandardMaterial color="#f4f6fa" roughness={0.6} flatShading />
+      <mesh position={[0, 0.172, 0]} rotation={[0, 0.3, 0]}>
+        <cylinderGeometry args={[0.36, 0.36, 0.01, 8]} />
+        <meshStandardMaterial color="#b8d67e" roughness={0.9} flatShading />
       </mesh>
     </group>
   );
 }
 
+function Mountain({ x, y }: { x: number; y: number; lego?: boolean }) {
+  // t383u: every style gets the flat-video look in low-poly — a wide faceted gray rock that
+  // covers its 2x2 cells, with crisp white faceted snow peaks.
+  const cx = (wx(x) + wx(x + 1)) / 2, cz = (wz(y) + wz(y + 1)) / 2;
+  const rock = useMemo(() => {
+    const geo = new THREE.DodecahedronGeometry(1, 1);
+    const p = geo.attributes.position;
+    let s = x * 7 + y + 3;
+    const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+    for (let i = 0; i < p.count; i++) {
+      const v = new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i));
+      v.multiplyScalar(0.88 + rnd() * 0.24);
+      p.setXYZ(i, v.x * 0.98, Math.max(0, v.y) * 0.62, v.z * 0.98);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }, [x, y]);
+  const peaks: [number, number, number, number][] = [
+    [0.28, 0.5, -0.22, 0.34],
+    [-0.36, 0.4, 0.26, 0.24],
+  ];
+  return (
+    <group position={[cx, LAND_Y, cz]}>
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.005, 0]}>
+        <circleGeometry args={[1.12, 24]} />
+        <meshBasicMaterial color="#000" transparent opacity={0.22} depthWrite={false} />
+      </mesh>
+      <mesh geometry={rock} castShadow receiveShadow>
+        <meshStandardMaterial color="#a6a29d" roughness={0.9} flatShading />
+      </mesh>
+      {peaks.map(([px, py, pz, r], i) => (
+        <group key={i} position={[px, py, pz]} rotation={[0, i * 0.7, 0]}>
+          <mesh scale={[r, r * 0.9, r]} castShadow>
+            <octahedronGeometry args={[1, 0]} />
+            <meshStandardMaterial color="#fbfcfd" roughness={0.5} flatShading />
+          </mesh>
+          {[0, 1, 2, 3, 4].map((k) => (
+            <mesh key={k} position={[Math.cos(k * 1.26) * r * 0.75, -r * 0.15, Math.sin(k * 1.26) * r * 0.75]} rotation={[Math.sin(k) * 0.9, k, Math.cos(k) * 0.9]} scale={[r * 0.28, r * 0.75, r * 0.28]}>
+              <coneGeometry args={[1, 1, 4]} />
+              <meshStandardMaterial color="#eef1f5" roughness={0.5} flatShading />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** t384u: a lumpy cluster of leafy spheres, darker below and lighter on top. */
 function Bush({ x, y, lego }: { x: number; y: number; lego: boolean }) {
-  const blobs: [number, number, number, number][] = [[0, 0.22, 0, 0.3], [-0.18, 0.18, 0.1, 0.2], [0.17, 0.2, -0.08, 0.22], [0.08, 0.36, 0.1, 0.18], [-0.1, 0.33, -0.14, 0.16]];
+  const blobs: [number, number, number, number][] = [
+    [0, 0.2, 0, 0.3], [-0.24, 0.17, 0.1, 0.2], [0.24, 0.18, -0.06, 0.21], [0.06, 0.16, 0.26, 0.19], [-0.06, 0.17, -0.27, 0.19],
+    [0.2, 0.17, 0.2, 0.17], [-0.2, 0.18, -0.18, 0.17], [-0.1, 0.38, 0.06, 0.19], [0.12, 0.4, -0.06, 0.18], [0.0, 0.5, 0.0, 0.14],
+  ];
+  const col = (by: number) => (by > 0.45 ? "#7ab866" : by > 0.3 ? "#55a048" : "#2f6e2a");
   return (
     <group position={[wx(x), LAND_Y, wz(y)]}>
       {lego ? (
@@ -403,9 +476,9 @@ function Bush({ x, y, lego }: { x: number; y: number; lego: boolean }) {
         </>
       ) : (
         blobs.map(([bx, by, bz, r], i) => (
-          <mesh key={i} position={[bx, by, bz]} castShadow>
-            <icosahedronGeometry args={[r, 1]} />
-            <meshStandardMaterial color={["#2f6b2a", "#3f8a34", "#4a9b3c", "#3a7f31", "#357a2e"][i]} roughness={0.8} flatShading />
+          <mesh key={i} position={[bx, by, bz]} castShadow receiveShadow>
+            <icosahedronGeometry args={[r, 2]} />
+            <meshStandardMaterial color={col(by)} roughness={0.85} />
           </mesh>
         ))
       )}
@@ -413,7 +486,117 @@ function Bush({ x, y, lego }: { x: number; y: number; lego: boolean }) {
   );
 }
 
-type Missile = { id: number; from: THREE.Vector3; to: THREE.Vector3; kind: "arrow" | "ball" };
+/** t389u: two dark smoke plumes with glowing embers over the erupting volcano. */
+function Plumes({ x, z }: { x: number; z: number }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((st) => {
+    ref.current?.children.forEach((c, i) => {
+      c.position.y = ((st.clock.elapsedTime * 0.35 + i * 0.137) % 1) * 1.8 + 0.5;
+      const k = 1 - c.position.y / 2.6;
+      c.scale.setScalar(Math.max(0.2, k));
+    });
+  });
+  const puffs = useMemo(() => Array.from({ length: 28 }, (_, i) => ({ side: i % 2 ? 0.35 : -0.3, dx: Math.sin(i * 2.3) * 0.09, dz: Math.cos(i * 1.7) * 0.09, ember: i % 3 === 0 })), []);
+  return (
+    <group ref={ref} position={[x, LAND_Y, z]}>
+      {puffs.map((p, i) => (
+        <mesh key={i} position={[p.side + p.dx, 0, p.dz]}>
+          {p.ember ? <boxGeometry args={[0.07, 0.05, 0.07]} /> : <icosahedronGeometry args={[0.2, 1]} />}
+          {p.ember ? <meshBasicMaterial color={i % 2 ? "#ff8a1a" : "#ffc23a"} /> : <meshStandardMaterial color="#35261d" roughness={1} flatShading />}
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** t385u/t387u: a one-cell boat (the transport S, or a pirate ship at sea) and the piece riding it. */
+function SmallShip({ pc, style, pos, faceYaw, selected, onClick }: { pc: BcPiece; style: BgStyle; pos: THREE.Vector3; faceYaw: number; selected: boolean; onClick: (e: ThreeEvent<MouseEvent>) => void }) {
+  const { g, anim } = useGlide(pos, style, true);
+  const white = pc.c === "w";
+  const pirate = pc.kind === "I";
+  const hullGeo = useMemo(() => {
+    const sh = new THREE.Shape();
+    sh.moveTo(-0.42, 0.08);
+    sh.lineTo(0.36, 0.08);
+    sh.quadraticCurveTo(0.46, 0.06, 0.47, 0.0);
+    sh.quadraticCurveTo(0.4, -0.13, 0.26, -0.15);
+    sh.lineTo(-0.32, -0.15);
+    sh.quadraticCurveTo(-0.42, -0.1, -0.42, 0.08);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.3, bevelEnabled: true, bevelSize: 0.025, bevelThickness: 0.025, bevelSegments: 2 });
+    geo.translate(0, 0, -0.15);
+    return geo;
+  }, []);
+  const skull = useMemo(() => {
+    if (!pirate) return null;
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!;
+    x.fillStyle = white ? "#f4f4f4" : "#111";
+    x.fillRect(0, 0, 128, 128);
+    x.fillStyle = x.strokeStyle = white ? "#111" : "#f4f4f4";
+    x.beginPath(); x.arc(64, 54, 24, 0, Math.PI * 2); x.fill();
+    x.fillRect(50, 66, 28, 20);
+    x.lineWidth = 9; x.beginPath(); x.moveTo(30, 96); x.lineTo(98, 116); x.moveTo(98, 96); x.lineTo(30, 116); x.stroke();
+    x.fillStyle = white ? "#f4f4f4" : "#111";
+    x.beginPath(); x.arc(54, 52, 7, 0, Math.PI * 2); x.arc(74, 52, 7, 0, Math.PI * 2); x.fill();
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, [pirate, white]);
+  useFrame((st, dt) => {
+    const gr = g.current;
+    if (!gr) return;
+    const a = anim.current;
+    if (a) {
+      a.t = Math.min(1, a.t + dt / a.dur);
+      const e = a.t < 0.5 ? 2 * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 2) / 2;
+      gr.position.lerpVectors(a.from, a.to, e);
+      if (a.t >= 1) anim.current = null;
+    }
+    const tt = st.clock.elapsedTime + pc.x * 0.7;
+    gr.position.y = pos.y + Math.sin(tt * 1.6) * 0.02 + (selected ? 0.1 : 0);
+    gr.rotation.x = Math.sin(tt * 1.2) * 0.03;
+  });
+  const body = white ? "#f4f4f4" : "#141414";
+  const ink = white ? "#141414" : "#f4f4f4";
+  const rider = pc.rider;
+  return (
+    <group ref={g} onClick={onClick}>
+      <mesh geometry={hullGeo} castShadow receiveShadow>
+        <meshStandardMaterial color={body} roughness={0.5} />
+      </mesh>
+      <mesh position={[0, 0.11, 0]}>
+        <boxGeometry args={[0.9, 0.02, 0.33]} />
+        <meshStandardMaterial color={ink} />
+      </mesh>
+      <mesh position={[0.02, 0.5, 0]} castShadow>
+        <cylinderGeometry args={[0.012, 0.016, 0.82, 6]} />
+        <meshStandardMaterial color={ink} />
+      </mesh>
+      <mesh position={[0.02, 0.5, 0.02]} castShadow>
+        <boxGeometry args={[0.46, 0.44, 0.012]} />
+        <meshStandardMaterial color={body} map={skull ?? undefined} roughness={0.8} />
+      </mesh>
+      <mesh position={[0.08, 0.89, 0]}>
+        <boxGeometry args={[0.12, 0.06, 0.008]} />
+        <meshStandardMaterial color={ink} />
+      </mesh>
+      {rider ? (
+        <group position={[-0.2, 0.1, -0.08]} scale={0.72}>
+          <Token pc={{ ...pc, id: `${pc.id}r`, p: rider, c: bcColor(rider)!, kind: rider.toUpperCase(), rider: undefined }} style={style} pos={new THREE.Vector3(0, 0, 0)} selected={false} check={false} faceYaw={faceYaw} onClick={onClick} />
+        </group>
+      ) : null}
+      {selected ? (
+        <mesh position={[0, -0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.5, 0.6, 40]} />
+          <meshBasicMaterial color="#ffe08a" transparent opacity={0.85} />
+        </mesh>
+      ) : null}
+    </group>
+  );
+}
+
+type Missile = { id: number; from: THREE.Vector3; to: THREE.Vector3; kind: "arrow" | "ball" | "lava" };
 function Projectile({ m, onDone }: { m: Missile; onDone: () => void }) {
   const ref = useRef<THREE.Group>(null);
   const t = useRef(0);
@@ -437,7 +620,12 @@ function Projectile({ m, onDone }: { m: Missile; onDone: () => void }) {
   });
   return (
     <group ref={ref}>
-      {m.kind === "arrow" ? (
+      {m.kind === "lava" ? (
+        <mesh>
+          <boxGeometry args={[0.36, 0.36, 0.36]} />
+          <meshStandardMaterial map={loadTex(bcLavaTex(m.id & 3), true)} emissive="#ff5a10" emissiveIntensity={0.6} />
+        </mesh>
+      ) : m.kind === "arrow" ? (
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.015, 0.015, 0.5, 6]} />
           <meshStandardMaterial color="#ffd36b" emissive="#7a4a00" />
@@ -484,6 +672,16 @@ function Scene(props: Props) {
     const now = new Set(pieces.map((p) => p.id));
     const gone = prev.current.filter((p) => !now.has(p.id));
     prev.current = pieces;
+    const st = bcParse(fen);
+    if (st?.storm.includes("V")) {
+      const fresh = Object.entries(st.lava).filter(([, t]) => t === 3).map(([sq]) => bcPos(sq)!).filter(Boolean);
+      const ms: [number, number][] = [[0, 7], [12, 1]];
+      const d = (m: [number, number]) => fresh.reduce((a, f) => a + Math.hypot(f[0] - m[0] - 0.5, f[1] - m[1] - 0.5), 0);
+      const vm = d(ms[0]) <= d(ms[1]) ? ms[0] : ms[1];
+      const from = new THREE.Vector3((wx(vm[0]) + wx(vm[0] + 1)) / 2, LAND_Y + 0.9, (wz(vm[1]) + wz(vm[1] + 1)) / 2);
+      setMissiles((m) => [...m, ...fresh.map((f, i) => ({ id: Date.now() + 100 + i, from, to: new THREE.Vector3(wx(f[0]), cellY(f[0], f[1]) + 0.05, wz(f[1])), kind: "lava" as const }))]);
+      window.setTimeout(() => setBursts((b) => [...b, ...fresh.map((f, i) => ({ id: Date.now() + 200 + i, at: new THREE.Vector3(wx(f[0]), cellY(f[0], f[1]), wz(f[1])), color: "#ff7a1a" }))]), 700);
+    }
     if (style !== "an") return;
     const shot = lastMove && lastSan?.includes("*") ? lastMove : null;
     let delay = 300;
@@ -525,6 +723,15 @@ function Scene(props: Props) {
   }
   const faceYaw = you === "w" ? Math.PI : 0;
   const decor = useMemo(() => bcParse(fen), [fen]);
+  // the volcano that erupted this turn: the big mountain nearest the fresh lava (t389u)
+  const volcano = useMemo(() => {
+    if (!decor?.storm.includes("V")) return null;
+    const fresh = Object.entries(decor.lava).filter(([, t]) => t === 3).map(([sq]) => bcPos(sq)!).filter(Boolean);
+    if (!fresh.length) return null;
+    const ms: [number, number][] = [[0, 7], [12, 1]];
+    const d = (m: [number, number]) => fresh.reduce((a, f) => a + Math.hypot(f[0] - m[0] - 0.5, f[1] - m[1] - 0.5), 0);
+    return d(ms[0]) <= d(ms[1]) ? ms[0] : ms[1];
+  }, [decor]);
 
   const hits: React.ReactNode[] = [];
   for (let y = BC_Y0; y <= BC_Y1; y++)
@@ -554,7 +761,7 @@ function Scene(props: Props) {
     <>
       <ambientLight intensity={lego ? 0.75 : 0.5} />
       <hemisphereLight args={["#fff2d6", "#2a1a3a", 0.55]} />
-      <directionalLight position={[6, 14, 8]} intensity={lego ? 1.6 : 2.0} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-12} shadow-camera-right={12} shadow-camera-top={10} shadow-camera-bottom={-10} />
+      <directionalLight position={[6, 14, 8]} intensity={lego ? 1.6 : 2.0} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-16} shadow-camera-right={16} shadow-camera-top={12} shadow-camera-bottom={-12} />
       <pointLight position={[-9, 6, -6]} intensity={22} color="#b58cff" distance={30} />
       <Island lego={lego} />
       {decor
@@ -562,13 +769,14 @@ function Scene(props: Props) {
             const p = bcPos(sq);
             if (!p || ttl <= 0) return null;
             return (
-              <mesh key={sq} position={[wx(p[0]), LAND_Y + 0.04, wz(p[1])]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[0.42, 20]} />
-                <meshBasicMaterial color="#ff4a12" transparent opacity={0.85} />
+              <mesh key={sq} position={[wx(p[0]), cellY(p[0], p[1]) + 0.02, wz(p[1])]}>
+                <boxGeometry args={[1, 0.04, 1]} />
+                <meshStandardMaterial map={loadTex(bcLavaTex((p[0] * 5 + p[1] * 3) & 3), true)} emissive="#ff5a10" emissiveIntensity={0.35} emissiveMap={loadTex(bcLavaTex((p[0] * 5 + p[1] * 3) & 3), true)} />
               </mesh>
             );
           })
         : null}
+      {volcano ? <Plumes x={(wx(volcano[0]) + wx(volcano[0] + 1)) / 2} z={(wz(volcano[1]) + wz(volcano[1] + 1)) / 2} /> : null}
       {decor?.storm.includes("T") ? <Tornado /> : null}
       {hits}
       {pieces.map((pc) =>
@@ -581,6 +789,8 @@ function Scene(props: Props) {
             const cy = Math.max(pc.y, Math.min(pc.y + (pc.h ?? 1) - 1, Math.round(ly)));
             tap(bcSq(cx, cy));
           }} />
+        ) : pc.kind === "S" || (pc.kind === "I" && bcTerrain(pc.x, pc.y) === "W") ? (
+          <SmallShip key={pc.id} pc={pc} style={style} pos={new THREE.Vector3(wx(pc.x), SEA_Y + 0.1, wz(pc.y))} faceYaw={faceYaw} selected={sel === pc.sq} onClick={(e) => { e.stopPropagation(); tap(pc.sq); }} />
         ) : (
           <Token key={pc.id} pc={pc} style={style} pos={new THREE.Vector3(wx(pc.x), cellY(pc.x, pc.y), wz(pc.y))} selected={sel === pc.sq} check={checkSq === pc.sq} faceYaw={faceYaw} onClick={(e) => { e.stopPropagation(); tap(pc.sq); }} />
         ),
@@ -610,7 +820,7 @@ export function BcBoard3D(props: Props) {
     return () => window.removeEventListener("resize", on);
   }, []);
   const aspect = typeof window !== "undefined" ? window.innerWidth / Math.max(1, window.innerHeight) : 1.6;
-  const dist = 17.5 * (narrow ? Math.max(1.9, 1.25 / aspect) : 1);
+  const dist = 21 * (narrow ? Math.max(1.9, 1.25 / aspect) : 1);
   const cam: [number, number, number] = [0, dist * 0.8, dist * 0.6 * flip];
   const storm = useMemo(() => bcParse(props.fen)?.storm ?? "", [props.fen]);
   return (
