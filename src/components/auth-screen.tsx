@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MorseCrest } from "@/components/club-brand";
 import { apiUrl } from "@/lib/base";
+import { LEGENDARY } from "@/lib/legendary/theme";
+import { LgAuthScreen, LgEnterSplash } from "@/components/legendary/auth-legendary";
 
 // Our /api/club-sign-in route is not one of Better Auth's own endpoints, so tell the
 // session store to refetch (otherwise a stale "signed out" answer can stick).
@@ -18,9 +20,14 @@ function refreshSession() {
   (authClient as unknown as { $store?: { notify: (k: string) => void } }).$store?.notify("$sessionSignal");
 }
 
-type Mode = "create" | "enter";
+export type Mode = "create" | "enter";
 
 export function AuthScreen() {
+  if (LEGENDARY) return <LgAuthScreen />;
+  return <ClassicAuthScreen />;
+}
+
+export function useAuthForm() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("enter");
   const [username, setUsername] = useState("");
@@ -106,6 +113,11 @@ export function AuthScreen() {
     }
   }
 
+  return { mode, setMode, username, setUsername, email, setEmail, password, setPassword, show, setShow, error, setError, pending, onSubmit, navigate };
+}
+
+function ClassicAuthScreen() {
+  const { mode, setMode, username, setUsername, email, setEmail, password, setPassword, show, setShow, error, setError, pending, onSubmit, navigate } = useAuthForm();
   return (
     <main className="auth-wood relative flex min-h-dvh flex-col items-center justify-center px-5 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
       <div className="absolute right-5 top-5">
@@ -243,6 +255,11 @@ export function AuthScreen() {
 }
 
 export function EnterSplash({ onDone }: { onDone?: () => void }) {
+  if (LEGENDARY) return <LgEnterSplash onDone={onDone} />;
+  return <ClassicEnterSplash onDone={onDone} />;
+}
+
+function ClassicEnterSplash({ onDone }: { onDone?: () => void }) {
   useEffect(() => {
     if (!onDone) return;
     const t = window.setTimeout(onDone, 3600);

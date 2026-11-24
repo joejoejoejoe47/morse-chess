@@ -47,7 +47,7 @@ export const START_FEN: Record<VariantId, string> = {
   mini: "8/8/8/rnbqk3/ppppp3/8/PPPPP3/RNBQK3 w - - 0 1",
   checkers: "ck|1m1m1m1m/m1m1m1m1/1m1m1m1m/8/8/M1M1M1M1/1M1M1M1M/M1M1M1M1|w|-|0",
   xiangqi: "xq|rheakaehr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RHEAKAEHR|w|0",
-  battlechess: "bc|2W17/1H18/13FF5/6REBKQBNRABR3/6PPPPPPPPCNN3/3CI15/13H6/6H13/15ic3/3nncpppppppp6/3rbarnbkqber6/5ff11H1/17w2/20|w|-|0|1|-",
+  battlechess: "bc|28/23I4/3S24/28/2H14FF9/10REBKQBNRABR7/10PPPPPPPPCNN7/7C20/17H10/10H17/20c7/7nncpppppppp10/7rbarnbkqber10/9ff14H2/28/24s3/4i23/28|w|-|0|1|-",
 };
 
 export const VARIANT_INFO: Record<VariantId, { name: string; short: string; rules: string[] }> = {

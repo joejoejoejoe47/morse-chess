@@ -9,13 +9,13 @@ use Morse\Variants;
 
 check(!Variants::released('battlechess') && Variants::released('checkers') && Variants::released('xiangqi'), 'battle chess is owner preview; checkers + xiangqi are open');
 $fen = Variants::START_FEN['battlechess'];
-check(str_contains($fen, 'H') && str_contains($fen, 'I'), 'chests and a pirate are on the island');
+check(str_contains($fen, 'H') && str_contains($fen, 'I'), 'chests and pirate ships are on the board');
 $moves = Variants::legalList('battlechess', $fen);
 check(count($moves) > 8, 'white has an opening');
 $m = Variants::botMove('battlechess', $fen, 400);
 check($m !== null && BoardGames::tryMove('battlechess', $fen, $m['from'], $m['to'], null) !== null, 'MorseBot plays a legal first move');
 // The same pawn push must storm the same way the browser does.
 $played = BoardGames::tryMove('battlechess', $fen, 'e7', 'e5', null);
-check($played !== null && $played['fen'] === 'bc|2W17/1H18/13FF5/6REBKQBNRABR3/6P1PPPPPPCNN3/3CI15/7P5H6/6H13/15ic3/3nncpppppppp6/3rbarnbkqber6/5ff11H1/17w2/20|b|e6|0|1|-', 'the pawn push matches the board');
+check($played !== null && $played['fen'] === 'bc|28/23I4/3S24/28/2H14FF9/10REBKQBNRABR7/9P2PPPPPPCNN7/7C20/11P5H10/10H17/20c7/7nncpppppppp10/7rbarnbkqber10/9ff14H2/28/24s3/4i23/28|b|e6|0|1|T:', 'the pawn push matches the board');
 
 finish();

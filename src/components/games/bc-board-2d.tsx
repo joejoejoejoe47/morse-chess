@@ -7,8 +7,8 @@
  * galleons, low-poly snowy mountains and leafy bushes (art in bc-art.tsx).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BC_STD, BcBush, BcMountain, BcShip, BcSpecial, bcPieceUrl, bcTex } from "@/components/games/bc-art";
-import { BC_H, BC_W, BC_X0, BC_X1, BC_Y0, BC_Y1, bcColor, bcParse, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
+import { BC_STD, BcBush, BcHill, BcMountain, BcPlumes, BcShip, BcSpecial, bcLavaTex, bcPieceUrl, bcTex } from "@/components/games/bc-art";
+import { BC_H, BC_W, BC_X0, BC_X1, BC_Y0, BC_Y1, bcColor, bcHill, bcParse, bcPos, bcSq, bcTerrain } from "@/lib/boardgames/battlechess";
 
 type Props = {
   fen: string;
@@ -22,7 +22,7 @@ type Props = {
   checkSq?: string | null;
 };
 
-export type BcPiece = { id: string; p: string; c: "w" | "b"; kind: string; x: number; y: number; sq: string; w?: number; h?: number };
+export type BcPiece = { id: string; p: string; c: "w" | "b"; kind: string; x: number; y: number; sq: string; w?: number; h?: number; rider?: string };
 
 /** Pieces with stable ids (a move keeps its id so it glides; a frigate is one piece over two cells). */
 export function useBcPieces(fen: string, lastMove: { from: string; to: string } | null) {
@@ -42,7 +42,7 @@ export function useBcPieces(fen: string, lastMove: { from: string; to: string } 
           ships[p].ys.push(y);
           continue;
         }
-        out.push({ id: "", p, c: bcColor(p)!, kind: p.toUpperCase(), x, y, sq: bcSq(x, y) });
+        out.push({ id: "", p, c: bcColor(p)!, kind: p.toUpperCase(), x, y, sq: bcSq(x, y), rider: s.cargo[bcSq(x, y)] });
       }
     for (const [p, v] of Object.entries(ships)) {
       const x = Math.min(...v.xs), y = Math.min(...v.ys);
@@ -68,7 +68,7 @@ function view(you: "w" | "b") {
   return (x: number, y: number): [number, number] => (you === "w" ? [BC_X1 - x, y - BC_Y0] : [x - BC_X0, BC_Y1 - y]);
 }
 
-export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate", I: "Pirate", W: "Wizard", U: "Boots", H: "Chest" };
+export const BC_NAME: Record<string, string> = { K: "King", Q: "Queen", R: "Rook", B: "Bishop", N: "Knight", P: "Pawn", C: "Archer", E: "Eagle", A: "Assassin", F: "Frigate", I: "Pirate", W: "Wizard", U: "Boots", H: "Chest", S: "Boat" };
 
 export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMove, legalFor, checkSq }: Props) {
   const [sel, setSel] = useState<string | null>(null);
@@ -147,25 +147,54 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
     const pts = [v(mx, my), v(mx + 1, my), v(mx, my + 1), v(mx + 1, my + 1)];
     const c = Math.min(...pts.map((p) => p[0])), r = Math.min(...pts.map((p) => p[1]));
     return (
-      <g key={`m${mx}`} transform={`translate(${c - 0.15} ${r - 0.2}) scale(0.023)`} data-bc-mountain>
+      <g key={`m${mx}`} transform={`translate(${c - 0.28} ${r - 0.22}) scale(0.0256)`} data-bc-mountain>
         <BcMountain />
       </g>
     );
   });
+  const mountCells: [number, number][] = [
+    [0, 7],
+    [12, 1],
+  ];
+  // the volcano that erupted this turn: the big mountain nearest the fresh lava (t389u)
+  const fresh = state && state.storm.includes("V") ? Object.entries(state.lava).filter(([, t]) => t === 3).map(([sq]) => bcPos(sq)!).filter(Boolean) : [];
+  const volcano = fresh.length
+    ? mountCells.reduce((best, m) => {
+        const d = (q: [number, number]) => fresh.reduce((a, f) => a + Math.hypot(f[0] - q[0] - 0.5, f[1] - q[1] - 0.5), 0);
+        return d(m) < d(best) ? m : best;
+      })
+    : null;
+  const volcCenter = volcano ? (() => { const pts = [v(volcano[0], volcano[1]), v(volcano[0] + 1, volcano[1] + 1)]; return [Math.min(pts[0][0], pts[1][0]) + 1, Math.min(pts[0][1], pts[1][1]) + 0.8] as [number, number]; })() : null;
+  const plumes = volcano && volcCenter ? (
+    <g key={`plume${fen}`} transform={`translate(${volcCenter[0] - 1.28} ${volcCenter[1] - 0.55}) scale(0.0256)`} pointerEvents="none">
+      <BcPlumes />
+    </g>
+  ) : null;
+  const hills: React.ReactNode[] = [];
+  for (let y = BC_Y0; y <= BC_Y1; y++)
+    for (let x = BC_X0; x <= BC_X1; x++)
+      if (bcHill(x, y)) {
+        const [c, r] = v(x, y);
+        hills.push(
+          <g key={`hill${x},${y}`} transform={`translate(${c - 0.05} ${r - 0.05}) scale(0.011)`} data-bc-hill-cell={bcSq(x, y)}>
+            <BcHill />
+          </g>,
+        );
+      }
   const bushes = [
     [6, 5],
     [7, 4],
   ].map(([bx, by]) => {
     const [c, r] = v(bx, by);
     return (
-      <g key={`b${bx}`} transform={`translate(${c - 0.08} ${r - 0.1}) scale(0.0116)`} data-bc-bush>
+      <g key={`b${bx}`} transform={`translate(${c - 0.17} ${r - 0.2}) scale(0.0134)`} data-bc-bush>
         <BcBush />
       </g>
     );
   });
 
-  // frame the islands and ships tightly (x -2..15, y -1..11); the open sea fills the rest of the screen
-  const corners = [v(-2, -1), v(15, 11)];
+  // frame the islands and ships tightly (x -6..19, y -3..12); the open sea fills the rest of the screen
+  const corners = [v(-6, -3), v(19, 12)];
   const c0 = Math.min(corners[0][0], corners[1][0]), r0 = Math.min(corners[0][1], corners[1][1]);
   const c1 = Math.max(corners[0][0], corners[1][0]) + 1, r1 = Math.max(corners[0][1], corners[1][1]) + 1;
   const frame = `${c0 - 0.25} ${r0 - 0.25} ${c1 - c0 + 0.5} ${r1 - r0 + 0.5}`;
@@ -207,15 +236,31 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
         {landCells}
         <path d={rim.join(" ")} stroke="#2a1708" strokeOpacity={0.55} strokeWidth={0.03} strokeLinecap="square" />
         {mountains}
+        {hills}
         {bushes}
         {state
-          ? Object.entries(state.lava).map(([sq, ttl]) => {
+          ? Object.entries(state.lava).map(([sq, ttl], i) => {
               const p = bcPos(sq);
               if (!p || ttl <= 0) return null;
               const [c, r] = v(p[0], p[1]);
-              return <rect key={`lava${sq}`} x={c + 0.08} y={r + 0.08} width={0.84} height={0.84} rx={0.12} fill="#ff5a1f" opacity={0.72} data-lava={sq} />;
+              const flying = ttl === 3 && volcCenter;
+              const n = (p[0] * 5 + p[1] * 3) & 3;
+              return (
+                <g key={`lava${sq}${flying ? fen : ""}`} data-lava={sq} pointerEvents="none">
+                  <image href={bcLavaTex(n)} x={c} y={r} width={1} height={1} preserveAspectRatio="none" className={flying ? "bc2-lava-land" : undefined} style={flying ? { animationDelay: `${0.25 + i * 0.18}s` } : undefined} opacity={ttl === 1 ? 0.8 : 1} />
+                  {flying ? (
+                    <>
+                      <g className="bc2-lava-fly" style={{ ["--dx" as string]: `${c + 0.5 - volcCenter[0]}px`, ["--dy" as string]: `${r + 0.5 - volcCenter[1]}px`, animationDelay: `${i * 0.18}s`, transform: `translate(${volcCenter[0]}px, ${volcCenter[1]}px)` }}>
+                        <image href={bcLavaTex(n)} x={-0.3} y={-0.3} width={0.6} height={0.6} preserveAspectRatio="none" />
+                      </g>
+                      <circle cx={c + 0.5} cy={r + 0.5} r={0.5} fill="none" stroke="#ffb13a" strokeWidth={0.1} className="bc2-lava-hit" style={{ animationDelay: `${0.25 + i * 0.18}s` }} />
+                    </>
+                  ) : null}
+                </g>
+              );
             })
           : null}
+        {plumes}
         {/* last move, check, selection */}
         {[...lastSq].map((sq) => {
           const p = bcPos(sq);
@@ -251,8 +296,28 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
             const sw = Math.max(...corners.map((q) => q[0])) - c + 1, sh = Math.max(...corners.map((q) => q[1])) - r + 1;
             return (
               <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}F`} data-bc-ship={pc.c}>
-                <g transform={sw >= sh ? "translate(0 -0.36) scale(0.02222)" : "translate(-0.17 0) scale(0.02222)"} filter="url(#bc-pc-w)">
-                  <BcShip white={white} vertical={sw < sh} />
+                <g transform={sw >= sh ? "translate(0.05 -0.5) scale(0.019)" : "translate(-0.3 0.62) scale(0.016)"}>
+                  <BcShip white={white} />
+                </g>
+              </g>
+            );
+          }
+          if (pc.kind === "S" || (pc.kind === "I" && bcTerrain(pc.x, pc.y) === "W")) {
+            const [c, r] = v(pc.x, pc.y);
+            return (
+              <g key={pc.id} className="bc2-piece" style={{ transform: `translate(${c}px, ${r}px)` }} data-piece={`${pc.c}${pc.kind}`} data-sq-piece={pc.sq} data-bc-boat={pc.kind} data-bc-rider={pc.rider}>
+                <title>{`${white ? "White" : "Black"} ${pc.kind === "S" ? "Boat" : "Pirate ship"}${pc.rider ? ` carrying a ${BC_NAME[pc.rider.toUpperCase()]?.toLowerCase()}` : ""}`}</title>
+                {pc.rider ? (
+                  BC_STD.has(pc.rider.toUpperCase()) ? (
+                    <image href={bcPieceUrl(bcColor(pc.rider)!, pc.rider.toUpperCase())} x={-0.14} y={-0.3} width={0.92} height={0.92} filter={bcColor(pc.rider) === "w" ? "url(#bc-pc-w)" : "url(#bc-pc-b)"} />
+                  ) : (
+                    <g transform="translate(-0.1 -0.26) scale(0.0185)">
+                      <BcSpecial kind={pc.rider.toUpperCase()} white={bcColor(pc.rider) === "w"} />
+                    </g>
+                  )
+                ) : null}
+                <g transform={pc.rider ? "translate(0.06 0.18) scale(0.0098)" : "translate(-0.02 0.1) scale(0.0104)"}>
+                  <BcShip white={white} pirate={pc.kind === "I"} />
                 </g>
               </g>
             );
