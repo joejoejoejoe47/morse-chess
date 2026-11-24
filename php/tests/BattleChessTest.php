@@ -7,7 +7,7 @@ require __DIR__ . '/bootstrap.php';
 use Morse\BoardGames;
 use Morse\Variants;
 
-check(Variants::released('battlechess'), 'battle chess is released');
+check(!Variants::released('battlechess') && Variants::released('checkers') && Variants::released('xiangqi'), 'battle chess is owner preview; checkers + xiangqi are open');
 $fen = Variants::START_FEN['battlechess'];
 check(str_contains($fen, 'H') && str_contains($fen, 'I'), 'chests and a pirate are on the island');
 $moves = Variants::legalList('battlechess', $fen);

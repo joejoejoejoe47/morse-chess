@@ -106,3 +106,50 @@ export function LgBarButton({ children, onClick, active = false, title, classNam
     </button>
   );
 }
+
+/**
+ * In-game crest (owner t382u): logo, one gold/purple mode badge and a turn pill, stacked with
+ * room to breathe. On phones the logo drops and the badge + turn pill sit on their own row.
+ */
+export function LgGameCrest({
+  mode,
+  clock,
+  ranked,
+  preview = false,
+  turn,
+}: {
+  mode: string;
+  clock: string;
+  ranked: boolean | null;
+  preview?: boolean;
+  turn: { text: string; mine: boolean; over: boolean };
+}) {
+  return (
+    <div className="mcl-crest pointer-events-none flex min-w-0 flex-col items-center" data-legendary-crest>
+      <div className="mcl-crest-logo hidden sm:block">
+        <LgLogo small />
+      </div>
+      <div className="mcl-crest-row flex flex-wrap items-center justify-center">
+        <span className="mcl-crest-mode" data-mode-badge>
+          <svg viewBox="0 0 12 12" className="mcl-crest-gem" aria-hidden>
+            <path d="M6 .6 11.4 6 6 11.4.6 6Z" />
+          </svg>
+          <span className="mcl-crest-name">{mode}</span>
+          <span className="mcl-crest-sep" aria-hidden />
+          <span className="mcl-crest-info">
+            {ranked === null ? clock : `${ranked ? "Ranked" : "Unranked"} · ${clock}`}
+          </span>
+          {preview ? <span className="mcl-crest-preview">Owner preview</span> : null}
+        </span>
+        <span
+          className={cn("mcl-crest-turn", turn.mine && !turn.over && "is-mine", turn.over && "is-over")}
+          data-turn-indicator
+          aria-live="polite"
+        >
+          <span className="mcl-crest-dot" aria-hidden />
+          {turn.text}
+        </span>
+      </div>
+    </div>
+  );
+}
