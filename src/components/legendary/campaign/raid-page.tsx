@@ -310,7 +310,7 @@ function RaidBattle({ raidId }: { raidId: string }) {
                   : `${nameOf(raid.turn)} is moving…`
                 : raid.reason || "The raid is over."}
             </div>
-            {raid.status === "active" && raid.turn !== raid.seat ? (
+            {raid.status === "active" && raid.turn !== raid.seat && !canTakeOver ? (
               <div className="count" data-idle={idleSec}>
                 <i>{Math.max(0, raid.idle - idleSec)}</i>s until you can take over
               </div>

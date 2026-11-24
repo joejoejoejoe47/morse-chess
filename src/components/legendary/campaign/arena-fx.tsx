@@ -186,20 +186,20 @@ export function RaidFx() {
   return (
     <group>
       <Suspense fallback={null}>
-        <group position={[0, -0.6, -9.2]} scale={6.5}>
+        <group position={[-7.7, -0.6, -4.6]} scale={3.3} rotation={[0, 0.55, 0]}>
           <BossPiece kind="k" ink="#2a1410" />
         </group>
         {[-1, 1].map((sx) => (
-          <group key={sx} position={[sx * 8.4, -0.6, -6.2]} scale={4.2} rotation={[0, -sx * 0.5, 0]}>
+          <group key={sx} position={[sx < 0 ? -3.6 : 7.7, -0.6, sx < 0 ? -9.5 : -4.6]} scale={sx < 0 ? 2.4 : 3.1} rotation={[0, -sx * 0.55, 0]}>
             <BossPiece kind="q" ink="#3a1a12" />
           </group>
         ))}
       </Suspense>
-      <mesh position={[0, 4.6, -8.2]}>
+      <mesh position={[-7.4, 3.3, -4.0]}>
         <sphereGeometry args={[0.55, 20, 16]} />
         <meshBasicMaterial ref={eye} color="#ff4a1a" />
       </mesh>
-      <pointLight position={[0, 4.6, -7.4]} color="#ff5a2a" intensity={60} distance={22} />
+      <pointLight position={[-6.4, 3.4, -3.0]} color="#ff5a2a" intensity={60} distance={22} />
       <pointLight position={[0, 9, -4]} color="#ffb07a" intensity={25} distance={18} />
       {/* the anvil plinth under the giant board */}
       <mesh position={[0, -0.9, 0]} receiveShadow>
