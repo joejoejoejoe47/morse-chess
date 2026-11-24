@@ -56,10 +56,10 @@ function BattleInner({ n }: { n: number }) {
     );
   }
   if (!camp) return <main className="mcc"><LoadingCampaign error={error} onRetry={reload} /></main>;
-  return <Battle key={n} ch={ch} army={camp.army} coins={camp.coins} frame={camp.rewards.includes("gear-frame") ? "gear" : undefined} />;
+  return <Battle key={n} ch={ch} army={camp.army} coins={camp.coins} rewards={camp.rewards} frame={camp.rewards.includes("gear-frame") ? "gear" : undefined} />;
 }
 
-function Battle({ ch, army, coins, frame }: { ch: Chapter; army: { slot: string; level: number; promos: number }[]; coins: number; frame?: string }) {
+function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot: string; level: number; promos: number }[]; coins: number; frame?: string; rewards: string[] }) {
   const narrow = useNarrow();
   const navigate = useNavigate();
   const [run, setRun] = useState<{ runId: string; perks: string[] } | null>(null);
@@ -142,7 +142,8 @@ function Battle({ ch, army, coins, frame }: { ch: Chapter; army: { slot: string;
       if (e.t === "glass-shatter") { boom(e.at, "#bfe4ff"); say("A Glass Pawn shatters. It was a fake!", "gold"); }
       if (e.t === "glass-summon") say(`Queen Aurelia summons a Glass Pawn on ${sqName(e.at)}. Look closer…`, "warn");
       if (e.t === "perk") say(`${PERKS[e.piece.k]?.name ?? "Perk"}!`, "gold");
-      if (e.t === "phase2") { say("PHASE 2: the rim collapses. Sudden-death Blitz!", "warn"); setClock(BLITZ_MS); }
+      if (e.t === "rim-fall") boom(e.at, "#ff5a2a");
+      if (e.t === "phase2") { say("PHASE 2: the rim collapses! Pieces on the edge are shoved inward or fall. Sudden-death Blitz!", "warn"); playSfx("boom", 1); setClock(BLITZ_MS); }
     }
     if (captured) playSfx("boom", 0.6);
     else playSfx("tap");
@@ -207,8 +208,12 @@ function Battle({ ch, army, coins, frame }: { ch: Chapter; army: { slot: string;
       if (g.ev.length) { next = g.s; ev = [...ev, ...g.ev]; }
       digest(s, m, ev, "b");
       setS(next);
-      setLast({ from: m.from, to: m.to });
-      setLog((l) => (l.length && !l[l.length - 1].b ? [...l.slice(0, -1), { ...l[l.length - 1], b: text }] : [...l, { w: "…", b: text }]));
+      // Phantom Grandmaster: a move that ends in the mist stays hidden
+      const mist = fogFor(next, ch.rules.fog);
+      const hidden = mist.has(m.to);
+      const shown = hidden ? "·· mist ··" : text;
+      setLast(hidden ? (mist.has(m.from) ? null : { from: m.from, to: m.from }) : { from: m.from, to: m.to });
+      setLog((l) => (l.length && !l[l.length - 1].b ? [...l.slice(0, -1), { ...l[l.length - 1], b: shown }] : [...l, { w: "…", b: shown }]));
       setThinking(false);
       const st = status(next);
       if (st.over) { void finish(st.winner, st.reason, next); return; }
@@ -266,7 +271,7 @@ function Battle({ ch, army, coins, frame }: { ch: Chapter; army: { slot: string;
     <main className="mcc mcc-battle" data-campaign-battle={ch.n} data-battle-phase={phase} data-turn={s.turn}>
       <div className="absolute inset-0">
         {view === "3d" ? (
-          <Arena3D s={s} chapter={ch} sel={sel} targets={targets} last={last} checkSq={checkSq} fog={fog} levels={levels} veterans={veterans} bursts={bursts} onBurstDone={(id) => setBursts((b) => b.filter((x) => x.id !== id))} onTap={tap} narrow={narrow} />
+          <Arena3D s={s} chapter={ch} sel={sel} targets={targets} last={last} checkSq={checkSq} fog={fog} levels={levels} veterans={veterans} rewards={rewards} cheer={callout?.tone === "gold"} bursts={bursts} onBurstDone={(id) => setBursts((b) => b.filter((x) => x.id !== id))} onTap={tap} narrow={narrow} />
         ) : (
           <Board2D s={s} chapter={ch} sel={sel} targets={targets} last={last} checkSq={checkSq} fog={fog} levels={levels} onTap={tap} />
         )}
@@ -354,7 +359,7 @@ function Battle({ ch, army, coins, frame }: { ch: Chapter; army: { slot: string;
       ) : null}
 
       {callout ? <div key={callout.id} className={cn("mcc-callout", callout.tone === "warn" && "is-warn", callout.tone === "gold" && "is-gold")} role="status" data-callout>
-        <Volume2 className="size-4 shrink-0" />{callout.text}
+        {rewards.includes("golden-bot") ? <span className="mcc-goldbot" aria-hidden>◉</span> : <Volume2 className="size-4 shrink-0" />}{callout.text}
       </div> : null}
 
       {promo ? (
@@ -396,7 +401,7 @@ function Battle({ ch, army, coins, frame }: { ch: Chapter; army: { slot: string;
       {phase === "end" && end ? (
         <div className="mcc-overlay">
           <section className="mcc-panel mcc-end" data-battle-end={end.winner ?? "draw"}>
-            <div className="big mcc-goldtext" role="heading" aria-level={1}>{end.winner === "w" ? "Victory" : end.winner === "b" ? "Defeat" : "Stalemate"}</div>
+            <div className="big mcc-goldtext" role="heading" aria-level={1}>{end.winner === "w" ? "Victory" : end.winner === "b" ? "Defeat" : end.reason === "Stalemate" ? "Stalemate" : "Draw"}</div>
             <div className="why">{end.reason}{result && result.result !== (end.winner === "w" ? "win" : end.winner === "b" ? "loss" : "draw") ? " · counted as a draw (too quick)" : ""}</div>
             {saving ? <p className="mt-4 text-sm text-[#c7b7a0]">Recording the battle…</p> : null}
             {result ? (

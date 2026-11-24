@@ -120,6 +120,21 @@ s.bossStart = 39;
 r = E.apply(s, E.legalMoves(s).find((m) => m.from === E.sq("a1") && m.to === E.sq("a2")));
 check(r.s.phase === 2 && r.ev.some((e) => e.t === "phase2"), "phase 2 starts");
 check(!E.legalMoves({ ...r.s, turn: "w" }).some((m) => E.onRim(m.to) && r.s.board[m.from].k !== "k"), "rim closed in phase 2");
+check(r.s.board.every((p, i) => !p || p.k === "k" || !E.onRim(i)), "rim cleared of non-kings");
+check(r.s.board[E.sq("b2")]?.k === "q" && r.s.board[E.sq("c2")]?.k === "q" && r.s.board[E.sq("d2")]?.k === "q", "rim pieces shoved inward");
+check(r.ev.filter((e) => e.t === "rim-fall").length === 1 && r.ev.filter((e) => e.t === "rim-push").length === 3, "one falls when the square is taken");
+// the collapse waits rather than expose the mover's king
+s = fromFen("4k3/8/8/r7/8/8/8/1K5Q w - - 0 1", { overlord: { at: 0.99 } });
+s.bossStart = 39;
+r = E.apply(s, E.legalMoves(s).find((m) => m.from === E.sq("h1") && m.to === E.sq("h2")));
+check(r.s.phase === 1, "collapse waits if it would expose the king");
+// sudden death: no draws in phase 2
+s = fromFen("4k3/8/8/8/3Q4/8/8/4K3 w - - 0 1", { overlord: { at: 0.5 } });
+s.phase = 2; s.quiet = 50;
+const sd = E.status(s);
+check(sd.over && sd.winner === "w", "sudden death: more material wins");
+s.phase = 1; s.quiet = 50;
+check(!E.status(s).over, "phase 1 keeps the 50-move rule");
 
 // boss finds mate in 1
 s = fromFen("6k1/5ppp/8/8/8/8/5PPP/r5K1 b - - 0 1");

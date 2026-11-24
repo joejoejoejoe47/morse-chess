@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { PieceMark } from "@/components/chess/marks";
 import { playSfx } from "@/lib/legendary/sfx";
 import { cn } from "@/lib/utils";
-import { kindOfSlot, levelProgress, looksFor, PERK_LEVEL, PERKS, setArmyPerk, SLOT_ORDER, slotName, slotSquare, TIERS, tierFor, VETERAN_PROMOS, VETERAN_TITLE, type ArmySlot } from "./data";
+import { CHAPTERS, kindOfSlot, levelProgress, looksFor, PERK_LEVEL, PERKS, setArmyPerk, SLOT_ORDER, slotName, slotSquare, TIERS, tierFor, VETERAN_PROMOS, VETERAN_TITLE, type ArmySlot } from "./data";
 import { ArmyPiece } from "./pieces3d";
 import { CampaignDoor, CampaignHeader, LoadingCampaign, useCampaign } from "./shell";
 
@@ -33,7 +33,7 @@ function Pedestal({ color }: { color: string }) {
   );
 }
 
-function Viewer({ slot }: { slot: ArmySlot }) {
+function Viewer({ slot, rewards }: { slot: ArmySlot; rewards: string[] }) {
   const kind = kindOfSlot(slot.slot);
   const tier = tierFor(slot.level);
   const veteran = kind === "p" && slot.promos >= VETERAN_PROMOS;
@@ -46,7 +46,7 @@ function Viewer({ slot }: { slot: ArmySlot }) {
       <pointLight position={[1.6, 0.6, -2]} intensity={6} color={tier.ring} />
       <Suspense fallback={null}>
         <Turntable>
-          <ArmyPiece kind={kind} look={{ level: slot.level, veteran }} yaw={0} />
+          <ArmyPiece kind={kind} look={{ level: slot.level, veteran, crowned: rewards.includes("crowned-pawn"), siege: rewards.includes("siege-aura") }} yaw={0} />
         </Turntable>
       </Suspense>
       <Pedestal color={tier.ring} />
@@ -56,6 +56,15 @@ function Viewer({ slot }: { slot: ArmySlot }) {
     </Canvas>
   );
 }
+
+const TROPHY_TEXT: Record<string, string> = {
+  board: "Board skin: equip it in Boards",
+  frame: "Avatar frame: equip it in AV King",
+  skin: "Every campaign pawn wears a crown",
+  aura: "Your rooks burn with a siege aura",
+  vfx: "Moving pieces leave ghost-fire trails",
+  companion: "Golden bot floats beside your army",
+};
 
 export function ArmyPage() {
   return (
@@ -108,7 +117,7 @@ function ArmyInner() {
           <div className="mcc-army">
             <section className="mcc-panel mcc-viewer" data-army-detail={slot.slot}>
               <div className="stage">
-                <Viewer slot={slot} />
+                <Viewer slot={slot} rewards={state?.rewards ?? []} />
                 <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
                   {looks?.scars ? <span className="mcc-tierchip">⚔ Battle scars</span> : null}
                   {looks?.banner ? <span className="mcc-tierchip">⚑ Banner</span> : null}
@@ -217,7 +226,25 @@ function ArmyInner() {
                   <li>🏰 Boss win: +10 for every survivor</li>
                   <li>♟ Your normal Legendary games count too</li>
                 </ul>
-                <p className="mt-2 text-xs text-[#a99ab8]">Level 4 earns battle scars, level 6 a banner, level 8 an aura. A pawn that promotes in {VETERAN_PROMOS} different battles wins the golden crown and the title “{VETERAN_TITLE}”.</p>
+                <p className="mt-2 text-xs text-[#a99ab8]" data-xp-note>Level 4 earns battle scars, level 6 a banner, level 8 an aura. A pawn that promotes in {VETERAN_PROMOS} different battles wins the golden crown and the title “{VETERAN_TITLE}”.</p>
+              </div>
+
+              <div className="mcc-panel p-4" data-trophies>
+                <span className="mcc-label">Trophy cabinet · campaign rewards</span>
+                <div className="mcc-trophies mt-2">
+                  {CHAPTERS.flatMap((c) => c.rewards.map((r) => ({ c, r }))).map(({ c, r }) => {
+                    const won = (state?.cleared ?? []).includes(c.n) || (state?.rewards ?? []).includes(r.id);
+                    return (
+                      <div key={r.id} className={cn("mcc-trophy", won && "is-won")} title={TROPHY_TEXT[r.kind]} data-trophy={r.id}>
+                        <span className="ic">{won ? "★" : "🔒"}</span>
+                        <span className="min-w-0">
+                          <b>{r.name}</b>
+                          <small>{won ? TROPHY_TEXT[r.kind] : `Beat ${c.boss}`}</small>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </section>
           </div>
