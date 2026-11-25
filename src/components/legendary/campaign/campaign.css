@@ -302,3 +302,6 @@
   .mcc-raid-card { top: auto; bottom: 12px; transform: translateX(-50%); padding: 16px; }
   .mcc-raid-mate small { display: none; }
 }
+/* CC BY credit for real 3D arenas */
+.mcc-credit { margin-top: 8px; font-size: 10.5px; line-height: 1.35; color: #a99ab8; }
+.mcc-credit a { color: #d9c08a; text-decoration: underline; text-underline-offset: 2px; }

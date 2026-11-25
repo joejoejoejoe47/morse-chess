@@ -10,6 +10,7 @@ import type { Burst } from "@/components/games/bg-board-3d";
 import { apply, inCheck, kingSq, legalMoves, material, moveText, newGame, sqName, status, summonGlass, VALUE, type Event, type Kind, type Move, type PerkId, type State } from "./engine";
 import { bossMove, hanging } from "./bot";
 import { arenaResult } from "./arena-data";
+import { ArenaCredit } from "./arena-models";
 import { chapterBy, finishCampaignRun, kindOfSlot, PERKS, slotName, startCampaignRun, VETERAN_PROMOS, type Chapter, type FinishResult, type PieceStats } from "./data";
 import { CampaignDoor, CampaignHeader, LoadingCampaign, useCampaign } from "./shell";
 import { Arena3D, world } from "./arena3d";
@@ -314,6 +315,7 @@ export function Battle({ ch, army, coins, frame, rewards, arena }: { ch: Chapter
           <aside className="mcc-panel mcc-twist" data-twist>
             <div className="k">{ch.arena}</div>
             <div className="txt mt-1 text-[#e6dcf0]">{ch.twist}</div>
+            <ArenaCredit n={ch.look ?? ch.n} />
             {ch.rules.gears ? <div className="count" data-gear-count={gearIn}><i>{gearIn}</i> {gearIn === 1 ? "turn" : "turns"} until the gears turn</div> : null}
             {ch.rules.walls ? <div className="count"><i>{Object.keys(s.walls).length}</i> walls standing</div> : null}
             {ch.rules.glassEvery ? <div className="count"><i>{ch.rules.glassEvery - (s.bossMoves % ch.rules.glassEvery)}</i> boss moves to the next Glass Pawn</div> : null}
@@ -396,6 +398,7 @@ export function Battle({ ch, army, coins, frame, rewards, arena }: { ch: Chapter
               <div className="mt-1">{ch.twist}</div>
               <div className="mt-2 text-xs text-[#b9a9c8]">Checkmate works exactly like normal chess. You play White and move first.</div>
             </div>
+            <ArenaCredit n={ch.look ?? ch.n} />
             {startErr ? <p className="mt-3 text-sm text-[#ffb08a]">{startErr}</p> : null}
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <button type="button" className="mcc-btn" disabled={!run} onClick={() => { setPhase("play"); playSfx("menu"); }} data-begin-battle>

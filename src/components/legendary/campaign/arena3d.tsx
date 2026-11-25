@@ -13,6 +13,7 @@ import type { Chapter } from "./data";
 import { ArmyPiece, BossPiece, GoldenBot, preloadArmy } from "./pieces3d";
 import { Citadel, Colosseum, Foundry, Gear, Marsh, Ramparts } from "./world-map";
 import { CoreFx, MarshFx, MirrorFx, RaidFx, SiegeFx } from "./arena-fx";
+import { ArenaSurroundings } from "./arena-models";
 
 preloadArmy();
 
@@ -233,8 +234,8 @@ function Backdrop({ chapter, phase }: { chapter: Chapter; phase: number }) {
       </group>
     );
   }
-  return (
-    <group>
+  const built = (
+    <>
       <group position={[0, -0.3, -9.5]} scale={2.6}>
         <Land dim={false} />
       </group>
@@ -244,6 +245,12 @@ function Backdrop({ chapter, phase }: { chapter: Chapter; phase: number }) {
       <group position={[9, -0.3, -5]} scale={1.6} rotation={[0, -0.6, 0]}>
         <Land dim={false} />
       </group>
+    </>
+  );
+  return (
+    <group>
+      {/* a real Sketchfab arena when its GLB shipped (arena-models.tsx), else the code-built landmarks */}
+      <ArenaSurroundings n={n} fallback={built} />
       {n === 1 ? (
         <>
           <Gear position={[-6.5, 4, -9]} r={2.4} teeth={18} speed={0.15} />

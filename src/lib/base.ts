@@ -49,3 +49,8 @@ export function asset(path: string): string {
 }
 
 export const apiUrl = asset;
+
+/** True when the build found this file in public/ (models, sounds, images). Lets optional drop-in models fall back. */
+export function hasAsset(path: string): boolean {
+  return Object.prototype.hasOwnProperty.call(VERSIONS, path);
+}
