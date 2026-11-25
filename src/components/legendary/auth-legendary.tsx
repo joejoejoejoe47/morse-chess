@@ -43,6 +43,11 @@ export function LgAuthScreen() {
           className={`mcl-auth-card ${flip ? (dir === "in" ? "mcl-flop-in" : "mcl-flop-out") : ""}`}
           data-mode={f.mode}
         >
+          <div className="mcl-auth-back" aria-hidden>
+            <img src={scr("medal-gem.webp")} alt="" />
+            <span>The Morse Table</span>
+          </div>
+          <div className="mcl-auth-face">
           <div className="mcl-auth-tabs" role="tablist">
             {(
               [
@@ -109,7 +114,7 @@ export function LgAuthScreen() {
               {f.pending ? "Entering…" : f.mode === "create" ? "Claim your seat" : "Enter the club"}
             </button>
           </form>
-
+          </div>
         </div>
         <div className="mcl-auth-floor" aria-hidden />
       </div>
