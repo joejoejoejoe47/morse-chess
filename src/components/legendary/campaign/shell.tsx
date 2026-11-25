@@ -58,7 +58,7 @@ export function CampaignHeader({ on, coins, frame }: { on: "map" | "army" | "bat
         <Link to="/campaign" className={cn(on === "map" && "is-on")} onClick={() => playSfx("tap")}>World Map</Link>
         <Link to="/campaign/army" className={cn(on === "army" && "is-on")} onClick={() => playSfx("tap")} data-nav-army>Army</Link>
         <Link to="/campaign/raids" className={cn(on === "raids" && "is-on")} onClick={() => playSfx("tap")} data-nav-raids>Raids</Link>
-        <span className="is-soon" title="The arena builder is coming next">Arena Builder<small>soon</small></span>
+        <Link to="/campaign/builder" className={cn(on === "builder" && "is-on")} onClick={() => playSfx("tap")} data-nav-builder>Arena Builder</Link>
       </nav>
       <div className="mcc-right">
         <span className="mcc-chip" title="Morse coins" data-campaign-coins>

@@ -153,6 +153,19 @@ function Builder() {
         <span className="mcc-label">Arena name</span>
         <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="Untitled Arena" maxLength={40} data-arena-name />
       </label>
+      <div className="mcc-builder-actions">
+        <button type="button" className="mcc-btn" disabled={busy} onClick={() => void save()} data-save-arena><Save className="size-4" />{saved && !dirty ? "Saved" : "Save"}</button>
+        <button type="button" className="mcc-btn is-purple" disabled={busy} onClick={() => void play()} data-play-arena><Play className="size-4" />Play</button>
+      </div>
+      {saved ? (
+        <div className="mcc-share" data-arena-share>
+          <span className="mcc-label">Share code</span>
+          <div className="mcc-raid-code is-small" data-arena-code>{saved.code}</div>
+          <button type="button" className="mcc-btn is-ghost" onClick={() => { void navigator.clipboard?.writeText(link).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }); }} data-copy-arena-link>
+            <Copy className="size-4" />{copied ? "Link copied" : "Copy link"}
+          </button>
+        </div>
+      ) : null}
       <div className="mcc-field">
         <span className="mcc-label">Look</span>
         <div className="mcc-chips">
@@ -193,19 +206,6 @@ function Builder() {
               <button key={v} type="button" className={cn(layout.gearEvery === v && "is-on")} onClick={() => setLayout({ ...layout, gearEvery: v as number })} data-gear-every={v}>{t}</button>
             ))}
           </div>
-        </div>
-      ) : null}
-      <div className="mcc-builder-actions">
-        <button type="button" className="mcc-btn" disabled={busy} onClick={() => void save()} data-save-arena><Save className="size-4" />{saved && !dirty ? "Saved" : "Save & share"}</button>
-        <button type="button" className="mcc-btn is-purple" disabled={busy} onClick={() => void play()} data-play-arena><Play className="size-4" />Play it</button>
-      </div>
-      {saved ? (
-        <div className="mcc-share" data-arena-share>
-          <span className="mcc-label">Share code</span>
-          <div className="mcc-raid-code is-small" data-arena-code>{saved.code}</div>
-          <button type="button" className="mcc-btn is-ghost" onClick={() => { void navigator.clipboard?.writeText(link).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }); }} data-copy-arena-link>
-            <Copy className="size-4" />{copied ? "Link copied" : "Copy link"}
-          </button>
         </div>
       ) : null}
     </>
