@@ -5,6 +5,7 @@
  * centre and slides up on hover (tap on touch screens).
  */
 import { CampaignLauncher } from "@/components/legendary/campaign/launcher";
+import { TrainingLauncher } from "@/components/legendary/training/launcher";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, Eye, Settings, X } from "lucide-react";
@@ -184,6 +185,7 @@ export function LegendaryLounge({
     { key: "online", label: "Play Online", icon: mi("globe"), act: onPlayOnline },
     { key: "bot", label: "Play MorseBot", icon: mi("robot"), act: onPlayBot, purple: true },
     { key: "campaign", label: "Campaign", icon: mi("swords"), act: () => void navigate({ to: "/campaign" }) },
+    { key: "training", label: "Training Grounds", icon: mi("training.svg"), act: () => void navigate({ to: "/training" }), purple: true },
     { key: "create", label: "Create Bot", icon: mi("gear"), act: () => void navigate({ to: "/bot-maker" }), purple: true },
     { key: "history", label: "History", icon: mi("history.svg"), act: () => void navigate({ to: "/history" }), purple: true },
     { key: "boards", label: "Boards", icon: mi("boards"), act: () => void navigate({ to: "/boards" }) },
@@ -351,6 +353,7 @@ export function LegendaryLounge({
       ) : null}
       {/* the Campaign door (owner t394u) */}
       {!menu ? <CampaignLauncher /> : null}
+      {!menu ? <TrainingLauncher /> : null}
       {/* the gear menu */}
       <div
         className="absolute bottom-0 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center pb-[max(0.75rem,env(safe-area-inset-bottom))]"
