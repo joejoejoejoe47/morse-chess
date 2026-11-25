@@ -7,7 +7,7 @@
  * galleons, low-poly snowy mountains and leafy bushes (art in bc-art.tsx).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BC_STD, BcBush, BcHill, BcMountain, BcPlumes, BcShip, BcSpecial, bcLavaTex, bcPieceUrl, bcTex } from "@/components/games/bc-art";
+import { BC_STD, BcBush, BcFrigate, BcHill, BcMountain, BcPlumes, BcShip, BcSpecial, bcLavaTex, bcPieceUrl, bcTex } from "@/components/games/bc-art";
 import { BC_H, BC_W, BC_X0, BC_X1, BC_Y0, BC_Y1, bcColor, bcHill, bcKingSq, bcParse, bcPos, bcSplash, bcSq, bcStatus, bcTerrain, bcWarnTurns } from "@/lib/boardgames/battlechess";
 
 type Props = {
@@ -339,8 +339,8 @@ export function BcBoard2D({ fen, you, lastMove, lastSan, myTurn, disabled, onMov
                     </g>
                   )
                 ) : null}
-                <g transform={sw >= sh ? "translate(0.12 -0.28) scale(0.0175)" : "translate(-0.3 0.62) scale(0.016)"}>
-                  <BcShip white={white} />
+                <g transform={sw >= sh ? "translate(0.02 0.14) scale(0.0098)" : "translate(0.89 0.02) rotate(90) scale(0.0098)"}>
+                  <BcFrigate white={white} />
                 </g>
               </g>
             );
