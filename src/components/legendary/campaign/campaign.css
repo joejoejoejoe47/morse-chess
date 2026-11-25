@@ -305,3 +305,14 @@
 /* CC BY credit for real 3D arenas */
 .mcc-credit { margin-top: 8px; font-size: 10.5px; line-height: 1.35; color: #a99ab8; }
 .mcc-credit a { color: #d9c08a; text-decoration: underline; text-underline-offset: 2px; }
+/* boss intro slam + battle vignette (owner t402u: "much much better") */
+.mcc-battle::after { content: ""; position: absolute; inset: 0; z-index: 5; pointer-events: none; background: radial-gradient(ellipse at 50% 55%, transparent 55%, rgba(0, 0, 0, 0.55) 100%); }
+.mcc-bossintro { position: absolute; inset: 0; z-index: 60; pointer-events: none; display: grid; place-items: center; }
+.mcc-bossintro .flash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(255, 236, 190, 0.85), rgba(255, 160, 60, 0.25) 40%, transparent 70%); animation: mcc-flash 0.9s ease-out forwards; }
+.mcc-bossintro .band { position: relative; width: 100%; padding: 22px 16px 20px; text-align: center; background: linear-gradient(90deg, transparent, rgba(10, 3, 18, 0.88) 18%, rgba(10, 3, 18, 0.88) 82%, transparent); border-block: 1px solid rgba(242, 199, 92, 0.55); animation: mcc-band 2.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards; }
+.mcc-bossintro .chap { font-family: Cinzel, Georgia, serif; font-size: 13px; letter-spacing: 0.4em; text-transform: uppercase; color: #c79aff; }
+.mcc-bossintro .nm { margin-top: 4px; font-family: Cinzel, Georgia, serif; font-weight: 800; font-size: clamp(34px, 7vw, 76px); line-height: 1; text-transform: uppercase; background: linear-gradient(180deg, #fff2c2, #f2cd6a 40%, #c98a1c 65%, #ffe08a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 14px rgba(255, 160, 40, 0.45)); animation: mcc-slam 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both 0.15s; }
+.mcc-bossintro .ep { margin-top: 6px; font-style: italic; color: #e8d9b8; }
+@keyframes mcc-flash { to { opacity: 0; } }
+@keyframes mcc-slam { from { transform: scale(2.4); opacity: 0; letter-spacing: 0.3em; } to { transform: scale(1); opacity: 1; } }
+@keyframes mcc-band { 0% { transform: scaleX(0.2); opacity: 0; } 12% { transform: scaleX(1); opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: translateY(-12px); } }
