@@ -2244,9 +2244,9 @@ html.legendary .mcl-load {
 }
 html.legendary .mcl-load-medal {
   position: relative;
-  width: clamp(150px, 27vh, 230px);
+  width: clamp(150px, min(29vh, 44vw), 270px);
   aspect-ratio: 1;
-  margin-top: -2vh;
+  margin-top: 0;
 }
 html.legendary .mcl-load-medal img {
   position: absolute;
@@ -2271,7 +2271,7 @@ html.legendary .mcl-load-ring {
 }
 @keyframes mcl-ring-spin { to { transform: rotate(360deg); } }
 html.legendary .mcl-load-kicker { margin-top: clamp(16px, 3.4vh, 34px); }
-html.legendary .mcl-load-title { margin-top: 8px; font-size: clamp(2.6rem, min(10.5vw, 11vh), 7rem); }
+html.legendary .mcl-load-title { margin-top: 6px; font-size: clamp(2.2rem, min(10vw, 11.5vh), 8.5rem); }
 html.legendary .mcl-load-sub {
   margin-top: clamp(10px, 2.4vh, 22px);
   font-family: "Barlow Semi Condensed", system-ui, sans-serif;
