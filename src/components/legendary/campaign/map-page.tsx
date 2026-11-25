@@ -95,13 +95,13 @@ function MapInner() {
                 <small>Tag-team the Iron Colossus</small>
               </span>
             </Link>
-            <span className="mcc-panel mcc-sidebtn is-soon" title="Coming in a later update">
+            <Link to="/campaign/builder" className="mcc-panel mcc-sidebtn" onClick={() => playSfx("tap")} data-open-builder>
               <span className="ic">🏗</span>
               <span>
                 <b>Arena Builder</b>
-                <small>Design & share arenas · soon</small>
+                <small>Design & share arenas by code</small>
               </span>
-            </span>
+            </Link>
           </div>
 
           {ch && node ? (
