@@ -355,3 +355,11 @@
   .mcc-tool { flex-direction: column; gap: 1px; padding: 4px 2px; text-align: center; font-size: 10px; }
   .mcc-tool .nm { flex: none; }
 }
+/* phones: the chapter card stays compact so the 3D map shows (owner t402u) */
+.mcc-more { display: none; }
+@media (max-width: 900px) {
+  .mcc-more { display: inline-flex; }
+  .mcc-chapter:not(.is-more) .quote, .mcc-chapter:not(.is-more) .mcc-rewards { display: none; }
+  .mcc-chapter:not(.is-more) .twist { font-size: 13px; }
+}
+@media (max-width: 900px) { .mcc-chapter .go .mcc-btn { white-space: nowrap; } .mcc-chapter .go .mcc-btn.is-sm { padding-inline: 10px; } }

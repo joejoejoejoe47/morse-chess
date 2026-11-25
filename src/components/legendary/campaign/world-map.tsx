@@ -366,8 +366,9 @@ function Rig({ focus, narrow }: { focus: [number, number] | null; narrow: boolea
     if (!c) return;
     // Desktop keeps the whole island in view, left of the chapter card; phones follow the selection.
     if (narrow) {
-      if (focus) goal.set(focus[0] * 0.55, 0.4, focus[1] * 0.55 + 0.6);
-      else goal.set(0.4, 0.3, 1.2);
+      // phones: the chapter card covers the lower half, so the selected landmark sits in the upper half
+      if (focus) goal.set(focus[0] * 0.7, 0.4, focus[1] * 0.7 + 4.2);
+      else goal.set(0.4, 0.3, 4.2);
     } else goal.set(2.7 + (focus ? focus[0] * 0.15 : 0), 0.3, 1.4 + (focus ? focus[1] * 0.1 : 0));
     c.target.lerp(goal, Math.min(1, dt * 2.2));
     c.update();

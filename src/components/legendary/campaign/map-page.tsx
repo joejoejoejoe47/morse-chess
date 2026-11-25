@@ -41,6 +41,7 @@ function MapInner() {
   const narrow = useNarrow();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<number | null>(null);
+  const [more, setMore] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const nodes = useMemo(() => (state ? nodesFor(state) : []), [state]);
 
@@ -105,7 +106,7 @@ function MapInner() {
           </div>
 
           {ch && node ? (
-            <section className="mcc-panel mcc-chapter" data-chapter-card={ch.n} data-chapter-state={node.state}>
+            <section className={cn("mcc-panel mcc-chapter", more && "is-more")} data-chapter-card={ch.n} data-chapter-state={node.state}>
               <div className="num">Chapter {ROMAN[ch.n - 1]} · {ch.arena}</div>
               <div className="boss mcc-goldtext" role="heading" aria-level={2}>{ch.boss}</div>
               <div className="arena">{ch.epithet}</div>
@@ -140,6 +141,7 @@ function MapInner() {
                   </button>
                 )}
                 <Link to="/campaign/army" className="mcc-btn is-ghost is-sm" onClick={() => playSfx("tap")}>Army</Link>
+                <button type="button" className="mcc-btn is-ghost is-sm mcc-more" onClick={() => setMore((v) => !v)} aria-expanded={more} data-chapter-more>{more ? "Less" : "Rewards"}</button>
               </div>
               {prog ? <div className="meta">Tries {prog.tries} · Wins {prog.wins}{prog.bestPlies ? ` · Fastest win ${Math.ceil(prog.bestPlies / 2)} moves` : ""}</div> : null}
             </section>
