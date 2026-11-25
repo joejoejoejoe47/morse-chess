@@ -65,7 +65,7 @@ import { playSfx, setSfxMuted } from "@/lib/legendary/sfx";
 import { useSfxMuted } from "@/components/legendary/settings";
 import { LegendaryWin } from "@/components/legendary/win-screen";
 import { BarIcon, BarTile, BarTileInner, GameBar } from "@/components/legendary/game-bar";
-import { LgGameCrest, LgMoveHistory, LgPlayerCard, usePhotos } from "@/components/legendary/game-chrome";
+import { LgMoveHistory, LgPlayerCard, usePhotos } from "@/components/legendary/game-chrome";
 import { setPieceStyle } from "@/lib/server/avatar";
 import { isChatImage, shrinkChatImage } from "@/lib/chat-image";
 import { cn } from "@/lib/utils";
@@ -1189,19 +1189,6 @@ export function GameView({ gameId }: { gameId: string }) {
                   look={oppLook}
                   clock={game.mode === "timed" ? oppClock : null}
                   hot={!myTurn && !over}
-                />
-              </div>
-              <div className="mcl-crest-slot">
-                <LgGameCrest
-                  mode={variant ? VARIANT_INFO[variant].name : "Chess"}
-                  clock={game.mode === "timed" ? `${Math.max(1, Math.round((game.clockMs ?? 300_000) / 60_000))} min` : "Breeze"}
-                  ranked={variant ? false : null}
-                  preview={preview}
-                  turn={{
-                    text: over ? "Board closed" : myTurn ? "Your move" : vsBot ? `${buddy ? buddy.name : "MorseBot"} is thinking…` : `${oppName}'s move`,
-                    mine: myTurn,
-                    over,
-                  }}
                 />
               </div>
               <div className="pointer-events-auto">
