@@ -134,6 +134,51 @@ export function BcShip({ white, pirate }: { white: boolean; pirate?: boolean; ve
   );
 }
 
+/**
+ * The Frigate (v3 video 0:13): a two-square galleon in a 200x80 box, bow to the right. Long low hull with
+ * a raised stern and a row of gun ports, a lateen sail aft, a big square main sail, a small fore sail and
+ * a bowsprit, all in the same thick-outline flat style as BcShip. Black with a white outline for Black
+ * (drawn facing left like the video), white with a black outline for White.
+ */
+export function BcFrigate({ white }: { white: boolean }) {
+  const fill = white ? "#fff" : "#000";
+  const ink = white ? "#000" : "#fff";
+  const hull = "M14 46 L44 46 L48 55 L170 55 L192 47 C186 64 176 74 160 75 L40 75 C26 74 17 62 14 46 Z";
+  const stern = "M14 40 L46 40 L46 50 L14 50 Z";
+  const lateen = "M30 0 C50 16 66 32 80 50 L44 52 C44 34 38 16 30 0 Z";
+  const main = "M86 8 C102 3 124 3 140 8 C145 22 145 38 140 50 C122 53 104 53 88 50 C83 38 83 22 86 8 Z";
+  const fore = "M148 14 C157 11 166 11 174 14 C177 22 177 32 174 40 C166 42 157 42 149 40 C146 32 146 22 148 14 Z";
+  const lines = "M62 55 V4 M114 55 V0 M161 55 V8 M150 56 L198 40 M114 2 L161 9 L198 40";
+  return (
+    <g transform={white ? undefined : "translate(200 0) scale(-1 1)"} strokeLinejoin="round" strokeLinecap="round" data-bc-ship-art="frigate">
+      <g stroke={ink} strokeWidth={8} fill={ink}>
+        <path d={hull} />
+        <path d={stern} />
+        <path d={lateen} />
+        <path d={main} />
+        <path d={fore} />
+      </g>
+      <path d={lines} stroke={ink} strokeWidth={6.5} fill="none" />
+      <path d="M114 -1 L126 -3.5 L123 1 L126 4 L114 3 Z" fill={ink} stroke={ink} strokeWidth={4} />
+      <path d={lines} stroke={fill} strokeWidth={2} fill="none" />
+      <path d="M114 -1 L126 -3.5 L123 1 L126 4 L114 3 Z" fill={fill} />
+      <path d={lateen} fill={fill} />
+      <path d={main} fill={fill} />
+      <path d={fore} fill={fill} />
+      <path d={stern} fill={fill} />
+      <path d={hull} fill={fill} />
+      <path d="M48 62 L176 62" stroke={ink} strokeWidth={1.6} />
+      <g fill={ink}>
+        {[58, 72, 86, 100, 114, 128, 142, 156].map((x) => (
+          <rect key={x} x={x - 3} y={64.5} width={6} height={4.5} rx={1} />
+        ))}
+        <rect x={20} y={43} width={5} height={4} rx={1} />
+        <rect x={31} y={43} width={5} height={4} rx={1} />
+      </g>
+    </g>
+  );
+}
+
 /** One square of the video's lava: an orange/red/yellow pixel mosaic covering the whole cell. */
 export const bcLavaTex = (n: number) => asset(`/legendary/bc/lava-${n & 3}.webp`);
 
