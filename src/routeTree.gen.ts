@@ -22,6 +22,7 @@ import { Route as PlayNowRouteImport } from './routes/play-now'
 import { Route as SandboxRouteImport } from './routes/sandbox'
 import { Route as SoundtrackRouteImport } from './routes/soundtrack'
 import { Route as StoreRouteImport } from './routes/store'
+import { Route as TrainingRouteImport } from './routes/training'
 import { Route as BoardsBoardIdRouteImport } from './routes/boards.$boardId'
 import { Route as CampaignIndexRouteImport } from './routes/campaign.index'
 import { Route as CampaignArmyRouteImport } from './routes/campaign.army'
@@ -100,6 +101,11 @@ const SoundtrackRoute = SoundtrackRouteImport.update({
 const StoreRoute = StoreRouteImport.update({
   id: '/store',
   path: '/store',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrainingRoute = TrainingRouteImport.update({
+  id: '/training',
+  path: '/training',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoardsBoardIdRoute = BoardsBoardIdRouteImport.update({
@@ -187,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/sandbox': typeof SandboxRoute
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
+  '/training': typeof TrainingRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/campaign/army': typeof CampaignArmyRoute
   '/campaign/builder': typeof CampaignBuilderRoute
@@ -216,6 +223,7 @@ export interface FileRoutesByTo {
   '/sandbox': typeof SandboxRoute
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
+  '/training': typeof TrainingRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/campaign/army': typeof CampaignArmyRoute
   '/campaign/builder': typeof CampaignBuilderRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/sandbox': typeof SandboxRoute
   '/soundtrack': typeof SoundtrackRoute
   '/store': typeof StoreRoute
+  '/training': typeof TrainingRoute
   '/boards/$boardId': typeof BoardsBoardIdRoute
   '/campaign/army': typeof CampaignArmyRoute
   '/campaign/builder': typeof CampaignBuilderRoute
@@ -277,6 +286,7 @@ export interface FileRouteTypes {
     | '/sandbox'
     | '/soundtrack'
     | '/store'
+    | '/training'
     | '/boards/$boardId'
     | '/campaign/army'
     | '/campaign/builder'
@@ -306,6 +316,7 @@ export interface FileRouteTypes {
     | '/sandbox'
     | '/soundtrack'
     | '/store'
+    | '/training'
     | '/boards/$boardId'
     | '/campaign/army'
     | '/campaign/builder'
@@ -335,6 +346,7 @@ export interface FileRouteTypes {
     | '/sandbox'
     | '/soundtrack'
     | '/store'
+    | '/training'
     | '/boards/$boardId'
     | '/campaign/army'
     | '/campaign/builder'
@@ -365,6 +377,7 @@ export interface RootRouteChildren {
   SandboxRoute: typeof SandboxRoute
   SoundtrackRoute: typeof SoundtrackRoute
   StoreRoute: typeof StoreRoute
+  TrainingRoute: typeof TrainingRoute
   CampaignArmyRoute: typeof CampaignArmyRoute
   CampaignBuilderRoute: typeof CampaignBuilderRoute
   CampaignRaidsRoute: typeof CampaignRaidsRoute
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       path: '/store'
       fullPath: '/store'
       preLoaderRoute: typeof StoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/training': {
+      id: '/training'
+      path: '/training'
+      fullPath: '/training'
+      preLoaderRoute: typeof TrainingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boards/$boardId': {
@@ -599,6 +619,7 @@ const rootRouteChildren: RootRouteChildren = {
   SandboxRoute: SandboxRoute,
   SoundtrackRoute: SoundtrackRoute,
   StoreRoute: StoreRoute,
+  TrainingRoute: TrainingRoute,
   CampaignArmyRoute: CampaignArmyRoute,
   CampaignBuilderRoute: CampaignBuilderRoute,
   CampaignRaidsRoute: CampaignRaidsRoute,
