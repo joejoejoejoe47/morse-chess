@@ -216,7 +216,8 @@ export function GoldenBot({ position = [-4.9, 1.5, 2.4] as [number, number, numb
     if (!o) return;
     const t = clock.elapsedTime;
     o.position.y = position[1] + Math.sin(t * (excited ? 6 : 1.6)) * (excited ? 0.18 : 0.1);
-    o.rotation.y = Math.sin(t * 0.7) * 0.5 + 0.5;
+    o.rotation.y = Math.sin(t * 0.7) * 0.35 + 0.35;
+    o.rotation.x = -0.35;
   });
   const gold = <meshStandardMaterial color="#ffd34a" metalness={0.75} roughness={0.22} emissive="#c08a10" emissiveIntensity={0.85} />;
   return (

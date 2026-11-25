@@ -9,6 +9,8 @@ import { PieceMark } from "@/components/chess/marks";
 import type { Burst } from "@/components/games/bg-board-3d";
 import { apply, inCheck, kingSq, legalMoves, material, moveText, newGame, sqName, status, summonGlass, VALUE, type Event, type Kind, type Move, type PerkId, type State } from "./engine";
 import { bossMove, hanging } from "./bot";
+import { arenaResult } from "./arena-data";
+import { ArenaCredit } from "./arena-models";
 import { chapterBy, finishCampaignRun, kindOfSlot, PERKS, slotName, startCampaignRun, VETERAN_PROMOS, type Chapter, type FinishResult, type PieceStats } from "./data";
 import { CampaignDoor, CampaignHeader, LoadingCampaign, useCampaign } from "./shell";
 import { Arena3D, world } from "./arena3d";
@@ -59,13 +61,16 @@ function BattleInner({ n }: { n: number }) {
   return <Battle key={n} ch={ch} army={camp.army} coins={camp.coins} rewards={camp.rewards} frame={camp.rewards.includes("gear-frame") ? "gear" : undefined} />;
 }
 
-function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot: string; level: number; promos: number }[]; coins: number; frame?: string; rewards: string[] }) {
+/** `arena` = a player-made arena (phase D): no campaign run, no XP or coins, just a play counter. */
+export type ArenaRun = { code: string; extra: { sq: number; k: Kind }[]; perks: string[] };
+
+export function Battle({ ch, army, coins, frame, rewards, arena }: { ch: Chapter; army: { slot: string; level: number; promos: number }[]; coins: number; frame?: string; rewards: string[]; arena?: ArenaRun }) {
   const narrow = useNarrow();
   const navigate = useNavigate();
   const [run, setRun] = useState<{ runId: string; perks: string[] } | null>(null);
   const [startErr, setStartErr] = useState<string | null>(null);
   const [phase, setPhase] = useState<"intro" | "play" | "end">("intro");
-  const [s, setS] = useState<State>(() => newGame(ch.rules));
+  const [s, setS] = useState<State>(() => newGame(ch.rules, {}, arena?.extra ?? []));
   const [sel, setSel] = useState<number | null>(null);
   const [last, setLast] = useState<{ from: number; to: number } | null>(null);
   const [log, setLog] = useState<LogRow[]>([]);
@@ -90,7 +95,8 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
   // start the run (server checks the chapter is unlocked)
   useEffect(() => {
     let live = true;
-    startCampaignRun({ data: { chapter: ch.n } })
+    const begin = arena ? Promise.resolve({ runId: "", chapter: ch.n, perks: arena.perks }) : startCampaignRun({ data: { chapter: ch.n } });
+    begin
       .then((r) => {
         if (!live) return;
         setRun(r);
@@ -99,7 +105,7 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
           const p = PERKS[kindOfSlot(slot)];
           if (p) perks[slot] = p.id;
         }
-        setS(newGame(ch.rules, perks));
+        setS(newGame(ch.rules, perks, arena?.extra ?? []));
       })
       .catch((e: Error) => live && setStartErr(e.message));
     return () => { live = false; };
@@ -162,6 +168,10 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
         st.alive = final.board.some((p) => p && p.c === "w" && p.id === slot);
       }
       if (winner === "w" && matingSlot && stats.current[matingSlot]) stats.current[matingSlot].mate = true;
+      if (arena) {
+        void arenaResult({ data: { code: arena.code, result: winner === "w" ? "win" : winner === "b" ? "loss" : "draw" } }).catch(() => {});
+        return;
+      }
       if (!run) return;
       setSaving(true);
       try {
@@ -177,7 +187,7 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
         setSaving(false);
       }
     },
-    [run, say],
+    [run, say, arena],
   );
 
   const play = (m: Move) => {
@@ -241,7 +251,7 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
 
   // local test hook only (127.0.0.1 previews): lets the screenshot script read the position
   useEffect(() => {
-    if (window.location.hostname === "127.0.0.1") (window as unknown as { __mcc?: State }).__mcc = s;
+    if (window.location.hostname === "127.0.0.1" || localStorage.getItem("mccTest") === "1") (window as unknown as { __mcc?: State }).__mcc = s;
   }, [s]);
 
   const moves = useMemo(() => (phase === "play" && s.turn === "w" && !end ? legalMoves(s) : []), [s, phase, end]);
@@ -290,10 +300,10 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
             </div>
             <div className="mcc-vs">
               <b>VS</b>
-              Ch. {ROMAN[ch.n - 1]}
+              {ch.n <= 5 ? `Ch. ${ROMAN[ch.n - 1]}` : "Arena"}
             </div>
             <div className="mcc-side-card is-boss">
-              <span className="mcc-portrait is-boss">{["⚙", "♛", "🛡", "👁", "◉"][ch.n - 1]}</span>
+              <span className="mcc-portrait is-boss">{["⚙", "♛", "🛡", "👁", "◉"][ch.n - 1] ?? "✎"}</span>
               <div className="min-w-0 flex-1">
                 <div className="nm">{ch.boss}</div>
                 <div className="sub">{thinking ? "Thinking…" : s.phase === 2 ? "PHASE 2 · Blitz" : ch.arena}</div>
@@ -305,6 +315,7 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
           <aside className="mcc-panel mcc-twist" data-twist>
             <div className="k">{ch.arena}</div>
             <div className="txt mt-1 text-[#e6dcf0]">{ch.twist}</div>
+            <ArenaCredit n={ch.look ?? ch.n} />
             {ch.rules.gears ? <div className="count" data-gear-count={gearIn}><i>{gearIn}</i> {gearIn === 1 ? "turn" : "turns"} until the gears turn</div> : null}
             {ch.rules.walls ? <div className="count"><i>{Object.keys(s.walls).length}</i> walls standing</div> : null}
             {ch.rules.glassEvery ? <div className="count"><i>{ch.rules.glassEvery - (s.bossMoves % ch.rules.glassEvery)}</i> boss moves to the next Glass Pawn</div> : null}
@@ -378,7 +389,7 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
         <div className="mcc-overlay">
           <CampaignHeader on="battle" coins={coins} frame={frame} />
           <section className="mcc-panel mcc-intro" data-battle-intro>
-            <div className="chap">Chapter {ROMAN[ch.n - 1]} · {ch.arena}</div>
+            <div className="chap">{ch.n <= 5 ? `Chapter ${ROMAN[ch.n - 1]}` : "Custom Arena"} · {ch.arena}</div>
             <div className="boss mcc-goldtext" role="heading" aria-level={1}>{ch.boss}</div>
             <div className="ep">{ch.epithet}</div>
             <div className="q">“{ch.quote}”</div>
@@ -387,12 +398,13 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
               <div className="mt-1">{ch.twist}</div>
               <div className="mt-2 text-xs text-[#b9a9c8]">Checkmate works exactly like normal chess. You play White and move first.</div>
             </div>
+            <ArenaCredit n={ch.look ?? ch.n} />
             {startErr ? <p className="mt-3 text-sm text-[#ffb08a]">{startErr}</p> : null}
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <button type="button" className="mcc-btn" disabled={!run} onClick={() => { setPhase("play"); playSfx("menu"); }} data-begin-battle>
                 {run ? "Begin battle" : startErr ? "Locked" : "Preparing…"}
               </button>
-              <Link to="/campaign" className="mcc-btn is-ghost">Back to map</Link>
+              <Link to={arena ? "/campaign/builder" : "/campaign"} className="mcc-btn is-ghost">{arena ? "Arena Builder" : "Back to map"}</Link>
             </div>
           </section>
         </div>
@@ -404,6 +416,7 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
             <div className="big mcc-goldtext" role="heading" aria-level={1}>{end.winner === "w" ? "Victory" : end.winner === "b" ? "Defeat" : end.reason === "Stalemate" ? "Stalemate" : "Draw"}</div>
             <div className="why">{end.reason}{result && result.result !== (end.winner === "w" ? "win" : end.winner === "b" ? "loss" : "draw") ? " · counted as a draw (too quick)" : ""}</div>
             {saving ? <p className="mt-4 text-sm text-[#c7b7a0]">Recording the battle…</p> : null}
+            {arena ? <p className="mt-4 text-sm text-[#c7b7a0]" data-arena-note>Custom arenas are for glory: no XP or coins. Share code <b className="text-[#f2d27a]">{arena.code}</b> and dare a friend.</p> : null}
             {result ? (
               <>
                 {result.firstClear ? (
@@ -436,7 +449,7 @@ function Battle({ ch, army, coins, frame, rewards }: { ch: Chapter; army: { slot
             ) : null}
             <div className="row">
               <Link to="/campaign" className="mcc-btn">World map</Link>
-              <Link to="/campaign/army" className="mcc-btn is-purple">Army</Link>
+              {arena ? <Link to="/campaign/builder" className="mcc-btn is-purple">Builder</Link> : <Link to="/campaign/army" className="mcc-btn is-purple">Army</Link>}
               <button type="button" className="mcc-btn is-ghost" onClick={() => window.location.reload()}>
                 <RotateCcw className="size-4" />Fight again
               </button>

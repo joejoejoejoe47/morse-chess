@@ -379,7 +379,7 @@ function Rig({ focus, narrow }: { focus: [number, number] | null; narrow: boolea
 export function WorldMap({ nodes, selected, onSelect, narrow }: { nodes: MapNode[]; selected: number | null; onSelect: (n: number) => void; narrow: boolean }) {
   const sel = selected ? nodes.find((n) => n.chapter.n === selected)?.chapter.at ?? null : null;
   return (
-    <Canvas shadows dpr={[1, 1.75]} camera={{ position: narrow ? [0, 25, 29] : [0, 16, 21], fov: narrow ? 48 : 42, near: 0.1, far: 220 }} gl={{ antialias: true, preserveDrawingBuffer: true }} data-world-map>
+    <Canvas shadows dpr={[1, 1.75]} camera={{ position: narrow ? [0, 25, 29] : [2.7, 18, 24], fov: narrow ? 48 : 42, near: 0.1, far: 220 }} gl={{ antialias: true, preserveDrawingBuffer: true }} data-world-map>
       <color attach="background" args={["#0a0514"]} />
       <fog attach="fog" args={["#0a0514", 26, 70]} />
       <Stars radius={90} depth={40} count={2600} factor={3.5} saturation={0.4} fade speed={0.6} />

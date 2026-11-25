@@ -40,7 +40,7 @@ export function CampaignDoor({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export function CampaignHeader({ on, coins, frame }: { on: "map" | "army" | "battle"; coins?: number | null; frame?: string }) {
+export function CampaignHeader({ on, coins, frame }: { on: "map" | "army" | "battle" | "raids" | "builder"; coins?: number | null; frame?: string }) {
   const door = useClubDoor();
   const user = door.status === "in" ? door.user : null;
   const { photo } = useMyPhoto(!!user);
@@ -57,7 +57,7 @@ export function CampaignHeader({ on, coins, frame }: { on: "map" | "army" | "bat
       <nav className="mcc-nav" aria-label="Campaign">
         <Link to="/campaign" className={cn(on === "map" && "is-on")} onClick={() => playSfx("tap")}>World Map</Link>
         <Link to="/campaign/army" className={cn(on === "army" && "is-on")} onClick={() => playSfx("tap")} data-nav-army>Army</Link>
-        <span className="is-soon" title="Co-op raids are coming next">Raids<small>soon</small></span>
+        <Link to="/campaign/raids" className={cn(on === "raids" && "is-on")} onClick={() => playSfx("tap")} data-nav-raids>Raids</Link>
         <span className="is-soon" title="The arena builder is coming next">Arena Builder<small>soon</small></span>
       </nav>
       <div className="mcc-right">

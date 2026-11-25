@@ -124,5 +124,68 @@ check($os['allOpen'] === true, 'owner state says all chapters open');
 $or = ccall('startCampaignRun', 'u8', ['chapter' => 5]);
 check(is_array($or) && $or['chapter'] === 5, 'owner can start chapter 5 directly');
 check(ccall('campaignState', 'u1')['allOpen'] === false, 'players still unlock in order');
+// phase C: co-op raids
+$raid = ccall('createRaid', 'u1');
+check(is_array($raid) && strlen($raid['code']) === 6 && $raid['status'] === 'lobby' && $raid['seat'] === 'A', 'raid created');
+check(str_contains((string) ccall('joinRaid', 'u9', ['code' => $raid['code']]), 'Unlock'), 'raid needs the unlock');
+check(is_string(ccall('joinRaid', 'u2', ['code' => 'NOPE00'])), 'bad code');
+$j = ccall('joinRaid', 'u2', ['code' => strtolower($raid['code'])]);
+check($j['status'] === 'active' && $j['seat'] === 'B' && $j['guest']['name'] === 'Beta', 'guest joined');
+$rid = $raid['raidId'];
+$v = $j['version'];
+check(str_contains((string) ccall('raidMove', 'u2', ['raidId' => $rid, 'version' => $v, 'move' => ['from' => 12, 'to' => 28], 'boss' => ['from' => 52, 'to' => 36]]), 'partner'), 'B waits for A');
+$m = ccall('raidMove', 'u1', ['raidId' => $rid, 'version' => $v, 'move' => ['from' => 12, 'to' => 28], 'boss' => ['from' => 52, 'to' => 36]]);
+check(count($m['moves']) === 2 && $m['moves'][0]['by'] === 'A' && $m['moves'][1]['by'] === 'boss', 'A moved + boss reply');
+check(is_string(ccall('raidMove', 'u2', ['raidId' => $rid, 'version' => $v, 'move' => ['from' => 6, 'to' => 21]])), 'stale version refused');
+check(is_string(ccall('raidMove', 'u1', ['raidId' => $rid, 'version' => $m['version'], 'move' => ['from' => 6, 'to' => 21]])), 'A cannot play B turn');
+// idle takeover
+Db::run('UPDATE campaign_raids SET turn_since = ? WHERE id = ?', [Db::ts(Db::nowMs() - 61000), $rid]);
+$m = ccall('raidMove', 'u1', ['raidId' => $rid, 'version' => $m['version'], 'move' => ['from' => 6, 'to' => 21], 'boss' => ['from' => 57, 'to' => 42]]);
+check(is_array($m) && $m['moves'][2]['by'] === 'A', 'idle turn taken over');
+check(is_string(ccall('raidMove', 'u1', ['raidId' => $rid, 'version' => $m['version'], 'move' => ['from' => 99, 'to' => 1]])), 'bad square refused');
+// a too-quick win becomes a draw
+$m = ccall('raidMove', 'u2', ['raidId' => $rid, 'version' => $m['version'], 'move' => ['from' => 5, 'to' => 26], 'end' => ['result' => 'win', 'reason' => 'Checkmate']]);
+check($m['status'] === 'draw', 'quick raid win is a draw');
+$c = ccall('claimRaid', 'u1', ['raidId' => $rid, 'pieces' => ['q' => ['alive' => true]]]);
+check($c['result'] === 'draw' && $c['coins'] === 0, 'too-short raid pays nothing');
+$c2 = ccall('claimRaid', 'u1', ['raidId' => $rid]);
+check($c2['already'] === true, 'claim once');
+// a real win, then the daily cap
+for ($k = 0; $k < 4; $k++) {
+    $raid = ccall('createRaid', 'u1');
+    ccall('joinRaid', 'u2', ['code' => $raid['code']]);
+    Db::run('UPDATE campaign_raids SET started_at = ?, moves = ? WHERE id = ?', [Db::ts(Db::nowMs() - 300000), json_encode(array_fill(0, 20, ['from' => 1, 'to' => 2, 'promo' => '', 'by' => 'B'])), $raid['raidId']]);
+    $g = ccall('getRaid', 'u1', ['raidId' => $raid['raidId']]);
+    $m = ccall('raidMove', 'u1', ['raidId' => $raid['raidId'], 'version' => $g['version'], 'move' => ['from' => 3, 'to' => 39], 'end' => ['result' => 'win', 'reason' => 'Checkmate']]);
+    check($m['status'] === 'won', "raid $k won");
+    $c = ccall('claimRaid', 'u1', ['raidId' => $raid['raidId'], 'pieces' => ['q' => ['alive' => true, 'mate' => true]]]);
+    check($k < 3 ? ($c['coins'] === 40 && $c['xp'] > 0) : ($c['capped'] === true && $c['coins'] === 0), "raid $k reward/cap");
+}
+$raid = ccall('createRaid', 'u2');
+$l = ccall('leaveRaid', 'u2', ['raidId' => $raid['raidId']]);
+check($l['status'] === 'left', 'leave lobby');
+check(is_string(ccall('getRaid', 'u9', ['raidId' => $raid['raidId']])), 'outsiders cannot read a raid');
+
+// ── arena builder ──
+$lay = ['theme' => 3, 'walls' => [27, 28], 'gears' => [18, 19, 20], 'gearEvery' => 6, 'fog' => 2, 'glass' => 3, 'extra' => [['sq' => 41, 'k' => 'q'], ['sq' => 44, 'k' => 'n']], 'level' => 3];
+$a = ccall('saveArena', 'u1', ['name' => '  Gear   Pit ', 'layout' => $lay]);
+check(is_array($a) && strlen($a['code']) === 6 && $a['name'] === 'Gear Pit' && $a['mine'] === true, 'save arena');
+check($a['layout']['walls'] === [27, 28] && $a['layout']['extra'][0]['k'] === 'q' && $a['layout']['gearEvery'] === 6, 'layout kept');
+$g = ccall('getArena', 'u2', ['code' => strtolower($a['code'])]);
+check($g['mine'] === false && $g['owner'] !== '' && $g['layout']['fog'] === 2, 'load arena by code');
+check(is_string(ccall('saveArena', 'u1', ['layout' => ['walls' => [3]]])), 'wall on rank 1 refused');
+check(is_string(ccall('saveArena', 'u1', ['layout' => ['walls' => [27], 'extra' => [['sq' => 27, 'k' => 'r']]]])), 'overlap refused');
+check(is_string(ccall('saveArena', 'u1', ['layout' => ['extra' => [['sq' => 40, 'k' => 'q'], ['sq' => 41, 'k' => 'q']]]])), 'two extra queens refused');
+check(is_string(ccall('saveArena', 'u1', ['layout' => ['extra' => [['sq' => 40, 'k' => 'k']]]])), 'extra king refused');
+check(is_string(ccall('saveArena', 'u1', ['layout' => ['gears' => [20]]])), 'single gear refused');
+$e = ccall('saveArena', 'u2', ['code' => $a['code'], 'name' => 'Stolen', 'layout' => $lay]);
+check($e['code'] !== $a['code'] && $e['mine'] === true, 'others cannot overwrite (they get a copy)');
+$u = ccall('saveArena', 'u1', ['code' => $a['code'], 'name' => 'Gear Pit II', 'layout' => ['walls' => [30]]]);
+check($u['code'] === $a['code'] && $u['name'] === 'Gear Pit II' && $u['layout']['walls'] === [30], 'owner edits in place');
+$r = ccall('arenaResult', 'u2', ['code' => $a['code'], 'result' => 'win']);
+check($r['plays'] === 1 && $r['wins'] === 1, 'arena play counted');
+$mine = ccall('myArenas', 'u1');
+check(count($mine['arenas']) === 1 && $mine['arenas'][0]['code'] === $a['code'], 'my arenas');
+check(is_string(ccall('getArena', 'u1', ['code' => 'ZZZZZZ'])), 'unknown arena code');
 
 finish();
