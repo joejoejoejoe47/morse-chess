@@ -83,6 +83,7 @@ export function Battle({ ch, army, coins, frame, rewards, arena }: { ch: Chapter
   const [result, setResult] = useState<FinishResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [clock, setClock] = useState<number | null>(null);
+  const [intro, setIntro] = useState(0);
   const stats = useRef<Record<string, PieceStats>>(emptyStats());
   const batter = useRef(0);
   const streak = useRef(0);
@@ -281,7 +282,7 @@ export function Battle({ ch, army, coins, frame, rewards, arena }: { ch: Chapter
     <main className="mcc mcc-battle" data-campaign-battle={ch.n} data-battle-phase={phase} data-turn={s.turn}>
       <div className="absolute inset-0">
         {view === "3d" ? (
-          <Arena3D s={s} chapter={ch} sel={sel} targets={targets} last={last} checkSq={checkSq} fog={fog} levels={levels} veterans={veterans} rewards={rewards} cheer={callout?.tone === "gold"} bursts={bursts} onBurstDone={(id) => setBursts((b) => b.filter((x) => x.id !== id))} onTap={tap} narrow={narrow} />
+          <Arena3D intro={Math.abs(intro) || undefined} s={s} chapter={ch} sel={sel} targets={targets} last={last} checkSq={checkSq} fog={fog} levels={levels} veterans={veterans} rewards={rewards} cheer={callout?.tone === "gold"} bursts={bursts} onBurstDone={(id) => setBursts((b) => b.filter((x) => x.id !== id))} onTap={tap} narrow={narrow} />
         ) : (
           <Board2D s={s} chapter={ch} sel={sel} targets={targets} last={last} checkSq={checkSq} fog={fog} levels={levels} onTap={tap} />
         )}
@@ -369,6 +370,17 @@ export function Battle({ ch, army, coins, frame, rewards, arena }: { ch: Chapter
         </>
       ) : null}
 
+      {intro > 0 ? (
+        <div className="mcc-bossintro" aria-hidden data-boss-intro>
+          <div className="flash" />
+          <div className="band">
+            <div className="chap">{ch.n <= 5 ? `Chapter ${ROMAN[ch.n - 1]}` : "Custom Arena"} · {ch.arena}</div>
+            <div className="nm">{ch.boss}</div>
+            <div className="ep">{ch.epithet}</div>
+          </div>
+        </div>
+      ) : null}
+
       {callout ? <div key={callout.id} className={cn("mcc-callout", callout.tone === "warn" && "is-warn", callout.tone === "gold" && "is-gold")} role="status" data-callout>
         {rewards.includes("golden-bot") ? <span className="mcc-goldbot" aria-hidden>◉</span> : <Volume2 className="size-4 shrink-0" />}{callout.text}
       </div> : null}
@@ -401,7 +413,7 @@ export function Battle({ ch, army, coins, frame, rewards, arena }: { ch: Chapter
             <ArenaCredit n={ch.look ?? ch.n} />
             {startErr ? <p className="mt-3 text-sm text-[#ffb08a]">{startErr}</p> : null}
             <div className="mt-5 flex flex-wrap justify-center gap-3">
-              <button type="button" className="mcc-btn" disabled={!run} onClick={() => { setPhase("play"); playSfx("menu"); }} data-begin-battle>
+              <button type="button" className="mcc-btn" disabled={!run} onClick={() => { setPhase("play"); setIntro(Date.now()); playSfx("boom", 0.9); window.setTimeout(() => setIntro((v) => (v ? -v : v)), 2600); }} data-begin-battle>
                 {run ? "Begin battle" : startErr ? "Locked" : "Preparing…"}
               </button>
               <Link to={arena ? "/campaign/builder" : "/campaign"} className="mcc-btn is-ghost">{arena ? "Arena Builder" : "Back to map"}</Link>

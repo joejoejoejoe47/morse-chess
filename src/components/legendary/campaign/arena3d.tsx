@@ -36,6 +36,8 @@ type Props = {
   onBurstDone: (id: number) => void;
   onTap: (sq: number) => void;
   narrow: boolean;
+  /** Change this number to replay the boss-intro sweep. */
+  intro?: number;
 };
 
 function Board({ chapter, s }: { chapter: Chapter; s: State }) {
@@ -271,6 +273,39 @@ function Backdrop({ chapter, phase }: { chapter: Chapter; phase: number }) {
   );
 }
 
+/** Boss-intro sweep (the world swings in from the side) and a short shake whenever something is captured. */
+function Stage({ intro, hits, children }: { intro?: number; hits: number; children: React.ReactNode }) {
+  const g = useRef<THREE.Group>(null);
+  const t0 = useRef<number | null>(null);
+  const shake = useRef(0);
+  const lastHits = useRef(hits);
+  useEffect(() => { if (intro) t0.current = null; }, [intro]);
+  useEffect(() => {
+    if (hits > lastHits.current) shake.current = 0.22;
+    lastHits.current = hits;
+  }, [hits]);
+  useFrame(({ clock }, dt) => {
+    const o = g.current;
+    if (!o) return;
+    let k = 1;
+    if (intro) {
+      if (t0.current == null) t0.current = clock.elapsedTime;
+      k = Math.min(1, (clock.elapsedTime - t0.current) / 2.2);
+    }
+    const e = 1 - Math.pow(1 - k, 3);
+    o.rotation.y = (1 - e) * -1.1;
+    o.position.set(0, (1 - e) * -2.2, (1 - e) * -7);
+    if (shake.current > 0) {
+      shake.current = Math.max(0, shake.current - dt * 0.9);
+      const a = shake.current;
+      o.position.x += (Math.random() - 0.5) * a;
+      o.position.y += (Math.random() - 0.5) * a * 0.6;
+      o.position.z += (Math.random() - 0.5) * a;
+    }
+  });
+  return <group ref={g}>{children}</group>;
+}
+
 export function Arena3D(p: Props) {
   const { s, chapter } = p;
   const targetSet = useMemo(() => new Map(p.targets.map((m) => [m.to, m])), [p.targets]);
@@ -290,6 +325,7 @@ export function Arena3D(p: Props) {
       <directionalLight position={[5, 13, 7]} intensity={1.8} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-7} shadow-camera-right={7} shadow-camera-top={7} shadow-camera-bottom={-7} />
       <pointLight position={[-6, 5, -5]} intensity={22} color="#b58cff" distance={24} />
       <pointLight position={[6, 4, -6]} intensity={18} color={chapter.glow} distance={22} />
+      <Stage intro={p.intro} hits={p.bursts.length ? p.bursts[p.bursts.length - 1].id : 0}>
       <Backdrop chapter={chapter} phase={s.phase} />
       <Board chapter={chapter} s={s} />
       {chapter.rules.gears ? <GearTiles squares={chapter.rules.gears} ply={s.ply} every={chapter.rules.gearEvery ?? 8} /> : null}
@@ -350,6 +386,7 @@ export function Arena3D(p: Props) {
       {p.bursts.map((b) => (
         <Shards key={b.id} burst={b} onDone={() => p.onBurstDone(b.id)} />
       ))}
+      </Stage>
       <OrbitControls target={[0, 0, 0.6]} enablePan={false} minDistance={8} maxDistance={24} maxPolarAngle={Math.PI * 0.42} minPolarAngle={0.15} />
     </Canvas>
   );
